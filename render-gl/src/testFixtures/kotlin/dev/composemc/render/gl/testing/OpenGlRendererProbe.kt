@@ -1,0 +1,153 @@
+package dev.composemc.render.gl.testing
+
+import dev.composemc.render.gl.*
+
+import dev.composemc.render.RecordedFrame
+import org.jetbrains.skia.PictureRecorder
+import org.jetbrains.skia.Rect
+import org.lwjgl.opengl.GL33C.*
+import org.lwjgl.system.MemoryUtil
+import kotlin.math.abs
+
+data class OpenGlProbeResult(val rgba: ByteArray, val cycles: Int, val worstDifferentPixels: Int, val worstMeanChannelError: Double)
+
+/** Explicit real-context regression probe. Never called by the normal rendering path. */
+object OpenGlRendererProbe {
+    fun verify(frame: RecordedFrame, expectedRgba: ByteArray, backgroundArgb: Int): OpenGlProbeResult {
+        val width = frame.viewport.width
+        val height = frame.viewport.height
+        require(expectedRgba.size == width * height * 4)
+        val original = GlStateSnapshot.capture(glGetInteger(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS))
+        var targetTexture = 0
+        var targetFbo = 0
+        var hostVao = 0
+        var hostBuffer = 0
+        var pixels = ByteArray(0)
+        var worstPixels = 0
+        var worstMean = 0.0
+        val cycles = 12
+        try {
+            GlStateSnapshot.preparePixelTransfers()
+            glActiveTexture(GL_TEXTURE0)
+            targetTexture = glGenTextures()
+            glBindTexture(GL_TEXTURE_2D, targetTexture)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0L)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+            targetFbo = glGenFramebuffers()
+            glBindFramebuffer(GL_FRAMEBUFFER, targetFbo)
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, targetTexture, 0)
+            check(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE)
+            hostVao = glGenVertexArrays()
+            glBindVertexArray(hostVao)
+            hostBuffer = glGenBuffers()
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, hostBuffer)
+            glBufferData(GL_ELEMENT_ARRAY_BUFFER, 4096L, GL_STATIC_DRAW)
+            repeat(cycles) { cycle ->
+                OpenGlFrameRenderer(verifyState = true).use { renderer ->
+                    repeat(3) { iteration ->
+                        glBindFramebuffer(GL_FRAMEBUFFER, targetFbo)
+                        glDisable(GL_SCISSOR_TEST)
+                        glDisable(GL_FRAMEBUFFER_SRGB)
+                        glColorMask(true, true, true, true)
+                        glClearColor((backgroundArgb ushr 16 and 255) / 255f, (backgroundArgb ushr 8 and 255) / 255f,
+                            (backgroundArgb and 255) / 255f, (backgroundArgb ushr 24 and 255) / 255f)
+                        glClear(GL_COLOR_BUFFER_BIT)
+                        // Simulate MC atlas transfers and a foreign GUI pass, including a bound PBO.
+                        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, hostBuffer)
+                        glPixelStorei(GL_UNPACK_ALIGNMENT, 8)
+                        glPixelStorei(GL_UNPACK_ROW_LENGTH, width + 19)
+                        glPixelStorei(GL_UNPACK_SKIP_PIXELS, 3)
+                        glPixelStorei(GL_UNPACK_SKIP_ROWS, 5)
+                        glEnable(GL_SCISSOR_TEST)
+                        glScissor(3, 5, width - 9, height - 11)
+                        glEnable(GL_DEPTH_TEST)
+                        glDepthMask(false)
+                        glEnable(GL_CULL_FACE)
+                        glCullFace(GL_FRONT)
+                        glBlendEquationSeparate(GL_FUNC_REVERSE_SUBTRACT, GL_FUNC_ADD)
+                        glBlendFuncSeparate(GL_SRC_ALPHA, GL_DST_ALPHA, GL_ZERO, GL_ONE)
+                        glColorMask(false, true, false, false)
+                        glActiveTexture(GL_TEXTURE3)
+                        renderer.render(frame)
+                        renderer.present(OpenGlDestination(targetFbo, width, height))
+                        if (iteration != 1) {
+                            // A recorded image must survive overwriting its source and retiring the cache reference.
+                            val copied = renderer.copyFramebuffer(OpenGlDestination(targetFbo, width, height))
+                            val cropped = if (iteration == 0) renderer.copyFramebuffer(OpenGlDestination(targetFbo, width, height), width / 2, height / 2)
+                                else readFramebufferImage(OpenGlDestination(targetFbo, width, height), width / 2, height / 2)
+                            val picture = PictureRecorder().use { recorder ->
+                                val canvas = recorder.beginRecording(Rect.makeWH(width.toFloat(), height.toFloat()))
+                                canvas.drawImageRect(copied, Rect.makeWH(width.toFloat(), height.toFloat()))
+                                // Replacing the top-left region must preserve its pixels in both import paths.
+                                canvas.drawImageRect(cropped, Rect.makeWH(width / 2f, height / 2f))
+                                recorder.finishRecordingAsPicture()
+                            }
+                            if (iteration == 0) renderer.releaseImages(listOf(copied, cropped))
+                            else { renderer.releaseImage(copied); cropped.close() }
+                            check(renderer.statistics.liveNativeImages == 0)
+                            glColorMask(true, true, true, true)
+                            glDisable(GL_SCISSOR_TEST)
+                            glClearColor(0f, 1f, 0f, 1f)
+                            glClear(GL_COLOR_BUFFER_BIT)
+                            RecordedFrame(frame.generation, frame.viewport, picture).use { imported ->
+                                renderer.render(imported)
+                                renderer.present(OpenGlDestination(targetFbo, width, height))
+                            }
+                        }
+                        check(glGetInteger(GL_ELEMENT_ARRAY_BUFFER_BINDING) == hostBuffer) { "Host VAO was modified" }
+                        check(glIsTexture(targetTexture)) { "Borrowed destination texture was deleted" }
+                        check(glGetError() == GL_NO_ERROR) { "GL error during renderer probe" }
+                        pixels = readRgba(targetFbo, width, height)
+                        var different = 0
+                        var error = 0L
+                        for (pixel in 0 until width * height) {
+                            var maxError = 0
+                            for (channel in 0..3) {
+                                val offset = pixel * 4 + channel
+                                val delta = abs((pixels[offset].toInt() and 255) - (expectedRgba[offset].toInt() and 255))
+                                error += delta
+                                maxError = maxOf(maxError, delta)
+                            }
+                            if (maxError > 16) different++
+                        }
+                        val mean = error.toDouble() / pixels.size
+                        check(different <= width * height / 50 && mean < 2.0) {
+                            "CPU/GL image mismatch in cycle $cycle, iteration $iteration: $different pixels, mean error $mean"
+                        }
+                        worstPixels = maxOf(worstPixels, different)
+                        worstMean = maxOf(worstMean, mean)
+                        check(renderer.statistics.fullFrameUploads == 0L)
+                        if (iteration == 1) {
+                            renderer.reset()
+                            check(renderer.needsFrame && renderer.statistics.liveSurfaces == 0)
+                        }
+                    }
+                    check(renderer.statistics.surfaceAllocations == 2L) { "Retained surface was not reused" }
+                }
+            }
+            return OpenGlProbeResult(pixels, cycles, worstPixels, worstMean)
+        } finally {
+            glBindVertexArray(0)
+            if (hostBuffer != 0) glDeleteBuffers(hostBuffer)
+            if (hostVao != 0) glDeleteVertexArrays(hostVao)
+            if (targetFbo != 0) glDeleteFramebuffers(targetFbo)
+            if (targetTexture != 0) glDeleteTextures(targetTexture)
+            original.restore()
+            original.assertRestored()
+        }
+    }
+
+    private fun readRgba(framebuffer: Int, width: Int, height: Int): ByteArray {
+        GlStateSnapshot.preparePixelTransfers()
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer)
+        val buffer = MemoryUtil.memAlloc(width * height * 4)
+        try {
+            glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, buffer)
+            return ByteArray(buffer.capacity()) { index ->
+                val row = index / (width * 4)
+                buffer.get((height - 1 - row) * width * 4 + index % (width * 4))
+            }
+        } finally { MemoryUtil.memFree(buffer) }
+    }
+}

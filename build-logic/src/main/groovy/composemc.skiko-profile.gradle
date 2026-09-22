@@ -1,0 +1,9 @@
+plugins { id 'java-library' }
+
+// A constraint selects the matching JVM ABI without adding an unbundled UI runtime.
+def skikoVersion = project.skiko_version.toString()
+dependencies.constraints {
+    ['skiko', 'skiko-awt'].each { module ->
+        implementation("org.jetbrains.skiko:$module:$skikoVersion") { version { strictly skikoVersion } }
+    }
+}

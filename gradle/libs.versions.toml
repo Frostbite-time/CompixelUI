@@ -1,0 +1,22 @@
+[versions]
+kotlin = "2.4.10"
+compose = "1.12.0"
+skiko-standard = "0.150.1"
+skiko-vulkan = "0.999.6"
+lwjgl-gl = "3.3.3"
+lwjgl-vulkan = "3.4.1"
+junit = "5.13.4"
+junit-platform = "1.13.4"
+moddev = "2.0.147"
+shadow = "9.2.2"
+
+[libraries]
+skiko-standard = { module = "org.jetbrains.skiko:skiko-awt", version.ref = "skiko-standard" }
+skiko-vulkan = { module = "org.jetbrains.skiko:skiko-awt", version.ref = "skiko-vulkan" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+compose = { id = "org.jetbrains.compose", version.ref = "compose" }
+moddev = { id = "net.neoforged.moddev", version.ref = "moddev" }
+shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }

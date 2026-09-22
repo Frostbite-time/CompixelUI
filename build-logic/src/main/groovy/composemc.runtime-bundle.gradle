@@ -1,0 +1,163 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
+plugins { id 'java-library' }
+pluginManager.apply('com.gradleup.shadow')
+
+def skikoPlatforms = ['windows-x64', 'windows-arm64', 'linux-x64', 'linux-arm64', 'macos-x64', 'macos-arm64']
+def skikoVersion = project.skiko_version.toString()
+def profile = project.runtime_profile.toString()
+// KFF supplies these libraries. Swing integration and atomicfu remain ours.
+def suppliedByKotlinProvider = { id ->
+    id.group == 'org.jetbrains.kotlin' || (id.group == 'org.jetbrains.kotlinx' &&
+        (id.name.startsWith('kotlinx-serialization-') ||
+            id.name in ['kotlinx-coroutines-core', 'kotlinx-coroutines-core-jvm', 'kotlinx-coroutines-jdk8']))
+}
+repositories {
+    // PREFER_PROJECT requires the runtime module to declare the Polyfrost
+    // repository itself; these artifacts include the Vulkan-capable natives.
+    maven { url = 'https://repo.polyfrost.org/releases' }
+    mavenCentral()
+    google()
+}
+
+dependencies {
+    implementation project(':host')
+    implementation project(':render-gl')
+    if (runtime_profile == 'vulkan') implementation project(':render-vulkan')
+    implementation project(':ui-ore')
+    skikoPlatforms.each { skikoPlatform ->
+        runtimeOnly "org.jetbrains.skiko:skiko-awt-runtime-${skikoPlatform}:${skiko_version}"
+    }
+}
+
+def registerNotices = { boolean withKotlin ->
+    tasks.register(withKotlin ? 'thirdPartyNoticesWithKotlin' : 'thirdPartyNotices') {
+        def output = layout.buildDirectory.dir("third-party/${withKotlin ? 'with-kotlin' : 'external-kotlin'}")
+        inputs.files(configurations.runtimeClasspath)
+        outputs.dir(output)
+        doLast {
+            def artifacts = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts.findAll {
+                withKotlin || !suppliedByKotlinProvider(it.moduleVersion.id)
+            }.sort {
+                it.moduleVersion.id.toString()
+            }
+            def noticesRoot = output.get().asFile
+            // Remove notices for dependencies/versions no longer in this runtime.
+            project.delete(noticesRoot)
+            noticesRoot.mkdirs()
+            new File(noticesRoot, 'dependencies.txt').setText(
+                artifacts.collect { it.moduleVersion.id.toString() }.unique().join('\n') + '\n', 'UTF-8')
+            artifacts.each { artifact ->
+                def id = artifact.moduleVersion.id
+                def prefix = "${id.group}/${id.name}/${id.version}"
+                copy {
+                    from zipTree(artifact.file)
+                    include { details ->
+                        def name = details.name.toLowerCase(Locale.ROOT)
+                        name.contains('license') || name.contains('notice') || name.startsWith('copying')
+                    }
+                    into new File(noticesRoot, prefix)
+                    includeEmptyDirs = false
+                }
+            }
+        }
+    }
+}
+
+def fullRuntime = tasks.register('withKotlinJar', ShadowJar) {
+    from sourceSets.main.output
+    configurations = [project.configurations.runtimeClasspath]
+}
+def noticesByVariant = [registerNotices(false), registerNotices(true)]
+[tasks.named('shadowJar'), fullRuntime].eachWithIndex { archive, index ->
+    archive.configure {
+        def withKotlin = index == 1
+        archiveBaseName = "composemc-runtime-${runtime_profile}"
+        archiveClassifier = withKotlin ? 'with-kotlin' : 'universal'
+        from(noticesByVariant[index]) { into 'META-INF/composemc-third-party' }
+        if (!withKotlin) dependencies {
+            exclude { dependency -> suppliedByKotlinProvider(dependency.module.id) }
+        }
+        // Compose splits packages across artifacts; NeoForge 1.21.1 needs one module for them.
+        // Do not relocate or minimize: compiler ABI, service providers and JNI require their names.
+        mergeServiceFiles()
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        filesMatching('META-INF/services/**') { duplicatesStrategy = DuplicatesStrategy.INCLUDE }
+        exclude 'module-info.class', 'META-INF/versions/**/module-info.class'
+        exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA'
+        manifest {
+            attributes 'FMLModType': 'LIBRARY', 'Automatic-Module-Name': 'dev.composemc.runtime'
+        }
+    }
+}
+
+[false, true].each { withKotlin ->
+    configurations.create(withKotlin ? 'bundledRuntimeWithKotlin' : 'bundledRuntime') {
+        canBeConsumed = true
+        canBeResolved = false
+        attributes {
+            attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+            attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+            attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
+            attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.SHADOWED))
+        }
+        outgoing.capability("${project.group}:composemc-runtime-${profile}${withKotlin ? '-with-kotlin' : ''}:${project.version}")
+    }
+    artifacts.add(withKotlin ? 'bundledRuntimeWithKotlin' : 'bundledRuntime', withKotlin ? fullRuntime : tasks.named('shadowJar'))
+}
+
+tasks.register('verifyRuntimeArchive') {
+    dependsOn tasks.named('shadowJar'), fullRuntime
+    doLast {
+        def versions = configurations.runtimeClasspath.incoming.resolutionResult.allComponents
+            .findAll { it.moduleVersion?.group == 'org.jetbrains.skiko' }
+            .collect { it.moduleVersion.version }.toSet()
+        if (versions != [skikoVersion].toSet()) throw new GradleException("Mixed Skiko ABI/native versions: $versions; expected $skikoVersion")
+        [tasks.named('shadowJar'), fullRuntime].eachWithIndex { archive, index ->
+            def withKotlin = index == 1
+            def file = archive.get().archiveFile.get().asFile
+            new java.util.zip.ZipFile(file).withCloseable { zip ->
+                def required = [
+                    'dev/composemc/host/UiSession.class',
+                    'dev/composemc/render/FrameRenderer.class',
+                    'dev/composemc/render/gl/OpenGlFrameRenderer.class',
+                    'androidx/compose/runtime/SnapshotStateKt.class',
+                    'META-INF/services/kotlinx.coroutines.internal.MainDispatcherFactory',
+                    'META-INF/composemc-third-party/dependencies.txt',
+                ]
+                if (withKotlin) required.addAll(['kotlin/jvm/internal/Intrinsics.class',
+                    'kotlinx/coroutines/Job.class', 'kotlinx/serialization/KSerializer.class'])
+                else if (zip.entries().toList().any {
+                    !it.directory && (it.name.startsWith('kotlin/') || it.name.startsWith('kotlinx/serialization/') ||
+                        (it.name.startsWith('kotlinx/coroutines/') && !it.name.startsWith('kotlinx/coroutines/swing/')))
+                }) throw new GradleException('External-Kotlin runtime embedded provider classes')
+                def hasVulkan = zip.getEntry('dev/composemc/render/vulkan/VulkanFrameRenderer.class') != null
+                if (hasVulkan != (profile == 'vulkan')) throw new GradleException("Incorrect backend contents for runtime $profile")
+                required.each { if (zip.getEntry(it) == null) throw new GradleException("Missing runtime entry: $it") }
+                if (zip.entries().toList().any { it.name.startsWith('org/lwjgl/') }) {
+                    throw new GradleException('The runtime must use Minecraft LWJGL, not bundle another copy')
+                }
+                if (zip.entries().toList().any {
+                    it.name.toLowerCase(Locale.ROOT).contains('mixin') ||
+                        it.name.startsWith('dev/composemc/demo/') || it.name.startsWith('dev/composemc/development/') ||
+                        it.name.startsWith('dev/composemc/render/gl/testing/') ||
+                        it.name.contains('OpenGlRendererProbe') || it.name.contains('OpenGlProbeResult') ||
+                        it.name.startsWith('androidx/compose/material3/')
+                }) {
+                    throw new GradleException('Test tooling or injection files leaked into the shared runtime')
+                }
+                if (zip.entries().toList().count { it.name.endsWith('.sha256') && it.name.contains('skiko') } < skikoPlatforms.size()) {
+                    throw new GradleException("Missing Skiko native library checksum for ${skikoPlatforms}")
+                }
+                skikoPlatforms.each { skikoPlatform ->
+                    if (zip.getEntry("skiko-${skikoPlatform}.dll") == null
+                        && zip.getEntry("libskiko-${skikoPlatform}.so") == null
+                        && zip.getEntry("libskiko-${skikoPlatform}.dylib") == null) {
+                        throw new GradleException("Missing Skiko native library for ${skikoPlatform}")
+                    }
+                }
+            }
+        }
+    }
+}
+tasks.named('check') { dependsOn tasks.named('verifyRuntimeArchive') }

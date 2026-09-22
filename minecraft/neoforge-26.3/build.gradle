@@ -1,0 +1,113 @@
+import net.neoforged.moddevgradle.tasks.JarJar
+
+plugins {
+    id 'composemc.jvm-library'
+    id 'org.jetbrains.kotlin.plugin.compose'
+    id 'net.neoforged.moddev'
+}
+
+// This adapter owns its loader/toolchain, runtime, local sources and native run options.
+kotlin.jvmToolchain(java_version as int)
+ext.skiko_version = libs.versions.skiko.vulkan.get()
+apply plugin: 'composemc.skiko-profile'
+def runtimeBundle = project(':runtime-vulkan')
+
+repositories {
+    maven { url = 'https://repo.polyfrost.org/releases' }
+    mavenCentral()
+    google()
+}
+// Minecraft supplies epoll only on Linux; keep the lock portable across hosts.
+dependencyLocking.ignoredDependencies.add('io.netty:netty-transport-native-epoll')
+
+apply from: rootProject.file('gradle/minecraft/sources.gradle')
+apply from: rootProject.file('gradle/minecraft/artifacts.gradle')
+apply from: rootProject.file('gradle/minecraft/artifact-checks.gradle')
+apply from: rootProject.file('gradle/minecraft/runs.gradle')
+
+def rendererFixtures = configureMinecraftSources()
+def artifacts = configureMinecraftArtifacts(
+    withKotlinDependencies: JarJar.registerWithConfiguration(project, 'withKotlinJarJar'),
+    loader: 'neoforge', runtime: runtimeBundle, rendererFixtures: rendererFixtures,
+    metadataPath: 'META-INF/neoforge.mods.toml',
+    metadataValues: [neo_version: neo_version],
+    release: tasks.named('jar'))
+
+def requestedBackend = providers.gradleProperty('composemcBackend').orElse('auto').get()
+if (!(requestedBackend in ['auto', 'cpu'] + minecraft_backends.split(',').toList()))
+    throw new GradleException('Unsupported backend for neoforge 26.3: ' + requestedBackend)
+def backend = requestedBackend
+def runSettings = minecraftRunSettings(backend)
+def vulkanValidation = providers.gradleProperty('composemcVulkanValidation').orElse('false').get() == 'true'
+
+neoForge {
+    version = neo_version
+    addModdingDependenciesTo sourceSets.packagedSmoke
+    addModdingDependenciesTo sourceSets.test
+    addModdingDependenciesTo sourceSets.development
+    ideSyncTask artifacts.metadata
+    runs {
+        configureEach { systemProperty 'composemc.backend', backend }
+        client {
+            client()
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+        clientSmoke { client(); configureSmokeRun(delegate, runSettings, false) }
+        packagedSmoke { client(); configureSmokeRun(delegate, runSettings, true) }
+        benchmark {
+            client()
+            configureBenchmarkRun(delegate, runSettings)
+            programArguments.addAll '--graphicsBackend', backend == 'vulkan' ? 'vulkan' : 'opengl'
+            if (vulkanValidation) programArguments.add '--vulkanValidation'
+        }
+    }
+    mods {
+        composemc {
+            sourceSet sourceSets.main
+            sourceSet project(':menu-sync').sourceSets.main
+            sourceSet project(':slot-core').sourceSets.main
+        }
+        composemc_development {
+            sourceSet sourceSets.development
+            sourceSet project(':demo').sourceSets.main
+            sourceSet rendererFixtures
+        }
+    }
+}
+
+dependencies {
+    compileOnly project(':host')
+    compileOnly project(':ui-ore')
+    compileOnly project(':render-gl')
+    compileOnly project(':render-vulkan')
+    compileOnly project(':menu-sync')
+    compileOnly project(':slot-core')
+    compileOnly("org.jetbrains.compose.foundation:foundation:" + libs.versions.compose.get())
+    developmentCompileOnly project(':demo')
+    developmentCompileOnly(testFixtures(project(':render-gl')))
+    testImplementation project(':host')
+    testImplementation project(':menu-sync')
+    runtimeOnly(runtimeBundle) {
+        capabilities { requireCapability('dev.composemc:composemc-runtime-vulkan-with-kotlin') }
+    }
+    jarJar(runtimeBundle) {
+        capabilities { requireCapability('dev.composemc:composemc-runtime-vulkan') }
+    }
+}
+
+verifyMinecraftArtifacts(artifacts, [
+    'public-f net.minecraft.world.inventory.Slot x',
+    'public-f net.minecraft.world.inventory.Slot y',
+    'public-f com.mojang.renderpearl.frontend.FrontendGpuDevice backend',
+] as Set)
+verifyMinecraftRuns(runSettings)
+tasks.named('runBenchmark') {
+    doFirst {
+        if (runSettings.background == 'true' && providers.gradleProperty('composemcBenchmarkIsolatedDesktop').orElse('false').get() != 'true')
+            throw new GradleException('Run tools/run_background_benchmark.ps1 on an isolated desktop')
+        writeBenchmarkWindowConfig(runSettings, 'earlyWindowControl=false\n')
+    }
+    doLast {
+        if (vulkanValidation) verifyVulkanReport(runSettings, [] as Set)
+    }
+}

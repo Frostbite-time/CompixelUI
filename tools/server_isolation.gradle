@@ -1,0 +1,39 @@
+// Opt-in headless SERVER-side initialization check. It loads only the library
+// JAR in the loader's GameTest harness, then checks the JVM initialization log.
+// Forge uses named development mappings here; its production SRG mappings are
+// separately covered by run_forge_production_benchmark.ps1.
+gradle.beforeProject { p ->
+    p.afterEvaluate {
+        if (p.name in ['forge-1.20.1', 'neoforge-26.1.2']) {
+            def forge = p.name.startsWith('forge-')
+            def loader = p.extensions.getByName(forge ? 'legacyForge' : 'neoForge')
+            def stage = p.tasks.register('stageServerInitialization', Sync) {
+                from p.tasks.named('jar')
+                into p.layout.buildDirectory.dir('server-initialization/mods')
+            }
+            loader.runs.create('serverInitialization') {
+                type = 'gameTestServer'
+                sourceSet = p.sourceSets.packagedSmoke
+                loadedMods = []
+                gameDirectory = p.file('build/server-initialization')
+                jvmArguments.add '-Xlog:class+init=info:file=class-init.log'
+                taskBefore stage
+            }
+            p.tasks.named('runServerInitialization') {
+                timeout = java.time.Duration.ofMinutes(2)
+                doFirst { p.delete p.file('build/server-initialization/class-init.log') }
+                doLast {
+                    def log = p.file('build/server-initialization/class-init.log').getText('UTF-8')
+                    def namespace = forge ? 'forge' : 'neoforge'
+                    ['ComposeMcCommon', 'sync/MenuSyncNetworking'].each { type ->
+                        if (!log.contains("Initializing 'dev/composemc/$namespace/$type'"))
+                            throw new GradleException("Server did not initialize $type")
+                    }
+                    def ui = ~/Initializing '(androidx\/compose|org\/jetbrains\/(skia|skiko)|java\/awt|javax\/swing|kotlin\/|dev\/composemc\/(host|bridge|render|ui|forge\/Client|neoforge\/Client))/
+                    if (log =~ ui) throw new GradleException('Server initialized a client UI runtime')
+                    logger.lifecycle('Server isolation PASS: common entry and networking initialized without UI runtime')
+                }
+            }
+        }
+    }
+}

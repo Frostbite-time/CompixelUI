@@ -1,0 +1,16 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="${mod_license}"
+
+[[mods]]
+modId="composemc_development"
+version="${mod_version}"
+displayName="Compose MC Development Tools"
+description="Optional preview and validation tools. Requires the separately installed composemc runtime."
+
+[[dependencies.composemc_development]]
+modId="composemc"
+type="required"
+versionRange="[${mod_version}]"
+ordering="AFTER"
+side="CLIENT"

@@ -1,0 +1,87 @@
+// Reusable launch/report mechanics. Adapters explicitly declare loader runs and native options.
+ext.minecraftRunSettings = { String backend ->
+    def label = providers.gradleProperty('composemcBenchmarkLabel').orElse('baseline').get()
+    if (!(label ==~ /[a-zA-Z0-9_-]+/)) throw new GradleException('Invalid benchmark label')
+    def background = providers.gradleProperty('composemcBenchmarkBackground').orElse('false').get()
+    if (!(background in ['true', 'false'])) throw new GradleException('composemcBenchmarkBackground must be true or false')
+    def settings = [backend: backend, background: background,
+        clientSmokeDirectory: "client-smoke-$backend", packagedSmokeDirectory: "packaged-smoke-$backend",
+        benchmarkDirectory: "benchmark-$backend-${background == 'true' ? 'background' : 'foreground'}-$label"]
+    def kotlinMode = providers.gradleProperty('composemcKotlinMode').orElse('bundled').get()
+    if (!(kotlinMode in ['bundled', 'external'])) throw new GradleException('composemcKotlinMode must be bundled or external')
+    def providerJar = providers.gradleProperty('composemcKotlinProviderJar').orNull
+    if (kotlinMode == 'bundled' && providerJar) throw new GradleException('A Kotlin provider is only used with composemcKotlinMode=external')
+    ['stagePackagedSmoke': settings.packagedSmokeDirectory, 'stageBenchmark': settings.benchmarkDirectory].each { name, directory ->
+        tasks.register(name, Sync) {
+            from tasks.named(kotlinMode == 'bundled' ? 'withKotlinJar' : 'jar')
+            from tasks.named('developmentJar')
+            if (providerJar) from file(providerJar)
+            into layout.buildDirectory.dir("$directory/mods")
+        }
+    }
+    settings
+}
+
+ext.configureSmokeRun = { run, Map settings, boolean packaged ->
+    run.gameDirectory = project.file('build/' + (packaged ? settings.packagedSmokeDirectory : settings.clientSmokeDirectory))
+    run.systemProperty 'composemc.smoke', 'true'
+    run.programArguments.addAll '--width', '1280', '--height', '960'
+    if (packaged) {
+        run.sourceSet = sourceSets.packagedSmoke
+        run.loadedMods = []
+        run.taskBefore tasks.named('stagePackagedSmoke')
+    }
+}
+
+ext.configureBenchmarkRun = { run, Map settings ->
+    run.sourceSet = sourceSets.packagedSmoke
+    run.loadedMods = []
+    run.gameDirectory = project.file('build/' + settings.benchmarkDirectory)
+    run.systemProperty 'composemc.benchmark', 'true'
+    run.systemProperty 'composemc.benchmark.control', providers.gradleProperty('composemcBenchmarkControl').orElse('false').get()
+    run.systemProperty 'composemc.benchmark.background', settings.background
+    run.systemProperty 'composemc.profile', 'true'
+    run.systemProperty 'composemc.allocations', 'true'
+    run.systemProperty 'composemc.benchmark.frames', providers.gradleProperty('composemcBenchmarkFrames').orElse('360').get()
+    run.systemProperty 'composemc.benchmark.repeats', providers.gradleProperty('composemcBenchmarkRepeats').orElse('2').get()
+    run.programArguments.addAll '--width', '1280', '--height', '960'
+    run.taskBefore tasks.named('stageBenchmark')
+}
+
+ext.verifyMinecraftRuns = { Map settings ->
+    // Keep IDE-generated launch files separate for each backend/run.
+    tasks.named('prepareBenchmarkRun') {
+        vmArgsFile = layout.buildDirectory.file("${settings.benchmarkDirectory}/launch/vm.args")
+        programArgsFile = layout.buildDirectory.file("${settings.benchmarkDirectory}/launch/program.args")
+        log4jConfigFile = layout.buildDirectory.file("${settings.benchmarkDirectory}/launch/log4j2.xml")
+    }
+    def reports = [runClientSmoke: [settings.clientSmokeDirectory, 'composemc-smoke.txt', 3],
+        runPackagedSmoke: [settings.packagedSmokeDirectory, 'composemc-smoke.txt', 3],
+        runBenchmark: [settings.benchmarkDirectory, 'composemc-benchmark.txt', 10]]
+    reports.each { name, report ->
+        tasks.named(name) {
+            timeout = java.time.Duration.ofMinutes(report[2])
+            doFirst { delete layout.buildDirectory.file("${report[0]}/${report[1]}") }
+            doLast {
+                def file = layout.buildDirectory.file("${report[0]}/${report[1]}").get().asFile
+                if (!file.exists() || !file.text.startsWith('PASS')) throw new GradleException("Probe did not complete: $file")
+                logger.lifecycle(file.text)
+            }
+        }
+    }
+}
+
+ext.writeBenchmarkWindowConfig = { Map settings, String text ->
+    def config = layout.buildDirectory.file("${settings.benchmarkDirectory}/config/fml.toml").get().asFile
+    config.parentFile.mkdirs()
+    config.setText(text, 'UTF-8')
+}
+
+ext.verifyVulkanReport = { Map settings, Set<String> allowedDiagnostics ->
+    def log = layout.buildDirectory.file("${settings.benchmarkDirectory}/logs/latest.log").get().asFile.text
+    if (!log.contains('Enabling Vulkan validation layers')) throw new GradleException('Vulkan validation layer was not enabled')
+    def errors = log.readLines().findAll { it.contains('VUID-') || it.contains('SYNC-HAZARD') }
+    def unexpected = errors.findAll { line -> !allowedDiagnostics.any { line.contains(it) } }
+    if (!unexpected.empty) throw new GradleException("Unexpected Vulkan validation errors: $unexpected")
+    logger.lifecycle("Vulkan validation: no unexpected errors; allowed diagnostics=${errors.size()}")
+}

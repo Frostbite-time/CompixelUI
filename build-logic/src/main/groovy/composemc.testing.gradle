@@ -1,0 +1,24 @@
+plugins { id 'java-library' }
+
+def versions = rootProject.extensions.getByType(org.gradle.api.artifacts.VersionCatalogsExtension).named('libs')
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+    systemProperty 'java.awt.headless', 'true'
+    testLogging { events 'failed', 'skipped' }
+}
+dependencies {
+    testImplementation "org.junit.jupiter:junit-jupiter:${versions.findVersion('junit').get().requiredVersion}"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher:${versions.findVersion('junit-platform').get().requiredVersion}"
+}
+dependencyLocking { lockAllConfigurations() }
+
+// currentOs selects different module names on each host. Their versions come
+// from the pinned Compose dependency and its Skiko runtime. Keep the shared JVM
+// graph locked; the universal runtime bundles still lock all six native modules.
+pluginManager.withPlugin('org.jetbrains.compose') {
+    dependencyLocking.ignoredDependencies.addAll(
+        'org.jetbrains.compose.desktop:desktop-jvm-*',
+        'org.jetbrains.skiko:skiko-awt-runtime-*'
+    )
+}

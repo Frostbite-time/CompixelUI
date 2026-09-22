@@ -1,0 +1,8 @@
+plugins { id 'groovy-gradle-plugin' }
+// The root build supplies the plugin at runtime; conventions need its task API.
+dependencies { compileOnly "com.gradleup.shadow:shadow-gradle-plugin:${libs.versions.shadow.get()}" }
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+tasks.withType(JavaCompile).configureEach { options.release = 17 }

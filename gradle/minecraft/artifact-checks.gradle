@@ -1,0 +1,57 @@
+// Shared archive invariants. The expected access transformers are declared by each adapter.
+ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms ->
+    def releaseCheck = tasks.register('verifyReleaseIsolation') {
+        group = 'verification'
+        dependsOn artifacts.release, artifacts.withKotlin, "${artifacts.runtime.path}:verifyRuntimeArchive"
+        inputs.file artifacts.release.flatMap { it.archiveFile }
+        inputs.file artifacts.withKotlin.flatMap { it.archiveFile }
+        doLast {
+            [artifacts.release, artifacts.withKotlin].eachWithIndex { archive, index ->
+                new java.util.zip.ZipFile(archive.get().archiveFile.get().asFile).withCloseable { zip ->
+                    def jij = new groovy.json.JsonSlurper().parseText(zip.getInputStream(zip.getEntry('META-INF/jarjar/metadata.json')).getText('UTF-8'))
+                    def expected = "composemc-runtime-${artifacts.runtime.runtime_profile}${index == 1 ? '-with-kotlin' : ''}"
+                    if (jij.jars.size() != 1 || jij.jars[0].identifier.artifact != expected || zip.getEntry(jij.jars[0].path) == null)
+                        throw new GradleException("Incorrect embedded runtime for ${archive.name}")
+                    if (zip.entries().any { it.name.startsWith('kotlin/') || it.name.startsWith('kotlinx/') || it.name.startsWith('thedarkcolour/') })
+                        throw new GradleException('Kotlin provider classes leaked into outer mod')
+                    def bad = zip.entries().findAll { entry ->
+                        def name = entry.name.toLowerCase(java.util.Locale.ROOT)
+                        name.contains('mixin') ||
+                            name.startsWith('dev/composemc/development/') || name.startsWith('dev/composemc/demo/') ||
+                            name.startsWith('dev/composemc/render/gl/testing/') || name.contains('smokeprobe') ||
+                            name.contains('benchmarkprobe') || name.contains('tooltipprobe') || name.contains('composepreviewscreen')
+                    }.collect { it.name }
+                    if (!bad.empty) throw new GradleException("Test/injection files leaked into release JAR: $bad")
+                    def metadata = zip.getInputStream(zip.getEntry(artifacts.metadataPath)).getText('UTF-8')
+                    if (metadata.contains('[[mixins]]')) throw new GradleException('Mixin registration leaked into release metadata')
+                    if (expectedTransforms != null) {
+                        def at = zip.getEntry('META-INF/accesstransformer.cfg')
+                        if (at == null) throw new GradleException('Missing access transformer')
+                        def actual = zip.getInputStream(at).getText('UTF-8').readLines()
+                            .collect { it.trim() }.findAll { it && !it.startsWith('#') }.toSet()
+                        if (actual != expectedTransforms) throw new GradleException('Unexpected access transformers for this adapter')
+                    }
+                }
+            }
+            logger.lifecycle('Release isolation PASS: no development tools, demos or mixins')
+        }
+    }
+    def developmentCheck = tasks.register('verifyDevelopmentArchive') {
+        dependsOn artifacts.development
+        doLast {
+            new java.util.zip.ZipFile(artifacts.development.get().archiveFile.get().asFile).withCloseable { zip ->
+                if (zip.getEntry('dev/composemc/development/ComposeMcDevelopment.class') == null)
+                    throw new GradleException('Missing development mod entry point')
+                if (zip.getEntry('dev/composemc/render/gl/testing/OpenGlRendererProbe.class') == null)
+                    throw new GradleException('Missing shared OpenGL probe fixture')
+                if (zip.getEntry('dev/composemc/render/gl/GlStateSnapshot.class') != null)
+                    throw new GradleException('Development artifact embedded renderer implementation')
+                if (zip.entries().findAll { it.name.startsWith('androidx/') || it.name.startsWith('kotlin/') ||
+                    it.name.startsWith('org/jetbrains/skiko/') || it.name.startsWith('org/jetbrains/skia/') ||
+                    it.name.startsWith("dev/composemc/${artifacts.loader}/") })
+                    throw new GradleException('Development artifact embedded runtime/production adapter classes')
+            }
+        }
+    }
+    tasks.named('check') { dependsOn releaseCheck, developmentCheck }
+}

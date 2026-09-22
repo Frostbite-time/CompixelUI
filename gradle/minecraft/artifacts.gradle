@@ -1,0 +1,84 @@
+// Artifact assembly/publication. Loader selection, dependencies and remapping belong to adapters.
+apply plugin: 'maven-publish'
+
+ext.configureMinecraftArtifacts = { Map spec ->
+    def runtime = spec.runtime
+    base { archivesName = "composemc-${spec.loader}-${minecraft_version}" }
+    def development = tasks.findByName('developmentJar') != null
+        ? tasks.named('developmentJar', Jar) : tasks.register('developmentJar', Jar)
+    development.configure {
+        archiveClassifier = 'development'
+        from sourceSets.development.output
+        from project(':demo').sourceSets.main.output
+        from spec.rendererFixtures.output
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    }
+    tasks.named('processDevelopmentResources') {
+        inputs.property 'mod_version', project.mod_version
+        inputs.property 'mod_license', project.mod_license
+        filesMatching(spec.metadataPath) { expand(mod_version: project.mod_version, mod_license: project.mod_license) }
+    }
+    def metadata = tasks.register('generateModMetadata', ProcessResources) {
+        def values = [mod_id: mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: mod_version,
+            loader_version_range: loader_version_range, minecraft_version: minecraft_version,
+            minecraft_version_range: "[$minecraft_version]"] + spec.metadataValues
+        inputs.properties values
+        expand values
+        from 'src/main/templates'
+        into 'build/generated/sources/modMetadata'
+    }
+    sourceSets.main.resources.srcDir metadata
+    tasks.named('jar') {
+        from project(':menu-sync').sourceSets.main.output
+        from project(':slot-core').sourceSets.main.output
+    }
+    def bundledDependencies = spec.withKotlinDependencies
+    dependencies.add('withKotlinJarJar', dependencies.project(path: runtime.path)) {
+        capabilities { requireCapability("dev.composemc:composemc-runtime-${runtime.runtime_profile}-with-kotlin") }
+    }
+    def withKotlin = tasks.register('withKotlinJar', Jar) {
+        archiveClassifier = 'with-kotlin'
+        dependsOn tasks.named('jar')
+        from({ zipTree(tasks.named('jar').get().archiveFile.get().asFile) }) {
+            exclude 'META-INF/jarjar/**', 'META-INF/MANIFEST.MF'
+        }
+        from bundledDependencies
+    }
+    def developmentRelease = spec.remapArchive ? spec.remapArchive(development, sourceSets.development) : development
+    def withKotlinRelease = spec.remapArchive ? spec.remapArchive(withKotlin, sourceSets.main) : withKotlin
+    def consumerApi = tasks.register('consumerDevJar', Jar) {
+        dependsOn tasks.named('classes'), "${runtime.path}:withKotlinJar"
+        archiveClassifier = 'dev'
+        from sourceSets.main.output
+        from project(':menu-sync').sourceSets.main.output
+        from project(':slot-core').sourceSets.main.output
+        from({ zipTree(runtime.tasks.named('withKotlinJar').get().archiveFile.get().asFile) }) {
+            exclude '**/*.dll', '**/*.so', '**/*.dylib', '**/*.sha256', 'META-INF/MANIFEST.MF'
+        }
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    }
+    publishing {
+        publications {
+            library(MavenPublication) {
+                artifactId = "composemc-${spec.loader}-${minecraft_version}"
+                artifact spec.release
+                artifact withKotlinRelease
+                artifact consumerApi
+                artifact developmentRelease
+                pom {
+                    name = "Compose MC for ${spec.loader} ${minecraft_version}"
+                    description = 'Library mod: standard requires an external Kotlin provider; with-kotlin includes it. dev is compileOnly; development is the optional preview mod.'
+                }
+            }
+        }
+        repositories {
+            maven {
+                name = 'consumer'
+                url = rootProject.layout.buildDirectory.dir('consumer-maven')
+            }
+        }
+    }
+    tasks.named('assemble') { dependsOn consumerApi, development, withKotlinRelease }
+    [release: spec.release, withKotlin: withKotlinRelease, development: developmentRelease, metadata: metadata, runtime: runtime,
+        loader: spec.loader, metadataPath: spec.metadataPath]
+}

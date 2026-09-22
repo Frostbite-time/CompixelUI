@@ -1,0 +1,63 @@
+name: Verify shared core and Minecraft targets
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  verify:
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        target: [core, '1.20.1', '1.21.1', '26.1.2', '26.2', '26.3']
+        include:
+          - target: '1.20.1'
+            os: ubuntu-latest
+            loader: forge
+          - target: core
+            os: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        id: java17
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-java@v4
+        id: java21
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-java@v4
+        id: java25
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Verify core without Minecraft projects
+        if: matrix.target == 'core'
+        env:
+          COMPOSEMC_JDK17: ${{ steps.java17.outputs.path }}
+          COMPOSEMC_JDK21: ${{ steps.java21.outputs.path }}
+          COMPOSEMC_JDK25: ${{ steps.java25.outputs.path }}
+        run: bash gradlew -PcomposemcTargets=none checkCore --console=plain
+      - name: Build the selected adapter and universal runtime
+        if: matrix.target != 'core'
+        env:
+          COMPOSEMC_JDK17: ${{ steps.java17.outputs.path }}
+          COMPOSEMC_JDK21: ${{ steps.java21.outputs.path }}
+          COMPOSEMC_JDK25: ${{ steps.java25.outputs.path }}
+        run: bash gradlew -PcomposemcTargets=${{ matrix.target }} :minecraft:${{ matrix.loader || 'neoforge' }}-${{ matrix.target }}:build --console=plain
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verification-${{ matrix.os }}-${{ matrix.target }}
+          path: |
+            **/build/reports/tests/
+            desktop/build/screenshots/
+            minecraft/neoforge-*/build/libs/*.jar
+            minecraft/forge-*/build/libs/*.jar
+          retention-days: 7
+# Real GPU acceptance uses the Windows isolated-desktop launcher on a GPU host.
