@@ -12,6 +12,13 @@ allprojects {
     group = "dev.composemc"
     version = providers.gradleProperty("mod_version").get()
 }
+subprojects {
+    plugins.withId("java") {
+        tasks.withType<Jar>().configureEach {
+            from(rootProject.file("LICENSE")) { into("META-INF/composemc") }
+        }
+    }
+}
 val runtimeProfiles = mapOf(
     "standard" to mapOf("project" to ":runtime-standard", "skiko" to libs.versions.skiko.standard.get()),
     "vulkan" to mapOf("project" to ":runtime-vulkan", "skiko" to libs.versions.skiko.vulkan.get()),

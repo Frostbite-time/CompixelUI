@@ -13,6 +13,10 @@ ext.configureMinecraftArtifacts = { Map spec ->
         from spec.rendererFixtures.output
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     }
+    [development, tasks.named('jar')].each { archive -> archive.configure {
+        from(rootProject.file('THIRD-PARTY-NOTICES.md')) { into 'META-INF/composemc-third-party' }
+        from(rootProject.file('licenses')) { into 'META-INF/composemc-third-party/licenses' }
+    } }
     tasks.named('processDevelopmentResources') {
         inputs.property 'mod_version', project.mod_version
         inputs.property 'mod_license', project.mod_license
@@ -38,6 +42,7 @@ ext.configureMinecraftArtifacts = { Map spec ->
     }
     def withKotlin = tasks.register('withKotlinJar', Jar) {
         archiveClassifier = 'with-kotlin'
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
         dependsOn tasks.named('jar')
         from({ zipTree(tasks.named('jar').get().archiveFile.get().asFile) }) {
             exclude 'META-INF/jarjar/**', 'META-INF/MANIFEST.MF'
@@ -68,6 +73,13 @@ ext.configureMinecraftArtifacts = { Map spec ->
                 pom {
                     name = "Compose MC for ${spec.loader} ${minecraft_version}"
                     description = 'Library mod: standard requires an external Kotlin provider; with-kotlin includes it. dev is compileOnly; development is the optional preview mod.'
+                    licenses {
+                        license {
+                            name = 'MIT License'
+                            url = 'https://opensource.org/license/mit'
+                            distribution = 'repo'
+                        }
+                    }
                 }
             }
         }

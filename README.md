@@ -74,6 +74,6 @@ Compose MC is installed as a **separate library mod**. Choose the standard JAR w
 
 ## License and credits
 
-The project currently declares **All Rights Reserved**. It has not adopted an open-source license. Ore styling is an independent implementation inspired by Minecraft's interface design; this project is not an official Mojang or Microsoft product.
+Compose MC's original code and documentation are available under the [MIT License](LICENSE). Third-party components and assets retain their own licenses; see [third-party notices](THIRD-PARTY-NOTICES.md). Ore styling is an independent implementation inspired by Minecraft's interface design; this project is not an official Mojang or Microsoft product.
 
-The bundled [Monocraft font](https://github.com/IdreesInc/Monocraft) is by Idrees Hassan and is distributed under the [SIL Open Font License 1.1](ui-ore/src/main/resources/dev/composemc/ui/ore/Monocraft-LICENSE.txt). Runtime bundles include their third-party notices under `META-INF/composemc-third-party`.
+The bundled [Monocraft font](https://github.com/IdreesInc/Monocraft) is by Idrees Hassan and retains its [SIL Open Font License 1.1](ui-ore/src/main/resources/dev/composemc/ui/ore/Monocraft-LICENSE.txt). Runtime bundles include per-dependency licenses, native-library notices and a machine-readable inventory under `META-INF/composemc-third-party`. [Licensing and redistribution](docs/en/licensing.md) explains the two installation variants.

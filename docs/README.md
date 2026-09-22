@@ -17,6 +17,7 @@ Choose a guide below. Every guide has a complete English and Simplified Chinese 
 | Versions and known limits / 版本与已知限制 | [Compatibility](en/compatibility.md) | [兼容性](zh-CN/compatibility.md) |
 | IDEA, artifacts and validation / IDEA、构建产物与验证 | [Build and test](en/build-and-test.md) | [构建与测试](zh-CN/build-and-test.md) |
 | Modules and adapter development / 模块与适配器开发 | [Architecture](en/architecture.md) | [架构与扩展](zh-CN/architecture.md) |
+| Licenses and redistribution / 许可与再分发 | [Licensing](en/licensing.md) | [许可说明](zh-CN/licensing.md) |
 
 New consumers should begin with the quick start. For a server-backed inventory, continue with both the inventory and synchronization guides. Library contributors can start with build and test, then architecture.
 

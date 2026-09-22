@@ -1,0 +1,186 @@
+{
+  "skikoVersions": [
+    "0.150.1",
+    "0.999.6"
+  ],
+  "skikoSources": [
+    "https://github.com/JetBrains/skiko/tree/v0.150.1",
+    "https://github.com/Polyfrost/skiko/tree/a19525e86d1308742d99ca14180776b4087cf0b1"
+  ],
+  "skiaSources": [
+    "https://github.com/JetBrains/skia/tree/m150-1f14f1166a",
+    "https://github.com/Polyfrost/skia/tree/m150-64eb56256f"
+  ],
+  "files": [
+    {
+      "file": "skia/brotli-LICENSE",
+      "component": "brotli",
+      "revision": "6d03dfbedda1615c4cba1211f8d81735575209c8",
+      "url": "https://skia.googlesource.com/external/github.com/google/brotli.git/+/6d03dfbedda1615c4cba1211f8d81735575209c8/LICENSE?format=TEXT",
+      "sha256": "3d180008e36922a4e8daec11c34c7af264fed5962d07924aea928c38e8663c94"
+    },
+    {
+      "file": "skia/d3d12allocator-LICENSE.txt",
+      "component": "d3d12allocator",
+      "revision": "169895d529dfce00390a20e69c2f516066fe7a3b",
+      "url": "https://skia.googlesource.com/external/github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator.git/+/169895d529dfce00390a20e69c2f516066fe7a3b/LICENSE.txt?format=TEXT",
+      "sha256": "e078ee4f8c5ed0673f4d93b5318557eb8b4e0d7dbccef2ab45c763c7693f0f37"
+    },
+    {
+      "file": "skia/dng_sdk-LICENSE",
+      "component": "dng_sdk",
+      "revision": "dbe0a676450d9b8c71bf00688bb306409b779e90",
+      "url": "https://android.googlesource.com/platform/external/dng_sdk.git/+/dbe0a676450d9b8c71bf00688bb306409b779e90/LICENSE?format=TEXT",
+      "sha256": "012e875468ac2f9a2070ee25a950588afa2735b4b2d961f491e3d72c8f572306"
+    },
+    {
+      "file": "skia/expat-expat-COPYING",
+      "component": "expat",
+      "revision": "6154446fccefbf3ca644894f598969113b0c7bcd",
+      "url": "https://chromium.googlesource.com/external/github.com/libexpat/libexpat.git/+/6154446fccefbf3ca644894f598969113b0c7bcd/expat/COPYING?format=TEXT",
+      "sha256": "31b15de82aa19a845156169a17a5488bf597e561b2c318d159ed583139b25e87"
+    },
+    {
+      "file": "skia/freetype-docs-FTL.TXT",
+      "component": "freetype",
+      "revision": "264b5fbf5b912b39f98d038bf75d39be0a73f21b",
+      "url": "https://chromium.googlesource.com/chromium/src/third_party/freetype2.git/+/264b5fbf5b912b39f98d038bf75d39be0a73f21b/docs/FTL.TXT?format=TEXT",
+      "sha256": "5a5ee54c5001bbad1cdc1a57cc3dd4c42199b2da09d39c7ee41fab002d02967f"
+    },
+    {
+      "file": "skia/harfbuzz-COPYING",
+      "component": "harfbuzz",
+      "revision": "9cb1fee51069b206effb4736e443b038d230789d",
+      "url": "https://chromium.googlesource.com/external/github.com/harfbuzz/harfbuzz.git/+/9cb1fee51069b206effb4736e443b038d230789d/COPYING?format=TEXT",
+      "sha256": "ba8f810f2455c2f08e2d56bb49b72f37fcf68f1f4fade38977cfd7372050ad64"
+    },
+    {
+      "file": "skia/icu-LICENSE",
+      "component": "icu",
+      "revision": "364118a1d9da24bb5b770ac3d762ac144d6da5a4",
+      "url": "https://chromium.googlesource.com/chromium/deps/icu.git/+/364118a1d9da24bb5b770ac3d762ac144d6da5a4/LICENSE?format=TEXT",
+      "sha256": "17510cf7a58b4879b887ec05a45d72cf1b73544dd9ec7e72f20110ed104229ee"
+    },
+    {
+      "file": "skia/libjpeg-turbo-LICENSE.txt",
+      "component": "libjpeg-turbo",
+      "revision": "e14cbfaa85529d47f9f55b0f104a579c1061f9ad",
+      "url": "https://chromium.googlesource.com/chromium/deps/libjpeg_turbo.git/+/e14cbfaa85529d47f9f55b0f104a579c1061f9ad/LICENSE.md?format=TEXT",
+      "sha256": "96f5b328adbb78eeaaec6980d73fd558cb1e4d62560ed615646bc3cf5e532430"
+    },
+    {
+      "file": "skia/libjpeg-turbo-README.ijg",
+      "component": "libjpeg-turbo",
+      "revision": "e14cbfaa85529d47f9f55b0f104a579c1061f9ad",
+      "url": "https://chromium.googlesource.com/chromium/deps/libjpeg_turbo.git/+/e14cbfaa85529d47f9f55b0f104a579c1061f9ad/README.ijg?format=TEXT",
+      "sha256": "75815e3bf6484201a3c3d17a1bbf10f2e8e3237f84df10a2357ea896db2a81d6"
+    },
+    {
+      "file": "skia/libpng-LICENSE",
+      "component": "libpng",
+      "revision": "d5515b5b8be3901aac04e5bd8bd5c89f287bcd33",
+      "url": "https://skia.googlesource.com/third_party/libpng.git/+/d5515b5b8be3901aac04e5bd8bd5c89f287bcd33/LICENSE?format=TEXT",
+      "sha256": "bdb0a645ea18c60507d0368379b1ac5474b92255fcc2d115e07486a7672ba526"
+    },
+    {
+      "file": "skia/libwebp-COPYING",
+      "component": "libwebp",
+      "revision": "845d5476a866141ba35ac133f856fa62f0b7445f",
+      "url": "https://chromium.googlesource.com/webm/libwebp.git/+/845d5476a866141ba35ac133f856fa62f0b7445f/COPYING?format=TEXT",
+      "sha256": "5aec868f669e384a22372a4e8a1a6cd7d44c64cd451f960ca69cc170d1e13acf"
+    },
+    {
+      "file": "skia/libwebp-PATENTS",
+      "component": "libwebp",
+      "revision": "845d5476a866141ba35ac133f856fa62f0b7445f",
+      "url": "https://chromium.googlesource.com/webm/libwebp.git/+/845d5476a866141ba35ac133f856fa62f0b7445f/PATENTS?format=TEXT",
+      "sha256": "cc3273e0694ea5896145e0677699b53471b03ea43021ddc50e7923fbb9f5023c"
+    },
+    {
+      "file": "skia/libwebp-AUTHORS",
+      "component": "libwebp",
+      "revision": "845d5476a866141ba35ac133f856fa62f0b7445f",
+      "url": "https://chromium.googlesource.com/webm/libwebp.git/+/845d5476a866141ba35ac133f856fa62f0b7445f/AUTHORS?format=TEXT",
+      "sha256": "f9681940f35ab74858ac2717a511fa6237b67f65e99f457c21223e60a851c85a"
+    },
+    {
+      "file": "skia/piex-LICENSE",
+      "component": "piex",
+      "revision": "bb217acdca1cc0c16b704669dd6f91a1b509c406",
+      "url": "https://android.googlesource.com/platform/external/piex.git/+/bb217acdca1cc0c16b704669dd6f91a1b509c406/LICENSE?format=TEXT",
+      "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd"
+    },
+    {
+      "file": "skia/zlib-LICENSE",
+      "component": "zlib",
+      "revision": "646b7f569718921d7d4b5b8e22572ff6c76f2596",
+      "url": "https://chromium.googlesource.com/chromium/src/third_party/zlib/+/646b7f569718921d7d4b5b8e22572ff6c76f2596/LICENSE?format=TEXT",
+      "sha256": "e1cfcc55c325b3f78cf55df9664abaa066e2271dffe8213347d9fccdfbac8f2c"
+    },
+    {
+      "file": "skia/vulkanmemoryallocator-LICENSE.txt",
+      "component": "vulkanmemoryallocator",
+      "revision": "a6bfc237255a6bac1513f7c1ebde6d8aed6b5191",
+      "url": "https://chromium.googlesource.com/external/github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator/+/a6bfc237255a6bac1513f7c1ebde6d8aed6b5191/LICENSE.txt?format=TEXT",
+      "sha256": "cdb520614db3ec62e667ece01e64e6afa21948fa51e85e748b1494597a7be907"
+    },
+    {
+      "file": "skia/spirv-headers-LICENSE",
+      "component": "spirv-headers",
+      "revision": "1e770e7de8373a8dd49f23416cf7ca4001d01040",
+      "url": "https://skia.googlesource.com/external/github.com/KhronosGroup/SPIRV-Headers.git/+/1e770e7de8373a8dd49f23416cf7ca4001d01040/LICENSE?format=TEXT",
+      "sha256": "ea43b1de38a6f90c488800d66dec1ed671e68cda530266bc96951fb5b6307613"
+    },
+    {
+      "file": "skia/spirv-tools-LICENSE",
+      "component": "spirv-tools",
+      "revision": "39813baec458ada43263749757b15fbfbd6be107",
+      "url": "https://skia.googlesource.com/external/github.com/KhronosGroup/SPIRV-Tools.git/+/39813baec458ada43263749757b15fbfbd6be107/LICENSE?format=TEXT",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "file": "skia/spirv-cross-LICENSE",
+      "component": "spirv-cross",
+      "revision": "b8fcf307f1f347089e3c46eb4451d27f32ebc8d3",
+      "url": "https://chromium.googlesource.com/external/github.com/KhronosGroup/SPIRV-Cross/+/b8fcf307f1f347089e3c46eb4451d27f32ebc8d3/LICENSE?format=TEXT",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "file": "skia/vulkan-headers-LICENSE.txt",
+      "component": "vulkan-headers",
+      "revision": "015e25c3c91b70eb1a754d36fb14c4ba6ad9b0b9",
+      "url": "https://chromium.googlesource.com/external/github.com/KhronosGroup/Vulkan-Headers/+/015e25c3c91b70eb1a754d36fb14c4ba6ad9b0b9/LICENSE.md?format=TEXT",
+      "sha256": "ac24e5ea920e4318e4d02c4086ae51f53cfb03feed06c18df1019e7ada1ec7bc"
+    },
+    {
+      "file": "APACHE-2.0.txt",
+      "component": "Apache License 2.0",
+      "url": "https://raw.githubusercontent.com/JetBrains/skiko/v0.150.1/LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "file": "skiko-NOTICE.txt",
+      "component": "Skiko Android adaptations",
+      "url": "https://raw.githubusercontent.com/JetBrains/skiko/v0.150.1/NOTICE",
+      "sha256": "35dd077c24768b53625101cfcc0ad853ae7e2abc08bd2a111a0267760d1406d8"
+    },
+    {
+      "file": "skia/LICENSE.txt",
+      "component": "Skia",
+      "url": "https://raw.githubusercontent.com/JetBrains/skia/m150-1f14f1166a/LICENSE",
+      "sha256": "5f787c1dee3c56547f09ccc2906ab5f5293c4d8dd6c8654e573216c38e908dbd"
+    },
+    {
+      "file": "skia/harfbuzz-ms-use-COPYING",
+      "component": "HarfBuzz Microsoft shaping data",
+      "url": "https://chromium.googlesource.com/external/github.com/harfbuzz/harfbuzz.git/+/9cb1fee51069b206effb4736e443b038d230789d/src/ms-use/COPYING?format=TEXT",
+      "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+    },
+    {
+      "file": "skia/vulkan-headers-MIT.txt",
+      "component": "Vulkan Headers MIT option",
+      "url": "https://chromium.googlesource.com/external/github.com/KhronosGroup/Vulkan-Headers/+/015e25c3c91b70eb1a754d36fb14c4ba6ad9b0b9/LICENSES/MIT.txt?format=TEXT",
+      "sha256": "1ca3502222d967f3be5751c55f6b7ee735b5383909c3b501495f54b216dbf227"
+    }
+  ]
+}

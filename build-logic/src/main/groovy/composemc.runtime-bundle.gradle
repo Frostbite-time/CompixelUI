@@ -1,4 +1,10 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
+import groovy.xml.XmlSlurper
+import org.gradle.api.artifacts.component.ProjectComponentIdentifier
+import org.gradle.maven.MavenModule
+import org.gradle.maven.MavenPomArtifact
 
 plugins { id 'java-library' }
 pluginManager.apply('com.gradleup.shadow')
@@ -34,6 +40,8 @@ def registerNotices = { boolean withKotlin ->
     tasks.register(withKotlin ? 'thirdPartyNoticesWithKotlin' : 'thirdPartyNotices') {
         def output = layout.buildDirectory.dir("third-party/${withKotlin ? 'with-kotlin' : 'external-kotlin'}")
         inputs.files(configurations.runtimeClasspath)
+        inputs.files(rootProject.file('LICENSE'), rootProject.file('THIRD-PARTY-NOTICES.md'))
+        inputs.dir(rootProject.file('licenses'))
         outputs.dir(output)
         doLast {
             def artifacts = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts.findAll {
@@ -45,11 +53,66 @@ def registerNotices = { boolean withKotlin ->
             // Remove notices for dependencies/versions no longer in this runtime.
             project.delete(noticesRoot)
             noticesRoot.mkdirs()
+            def provenance = new JsonSlurper().parse(rootProject.file('licenses/provenance.json'))
+            if (!(skikoVersion in provenance.skikoVersions))
+                throw new GradleException("Review native license notices for Skiko $skikoVersion")
+            provenance.files.each { record ->
+                def source = rootProject.file("licenses/${record.file}")
+                def hash = java.security.MessageDigest.getInstance('SHA-256').digest(source.bytes).encodeHex().toString()
+                if (hash != record.sha256) throw new GradleException("License text changed: ${record.file}")
+            }
+            copy {
+                from rootProject.file('licenses')
+                into new File(noticesRoot, 'licenses')
+            }
+            copy {
+                from rootProject.file('THIRD-PARTY-NOTICES.md')
+                into noticesRoot
+            }
+            def external = artifacts.findAll { !(it.id.componentIdentifier instanceof ProjectComponentIdentifier) }
+            def pomResult = dependencies.createArtifactResolutionQuery()
+                .forComponents(external.collect { it.id.componentIdentifier }.unique())
+                .withArtifacts(MavenModule, MavenPomArtifact).execute()
+            if (pomResult.components.any { it instanceof org.gradle.api.artifacts.result.UnresolvedComponentResult })
+                throw new GradleException('Cannot resolve third-party license metadata')
+            def poms = [:]
+            pomResult.resolvedComponents.each { component ->
+                def resolved = component.getArtifacts(MavenPomArtifact).find { it instanceof org.gradle.api.artifacts.result.ResolvedArtifactResult }
+                if (resolved == null) throw new GradleException("Missing license POM for ${component.id}")
+                poms[component.id] = resolved.file
+            }
+            def licenseIndex = []
             new File(noticesRoot, 'dependencies.txt').setText(
                 artifacts.collect { it.moduleVersion.id.toString() }.unique().join('\n') + '\n', 'UTF-8')
             artifacts.each { artifact ->
                 def id = artifact.moduleVersion.id
                 def prefix = "${id.group}/${id.name}/${id.version}"
+                def ownCode = artifact.id.componentIdentifier instanceof ProjectComponentIdentifier
+                def licenseNames = ['MIT License']
+                def licenseUrls = ['https://opensource.org/license/mit']
+                if (!ownCode) {
+                    def pomFile = poms[artifact.id.componentIdentifier]
+                    def pom = new XmlSlurper(false, false).parse(pomFile)
+                    licenseNames = pom.licenses.license.collect { it.name.text() }
+                    licenseUrls = pom.licenses.license.collect { it.url.text() }
+                    // All current JVM dependencies declare Apache-2.0. A new license
+                    // needs its own reviewed text instead of inheriting this fallback.
+                    if (licenseNames.empty || !licenseNames.every { it.toLowerCase(Locale.ROOT).contains('apache') && it.contains('2.0') })
+                        throw new GradleException("Review license declaration for $id: $licenseNames")
+                    copy { from pomFile; into new File(noticesRoot, prefix); rename { 'pom.xml' } }
+                }
+                def entry = [coordinate: id.toString(), declaredLicense: ownCode ? 'MIT' : 'Apache-2.0',
+                    declaredNames: licenseNames, licenseUrls: licenseUrls, directory: prefix]
+                if (id.group == 'org.jetbrains.skiko')
+                    entry.supplementalNotices = ['licenses/skiko-NOTICE.txt', 'licenses/skia/', 'licenses/provenance.json']
+                if (ownCode && id.name == 'ui-ore')
+                    entry.supplementalNotices = ['dev/composemc/ui/ore/Monocraft-LICENSE.txt']
+                licenseIndex.add(entry)
+                copy {
+                    from ownCode ? rootProject.file('LICENSE') : rootProject.file('licenses/APACHE-2.0.txt')
+                    into new File(noticesRoot, prefix)
+                    rename { 'LICENSE.txt' }
+                }
                 copy {
                     from zipTree(artifact.file)
                     include { details ->
@@ -60,6 +123,7 @@ def registerNotices = { boolean withKotlin ->
                     includeEmptyDirs = false
                 }
             }
+            new File(noticesRoot, 'dependencies.json').setText(JsonOutput.prettyPrint(JsonOutput.toJson(licenseIndex)) + '\n', 'UTF-8')
         }
     }
 }
@@ -124,6 +188,13 @@ tasks.register('verifyRuntimeArchive') {
                     'androidx/compose/runtime/SnapshotStateKt.class',
                     'META-INF/services/kotlinx.coroutines.internal.MainDispatcherFactory',
                     'META-INF/composemc-third-party/dependencies.txt',
+                    'META-INF/composemc-third-party/dependencies.json',
+                    'META-INF/composemc/LICENSE',
+                    'META-INF/composemc-third-party/THIRD-PARTY-NOTICES.md',
+                    'META-INF/composemc-third-party/licenses/APACHE-2.0.txt',
+                    'META-INF/composemc-third-party/licenses/skiko-NOTICE.txt',
+                    'META-INF/composemc-third-party/licenses/skia/LICENSE.txt',
+                    'dev/composemc/ui/ore/Monocraft-LICENSE.txt',
                 ]
                 if (withKotlin) required.addAll(['kotlin/jvm/internal/Intrinsics.class',
                     'kotlinx/coroutines/Job.class', 'kotlinx/serialization/KSerializer.class'])
@@ -134,6 +205,11 @@ tasks.register('verifyRuntimeArchive') {
                 def hasVulkan = zip.getEntry('dev/composemc/render/vulkan/VulkanFrameRenderer.class') != null
                 if (hasVulkan != (profile == 'vulkan')) throw new GradleException("Incorrect backend contents for runtime $profile")
                 required.each { if (zip.getEntry(it) == null) throw new GradleException("Missing runtime entry: $it") }
+                def licenseIndex = new JsonSlurper().parseText(zip.getInputStream(zip.getEntry('META-INF/composemc-third-party/dependencies.json')).getText('UTF-8'))
+                licenseIndex.each { entry ->
+                    if (zip.getEntry("META-INF/composemc-third-party/${entry.directory}/LICENSE.txt") == null)
+                        throw new GradleException("Missing license for ${entry.coordinate}")
+                }
                 if (zip.entries().toList().any { it.name.startsWith('org/lwjgl/') }) {
                     throw new GradleException('The runtime must use Minecraft LWJGL, not bundle another copy')
                 }
