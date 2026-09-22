@@ -60,8 +60,9 @@ ext.configureMinecraftApiDocs = { runtime ->
         description = 'Package the common Dokka HTML API reference under the Maven javadoc classifier.'
         archiveClassifier = 'javadoc'
         from tasks.named('dokkaGeneratePublicationHtml').flatMap { it.outputDirectory }
-        from(rootProject.file('docs/api-assets-licenses')) { into 'third-party' }
-        from(rootProject.file('licenses/APACHE-2.0.txt')) { into 'third-party' }
+        ['common', 'javadoc'].each { group ->
+            from(rootProject.file("licenses/$group")) { into "third-party/$group" }
+        }
     }
     [sources: sources, documentation: documentation, sourceProjects: sourceProjects, sourceRoots: roots, moduleName: apiModuleName]
 }

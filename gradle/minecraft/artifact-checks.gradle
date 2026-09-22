@@ -1,5 +1,19 @@
 // Shared archive invariants. The expected access transformers are declared by each adapter.
 ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms ->
+    def verifyLicenseGroups = { zip, String prefix, List<String> expected ->
+        def licenseRoot = rootProject.file('licenses')
+        licenseRoot.listFiles().findAll { it.directory }.each { group ->
+            if (group.name in expected) {
+                project.fileTree(group).files.each { file ->
+                    def relative = licenseRoot.toPath().relativize(file.toPath()).toString().replace('\\', '/')
+                    if (zip.getEntry("$prefix/$relative") == null)
+                        throw new GradleException("Missing license group content: $relative")
+                }
+            } else if (zip.entries().any { it.name.startsWith("$prefix/${group.name}/") }) {
+                throw new GradleException("Unrelated license group included: ${group.name}")
+            }
+        }
+    }
     def releaseCheck = tasks.register('verifyReleaseIsolation') {
         group = 'verification'
         dependsOn artifacts.release, artifacts.withKotlin, "${artifacts.runtime.path}:verifyRuntimeArchive"
@@ -8,6 +22,7 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms -
         doLast {
             [artifacts.release, artifacts.withKotlin].eachWithIndex { archive, index ->
                 new java.util.zip.ZipFile(archive.get().archiveFile.get().asFile).withCloseable { zip ->
+                    verifyLicenseGroups(zip, 'META-INF/composemc-third-party/licenses', ['common', 'runtime'])
                     def jij = new groovy.json.JsonSlurper().parseText(zip.getInputStream(zip.getEntry('META-INF/jarjar/metadata.json')).getText('UTF-8'))
                     def expected = "composemc-runtime-${artifacts.runtime.runtime_profile}${index == 1 ? '-with-kotlin' : ''}"
                     if (jij.jars.size() != 1 || jij.jars[0].identifier.artifact != expected || zip.getEntry(jij.jars[0].path) == null)
@@ -41,9 +56,10 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms -
         }
     }
     def developmentCheck = tasks.register('verifyDevelopmentArchive') {
-        dependsOn artifacts.development
+        dependsOn artifacts.development, tasks.named('consumerDevJar')
         doLast {
             new java.util.zip.ZipFile(artifacts.development.get().archiveFile.get().asFile).withCloseable { zip ->
+                verifyLicenseGroups(zip, 'META-INF/composemc-third-party/licenses', ['common', 'runtime'])
                 if (zip.getEntry('dev/composemc/development/ComposeMcDevelopment.class') == null)
                     throw new GradleException('Missing development mod entry point')
                 if (zip.getEntry('dev/composemc/render/gl/testing/OpenGlRendererProbe.class') == null)
@@ -54,6 +70,9 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms -
                     it.name.startsWith('org/jetbrains/skiko/') || it.name.startsWith('org/jetbrains/skia/') ||
                     it.name.startsWith("dev/composemc/${artifacts.loader}/") })
                     throw new GradleException('Development artifact embedded runtime/production adapter classes')
+            }
+            new java.util.zip.ZipFile(tasks.named('consumerDevJar').get().archiveFile.get().asFile).withCloseable { zip ->
+                verifyLicenseGroups(zip, 'META-INF/composemc-third-party/licenses', ['common', 'runtime'])
             }
         }
     }
@@ -89,6 +108,7 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms -
                 }
             }
             new java.util.zip.ZipFile(api.documentation.get().archiveFile.get().asFile).withCloseable { zip ->
+                verifyLicenseGroups(zip, 'third-party', ['common', 'javadoc'])
                 ['index.html', 'scripts/pages.json', 'META-INF/composemc/LICENSE',
                  "${api.moduleName}/dev.composemc.host/-ui-binding/index.html",
                  "${api.moduleName}/dev.composemc.sync/-sync-schema/index.html",

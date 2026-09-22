@@ -17,7 +17,9 @@ ext.configureMinecraftArtifacts = { Map spec ->
     }
     [development, tasks.named('jar')].each { archive -> archive.configure {
         from(rootProject.file('THIRD-PARTY-NOTICES.md')) { into 'META-INF/composemc-third-party' }
-        from(rootProject.file('licenses')) { into 'META-INF/composemc-third-party/licenses' }
+        ['common', 'runtime'].each { group ->
+            from(rootProject.file("licenses/$group")) { into "META-INF/composemc-third-party/licenses/$group" }
+        }
     } }
     tasks.named('processDevelopmentResources') {
         inputs.property 'mod_version', project.mod_version

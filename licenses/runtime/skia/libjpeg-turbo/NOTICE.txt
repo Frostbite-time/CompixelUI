@@ -1,0 +1,9 @@
+libjpeg-turbo / Independent JPEG Group
+
+Compose MC uses libjpeg-turbo through Skia for JPEG image encoding and decoding.
+The following attribution applies to that bundled JPEG component:
+
+This software is based in part on the work of the Independent JPEG Group.
+
+Compose MC 通过 Skia 使用 libjpeg-turbo 处理 JPEG 图像编解码。
+上述声明对应随包分发的 JPEG 组件，用于注明 Independent JPEG Group 的工作。

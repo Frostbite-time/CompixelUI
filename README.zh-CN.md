@@ -76,4 +76,4 @@ Compose MC 作为**独立的前置模组**安装。标准 JAR 配合 Kotlin for 
 
 Compose MC 自有代码和文档采用 [MIT 许可证](LICENSE)。第三方组件和资源保留各自许可，详见[第三方声明](THIRD-PARTY-NOTICES.md)。Ore 外观是参考 Minecraft 界面设计的独立实现；本项目并非 Mojang 或 Microsoft 官方产品。
 
-内置 [Monocraft 字体](https://github.com/IdreesInc/Monocraft)由 Idrees Hassan 创作，保留 [SIL Open Font License 1.1](ui-ore/src/main/resources/dev/composemc/ui/ore/Monocraft-LICENSE.txt)。运行时包在 `META-INF/composemc-third-party` 中附带逐依赖许可证、原生库声明和机器可读清单。两种安装方式的说明见[许可与再分发](docs/zh-CN/licensing.md)。
+内置 [Monocraft 字体](https://github.com/IdreesInc/Monocraft)由 Idrees Hassan 创作，保留 [SIL Open Font License 1.1](ui-ore/src/main/resources/dev/composemc/ui/ore/Monocraft-LICENSE.txt)。运行时包在 `META-INF/composemc-third-party` 中附带逐依赖许可证、原生库声明和机器可读清单。

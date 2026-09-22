@@ -41,7 +41,8 @@ def registerNotices = { boolean withKotlin ->
         def output = layout.buildDirectory.dir("third-party/${withKotlin ? 'with-kotlin' : 'external-kotlin'}")
         inputs.files(configurations.runtimeClasspath)
         inputs.files(rootProject.file('LICENSE'), rootProject.file('THIRD-PARTY-NOTICES.md'))
-        inputs.dir(rootProject.file('licenses'))
+        inputs.dir(rootProject.file('licenses/common'))
+        inputs.dir(rootProject.file('licenses/runtime'))
         outputs.dir(output)
         doLast {
             def artifacts = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts.findAll {
@@ -53,17 +54,11 @@ def registerNotices = { boolean withKotlin ->
             // Remove notices for dependencies/versions no longer in this runtime.
             project.delete(noticesRoot)
             noticesRoot.mkdirs()
-            def provenance = new JsonSlurper().parse(rootProject.file('licenses/provenance.json'))
-            if (!(skikoVersion in provenance.skikoVersions))
-                throw new GradleException("Review native license notices for Skiko $skikoVersion")
-            provenance.files.each { record ->
-                def source = rootProject.file("licenses/${record.file}")
-                def hash = java.security.MessageDigest.getInstance('SHA-256').digest(source.bytes).encodeHex().toString()
-                if (hash != record.sha256) throw new GradleException("License text changed: ${record.file}")
-            }
-            copy {
-                from rootProject.file('licenses')
-                into new File(noticesRoot, 'licenses')
+            ['common', 'runtime'].each { group ->
+                copy {
+                    from rootProject.file("licenses/$group")
+                    into new File(noticesRoot, "licenses/$group")
+                }
             }
             copy {
                 from rootProject.file('THIRD-PARTY-NOTICES.md')
@@ -104,12 +99,12 @@ def registerNotices = { boolean withKotlin ->
                 def entry = [coordinate: id.toString(), declaredLicense: ownCode ? 'MIT' : 'Apache-2.0',
                     declaredNames: licenseNames, licenseUrls: licenseUrls, directory: prefix]
                 if (id.group == 'org.jetbrains.skiko')
-                    entry.supplementalNotices = ['licenses/skiko-NOTICE.txt', 'licenses/skia/', 'licenses/provenance.json']
+                    entry.supplementalNotices = ['licenses/runtime/skiko/NOTICE.txt', 'licenses/runtime/skia/']
                 if (ownCode && id.name == 'ui-ore')
                     entry.supplementalNotices = ['dev/composemc/ui/ore/Monocraft-LICENSE.txt']
                 licenseIndex.add(entry)
                 copy {
-                    from ownCode ? rootProject.file('LICENSE') : rootProject.file('licenses/APACHE-2.0.txt')
+                    from ownCode ? rootProject.file('LICENSE') : rootProject.file('licenses/common/Apache-2.0.txt')
                     into new File(noticesRoot, prefix)
                     rename { 'LICENSE.txt' }
                 }
@@ -191,9 +186,9 @@ tasks.register('verifyRuntimeArchive') {
                     'META-INF/composemc-third-party/dependencies.json',
                     'META-INF/composemc/LICENSE',
                     'META-INF/composemc-third-party/THIRD-PARTY-NOTICES.md',
-                    'META-INF/composemc-third-party/licenses/APACHE-2.0.txt',
-                    'META-INF/composemc-third-party/licenses/skiko-NOTICE.txt',
-                    'META-INF/composemc-third-party/licenses/skia/LICENSE.txt',
+                    'META-INF/composemc-third-party/licenses/common/Apache-2.0.txt',
+                    'META-INF/composemc-third-party/licenses/runtime/skiko/NOTICE.txt',
+                    'META-INF/composemc-third-party/licenses/runtime/skia/LICENSE.txt',
                     'dev/composemc/ui/ore/Monocraft-LICENSE.txt',
                 ]
                 if (withKotlin) required.addAll(['kotlin/jvm/internal/Intrinsics.class',
@@ -205,6 +200,8 @@ tasks.register('verifyRuntimeArchive') {
                 def hasVulkan = zip.getEntry('dev/composemc/render/vulkan/VulkanFrameRenderer.class') != null
                 if (hasVulkan != (profile == 'vulkan')) throw new GradleException("Incorrect backend contents for runtime $profile")
                 required.each { if (zip.getEntry(it) == null) throw new GradleException("Missing runtime entry: $it") }
+                if (zip.entries().any { it.name.startsWith('META-INF/composemc-third-party/licenses/javadoc/') })
+                    throw new GradleException('Documentation licenses leaked into runtime')
                 def licenseIndex = new JsonSlurper().parseText(zip.getInputStream(zip.getEntry('META-INF/composemc-third-party/dependencies.json')).getText('UTF-8'))
                 licenseIndex.each { entry ->
                     if (zip.getEntry("META-INF/composemc-third-party/${entry.directory}/LICENSE.txt") == null)
