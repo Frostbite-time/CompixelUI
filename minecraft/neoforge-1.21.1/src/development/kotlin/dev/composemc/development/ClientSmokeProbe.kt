@@ -3,6 +3,7 @@ package dev.composemc.development
 import dev.composemc.neoforge.*
 
 import dev.composemc.bridge.ComposeThread
+import dev.composemc.demo.preview.DemoPage
 import dev.composemc.host.SessionState
 import dev.composemc.host.UiSession
 import dev.composemc.render.RenderBackend
@@ -154,7 +155,7 @@ internal class ClientSmokeProbe {
             75 -> {
                 check(current.session === firstSession && minecraft.window.guiScale == 2.0)
                 checks += "Window resize and GUI scale preserve session"
-                current.session!!.post(Runnable { current.model.query = ""; current.model.tab = 1; current.model.count = 100000 })
+                current.session!!.post(Runnable { current.model.query = ""; current.model.page = DemoPage.Catalog; current.model.count = 100000 })
             }
             85 -> {
                 capture("catalog")
@@ -183,7 +184,7 @@ internal class ClientSmokeProbe {
                 check(stats.renderedFrames > 0 && stats.liveSurfaces == 1)
                 if (current.renderBackend == RenderBackend.OPENGL) check(stats.fullFrameUploads == 0L)
                 checks += "100k list render and texture reuse ($allocations allocations)"
-                current.session!!.post(Runnable { current.model.tab = 3; current.itemBrowser.count = 10000 })
+                current.session!!.post(Runnable { current.model.page = DemoPage.Items; current.itemBrowser.count = 10000 })
             }
             116 -> {
                 capture("items")
@@ -277,7 +278,7 @@ internal class ClientSmokeProbe {
         }
     }
 
-    private fun <T> model(block: dev.composemc.demo.DemoModel.() -> T): T = ComposeThread.call { screen!!.model.block() }
+    private fun <T> model(block: dev.composemc.demo.preview.DemoModel.() -> T): T = ComposeThread.call { screen!!.model.block() }
     private fun click(screen: Screen, guiX: Double, guiY: Double) {
         screen.mouseMoved(guiX, guiY)
         screen.mouseClicked(guiX, guiY, 0)

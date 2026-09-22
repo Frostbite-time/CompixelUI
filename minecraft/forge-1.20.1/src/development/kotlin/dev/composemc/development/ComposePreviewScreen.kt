@@ -3,10 +3,10 @@ package dev.composemc.development
 import dev.composemc.forge.*
 
 import dev.composemc.bridge.ComposeThread
-import dev.composemc.demo.DemoModel
-import dev.composemc.demo.OreDemoScreen as DemoScreen
-import dev.composemc.demo.ItemBrowserDemo
-import dev.composemc.demo.ItemBrowserModel
+import dev.composemc.demo.preview.DemoModel
+import dev.composemc.demo.preview.OreDemoScreen as DemoScreen
+import dev.composemc.demo.preview.ItemBrowserDemo
+import dev.composemc.demo.preview.ItemBrowserModel
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import net.minecraft.core.registries.BuiltInRegistries

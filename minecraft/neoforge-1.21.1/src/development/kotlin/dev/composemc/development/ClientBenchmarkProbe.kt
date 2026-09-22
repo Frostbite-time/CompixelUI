@@ -30,7 +30,7 @@ internal class ClientBenchmarkProbe {
         BenchmarkCase("native-static", BenchmarkKind.NATIVE_STATIC, 1000),
         BenchmarkCase("native-scroll-10k", BenchmarkKind.NATIVE_SCROLL, 10000),
         BenchmarkCase("rich-tooltip", BenchmarkKind.TOOLTIP),
-    ) + dev.composemc.demo.oreComponentPages.map { BenchmarkCase("ore-${it.name.lowercase()}", BenchmarkKind.ORE_COMPONENTS, it.ordinal) }
+    ) + dev.composemc.demo.testing.oreComponentPages.map { BenchmarkCase("ore-${it.name.lowercase()}", BenchmarkKind.ORE_COMPONENTS, it.ordinal) }
     private val schedule = (0 until repeats).flatMap { repeat ->
         (if (repeat % 2 == 0) cases else cases.reversed()).map { repeat to it }
     }

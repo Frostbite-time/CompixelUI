@@ -1,4 +1,4 @@
-package dev.composemc.demo
+package dev.composemc.demo.preview
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState

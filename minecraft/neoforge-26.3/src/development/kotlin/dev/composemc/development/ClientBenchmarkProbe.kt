@@ -23,7 +23,7 @@ internal class ClientBenchmarkProbe {
         BenchmarkCase("native-static", BenchmarkKind.NATIVE_STATIC, 1000),
         BenchmarkCase("native-scroll-10k", BenchmarkKind.NATIVE_SCROLL, 10000),
         BenchmarkCase("rich-tooltip", BenchmarkKind.TOOLTIP),
-    ) + dev.composemc.demo.oreComponentPages.map { BenchmarkCase("ore-${it.name.lowercase()}", BenchmarkKind.ORE_COMPONENTS, it.ordinal) }
+    ) + dev.composemc.demo.testing.oreComponentPages.map { BenchmarkCase("ore-${it.name.lowercase()}", BenchmarkKind.ORE_COMPONENTS, it.ordinal) }
     private val results = mutableListOf<Map<String, Any?>>()
     private val checks = mutableListOf<String>()
     private var started = false

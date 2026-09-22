@@ -37,7 +37,7 @@ internal object BenchmarkEnvironment {
 }
 internal data class BenchmarkCase(val name: String, val kind: BenchmarkKind, val count: Int = 0)
 internal class BenchmarkModel {
-    val preview = dev.composemc.demo.DemoModel()
+    val preview = dev.composemc.demo.preview.DemoModel()
     var step by mutableIntStateOf(0)
     var tooltipTarget: Rect? = null
 }
@@ -47,22 +47,22 @@ internal class BenchmarkScreen private constructor(
     val fixture: BenchmarkCase,
     val model: BenchmarkModel,
     icons: List<ItemIcon>,
-    samples: Map<Int, ItemIcon> = if (fixture.kind == BenchmarkKind.ORE_COMPONENTS && fixture.count == dev.composemc.demo.DemoPage.Items.ordinal)
+    samples: Map<Int, ItemIcon> = if (fixture.kind == BenchmarkKind.ORE_COMPONENTS && fixture.count == dev.composemc.demo.preview.DemoPage.Items.ordinal)
         listOf(0, 1, 3, 8).associateWith { ItemIcon.snapshot(icons[it].stack) } else emptyMap(),
 ) : NeoForgeComposeScreen(Component.literal("Compose MC benchmark"), content = { BenchmarkContent(fixture, model, icons, samples) }) {
     private val componentExercise = if (fixture.kind == BenchmarkKind.ORE_COMPONENTS)
-        dev.composemc.demo.OreComponentExercise(model.preview, dev.composemc.demo.DemoPage.entries[fixture.count]) else null
+        dev.composemc.demo.testing.OreComponentExercise(model.preview, dev.composemc.demo.preview.DemoPage.entries[fixture.count]) else null
     fun verifyComponents() { componentExercise?.verify() }
     val componentsReady get() = componentExercise?.complete ?: true
     init {
-        if (componentExercise != null) ComposeThread.call { model.preview.page = dev.composemc.demo.DemoPage.entries[fixture.count] }
+        if (componentExercise != null) ComposeThread.call { model.preview.page = dev.composemc.demo.preview.DemoPage.entries[fixture.count] }
         // This packaged run has no consumer mod: verify the library supplies its own coordinate access.
         val slot = net.minecraft.world.inventory.Slot(net.minecraft.world.SimpleContainer(1), 0, 0, 0)
         slot.x = 7; slot.y = 9
         check(slot.x == 7 && slot.y == 9) { "Native slot coordinate access was not installed" }
     }
     constructor(fixture: BenchmarkCase) : this(fixture, ComposeThread.call { BenchmarkModel() },
-        if (fixture.kind in setOf(BenchmarkKind.NATIVE_STATIC, BenchmarkKind.NATIVE_SCROLL, BenchmarkKind.TOOLTIP) || fixture.kind == BenchmarkKind.ORE_COMPONENTS && fixture.count in setOf(dev.composemc.demo.DemoPage.Tooltips.ordinal, dev.composemc.demo.DemoPage.Slots.ordinal, dev.composemc.demo.DemoPage.Items.ordinal)) benchmarkIcons(if (fixture.kind == BenchmarkKind.NATIVE_STATIC) IconRefresh.STATIC else IconRefresh.AUTO) else emptyList())
+        if (fixture.kind in setOf(BenchmarkKind.NATIVE_STATIC, BenchmarkKind.NATIVE_SCROLL, BenchmarkKind.TOOLTIP) || fixture.kind == BenchmarkKind.ORE_COMPONENTS && fixture.count in setOf(dev.composemc.demo.preview.DemoPage.Tooltips.ordinal, dev.composemc.demo.preview.DemoPage.Slots.ordinal, dev.composemc.demo.preview.DemoPage.Items.ordinal)) benchmarkIcons(if (fixture.kind == BenchmarkKind.NATIVE_STATIC) IconRefresh.STATIC else IconRefresh.AUTO) else emptyList())
 
     protected override fun isUiWindowFocused(): Boolean = BenchmarkEnvironment.background || super.isUiWindowFocused()
 
@@ -85,12 +85,12 @@ private fun benchmarkIcons(refresh: IconRefresh): List<ItemIcon> = BuiltInRegist
 @Composable
 private fun BenchmarkContent(fixture: BenchmarkCase, model: BenchmarkModel, icons: List<ItemIcon>, samples: Map<Int, ItemIcon>) {
     if (fixture.kind == BenchmarkKind.ORE_COMPONENTS) {
-        dev.composemc.demo.OreDemoScreen(model.preview, tooltipItem = { modifier ->
+        dev.composemc.demo.preview.OreDemoScreen(model.preview, tooltipItem = { modifier ->
             if (icons.isNotEmpty()) MinecraftItemIcon(icons[0], modifier)
         }, slotItem = { index, modifier ->
             if (icons.isNotEmpty()) MinecraftItemIcon(icons[index % icons.size], modifier)
         }, nativeContent = { modifier ->
-            dev.composemc.demo.ItemBrowserDemo(model.preview.itemBrowser, icons.map { it.description }, modifier,
+            dev.composemc.demo.preview.ItemBrowserDemo(model.preview.itemBrowser, icons.map { it.description }, modifier,
                 previewItem = { index, iconModifier ->
                     val icon = samples.getValue(index)
                     MinecraftItemTooltip(icon, iconModifier) { MinecraftItemIcon(icon, Modifier.fillMaxSize()) }

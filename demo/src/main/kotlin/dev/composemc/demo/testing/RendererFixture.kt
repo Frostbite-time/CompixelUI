@@ -1,4 +1,4 @@
-package dev.composemc.demo
+package dev.composemc.demo.testing
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*

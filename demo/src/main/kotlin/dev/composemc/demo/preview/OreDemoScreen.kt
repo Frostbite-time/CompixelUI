@@ -1,6 +1,6 @@
 @file:OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 
-package dev.composemc.demo
+package dev.composemc.demo.preview
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas

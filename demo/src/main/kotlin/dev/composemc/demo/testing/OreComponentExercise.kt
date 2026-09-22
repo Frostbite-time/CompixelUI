@@ -1,6 +1,8 @@
-package dev.composemc.demo
+package dev.composemc.demo.testing
 
 import dev.composemc.bridge.ComposeThread
+import dev.composemc.demo.preview.DemoModel
+import dev.composemc.demo.preview.DemoPage
 import dev.composemc.host.UiSession
 import dev.composemc.platform.*
 

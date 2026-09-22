@@ -1,4 +1,4 @@
-package dev.composemc.demo
+package dev.composemc.demo.preview
 
 import androidx.compose.runtime.*
 
@@ -37,20 +37,4 @@ class DemoModel {
     var tooltipClicks by mutableIntStateOf(0)
     var windowOpen by mutableStateOf(true)
     val windowState = dev.composemc.ui.ore.overlay.OreWindowState()
-    /** Smoke probe compatibility: legacy integer tab ids map onto pages. */
-    var tab: Int
-        get() = when (page) {
-            DemoPage.Settings -> 0
-            DemoPage.Catalog -> 1
-            DemoPage.Items -> 3
-            else -> 2
-        }
-        set(value) {
-            page = when (value) {
-                0 -> DemoPage.Settings
-                1 -> DemoPage.Catalog
-                3 -> DemoPage.Items
-                else -> DemoPage.Buttons
-            }
-        }
 }

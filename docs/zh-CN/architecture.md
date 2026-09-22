@@ -22,6 +22,8 @@ Compose MC 在同一个 Gradle 构建中维护共享 UI/运行时和各版本 Mi
 | `runtimes/standard` / `runtimes/vulkan` | 装配匹配的共享代码、JVM 依赖及六种原生库 |
 | `build-logic` / `gradle` / `tools` | 构建约定、目标/版本元数据、检查与启动工具 |
 
+`demo` 内的 `dev.composemc.demo.preview` 包包含 F8 页面及其状态，`dev.composemc.demo.testing` 包包含自动交互脚本和渲染测试场景。桌面截图复用同一套预览页面。
+
 `main` 源码集包含可安装的库功能。各适配器的 `development` 源码集包含 F8 预览和探针，打包为可选 `development` 模组，不进入正式产物。Minecraft/加载器相关代码、资源和适配器测试均位于该版本自己的 `src` 目录。各版本独立维护自己的副本；同类修复需要手动同步到其他受影响版本并分别验证。
 
 共享 OpenGL 回归探针位于 `render-gl/src/testFixtures`，通过 Kotlin 的测试辅助源码集关联访问本模块内部的状态快照。五个适配器的开发源码集均依赖该探针，将其打包进可选 `development` 模组；普通开发运行也加载同一源码集。探针不进入正式库、运行时或消费者 `dev` 产物，无需跨项目编译器 friend paths，渲染器实现类型保持内部可见。

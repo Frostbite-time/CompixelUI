@@ -22,6 +22,8 @@ Compose MC maintains shared UI/runtime code and per-version Minecraft adapters i
 | `runtimes/standard` / `runtimes/vulkan` | Assemble the matching shared code, JVM dependencies and six native variants |
 | `build-logic` / `gradle` / `tools` | Build conventions, target/version metadata, checks and launch helpers |
 
+Within `demo`, `dev.composemc.demo.preview` contains the F8 pages and their state, while `dev.composemc.demo.testing` contains automated interaction exercises and the renderer fixture. Desktop captures use the same preview pages.
+
 `main` source sets contain installable library behavior. Each adapter's `development` source set contains F8 previews and probes, packaged as the optional `development` mod. They do not enter the production archive. Minecraft/loader-facing code, resources and adapter tests live in that version's own `src` directory. Each version owns its copies; similar fixes are applied and validated manually for the other affected versions.
 
 The shared OpenGL regression probe lives in `render-gl/src/testFixtures`, with access to that module's internal state snapshot through Kotlin's test-fixture association. All five adapter development source sets depend on this fixture and package it in the optional `development` mod. Normal development runs load the same fixture source set. It is excluded from the library/runtime and consumer `dev` artifacts. Cross-project compiler friend paths are unnecessary; renderer implementation types remain internal.

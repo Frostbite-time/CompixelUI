@@ -5,7 +5,7 @@ import dev.composemc.render.gl.testing.OpenGlRendererProbe
 import dev.composemc.neoforge.*
 
 import com.mojang.blaze3d.platform.NativeImage
-import dev.composemc.demo.RendererFixture
+import dev.composemc.demo.testing.RendererFixture
 import dev.composemc.host.UiSession
 import dev.composemc.platform.Viewport
 import net.minecraft.client.Minecraft

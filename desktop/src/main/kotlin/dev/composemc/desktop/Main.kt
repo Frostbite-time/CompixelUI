@@ -1,11 +1,10 @@
 package dev.composemc.desktop
 
 import dev.composemc.bridge.ComposeThread
-import dev.composemc.demo.DemoModel
-import dev.composemc.demo.OreDemoScreen as DemoScreen
-import dev.composemc.demo.OreComponentGallery
-import dev.composemc.demo.Fixture
-import dev.composemc.demo.DemoPage
+import dev.composemc.demo.preview.DemoModel
+import dev.composemc.demo.preview.OreDemoScreen as DemoScreen
+import dev.composemc.demo.preview.Fixture
+import dev.composemc.demo.preview.DemoPage
 import dev.composemc.host.UiSession
 import dev.composemc.platform.*
 import org.jetbrains.skia.Surface
@@ -30,20 +29,20 @@ private fun smoke(directory: File) {
     directory.mkdirs()
     val model = ComposeThread.call { DemoModel() }
     UiSession(Viewport(960, 640), content = { DemoScreen(model) { modifier ->
-        dev.composemc.demo.ItemBrowserDemo(model.itemBrowser, List(256) { "Item $it" }, modifier) { index, imageModifier ->
+        dev.composemc.demo.preview.ItemBrowserDemo(model.itemBrowser, List(256) { "Item $it" }, modifier) { index, imageModifier ->
             dev.composemc.ui.ore.display.OreIcon(dev.composemc.ui.ore.display.OreGlyph.entries[index % dev.composemc.ui.ore.display.OreGlyph.entries.size], imageModifier)
         }
     } }).use { session ->
         println("Compose thread: ${session.diagnosticThread()}")
         val cases = listOf(
-            Triple("settings-en", Viewport(960, 640), { model.tab = 0 }),
+            Triple("settings-en", Viewport(960, 640), { model.page = DemoPage.Settings }),
             Triple("settings-zh", Viewport(960, 640), { model.locale = "zh_cn" }),
-            Triple("catalog-100k", Viewport(960, 640), { model.tab = 1; model.count = 100000 }),
-            Triple("compact", Viewport(360, 640), { model.locale = "en_us"; model.tab = 0 }),
-            Triple("scale-2", Viewport(1280, 960, 2f), { model.tab = 0 }),
+            Triple("catalog-100k", Viewport(960, 640), { model.page = DemoPage.Catalog; model.count = 100000 }),
+            Triple("compact", Viewport(360, 640), { model.locale = "en_us"; model.page = DemoPage.Settings }),
+            Triple("scale-2", Viewport(1280, 960, 2f), { model.page = DemoPage.Settings }),
             Triple("dialog", Viewport(960, 640), { model.dialog = true }),
-            Triple("empty", Viewport(960, 640), { model.dialog = false; model.tab = 1; model.fixture = Fixture.EMPTY }),
-        ) + (listOf(DemoPage.Buttons) + dev.composemc.demo.oreComponentPages).flatMap { page ->
+            Triple("empty", Viewport(960, 640), { model.dialog = false; model.page = DemoPage.Catalog; model.fixture = Fixture.EMPTY }),
+        ) + (listOf(DemoPage.Buttons) + dev.composemc.demo.testing.oreComponentPages).flatMap { page ->
             listOf(
                 Triple("ore-${page.name.lowercase()}-en",Viewport(1100,840,2f),{model.page=page;model.locale="en_us";model.dialog=false}),
                 Triple("ore-${page.name.lowercase()}-zh-compact",Viewport(360,640),{model.page=page;model.locale="zh_cn";model.dialog=false}),
@@ -112,32 +111,6 @@ private fun smoke(directory: File) {
                     session.pointer(PointerInput(PointerAction.PRESS, radio.x, radio.y, MouseButton.LEFT))
                     captureState("radio-selected-pressed")
                     session.pointer(PointerInput(PointerAction.RELEASE, radio.x, radio.y, MouseButton.LEFT))
-                }
-            }
-        }
-    }
-    for ((name, viewport) in listOf("ore-components" to Viewport(1000, 760),
-        "ore-components-scale-150" to Viewport(1500, 1140, 1.5f), "ore-components-scale-2" to Viewport(2000, 1520, 2f))) {
-        UiSession(viewport, content = { OreComponentGallery() }).use { session ->
-            Surface.makeRasterN32Premul(viewport.width, viewport.height).use { surface ->
-                repeat(8) { session.frame(2_000_000_000L + it * 16_666_667L)?.use { frame -> surface.canvas.clear(0); frame.draw(surface.canvas) } }
-                fun save(suffix: String) {
-                    surface.makeImageSnapshot().use { image -> image.encodeToData()!!.use { data -> File(directory, "$suffix.png").writeBytes(data.bytes) } }
-                }
-                save(name)
-                if (name == "ore-components") {
-                    fun capture(suffix: String, time: Long) {
-                        session.frame(time)?.use { frame -> surface.canvas.clear(0); frame.draw(surface.canvas) }
-                        save("$name-$suffix")
-                    }
-                    // The reference gallery's first button is at (128..369, 118..158).
-                    session.pointer(PointerInput(PointerAction.MOVE, 250f, 138f))
-                    capture("hovered", 2_300_000_000)
-                    session.pointer(PointerInput(PointerAction.PRESS, 250f, 138f, MouseButton.LEFT))
-                    capture("pressed", 2_320_000_000)
-                    session.pointer(PointerInput(PointerAction.RELEASE, 250f, 138f, MouseButton.LEFT))
-                    session.pointer(PointerInput(PointerAction.MOVE, 100f, 10f))
-                    capture("focused", 2_340_000_000)
                 }
             }
         }

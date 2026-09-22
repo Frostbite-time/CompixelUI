@@ -39,11 +39,11 @@ import kotlin.test.*
 
 class OreExtendedControlsTest {
     @Test fun `packaged component exercise drives the actual F8 pages`() {
-        for(page in dev.composemc.demo.oreComponentPages) {
-            val model=ComposeThread.call {dev.composemc.demo.DemoModel().apply {this.page=page}}
-            val exercise=dev.composemc.demo.OreComponentExercise(model,page)
-            UiSession(Viewport(1280,960,2f)){dev.composemc.demo.OreDemoScreen(model) {modifier->
-                dev.composemc.demo.ItemBrowserDemo(model.itemBrowser,List(256){"Item $it"},modifier) {index,iconModifier->
+        for(page in dev.composemc.demo.testing.oreComponentPages) {
+            val model=ComposeThread.call {dev.composemc.demo.preview.DemoModel().apply {this.page=page}}
+            val exercise=dev.composemc.demo.testing.OreComponentExercise(model,page)
+            UiSession(Viewport(1280,960,2f)){dev.composemc.demo.preview.OreDemoScreen(model) {modifier->
+                dev.composemc.demo.preview.ItemBrowserDemo(model.itemBrowser,List(256){"Item $it"},modifier) {index,iconModifier->
                     OreIcon(OreGlyph.entries[index%OreGlyph.entries.size],iconModifier)
                 }
             }}.use {session->
