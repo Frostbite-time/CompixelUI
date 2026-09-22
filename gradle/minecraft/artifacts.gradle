@@ -1,8 +1,10 @@
 // Artifact assembly/publication. Loader selection, dependencies and remapping belong to adapters.
 apply plugin: 'maven-publish'
+apply from: rootProject.file('gradle/minecraft/api-docs.gradle')
 
 ext.configureMinecraftArtifacts = { Map spec ->
     def runtime = spec.runtime
+    def apiDocs = configureMinecraftApiDocs(runtime)
     base { archivesName = "composemc-${spec.loader}-${minecraft_version}" }
     def development = tasks.findByName('developmentJar') != null
         ? tasks.named('developmentJar', Jar) : tasks.register('developmentJar', Jar)
@@ -70,6 +72,8 @@ ext.configureMinecraftArtifacts = { Map spec ->
                 artifact withKotlinRelease
                 artifact consumerApi
                 artifact developmentRelease
+                artifact apiDocs.sources
+                artifact apiDocs.documentation
                 pom {
                     name = "Compose MC for ${spec.loader} ${minecraft_version}"
                     description = 'Library mod: standard requires an external Kotlin provider; with-kotlin includes it. dev is compileOnly; development is the optional preview mod.'
@@ -90,7 +94,7 @@ ext.configureMinecraftArtifacts = { Map spec ->
             }
         }
     }
-    tasks.named('assemble') { dependsOn consumerApi, development, withKotlinRelease }
+    tasks.named('assemble') { dependsOn consumerApi, development, withKotlinRelease, apiDocs.sources, apiDocs.documentation }
     [release: spec.release, withKotlin: withKotlinRelease, development: developmentRelease, metadata: metadata, runtime: runtime,
-        loader: spec.loader, metadataPath: spec.metadataPath]
+        loader: spec.loader, metadataPath: spec.metadataPath, apiDocs: apiDocs]
 }

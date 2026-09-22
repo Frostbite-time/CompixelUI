@@ -118,7 +118,10 @@ Do not read live menus, `ItemStack` or `Minecraft` from a composable. Do not syn
 | `…-with-kotlin.jar` | Alternative installation: includes Kotlin; no external provider needed |
 | `…-dev.jar` | Compile-only API bundle; do not install |
 | `…-development.jar` | Optional F8 preview/probe mod; requires the normal library |
+| `…-sources.jar` / `…-javadoc.jar` | Shared source/API documentation attachments, including for `dev` |
 
 Installable artifacts are under the adapter's `build/libs/`. Install exactly one library variant beside the consumer; add the external provider when using the standard JAR. Both variants have the same mod ID and API. The development artifact is useful when inspecting controls; it is not a second runtime.
+
+Source and documentation JARs are published by the same Maven task. They are IDE attachments, not runtime dependencies or mods. Enable source/documentation downloading in IDEA and refresh Gradle to browse Compose MC's own sources from `dev` and read its generated API reference. Third-party libraries retain their upstream sources and documentation.
 
 Continue with [Ore UI](ore-ui.md), [native items](native-content.md), [inventory](inventory.md) or [server menu synchronization](menu-sync.md).

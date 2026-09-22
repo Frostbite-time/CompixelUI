@@ -118,7 +118,10 @@ fun openCounterScreen() {
 | `…-with-kotlin.jar` | 另一种安装选择：自带 Kotlin，无需外部提供者 |
 | `…-dev.jar` | 仅用于编译的 API 包；不要安装 |
 | `…-development.jar` | 可选 F8 预览/探针模组；需要正式库 |
+| `…-sources.jar` / `…-javadoc.jar` | 共用的源码/API 文档附件，也用于 `dev` |
 
 可安装产物位于适配器的 `build/libs/`。在消费者旁边只安装一个库版本；标准版还需要外部运行时提供者。两种安装包具有相同的 Mod ID 和 API。查看组件时可额外安装开发包，它不包含第二份运行时。
+
+源码和文档 JAR 由同一个 Maven 发布任务提供，属于 IDE 附件，不是运行依赖或模组。在 IDEA 开启源码/文档下载并刷新 Gradle，即可从 `dev` 浏览 Compose MC 自有源码和生成的 API 参考。第三方库仍使用各自上游源码及文档。
 
 接下来可以阅读 [Ore UI](ore-ui.md)、[原生物品](native-content.md)、[容器界面](inventory.md)或[服务端菜单同步](menu-sync.md)。

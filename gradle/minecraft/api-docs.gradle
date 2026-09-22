@@ -1,0 +1,67 @@
+// Sources and API documentation for one adapter and its bundled shared code.
+apply plugin: 'org.jetbrains.dokka'
+
+ext.configureMinecraftApiDocs = { runtime ->
+    def sourceProjects = new LinkedHashSet()
+    def collectSources
+    collectSources = { owner ->
+        if (!sourceProjects.add(owner)) return
+        if (owner != project) evaluationDependsOn(owner.path)
+        ['api', 'implementation', 'runtimeOnly'].each { name ->
+            owner.configurations.findByName(name)?.allDependencies
+                ?.withType(org.gradle.api.artifacts.ProjectDependency)?.each {
+                    collectSources(rootProject.project(it.path))
+                }
+        }
+    }
+    collectSources(runtime)
+    collectSources(project(':menu-sync'))
+    collectSources(project(':slot-core'))
+    sourceProjects.add(project)
+    def roots = sourceProjects.collectMany { owner ->
+        [owner.file('src/main/java'), owner.file('src/main/kotlin')]
+    }
+    def apiModuleName = "composemc-${project.name}"
+    def overview = tasks.register('prepareApiOverview', Copy) {
+        inputs.property('apiModuleName', apiModuleName)
+        from(rootProject.file('docs/api-overview.md')) {
+            filter { line -> line == '# Module Compose MC' ? "# Module $apiModuleName" : line }
+        }
+        into layout.buildDirectory.dir('generated/api-overview')
+    }
+    def sources = tasks.register('sourcesJar', Jar) {
+        group = 'build'
+        description = 'Package this adapter and its shared library sources for all binary variants.'
+        archiveClassifier = 'sources'
+        roots.each { root -> from(root) { include '**/*.java', '**/*.kt' } }
+        duplicatesStrategy = DuplicatesStrategy.FAIL
+    }
+    dokka {
+        moduleName.set(apiModuleName)
+        moduleVersion.set(project.version.toString())
+        dokkaPublications.named('html') {
+            offlineMode.set(true)
+            suppressInheritedMembers.set(true)
+            includes.from(overview.map { new File(it.destinationDir, 'api-overview.md') })
+        }
+        dokkaSourceSets.configureEach {
+            suppress.set(name != 'main')
+        }
+        dokkaSourceSets.named('main') {
+            sourceRoots.setFrom(roots)
+            classpath.from(sourceSets.main.compileClasspath)
+            includes.from(overview.map { new File(it.destinationDir, 'api-overview.md') })
+            jdkVersion.set(project.java_version as int)
+            reportUndocumented.set(false)
+        }
+    }
+    def documentation = tasks.register('javadocJar', Jar) {
+        group = 'build'
+        description = 'Package the common Dokka HTML API reference under the Maven javadoc classifier.'
+        archiveClassifier = 'javadoc'
+        from tasks.named('dokkaGeneratePublicationHtml').flatMap { it.outputDirectory }
+        from(rootProject.file('docs/api-assets-licenses')) { into 'third-party' }
+        from(rootProject.file('licenses/APACHE-2.0.txt')) { into 'third-party' }
+    }
+    [sources: sources, documentation: documentation, sourceProjects: sourceProjects, sourceRoots: roots, moduleName: apiModuleName]
+}

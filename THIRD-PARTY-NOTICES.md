@@ -64,6 +64,10 @@ Required acknowledgments / 必要署名：
 
 ## Font, external runtime and build tools / 字体、外部运行时与构建工具
 
+API documentation JARs additionally contain Dokka's static HTML assets. Their [separate notices](docs/api-assets-licenses/README.md) travel with the documentation; these assets are not included in installed mod JARs.
+
+API 文档 JAR 另含 Dokka 静态页面资源，其[独立声明](docs/api-assets-licenses/README.md)随文档分发，不进入游戏安装包。
+
 - **Monocraft**, copyright © 2022 Idrees Hassan, uses **SIL Open Font License 1.1**. The unmodified font and complete license remain together at `dev/composemc/ui/ore/Monocraft.ttf` and `Monocraft-LICENSE.txt` in the library runtime. The repository copy is under `ui-ore/src/main/resources/`. 字体未经修改，完整 OFL 正文始终随字体打包；它不受项目 MIT 许可替代。
 - **Kotlin for Forge** uses **LGPL-2.1** for its own implementation. It is installed separately, never embedded or copied into Compose MC. Its bundled Kotlin libraries retain their own upstream licenses. KFF 独立安装，其实现采用 LGPL-2.1；Compose MC 不内嵌或复制 KFF，Kotlin 库仍保留各自上游许可。[Upstream license / 上游许可](https://github.com/thedarkcolour/KotlinForForge/blob/6.x/LICENSE)
 - **Minecraft, Forge/NeoForge and LWJGL** are supplied by the game/loader installation. Their binaries are not bundled in Compose MC. Screenshots showing Minecraft-native items contain game assets whose rights remain with their owners. Minecraft、加载器和 LWJGL 由游戏环境提供；展示图中的原生物品等游戏资源保留原权利人的权利。本项目不代表 Mojang 或 Microsoft，也不授予其商标或资源的额外使用权。

@@ -9,6 +9,7 @@ junit = "5.13.4"
 junit-platform = "1.13.4"
 moddev = "2.0.147"
 shadow = "9.2.2"
+dokka = "2.2.0"
 
 [libraries]
 skiko-standard = { module = "org.jetbrains.skiko:skiko-awt", version.ref = "skiko-standard" }
@@ -20,3 +21,4 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 compose = { id = "org.jetbrains.compose", version.ref = "compose" }
 moddev = { id = "net.neoforged.moddev", version.ref = "moddev" }
 shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
+dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }

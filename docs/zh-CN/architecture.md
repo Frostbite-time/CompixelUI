@@ -65,7 +65,7 @@ standard 配置使用 Skiko 0.150.1；Vulkan 配置使用匹配的 Polyfrost Ski
 
 每个运行时项目都生成外部 Kotlin 版和 `with-kotlin` 版。外部版排除 Kotlin 标准库、协程 Core 和 Serialization，保留 Compose 使用的 Swing 调度器集成和 atomicfu。适配器只嵌入一份匹配的运行时，绝不嵌入 KFF。客户端入口使用 Java，在进入 Kotlin 代码前报告缺失的外部依赖。共享 Java 检查验证 stdlib >= 2.2.21 及协程、Serialization 的代表性 API，不触及专用服务器入口。这属于依赖检查，不保证任意库组合都兼容。
 
-`dev` 分类产物为两种安装方式提供完整的编译用 JVM API，不带原生二进制；`development` 分类产物提供预览/探针代码。消费者依赖方式见[快速开始](getting-started.md)。
+`dev` 分类产物为两种安装方式提供完整的编译用 JVM API，不带原生二进制；`development` 分类产物提供预览/探针代码。一份 `sources` JAR 和一份 Dokka HTML `javadoc` JAR 描述当前适配器与其共享正式模块，由所有二进制版本共用。它们只包含项目自有源码/API，不包含依赖源码或其他 MC 版本。消费者依赖方式见[快速开始](getting-started.md)。
 
 ## 构建约定
 
@@ -85,6 +85,8 @@ standard 配置使用 Skiko 0.150.1；Vulkan 配置使用匹配的 Polyfrost Ski
 [minecraft-targets.properties](../../gradle/minecraft-targets.properties) 仅索引版本和工程目录，供目标选择和启动脚本使用；[libs.versions.toml](../../gradle/libs.versions.toml) 管理共享依赖版本。根构建提供聚合任务，不再向适配器注入版本构建配置。
 
 各适配器显式调用 [gradle/minecraft](../../gradle/minecraft) 下四个可复用脚本：`sources.gradle` 配置本地开发源码集及 Kotlin 可见性；`artifacts.gradle` 装配、发布产物并展开元数据；`artifact-checks.gradle` 按适配器声明的规则检查归档隔离；`runs.gradle` 提供通用 smoke/benchmark 执行参数与报告检查。辅助脚本不选择 Minecraft 版本、加载器、运行时配置或版本特有例外，也不挂接其他适配器的源码。新增目标通常只需修改自己的目录和目标索引。
+
+`artifacts.gradle` 将源码/API 发布交给 [api-docs.gradle](../../gradle/minecraft/api-docs.gradle)。它遍历所选运行时声明的项目依赖，加入 Java 菜单/槽位核心和当前适配器，仅为打包与文档生成读取这些正式源码，不连接适配器的编译源码根。根构建服务将 Dokka 任务串行执行；产物检查在发布前比对源码字节并验证代表性 API 页面。
 
 客户端使用加载器正常的窗口启动流程，直接运行客户端和 benchmark 任务时默认可见。Windows 后台验证通过 [run_isolated_gradle.ps1](../../tools/run_isolated_gradle.ps1) 在独立且从不激活的 Win32 桌面上启动新的 Gradle 进程，版本 benchmark 脚本和消费者测试脚本共用此入口。启动器负责桌面隔离和原生启动失败检查，后台探针在启动后隐藏自己的 GLFW/SDL 窗口。不需要额外的窗口提供者 JAR，渲染器使用 Minecraft/NeoForge 提供的上下文，并报告实际 GL 版本。
 

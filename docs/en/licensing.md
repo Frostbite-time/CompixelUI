@@ -18,6 +18,7 @@ See [third-party notices](../../THIRD-PARTY-NOTICES.md) for the full component m
 - `META-INF/composemc-third-party/THIRD-PARTY-NOTICES.md` and `licenses/`: third-party acknowledgments and retained native/common license texts.
 - Inside the runtime bundle (flattened into `dev`), `META-INF/composemc-third-party/dependencies.json` and `dependencies.txt`: exact bundled coordinates and license declarations. Each coordinate has a directory containing a license copy, its upstream POM where applicable, and any original LICENSE/NOTICE files found in the dependency JAR.
 - `dev/composemc/ui/ore/Monocraft-LICENSE.txt`: the font's original OFL notice alongside the font.
+- Source and documentation JARs retain the project's MIT notice. The `javadoc` JAR also includes `third-party/` with Dokka/frontend asset notices; these documentation-only assets are not installed with the Minecraft mod.
 
 When redistributing an unchanged JAR, retain these contents. When extracting or repackaging dependencies, retain the notices that apply to the components you distribute; the MIT license alone does not cover third-party components. The native DNG SDK license is Adobe's own agreement and includes conditions beyond a generic MIT notice.
 

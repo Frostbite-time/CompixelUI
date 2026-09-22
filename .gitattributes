@@ -1,3 +1,4 @@
 # Keep upstream license bytes unchanged so provenance hashes remain portable.
 licenses/** -text -whitespace
 licenses/provenance.json text eol=lf whitespace
+docs/api-assets-licenses/** -text -whitespace

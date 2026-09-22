@@ -18,6 +18,7 @@ KFF 的实现采用 LGPL-2.1，由用户单独安装；Compose MC 不复制或�
 - `META-INF/composemc-third-party/THIRD-PARTY-NOTICES.md` 和 `licenses/`：第三方署名、保留的原生及通用许可正文。
 - 运行时包内（`dev` 中为展开形式）的 `META-INF/composemc-third-party/dependencies.json` 与 `dependencies.txt`：实际打包坐标及许可声明。每个坐标有对应目录，保存许可副本、适用的上游 POM，以及依赖 JAR 原有的 LICENSE/NOTICE。
 - `dev/composemc/ui/ore/Monocraft-LICENSE.txt`：随字体保留的原始 OFL 声明。
+- 源码与文档 JAR 保留项目 MIT 声明。`javadoc` JAR 另含 `third-party/`，保存 Dokka/前端资源声明；这些仅用于文档的资源不随 Minecraft 模组安装。
 
 直接再分发 JAR 时保留这些内容。提取或重新打包依赖时，应保留对应组件所要求的声明，不能只保留项目 MIT 文件。原生 DNG SDK 遵循 Adobe 自有协议，其中含有超出普通 MIT 声明的条件。
 

@@ -54,8 +54,14 @@ Look in `minecraft/<loader>-<mc>/build/libs/`:
 | `…-with-kotlin.jar` | Alternative installation including Kotlin; install only one variant |
 | `…-dev.jar` | Consumer compile classpath only |
 | `…-development.jar` | Optional F8 preview/probe mod alongside the player JAR |
+| `…-sources.jar` | Common project sources for standard, `with-kotlin` and `dev`; not an installable mod |
+| `…-javadoc.jar` | Common Dokka HTML API reference; not an installable mod |
 
-Use loader `forge` for 1.20.1 and `neoforge` otherwise. Both Forge installation variants are reobfuscated; named JARs under `build/devlibs` are development-launch artifacts. `build` produces both variants, `dev` and `development`. Runtime bundles under `runtimes/` are internal outputs, not a second installable mod.
+Use loader `forge` for 1.20.1 and `neoforge` otherwise. Both Forge installation variants are reobfuscated; named JARs under `build/devlibs` are development-launch artifacts. `build` produces all six artifacts in the table. Runtime bundles under `runtimes/` are internal outputs, not a second installable mod.
+
+`sourcesJar` packages the selected adapter's production sources and its bundled shared modules, using readable development mappings even on Forge 1.20.1. It excludes other adapters, development probes and third-party sources. `javadocJar` packages Dokka 2.2.0 HTML with a bilingual overview and public declarations from the same source set. Member descriptions use existing KDoc/Javadoc comments; the bilingual guides remain the tutorial and usage reference.
+
+For example, run `:minecraft:neoforge-1.21.1:sourcesJar` or `:minecraft:neoforge-1.21.1:javadocJar` separately. Open the HTML at `minecraft/neoforge-1.21.1/build/dokka/html/index.html`. Documentation generation is serialized across adapters to bound memory usage. `verifyApiArchives`, included in `check`, checks source contents against the checkout, representative shared/adapter pages, the bilingual overview and accidental local-path leakage.
 
 Publish locally for a consumer with:
 
@@ -64,6 +70,8 @@ Publish locally for a consumer with:
 ```
 
 The repository is `build/consumer-maven`. This task does not publish to an external Maven service. See [quick start](getting-started.md) for consumer dependencies.
+
+Attachments use the ordinary `sources` and `javadoc` classifiers. A `:dev` consumer resolves both through Gradle's standard JVM artifact queries; the generated IDEA model associates them with the dev binary. No duplicate `dev-sources` or `dev-javadoc` artifacts are published. Enable source/documentation downloading in your IDE and refresh Gradle if attachments are not downloaded automatically.
 
 ## Desktop previews and documentation images
 

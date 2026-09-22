@@ -54,8 +54,14 @@ Gradle 需要 JDK 17 或更新版本，推荐 JDK 25。各适配器所需 Java �
 | `…-with-kotlin.jar` | 自带 Kotlin 的另一种安装选择，只能选装一个版本 |
 | `…-dev.jar` | 仅消费者编译类路径 |
 | `…-development.jar` | 可选 F8 预览/探针模组，与正式 JAR 同时安装 |
+| `…-sources.jar` | 标准版、自带版与 `dev` 共用的项目源码，不是可安装模组 |
+| `…-javadoc.jar` | 共用的 Dokka HTML API 参考，不是可安装模组 |
 
-1.20.1 的加载器名为 `forge`，其他目标为 `neoforge`。Forge 的两种安装包均已重混淆；`build/devlibs` 下的命名 JAR 用于开发启动。`build` 同时生成两种安装包、`dev` 和 `development`。`runtimes/` 下是内部装配产物，不要作为第二个模组安装。
+1.20.1 的加载器名为 `forge`，其他目标为 `neoforge`。Forge 的两种安装包均已重混淆；`build/devlibs` 下的命名 JAR 用于开发启动。`build` 生成表中的全部六种产物。`runtimes/` 下是内部装配产物，不要作为第二个模组安装。
+
+`sourcesJar` 收集当前适配器的正式源码和随包分发的共享模块，Forge 1.20.1 也采用可读开发映射。它不包含其他适配器、开发探针或第三方源码。`javadocJar` 将 Dokka 2.2.0 生成的 HTML 打包，包含双语概览及同一套源码的公开声明。成员说明来自现有 KDoc/Javadoc 注释，中英文指南继续承担教程和用法说明。
+
+例如可分别运行 `:minecraft:neoforge-1.21.1:sourcesJar` 或 `:minecraft:neoforge-1.21.1:javadocJar`。HTML 可从 `minecraft/neoforge-1.21.1/build/dokka/html/index.html` 打开。各适配器的文档生成串行执行以控制内存使用。`check` 包含 `verifyApiArchives`，核对源码与当前工作区一致、共享及适配器代表性页面存在、双语概览完整，并检查本机路径意外泄漏。
 
 为消费者发布至本地仓库：
 
@@ -64,6 +70,8 @@ Gradle 需要 JDK 17 或更新版本，推荐 JDK 25。各适配器所需 Java �
 ```
 
 仓库位于 `build/consumer-maven`，该任务不会发布到外部 Maven 服务。消费者依赖见[快速开始](getting-started.md)。
+
+附件使用常规 `sources`、`javadoc` classifier。`:dev` 消费者可通过 Gradle 标准 JVM 产物查询解析两者，生成的 IDEA 模型会将其关联到 dev 二进制。不另发重复的 `dev-sources` 或 `dev-javadoc`。若 IDE 未自动下载，请开启源码/文档下载并刷新 Gradle 项目。
 
 ## 桌面预览与文档图片
 
