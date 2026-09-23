@@ -59,7 +59,7 @@ apply(from = "gradle/verify-core-boundary.gradle.kts")
 tasks.register("checkCore") {
     group = "verification"
     dependsOn("verifyCoreBoundary", ":desktop:smoke")
-    dependsOn(listOf("platform", "render", "render-gl", "render-vulkan", "compose-bridge", "host", "ui-ore", "menu-sync", "slot-core", "demo", "desktop")
+    dependsOn(listOf("platform", "render", "render-gl", "render-vulkan", "compose-bridge", "host", "ui-ore", "menu-sync", "slot-core", "demo", "desktop", "testing")
         .map { ":$it:check" })
 }
 tasks.register("buildAllMods") {

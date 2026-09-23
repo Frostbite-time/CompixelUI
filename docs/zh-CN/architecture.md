@@ -17,16 +17,16 @@ Compose MC 在同一个 Gradle 构建中维护共享 UI/运行时和各版本 Mi
 | `ui-ore` | 共享视觉参数、字体和控件 |
 | `menu-sync` | 无依赖 Java 17 数据声明、codec、快照和有界协议 |
 | `slot-core` | 无依赖 Java 17 槽位策略和转移路线 |
-| `demo` / `desktop` | 独立于 Minecraft 的场景及桌面预览/截图 |
+| `demo` / `desktop` | F8 预览页面及桌面预览/截图 |
 | `minecraft/forge-*` / `minecraft/neoforge-*` | 各版本独立构建、原生屏幕、输入、资源、物品、菜单和 GPU 生命周期 |
 | `runtimes/standard` / `runtimes/vulkan` | 装配匹配的共享代码、JVM 依赖及六种原生库 |
 | `build-logic` / `gradle` / `tools` | 构建约定、目标/版本元数据、检查与启动工具 |
 
-`demo` 内的 `dev.composemc.demo.preview` 包包含 F8 页面及其状态，`dev.composemc.demo.testing` 包包含自动交互脚本和渲染测试场景。桌面截图复用同一套预览页面。
+`demo` 只包含预览页面及其状态，桌面截图复用同一套页面。公共测试代码集中在 `testing`：`dev.composemc.testing.render` 管理渲染场景、CPU 参考图和像素比较，`dev.composemc.testing.ui` 管理自动交互脚本。组件回归测试集中在 `testing/src/test`，桌面模块提供预览和截图入口。
 
 `main` 源码集包含可安装的库功能。各适配器的 `development` 源码集包含 F8 预览和探针，打包为可选 `development` 模组，不进入正式产物。Minecraft/加载器相关代码、资源和适配器测试均位于该版本自己的 `src` 目录。各版本独立维护自己的副本；同类修复需要手动同步到其他受影响版本并分别验证。
 
-共享 OpenGL 回归探针位于 `render-gl/src/testFixtures`，通过 Kotlin 的测试辅助源码集关联访问本模块内部的状态快照。五个适配器的开发源码集均依赖该探针，将其打包进可选 `development` 模组；普通开发运行也加载同一源码集。探针不进入正式库、运行时或消费者 `dev` 产物，无需跨项目编译器 friend paths，渲染器实现类型保持内部可见。
+两种后端的探针分别位于对应的 `render-gl/src/testFixtures` 和 `render-vulkan/src/testFixtures`，统一使用 `testing` 中的场景、两种视口尺寸、预乘 RGBA CPU 参考图及比较阈值。每个探针重复执行绘制、重置和上下文关闭；OpenGL 额外检查宿主状态及保留的图像副本，Vulkan 则在借用的 Minecraft 设备上验证图像屏障和 GPU 读回。版本相关的设备接入与屏幕验证集中在各适配器的 `development/render` 包内。这些辅助代码只进入开发产物；探针对内部实现的访问通过本模块的 Kotlin 测试源码集关联完成。
 
 `ui-ore` 内部按职责划分公共组件子包，每个独立组件使用同名文件。主题配置与展示组件分开，共享边框绘制保持内部可见。[Ore UI 包对照表](ore-ui.md#选择组件)提供组件目录和导入说明。
 

@@ -51,7 +51,7 @@ internal class BenchmarkScreen private constructor(
         listOf(0, 1, 3, 8).associateWith { ItemIcon.snapshot(icons[it].stack) } else emptyMap(),
 ) : NeoForgeComposeScreen(Component.literal("Compose MC benchmark"), content = { BenchmarkContent(fixture, model, icons, samples) }) {
     private val componentExercise = if (fixture.kind == BenchmarkKind.ORE_COMPONENTS)
-        dev.composemc.demo.testing.OreComponentExercise(model.preview, dev.composemc.demo.preview.DemoPage.entries[fixture.count]) else null
+        dev.composemc.testing.ui.OreComponentExercise(model.preview, dev.composemc.demo.preview.DemoPage.entries[fixture.count]) else null
     fun verifyComponents() { componentExercise?.verify() }
     val componentsReady get() = componentExercise?.complete ?: true
     init {

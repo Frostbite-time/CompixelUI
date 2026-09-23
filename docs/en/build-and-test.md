@@ -36,7 +36,7 @@ If the Gradle tool window omits the task tree, enable task-list building in IDEA
 
 Adapter `development` compilations are associated with `main` through Kotlin's `associateWith`, allowing previews and probes to access the adapter's `internal` declarations. Reload the Gradle project after build-convention changes so IDEA imports that visibility relationship. Passing compiler friend paths alone does not declare this source-set relationship to the IDE.
 
-Renderer probes belong to `render-gl/src/testFixtures`, which can access `render-gl/main` internals. Adapters call the fixture's test entry point through a regular dependency; they do not access internal renderer classes across projects. Keep new probes with the module whose internal behavior they inspect, and include them only in development artifacts.
+Common renderer scenes, CPU reference pixels and preview exercises live in `testing`. Backend probes belong to `render-gl/src/testFixtures` and `render-vulkan/src/testFixtures`; version-specific device setup and screen checks are grouped in each adapter's `development/render` package. The selected GPU probe runs at the start of packaged benchmarks, comparing both viewport sizes over repeated render/reset/close cycles. Vulkan validation layers additionally check API and synchronization errors. All test helpers stay out of release and consumer API artifacts.
 
 `runClient` includes the development preview. Press **F8** in the game to open it. For 26.2/26.3, append `-PcomposemcBackend=opengl` or `-PcomposemcBackend=vulkan`; `auto` follows the host backend. A Vulkan request on an unsupported target fails explicitly.
 

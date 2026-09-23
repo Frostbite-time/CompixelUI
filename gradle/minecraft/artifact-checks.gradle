@@ -36,7 +36,8 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms -
                         def name = entry.name.toLowerCase(java.util.Locale.ROOT)
                         name.contains('mixin') ||
                             name.startsWith('dev/composemc/development/') || name.startsWith('dev/composemc/demo/') ||
-                            name.startsWith('dev/composemc/render/gl/testing/') || name.contains('smokeprobe') ||
+                            name.startsWith('dev/composemc/testing/') || name.startsWith('dev/composemc/render/gl/testing/') ||
+                            name.startsWith('dev/composemc/render/vulkan/testing/') || name.contains('smokeprobe') ||
                             name.contains('benchmarkprobe') || name.contains('tooltipprobe') || name.contains('composepreviewscreen')
                     }.collect { it.name }
                     if (!bad.empty) throw new GradleException("Test/injection files leaked into release JAR: $bad")
@@ -64,6 +65,11 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms -
                     throw new GradleException('Missing development mod entry point')
                 if (zip.getEntry('dev/composemc/render/gl/testing/OpenGlRendererProbe.class') == null)
                     throw new GradleException('Missing shared OpenGL probe fixture')
+                if (zip.getEntry('dev/composemc/testing/render/RendererAcceptance.class') == null)
+                    throw new GradleException('Missing common renderer acceptance scenarios')
+                def hasVulkanProbe = zip.getEntry('dev/composemc/render/vulkan/testing/VulkanRendererProbe.class') != null
+                if (hasVulkanProbe != (artifacts.runtime.runtime_profile == 'vulkan'))
+                    throw new GradleException('Incorrect Vulkan probe contents for this adapter')
                 if (zip.getEntry('dev/composemc/render/gl/GlStateSnapshot.class') != null)
                     throw new GradleException('Development artifact embedded renderer implementation')
                 if (zip.entries().findAll { it.name.startsWith('androidx/') || it.name.startsWith('kotlin/') ||
@@ -73,6 +79,9 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms -
             }
             new java.util.zip.ZipFile(tasks.named('consumerDevJar').get().archiveFile.get().asFile).withCloseable { zip ->
                 verifyLicenseGroups(zip, 'META-INF/composemc-third-party/licenses', ['common', 'runtime'])
+                if (zip.entries().any { it.name.startsWith('dev/composemc/testing/') ||
+                    it.name.startsWith('dev/composemc/render/gl/testing/') || it.name.startsWith('dev/composemc/render/vulkan/testing/') })
+                    throw new GradleException('Test fixtures leaked into consumer API artifact')
             }
         }
     }
@@ -92,6 +101,7 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms -
                 }
                 def forbidden = zip.entries().findAll {
                     it.name.startsWith('dev/composemc/development/') || it.name.startsWith('dev/composemc/demo/') ||
+                        it.name.startsWith('dev/composemc/testing/') ||
                         it.name.startsWith('net/minecraft/') || it.name.startsWith('androidx/') || it.name.startsWith('kotlin/') ||
                         it.name.startsWith("dev/composemc/${namespace == 'forge' ? 'neoforge' : 'forge'}/") ||
                         it.name.endsWith('.class') || it.name.endsWith('Test.kt') || it.name.endsWith('Test.java')

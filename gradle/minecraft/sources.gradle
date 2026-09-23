@@ -1,5 +1,5 @@
 // Source-set mechanics only. Minecraft-facing sources stay inside each adapter.
-ext.configureMinecraftSources = { ->
+ext.configureMinecraftSources = { List<String> backends = [':render-gl'] ->
     sourceSets { packagedSmoke; development }
     // Packaged tests must obtain Kotlin from installed mods, not the launcher.
     configurations.named('packagedSmokeRuntimeClasspath') {
@@ -9,6 +9,9 @@ ext.configureMinecraftSources = { ->
     kotlin.target.compilations.named('development') {
         associateWith(kotlin.target.compilations.getByName('main'))
     }
-    evaluationDependsOn(':render-gl')
-    project(':render-gl').sourceSets.testFixtures
+    evaluationDependsOn(':testing')
+    [project(':testing').sourceSets.main] + backends.collect { backend ->
+        evaluationDependsOn(backend)
+        project(backend).sourceSets.testFixtures
+    }
 }

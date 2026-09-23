@@ -3,17 +3,18 @@ package dev.composemc.render.gl.testing
 import dev.composemc.render.gl.*
 
 import dev.composemc.render.RecordedFrame
+import dev.composemc.testing.render.RendererPixels
+import dev.composemc.testing.render.RendererProbeResult
 import org.jetbrains.skia.PictureRecorder
+import org.jetbrains.skia.Paint
+import org.jetbrains.skia.BlendMode
 import org.jetbrains.skia.Rect
 import org.lwjgl.opengl.GL33C.*
 import org.lwjgl.system.MemoryUtil
-import kotlin.math.abs
-
-data class OpenGlProbeResult(val rgba: ByteArray, val cycles: Int, val worstDifferentPixels: Int, val worstMeanChannelError: Double)
 
 /** Explicit real-context regression probe. Never called by the normal rendering path. */
 object OpenGlRendererProbe {
-    fun verify(frame: RecordedFrame, expectedRgba: ByteArray, backgroundArgb: Int): OpenGlProbeResult {
+    fun verify(frame: RecordedFrame, expectedRgba: ByteArray): RendererProbeResult {
         val width = frame.viewport.width
         val height = frame.viewport.height
         require(expectedRgba.size == width * height * 4)
@@ -50,8 +51,7 @@ object OpenGlRendererProbe {
                         glDisable(GL_SCISSOR_TEST)
                         glDisable(GL_FRAMEBUFFER_SRGB)
                         glColorMask(true, true, true, true)
-                        glClearColor((backgroundArgb ushr 16 and 255) / 255f, (backgroundArgb ushr 8 and 255) / 255f,
-                            (backgroundArgb and 255) / 255f, (backgroundArgb ushr 24 and 255) / 255f)
+                        glClearColor(0f, 0f, 0f, 0f)
                         glClear(GL_COLOR_BUFFER_BIT)
                         // Simulate MC atlas transfers and a foreign GUI pass, including a bound PBO.
                         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, hostBuffer)
@@ -80,7 +80,10 @@ object OpenGlRendererProbe {
                                 val canvas = recorder.beginRecording(Rect.makeWH(width.toFloat(), height.toFloat()))
                                 canvas.drawImageRect(copied, Rect.makeWH(width.toFloat(), height.toFloat()))
                                 // Replacing the top-left region must preserve its pixels in both import paths.
-                                canvas.drawImageRect(cropped, Rect.makeWH(width / 2f, height / 2f))
+                                Paint().use { paint ->
+                                    paint.blendMode = BlendMode.SRC
+                                    canvas.drawImageRect(cropped, Rect.makeWH(width / 2f, height / 2f), paint)
+                                }
                                 recorder.finishRecordingAsPicture()
                             }
                             if (iteration == 0) renderer.releaseImages(listOf(copied, cropped))
@@ -88,7 +91,7 @@ object OpenGlRendererProbe {
                             check(renderer.statistics.liveNativeImages == 0)
                             glColorMask(true, true, true, true)
                             glDisable(GL_SCISSOR_TEST)
-                            glClearColor(0f, 1f, 0f, 1f)
+                            glClearColor(0f, 0f, 0f, 0f)
                             glClear(GL_COLOR_BUFFER_BIT)
                             RecordedFrame(frame.generation, frame.viewport, picture).use { imported ->
                                 renderer.render(imported)
@@ -99,24 +102,9 @@ object OpenGlRendererProbe {
                         check(glIsTexture(targetTexture)) { "Borrowed destination texture was deleted" }
                         check(glGetError() == GL_NO_ERROR) { "GL error during renderer probe" }
                         pixels = readRgba(targetFbo, width, height)
-                        var different = 0
-                        var error = 0L
-                        for (pixel in 0 until width * height) {
-                            var maxError = 0
-                            for (channel in 0..3) {
-                                val offset = pixel * 4 + channel
-                                val delta = abs((pixels[offset].toInt() and 255) - (expectedRgba[offset].toInt() and 255))
-                                error += delta
-                                maxError = maxOf(maxError, delta)
-                            }
-                            if (maxError > 16) different++
-                        }
-                        val mean = error.toDouble() / pixels.size
-                        check(different <= width * height / 50 && mean < 2.0) {
-                            "CPU/GL image mismatch in cycle $cycle, iteration $iteration: $different pixels, mean error $mean"
-                        }
-                        worstPixels = maxOf(worstPixels, different)
-                        worstMean = maxOf(worstMean, mean)
+                        val difference = RendererPixels.verify(expectedRgba, pixels, "CPU/GL cycle $cycle, iteration $iteration")
+                        worstPixels = maxOf(worstPixels, difference.differentPixels)
+                        worstMean = maxOf(worstMean, difference.meanChannelError)
                         check(renderer.statistics.fullFrameUploads == 0L)
                         if (iteration == 1) {
                             renderer.reset()
@@ -126,7 +114,7 @@ object OpenGlRendererProbe {
                     check(renderer.statistics.surfaceAllocations == 2L) { "Retained surface was not reused" }
                 }
             }
-            return OpenGlProbeResult(pixels, cycles, worstPixels, worstMean)
+            return RendererProbeResult(pixels, cycles, worstPixels, worstMean)
         } finally {
             glBindVertexArray(0)
             if (hostBuffer != 0) glDeleteBuffers(hostBuffer)

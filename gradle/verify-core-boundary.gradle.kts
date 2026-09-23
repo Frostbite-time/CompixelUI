@@ -12,7 +12,8 @@ val sharedDependencies = mapOf(
     ":render-vulkan" to setOf(":render"),
     ":ui-ore" to emptySet(),
     ":demo" to setOf(":host", ":ui-ore"),
-    ":desktop" to setOf(":demo"),
+    ":desktop" to setOf(":demo", ":testing"),
+    ":testing" to setOf(":demo"),
 )
 val sharedProjects = sharedDependencies.keys.map(rootProject::project)
 val forbiddenSource = Regex(
@@ -44,10 +45,12 @@ val sharedChecks = sharedProjects.map { shared ->
                     }
                 }
             }
-            for (dependency in shared.configurations.flatMap { it.dependencies }.distinct()) {
+            for (configuration in shared.configurations) for (dependency in configuration.dependencies) {
                 if (dependency is ProjectDependency) {
+                    val backendFixture = shared.path in setOf(":render-gl", ":render-vulkan") &&
+                        configuration.name.startsWith("testFixtures") && dependency.path == ":testing"
                     // java-test-fixtures adds a dependency on its own project's main variant.
-                    if (dependency.path != shared.path && dependency.path !in sharedDependencies.getValue(shared.path)) {
+                    if (!backendFixture && dependency.path != shared.path && dependency.path !in sharedDependencies.getValue(shared.path)) {
                         problems += "${shared.path} must not depend on ${dependency.path}"
                     }
                 } else if (dependency.group?.let { forbiddenGroup(it, shared.path) } == true) {

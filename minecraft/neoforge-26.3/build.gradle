@@ -25,7 +25,7 @@ apply from: rootProject.file('gradle/minecraft/artifacts.gradle')
 apply from: rootProject.file('gradle/minecraft/artifact-checks.gradle')
 apply from: rootProject.file('gradle/minecraft/runs.gradle')
 
-def rendererFixtures = configureMinecraftSources()
+def rendererFixtures = configureMinecraftSources([':render-gl', ':render-vulkan'])
 def artifacts = configureMinecraftArtifacts(
     withKotlinDependencies: JarJar.registerWithConfiguration(project, 'withKotlinJarJar'),
     loader: 'neoforge', runtime: runtimeBundle, rendererFixtures: rendererFixtures,
@@ -70,7 +70,7 @@ neoForge {
         composemc_development {
             sourceSet sourceSets.development
             sourceSet project(':demo').sourceSets.main
-            sourceSet rendererFixtures
+            rendererFixtures.each { sourceSet it }
         }
     }
 }
@@ -84,7 +84,9 @@ dependencies {
     compileOnly project(':slot-core')
     compileOnly("org.jetbrains.compose.foundation:foundation:" + libs.versions.compose.get())
     developmentCompileOnly project(':demo')
+    developmentCompileOnly project(':testing')
     developmentCompileOnly(testFixtures(project(':render-gl')))
+    developmentCompileOnly(testFixtures(project(':render-vulkan')))
     testImplementation project(':host')
     testImplementation project(':menu-sync')
     runtimeOnly(runtimeBundle) {

@@ -12,7 +12,7 @@ ext.configureMinecraftArtifacts = { Map spec ->
         archiveClassifier = 'development'
         from sourceSets.development.output
         from project(':demo').sourceSets.main.output
-        from spec.rendererFixtures.output
+        from spec.rendererFixtures.collect { it.output }
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     }
     [development, tasks.named('jar')].each { archive -> archive.configure {

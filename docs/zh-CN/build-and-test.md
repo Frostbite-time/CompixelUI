@@ -36,7 +36,7 @@ Gradle 需要 JDK 17 或更新版本，推荐 JDK 25。各适配器所需 Java �
 
 适配器的 `development` 编译通过 Kotlin 的 `associateWith` 关联 `main`，允许预览和探针访问适配器的 `internal` 声明。构建约定变更后请重新加载 Gradle 项目，让 IDEA 导入该可见性关系。仅传入编译器 friend paths 并不能向 IDE 声明这种源码集关联。
 
-渲染器探针归属 `render-gl/src/testFixtures`，可访问 `render-gl/main` 的内部声明。适配器通过普通依赖调用测试入口，不跨项目访问渲染器内部类。新增探针应放在其所检查内部行为的所属模块中，并且只进入开发产物。
+公共渲染场景、CPU 参考像素和预览交互脚本集中在 `testing`。后端探针分别位于 `render-gl/src/testFixtures` 和 `render-vulkan/src/testFixtures`；版本相关的设备准备和屏幕检查集中在各适配器的 `development/render` 包内。打包后的基准测试会先运行所选 GPU 后端的探针，以两种视口尺寸重复验证绘制、重置、关闭和像素结果。Vulkan 验证层额外检查 API 与同步错误。所有测试辅助代码均不进入正式包和消费者 API 包。
 
 `runClient` 包含开发预览，在游戏中按 **F8** 打开。26.2/26.3 可追加 `-PcomposemcBackend=opengl` 或 `-PcomposemcBackend=vulkan`，`auto` 跟随宿主后端。不支持 Vulkan 的目标会明确拒绝 Vulkan 请求。
 

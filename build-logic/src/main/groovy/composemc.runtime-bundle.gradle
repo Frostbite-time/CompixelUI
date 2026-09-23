@@ -214,6 +214,7 @@ tasks.register('verifyRuntimeArchive') {
                     it.name.toLowerCase(Locale.ROOT).contains('mixin') ||
                         it.name.startsWith('dev/composemc/demo/') || it.name.startsWith('dev/composemc/development/') ||
                         it.name.startsWith('dev/composemc/render/gl/testing/') ||
+                        it.name.startsWith('dev/composemc/render/vulkan/testing/') || it.name.startsWith('dev/composemc/testing/') ||
                         it.name.contains('OpenGlRendererProbe') || it.name.contains('OpenGlProbeResult') ||
                         it.name.startsWith('androidx/compose/material3/')
                 }) {

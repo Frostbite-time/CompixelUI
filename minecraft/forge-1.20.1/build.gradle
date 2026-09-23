@@ -69,7 +69,7 @@ legacyForge {
         composemc_development {
             sourceSet sourceSets.development
             sourceSet project(':demo').sourceSets.main
-            sourceSet rendererFixtures
+            rendererFixtures.each { sourceSet it }
         }
     }
 }
@@ -82,6 +82,7 @@ dependencies {
     compileOnly project(':slot-core')
     compileOnly("org.jetbrains.compose.foundation:foundation:" + libs.versions.compose.get())
     developmentCompileOnly project(':demo')
+    developmentCompileOnly project(':testing')
     developmentCompileOnly(testFixtures(project(':render-gl')))
     testImplementation project(':host')
     testImplementation project(':menu-sync')

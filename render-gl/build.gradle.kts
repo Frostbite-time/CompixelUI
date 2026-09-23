@@ -11,4 +11,5 @@ dependencies {
     // Real-context probes run inside Minecraft, which supplies the native libraries.
     testFixturesCompileOnly("org.lwjgl:lwjgl:$lwjglVersion")
     testFixturesCompileOnly("org.lwjgl:lwjgl-opengl:$lwjglVersion")
+    testFixturesApi(project(":testing"))
 }

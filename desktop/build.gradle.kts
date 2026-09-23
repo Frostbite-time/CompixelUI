@@ -8,6 +8,7 @@ plugins {
 }
 dependencies {
     implementation(project(":demo"))
+    implementation(project(":testing"))
     implementation(compose.desktop.currentOs)
 }
 application { mainClass.set("dev.composemc.desktop.MainKt") }

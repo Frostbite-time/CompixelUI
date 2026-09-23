@@ -1,4 +1,4 @@
-package dev.composemc.development
+package dev.composemc.development.render
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -11,7 +11,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.mojang.blaze3d.platform.NativeImage
 import dev.composemc.bridge.ComposeThread
-import dev.composemc.neoforge.NeoForgeComposeScreen
+import dev.composemc.forge.ForgeComposeScreen
 import net.minecraft.network.chat.Component
 
 internal class PortValidationModel {
@@ -21,7 +21,7 @@ internal class PortValidationModel {
 
 /** Deliberately asymmetric fixture, with a real Compose click target and alpha patch. */
 internal class PortValidationScreen(val model: PortValidationModel = ComposeThread.call { PortValidationModel() }) :
-    NeoForgeComposeScreen(Component.literal("Port validation"), content = {
+    ForgeComposeScreen(Component.literal("Port validation"), content = {
         Box(Modifier.fillMaxSize().background(Color(0xFF204060))) {
             Box(Modifier.align(Alignment.TopStart).padding(16.dp).size(40.dp)
                 .background(if (model.clicks == 0) Color.Red else Color.Yellow).clickable { model.clicks++ })
@@ -36,7 +36,8 @@ internal class PortValidationScreen(val model: PortValidationModel = ComposeThre
 
     fun verifyPixels(image: NativeImage, scale: Int) {
         fun pixel(x: Int, y: Int, expected: Int) {
-            val actual = image.getPixel(x, y)
+            val abgr = image.getPixelRGBA(x, y)
+            val actual = (abgr and 0xFF00FF00.toInt()) or ((abgr and 255) shl 16) or ((abgr ushr 16) and 255)
             check((0..2).all { channel ->
                 kotlin.math.abs(((actual ushr (8 * channel)) and 255) - ((expected ushr (8 * channel)) and 255)) <= 4
             }) { "Pixel ($x,$y): expected ${expected.toUInt().toString(16)}, got ${actual.toUInt().toString(16)}" }

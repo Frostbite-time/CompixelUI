@@ -1,4 +1,4 @@
-package dev.composemc.development
+package dev.composemc.development.render
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

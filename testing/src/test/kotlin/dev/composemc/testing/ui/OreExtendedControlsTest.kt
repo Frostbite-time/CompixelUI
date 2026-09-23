@@ -1,4 +1,4 @@
-package dev.composemc.desktop
+package dev.composemc.testing.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
@@ -39,9 +39,9 @@ import kotlin.test.*
 
 class OreExtendedControlsTest {
     @Test fun `packaged component exercise drives the actual F8 pages`() {
-        for(page in dev.composemc.demo.testing.oreComponentPages) {
+        for(page in dev.composemc.testing.ui.oreComponentPages) {
             val model=ComposeThread.call {dev.composemc.demo.preview.DemoModel().apply {this.page=page}}
-            val exercise=dev.composemc.demo.testing.OreComponentExercise(model,page)
+            val exercise=dev.composemc.testing.ui.OreComponentExercise(model,page)
             UiSession(Viewport(1280,960,2f)){dev.composemc.demo.preview.OreDemoScreen(model) {modifier->
                 dev.composemc.demo.preview.ItemBrowserDemo(model.itemBrowser,List(256){"Item $it"},modifier) {index,iconModifier->
                     OreIcon(OreGlyph.entries[index%OreGlyph.entries.size],iconModifier)

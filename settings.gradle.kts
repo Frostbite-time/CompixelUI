@@ -25,7 +25,7 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "compose-mc"
-include("platform", "render", "render-gl", "render-vulkan", "compose-bridge", "host", "demo", "desktop")
+include("platform", "render", "render-gl", "render-vulkan", "compose-bridge", "host", "demo", "desktop", "testing")
 include("ui-ore", "menu-sync", "slot-core", "runtime-standard", "runtime-vulkan")
 val targets = Properties().apply { file("gradle/minecraft-targets.properties").reader().use { load(it) } }
 val supported = targets.getProperty("targets").split(",")

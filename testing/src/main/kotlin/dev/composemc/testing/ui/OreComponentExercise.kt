@@ -1,4 +1,4 @@
-package dev.composemc.demo.testing
+package dev.composemc.testing.ui
 
 import dev.composemc.bridge.ComposeThread
 import dev.composemc.demo.preview.DemoModel

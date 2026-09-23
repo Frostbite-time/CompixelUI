@@ -4,6 +4,7 @@ import dev.composemc.neoforge.*
 
 import com.google.gson.GsonBuilder
 import dev.composemc.bridge.ComposeThread
+import dev.composemc.development.render.verifyRenderer
 import dev.composemc.render.*
 import net.minecraft.client.Minecraft
 import net.minecraft.client.Screenshot
@@ -30,7 +31,7 @@ internal class ClientBenchmarkProbe {
         BenchmarkCase("native-static", BenchmarkKind.NATIVE_STATIC, 1000),
         BenchmarkCase("native-scroll-10k", BenchmarkKind.NATIVE_SCROLL, 10000),
         BenchmarkCase("rich-tooltip", BenchmarkKind.TOOLTIP),
-    ) + dev.composemc.demo.testing.oreComponentPages.map { BenchmarkCase("ore-${it.name.lowercase()}", BenchmarkKind.ORE_COMPONENTS, it.ordinal) }
+    ) + dev.composemc.testing.ui.oreComponentPages.map { BenchmarkCase("ore-${it.name.lowercase()}", BenchmarkKind.ORE_COMPONENTS, it.ordinal) }
     private val schedule = (0 until repeats).flatMap { repeat ->
         (if (repeat % 2 == 0) cases else cases.reversed()).map { repeat to it }
     }
@@ -111,7 +112,7 @@ internal class ClientBenchmarkProbe {
             GLFW.glfwPollEvents()
             check(GLFW.glfwGetWindowAttrib(minecraft.window.window, GLFW.GLFW_VISIBLE) == GLFW.GLFW_FALSE)
         } else GLFW.glfwFocusWindow(minecraft.window.window)
-        val rendererCheck = if (configuredRenderBackend() == RenderBackend.OPENGL) verifyOpenGlRenderer() else "CPU reference backend"
+        val rendererCheck = verifyRenderer()
         environment = linkedMapOf(
             "java" to System.getProperty("java.version"), "os" to System.getProperty("os.name"),
             "osVersion" to System.getProperty("os.version"), "cpu" to System.getenv("PROCESSOR_IDENTIFIER"),

@@ -17,16 +17,16 @@ Compose MC maintains shared UI/runtime code and per-version Minecraft adapters i
 | `ui-ore` | Shared visual tokens, fonts and controls |
 | `menu-sync` | Dependency-free Java 17 schemas, codecs, snapshots and bounded protocol |
 | `slot-core` | Dependency-free Java 17 slot policies and transfer routes |
-| `demo` / `desktop` | Minecraft-independent fixtures and desktop preview/capture |
+| `demo` / `desktop` | F8 preview pages and desktop preview/capture |
 | `minecraft/forge-*` / `minecraft/neoforge-*` | Version-owned builds, native screens, input, resources, items, menus and GPU lifecycle |
 | `runtimes/standard` / `runtimes/vulkan` | Assemble the matching shared code, JVM dependencies and six native variants |
 | `build-logic` / `gradle` / `tools` | Build conventions, target/version metadata, checks and launch helpers |
 
-Within `demo`, `dev.composemc.demo.preview` contains the F8 pages and their state, while `dev.composemc.demo.testing` contains automated interaction exercises and the renderer fixture. Desktop captures use the same preview pages.
+The `demo` module contains only preview pages and their state; desktop captures reuse those pages. Shared test code is collected in `testing`: `dev.composemc.testing.render` owns the renderer scene, CPU reference and pixel comparison, and `dev.composemc.testing.ui` owns automated interaction exercises. Component regression tests live in `testing/src/test`; the desktop module provides the preview and capture entry points.
 
 `main` source sets contain installable library behavior. Each adapter's `development` source set contains F8 previews and probes, packaged as the optional `development` mod. They do not enter the production archive. Minecraft/loader-facing code, resources and adapter tests live in that version's own `src` directory. Each version owns its copies; similar fixes are applied and validated manually for the other affected versions.
 
-The shared OpenGL regression probe lives in `render-gl/src/testFixtures`, with access to that module's internal state snapshot through Kotlin's test-fixture association. All five adapter development source sets depend on this fixture and package it in the optional `development` mod. Normal development runs load the same fixture source set. It is excluded from the library/runtime and consumer `dev` artifacts. Cross-project compiler friend paths are unnecessary; renderer implementation types remain internal.
+Backend probes live in matching `render-gl/src/testFixtures` and `render-vulkan/src/testFixtures` source sets. They use the same scenes, two viewport sizes, premultiplied RGBA CPU references and comparison thresholds from `testing`. Each probe repeats render/reset/context-close cycles; OpenGL additionally checks host state and retained image copies, while Vulkan exercises image barriers and GPU readback on the borrowed Minecraft device. Version-specific device access and screen validation live together under each adapter's `development/render` package. These helpers are included only in development artifacts. Backend fixtures can access their own module's internal implementation through Kotlin's test-fixture association.
 
 Within `ui-ore`, public components use responsibility-based packages and one file per independent component. Theme configuration is separate from presentation; shared frame drawing stays internal. The [Ore UI package table](ore-ui.md#choose-a-component) is the component directory and import guide.
 

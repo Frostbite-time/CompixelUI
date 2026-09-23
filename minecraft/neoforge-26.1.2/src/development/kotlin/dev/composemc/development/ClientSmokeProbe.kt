@@ -3,6 +3,7 @@ package dev.composemc.development
 import dev.composemc.neoforge.*
 
 import dev.composemc.bridge.ComposeThread
+import dev.composemc.development.render.verifyRenderer
 import dev.composemc.demo.preview.DemoPage
 import dev.composemc.host.SessionState
 import dev.composemc.host.UiSession
@@ -45,7 +46,7 @@ internal class ClientSmokeProbe {
             return
         }
         started = true
-        if (configuredRenderBackend() == RenderBackend.OPENGL) checks += verifyOpenGlRenderer()
+        checks += verifyRenderer()
         minecraft.execute(Runnable {
             oldClipboard = minecraft.keyboardHandler.clipboard
             oldGuiScale = minecraft.options.guiScale().get()

@@ -2,6 +2,8 @@ package dev.composemc.development
 
 import com.google.gson.GsonBuilder
 import dev.composemc.bridge.ComposeThread
+import dev.composemc.development.render.PortValidationScreen
+import dev.composemc.development.render.verifyRenderer
 import dev.composemc.neoforge.*
 import dev.composemc.render.*
 import net.minecraft.client.Minecraft
@@ -23,7 +25,7 @@ internal class ClientBenchmarkProbe {
         BenchmarkCase("native-static", BenchmarkKind.NATIVE_STATIC, 1000),
         BenchmarkCase("native-scroll-10k", BenchmarkKind.NATIVE_SCROLL, 10000),
         BenchmarkCase("rich-tooltip", BenchmarkKind.TOOLTIP),
-    ) + dev.composemc.demo.testing.oreComponentPages.map { BenchmarkCase("ore-${it.name.lowercase()}", BenchmarkKind.ORE_COMPONENTS, it.ordinal) }
+    ) + dev.composemc.testing.ui.oreComponentPages.map { BenchmarkCase("ore-${it.name.lowercase()}", BenchmarkKind.ORE_COMPONENTS, it.ordinal) }
     private val results = mutableListOf<Map<String, Any?>>()
     private val checks = mutableListOf<String>()
     private var started = false
@@ -66,7 +68,7 @@ internal class ClientBenchmarkProbe {
             minecraft.options.framerateLimit().set(260)
             minecraft.options.guiScale().set(2)
             minecraft.resizeGui()
-            if (configuredRenderBackend() == RenderBackend.OPENGL) checks += verifyOpenGlRenderer()
+            checks += verifyRenderer()
             awaitingWorld = true
             minecraft.execute(Runnable { createWorld(parent) })
             return

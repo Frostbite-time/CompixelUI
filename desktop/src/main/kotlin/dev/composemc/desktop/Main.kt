@@ -42,7 +42,7 @@ private fun smoke(directory: File) {
             Triple("scale-2", Viewport(1280, 960, 2f), { model.page = DemoPage.Settings }),
             Triple("dialog", Viewport(960, 640), { model.dialog = true }),
             Triple("empty", Viewport(960, 640), { model.dialog = false; model.page = DemoPage.Catalog; model.fixture = Fixture.EMPTY }),
-        ) + (listOf(DemoPage.Buttons) + dev.composemc.demo.testing.oreComponentPages).flatMap { page ->
+        ) + (listOf(DemoPage.Buttons) + dev.composemc.testing.ui.oreComponentPages).flatMap { page ->
             listOf(
                 Triple("ore-${page.name.lowercase()}-en",Viewport(1100,840,2f),{model.page=page;model.locale="en_us";model.dialog=false}),
                 Triple("ore-${page.name.lowercase()}-zh-compact",Viewport(360,640),{model.page=page;model.locale="zh_cn";model.dialog=false}),
