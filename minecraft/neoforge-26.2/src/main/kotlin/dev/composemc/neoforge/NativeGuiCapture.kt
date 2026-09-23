@@ -34,7 +34,7 @@ internal class NativeGuiCapture(private val imageSize: Int) : AutoCloseable {
                 graphics.fakeItem(icon.stack, 0, 0)
                 graphics.itemDecorations(minecraft.font, icon.stack, 0, 0)
             }
-            NativeGuiTargetScope.renderTo(target) { renderer.render() }
+            NativeGuiTargetScope.renderTo(renderer, target) { renderer.render() }
         } finally {
             renderer.endFrame()
             state.reset()
