@@ -1,5 +1,5 @@
-// Shared archive invariants. The expected access transformers are declared by each adapter.
-ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms ->
+// Shared archive invariants. Each adapter declares its expected transformer and injection files.
+ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, Set<String> expectedMixins ->
     def verifyLicenseGroups = { zip, String prefix, List<String> expected ->
         def licenseRoot = rootProject.file('licenses')
         licenseRoot.listFiles().findAll { it.directory }.each { group ->
@@ -32,10 +32,21 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms -
                     ['META-INF/composemc/LICENSE', 'META-INF/composemc-third-party/THIRD-PARTY-NOTICES.md'].each {
                         if (zip.getEntry(it) == null) throw new GradleException("Missing release license notice: $it")
                     }
+                    def actualMixins = zip.entries().findAll { !it.directory && it.name.toLowerCase(java.util.Locale.ROOT).contains('mixin') }
+                        .collect { it.name }.toSet()
+                    if (actualMixins != expectedMixins)
+                        throw new GradleException("Unexpected Mixin contents: $actualMixins, expected $expectedMixins")
+                    if (!expectedMixins.empty) {
+                        def mixinConfig = new groovy.json.JsonSlurper().parseText(
+                            zip.getInputStream(zip.getEntry('composemc.mixins.json')).getText('UTF-8'))
+                        if (mixinConfig.package != 'dev.composemc.neoforge.mixin' ||
+                            mixinConfig.client != ['GuiRendererMixin'] || mixinConfig.mixins || mixinConfig.server ||
+                            mixinConfig.required != true || mixinConfig.injectors?.defaultRequire != 1)
+                            throw new GradleException('Unexpected native GUI Mixin configuration')
+                    }
                     def bad = zip.entries().findAll { entry ->
                         def name = entry.name.toLowerCase(java.util.Locale.ROOT)
-                        name.contains('mixin') ||
-                            name.startsWith('dev/composemc/development/') || name.startsWith('dev/composemc/demo/') ||
+                        name.startsWith('dev/composemc/development/') || name.startsWith('dev/composemc/demo/') ||
                             name.startsWith('dev/composemc/testing/') || name.startsWith('dev/composemc/render/gl/testing/') ||
                             name.startsWith('dev/composemc/render/vulkan/testing/') || name.contains('smokeprobe') ||
                             name.contains('benchmarkprobe') || name.contains('tooltipprobe') || name.contains('composepreviewscreen')
@@ -43,7 +54,11 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms -
                     if (!bad.empty) throw new GradleException("Test/injection files leaked into release JAR: $bad")
                     def metadata = zip.getInputStream(zip.getEntry(artifacts.metadataPath)).getText('UTF-8')
                     if (!metadata.contains('license="MIT"')) throw new GradleException('Incorrect project license in mod metadata')
-                    if (metadata.contains('[[mixins]]')) throw new GradleException('Mixin registration leaked into release metadata')
+                    def registrations = (metadata =~ /(?m)^\s*\[\[mixins\]\]\s*\R\s*config\s*=\s*"([^"]+)"/)
+                        .collect { it[1] }.toSet()
+                    def expectedRegistrations = expectedMixins.empty ? [] as Set : ['composemc.mixins.json'] as Set
+                    if (registrations != expectedRegistrations || metadata.findAll(/\[\[mixins\]\]/).size() != expectedRegistrations.size())
+                        throw new GradleException("Unexpected Mixin registrations: $registrations")
                     if (expectedTransforms != null) {
                         def at = zip.getEntry('META-INF/accesstransformer.cfg')
                         if (at == null) throw new GradleException('Missing access transformer')
@@ -53,7 +68,7 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms -
                     }
                 }
             }
-            logger.lifecycle('Release isolation PASS: no development tools, demos or mixins')
+            logger.lifecycle('Release isolation PASS: no development tools, demos or unexpected mixins')
         }
     }
     def developmentCheck = tasks.register('verifyDevelopmentArchive') {

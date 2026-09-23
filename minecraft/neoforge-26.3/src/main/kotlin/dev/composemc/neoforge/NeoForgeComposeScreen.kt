@@ -160,7 +160,6 @@ open class NeoForgeComposeScreen(
         frameProfiler.measureCpu(CpuPhase.HOST) { flushClipboard() }
         val presentStart = System.nanoTime()
         frameProfiler.measureCpu(CpuPhase.PRESENT) { backend.present(ScreenRenderDestination(guiGraphics, current)) }
-        items.present(guiGraphics, current)
         tooltips.present(guiGraphics, current)
         presentationTimings.record(System.nanoTime() - presentStart)
         frameProfiler?.let { profiler ->

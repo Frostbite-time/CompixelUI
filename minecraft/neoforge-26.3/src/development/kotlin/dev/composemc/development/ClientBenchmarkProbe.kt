@@ -3,6 +3,7 @@ package dev.composemc.development
 import com.google.gson.GsonBuilder
 import dev.composemc.bridge.ComposeThread
 import dev.composemc.development.render.PortValidationScreen
+import dev.composemc.development.render.NativeItemVisualScreen
 import dev.composemc.development.render.verifyRenderer
 import dev.composemc.neoforge.*
 import dev.composemc.render.*
@@ -80,6 +81,10 @@ internal class ClientBenchmarkProbe {
         frames++
         if (active is PortValidationScreen) {
             validate(active)
+            return
+        }
+        if (active is NativeItemVisualScreen) {
+            validateNativeVisuals(active)
             return
         }
         active as BenchmarkScreen
@@ -180,7 +185,7 @@ internal class ClientBenchmarkProbe {
                 if (!pendingCapture) capture("resource-reload", active) else if (captured) {
                     checks += "resource reload"
                     org.lwjgl.sdl.SDLVideo.SDL_SetWindowSize(minecraft.window.handle(), 1280, 960)
-                    nextCase()
+                    open(NativeItemVisualScreen())
                 }
             }
         }
@@ -188,12 +193,23 @@ internal class ClientBenchmarkProbe {
 
     private fun advanceStage() { stage++; frames = 0; pendingCapture = false; captured = false }
 
-    private fun capture(name: String, fixture: PortValidationScreen? = null) {
+    private fun validateNativeVisuals(active: NativeItemVisualScreen) {
+        check(frames < 600) { "Native visual image did not become ready" }
+        if (frames < 40 || active.nativeItemStatistics.cachedImages == 0 || active.nativeItemStatistics.pendingImages != 0) return
+        if (!pendingCapture) capture("native-visual", visual = active)
+        else if (captured) {
+            checks += "native item alpha, rotation, shape clipping, occlusion and repeated placement"
+            nextCase()
+        }
+    }
+
+    private fun capture(name: String, fixture: PortValidationScreen? = null, visual: NativeItemVisualScreen? = null) {
         pendingCapture = true
         Screenshot.takeScreenshot(minecraft.gameRenderer.mainRenderTarget()) { image ->
             image.use {
                 it.writeToFile(File(output, "$name.png"))
                 if (fixture != null) fixture.verifyPixels(it, minecraft.window.guiScale)
+                else if (visual != null) visual.verifyPixels(it)
                 else {
                     val colors = HashSet<Int>()
                     for (y in 0 until it.height step 8) for (x in 0 until it.width step 8) colors += it.getPixel(x, y)
@@ -209,6 +225,9 @@ internal class ClientBenchmarkProbe {
         minecraft.gui.setScreen(next)
         screen = next
         if (previous != null) check(previous.rendererStatistics.liveSurfaces == 0) { "Renderer leaked after screen close" }
+        if (previous != null) check(previous.nativeItemStatistics.preparedImages == previous.nativeItemStatistics.retiredImages) {
+            "Native item images leaked after screen close"
+        }
         frames = 0; pendingCapture = false; captured = false
         openedAt = System.nanoTime()
     }

@@ -37,7 +37,7 @@ fun openItemScreen(stack: ItemStack) {
 }
 ```
 
-The snapshot owns a copy of the stack. Create another snapshot when its content or count changes. Reuse a handle across frames rather than recreating it on every tick. For simultaneous independent placements with different transforms or sizes, retain separate handles.
+The snapshot owns a copy of the stack. Create another snapshot when its content or count changes. Reuse a handle across frames rather than recreating it on every tick. The same handle can appear in multiple places with different transforms or sizes.
 
 ## Animation and preparation
 
@@ -53,7 +53,7 @@ The snapshot owns a copy of the stack. Create another snapshot when its content 
 
 `NativeItemOptions` defaults to a 64-pixel image resolution, 128 cached images and 8 preparations per frame. Inventory screens use 256 images and 16 preparations per frame. Size the cache for visible variants and lazy-layout prefetch. Active demand pins entries; preparation remains bounded and can take multiple frames for a new grid.
 
-The native renderer prepares images on the game thread. Compose consumes immutable image handles with clipping, transforms and opacity. The GL/Vulkan paths keep image transfer on the GPU; the explicitly selected CPU diagnostic backend reads pixels. The adapter owns temporary targets and retains resources as long as recorded frames need them. Reload invalidates prepared images; final screen removal releases owned resources.
+The native renderer prepares images on the game thread. Compose consumes immutable image handles with clipping, transforms and opacity. The 1.20.1/1.21.1 GL paths transfer prepared images on the GPU. Minecraft 26.x captures native GUI commands into a small offscreen target, reads pixels back asynchronously and caches the resulting Compose image. This adds preparation cost for newly visible or animated icons; the per-frame preparation budget limits that cost. The adapter owns temporary targets and retains resources as long as recorded frames need them. Reload invalidates prepared images; final screen removal releases owned resources.
 
 ## Native tooltip behavior
 

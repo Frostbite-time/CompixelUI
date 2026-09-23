@@ -63,7 +63,7 @@ Resize updates viewport-dependent resources while retaining the session where su
 
 The standard profile uses Skiko 0.150.1. The Vulkan profile uses the matched Polyfrost Skiko 0.999.6 JVM/native distribution and adds the shared Vulkan renderer. Each adapter selects its runtime dependency and matching Skiko constraint in its own build file.
 
-Runtime assembly merges service registrations and third-party notices, includes Windows/Linux/macOS x64 and arm64 natives, and avoids relocation/minimization that would break compiler ABI or JNI. It does not bundle another LWJGL. Archive checks reject development tools, project Mixins and mismatched native/runtime contents.
+Runtime assembly merges service registrations and third-party notices, includes Windows/Linux/macOS x64 and arm64 natives, and avoids relocation/minimization that would break compiler ABI or JNI. It does not bundle another LWJGL. Archive checks reject development tools, unexpected Mixins and mismatched native/runtime contents.
 
 Each runtime project emits both an external-Kotlin bundle and a `with-kotlin` bundle. The external bundle excludes Kotlin stdlib, Coroutines Core and Serialization while retaining Compose's Swing dispatcher integration and atomicfu. The adapter embeds exactly one matching bundle; it never embeds KFF. Client entry points are Java so missing external libraries can be reported before entering Kotlin code. A shared Java check verifies stdlib >= 2.2.21 and representative Coroutines/Serialization APIs without touching the dedicated-server entry path. This is a dependency check, not certification of arbitrary library combinations.
 
@@ -94,7 +94,7 @@ Client runs use the loader's ordinary window startup. Direct client and benchmar
 
 ## Native extension points
 
-Prefer public loader APIs. Current releases use no project Mixins. Access transformers are target-specific:
+Prefer public loader APIs. The 26.x adapters use one narrowly scoped `GuiRenderer.draw` redirect because Minecraft sends GUI commands to its main render target without a public target override. The redirect selects an offscreen target only while native icons are being captured; ordinary GUI drawing keeps the Minecraft target. Archive checks allow only this declared Mixin on 26.x. Access transformers are target-specific:
 
 - 1.21.1 and 26.1.2: `Slot.x` and `Slot.y` for native slot positioning.
 - 26.2/26.3: those coordinates plus the target's GPU backend field.

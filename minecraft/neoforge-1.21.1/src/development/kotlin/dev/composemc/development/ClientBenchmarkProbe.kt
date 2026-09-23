@@ -5,6 +5,7 @@ import dev.composemc.neoforge.*
 import com.google.gson.GsonBuilder
 import dev.composemc.bridge.ComposeThread
 import dev.composemc.development.render.verifyRenderer
+import dev.composemc.development.render.NativeItemVisualScreen
 import dev.composemc.render.*
 import net.minecraft.client.Minecraft
 import net.minecraft.client.Screenshot
@@ -43,6 +44,7 @@ internal class ClientBenchmarkProbe {
     private var firstMeasured = 0L
     private var lastMeasured = 0L
     private var screen: BenchmarkScreen? = null
+    private var visualScreen: NativeItemVisualScreen? = null
     private var oldGuiScale = 0
     private var oldVsync = true
     private var oldFrameLimit = 60
@@ -55,6 +57,15 @@ internal class ClientBenchmarkProbe {
         if (minecraft.overlay != null) return
         try {
             if (!started) { started = true; start(); return }
+            visualScreen?.let { visual ->
+                check(parent === visual) { "Native visual screen was replaced" }
+                check(frames < 600) { "Native visual image did not become ready" }
+                if (BenchmarkEnvironment.background)
+                    check(GLFW.glfwGetWindowAttrib(minecraft.window.window, GLFW.GLFW_VISIBLE) == GLFW.GLFW_FALSE)
+                if (++frames >= 40 && visual.nativeItemStatistics.cachedImages > 0 && visual.nativeItemStatistics.pendingImages == 0)
+                    finishNativeVisual(visual)
+                return
+            }
             val active = screen ?: return
             check(parent === active) { "Benchmark screen was replaced" }
             val visible = GLFW.glfwGetWindowAttrib(minecraft.window.window, GLFW.GLFW_VISIBLE) == GLFW.GLFW_TRUE
@@ -199,13 +210,29 @@ internal class ClientBenchmarkProbe {
         println("BENCHMARK $stem: CPU wall ${summary(rows.map { it.totalNanos })}, redraws=${rows.count { it.rendered }}")
         index++
         if (index == schedule.size) {
-            minecraft.setScreen(null)
+            val visual = NativeItemVisualScreen()
+            minecraft.setScreen(visual)
             check(active.rendererStatistics.liveSurfaces == 0 && active.rendererStatistics.liveNativeImages == 0)
             screen = null
-            restoreOptions()
-            File(minecraft.gameDirectory, "composemc-benchmark.txt").writeText("PASS\n${results.size} cases; $samples measured frames per case\n")
-            minecraft.stop()
+            visualScreen = visual
+            frames = 0
         } else minecraft.tell(Runnable { openCase() })
+    }
+
+    private fun finishNativeVisual(active: NativeItemVisualScreen) {
+        val directory = File(minecraft.gameDirectory, "benchmark-results").also { it.mkdirs() }
+        Screenshot.takeScreenshot(minecraft.mainRenderTarget).use { image ->
+            image.writeToFile(File(directory, "native-visual.png"))
+            active.verifyPixels(image)
+        }
+        minecraft.setScreen(null)
+        check(active.rendererStatistics.liveSurfaces == 0 && active.rendererStatistics.liveNativeImages == 0)
+        visualScreen = null
+        restoreOptions()
+        File(minecraft.gameDirectory, "composemc-benchmark.txt").writeText(
+            "PASS\n${results.size} cases; $samples measured frames per case\n" +
+                "native item alpha, rotation, shape clipping, occlusion and repeated placement\n")
+        minecraft.stop()
     }
 
     private fun summary(values: List<Long>): Map<String, Any>? {

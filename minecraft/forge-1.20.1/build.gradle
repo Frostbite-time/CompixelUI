@@ -98,7 +98,7 @@ verifyMinecraftArtifacts(artifacts, [
     'public-f net.minecraft.world.inventory.Slot f_40220_',
     'public-f net.minecraft.world.inventory.Slot f_40221_',
     'protected net.minecraft.client.gui.screens.inventory.AbstractContainerScreen m_280092_(Lnet/minecraft/client/gui/GuiGraphics;Lnet/minecraft/world/inventory/Slot;)V',
-] as Set)
+] as Set, [] as Set)
 verifyMinecraftRuns(runSettings)
 tasks.named('runBenchmark') {
     doFirst {

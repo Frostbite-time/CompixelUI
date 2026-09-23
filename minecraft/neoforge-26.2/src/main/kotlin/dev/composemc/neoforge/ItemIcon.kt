@@ -7,11 +7,9 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.constrainHeight
@@ -20,9 +18,9 @@ import androidx.compose.ui.unit.dp
 import com.mojang.blaze3d.systems.RenderSystem
 import net.minecraft.world.item.ItemStack
 import net.minecraft.client.gui.GuiGraphicsExtractor
+import dev.composemc.bridge.drawNativeImage
 import java.util.function.Consumer
 import java.util.concurrent.atomic.AtomicLong
-import androidx.compose.ui.geometry.Rect
 
 /** An owned ItemStack copy. Create snapshots on the game thread, then pass the handle to Compose. */
 class ItemIcon private constructor(
@@ -64,32 +62,31 @@ data class NativeItemOptions(
     }
 }
 
-/** Extracts a Minecraft item at its Compose position with the visible layout clip. */
+/** Native pixels participate in Compose's transform, clip, alpha and draw order. */
 @Composable
 fun MinecraftItemIcon(icon: ItemIcon, modifier: Modifier = Modifier) {
     val images = checkNotNull(LocalItemImages.current) { "MinecraftItemIcon requires a NeoForgeComposeScreen" }
+    val layerPaint = remember { Paint() }
     DisposableEffect(images, icon) {
         images.retain(icon)
         onDispose { images.release(icon) }
     }
-    Layout(content = {}, modifier = modifier
-        .semantics { contentDescription = icon.description }
-        .onGloballyPositioned { images.position(icon, Rect(it.positionInRoot(), Size(it.size.width.toFloat(), it.size.height.toFloat())), it.boundsInRoot()) }
-        // 26.2 extracts native item commands after the retained Compose frame.
-        .drawBehind {}) { _, constraints ->
+    Layout(content = {}, modifier = modifier.semantics { contentDescription = icon.description }.drawBehind {
+        val image = images.request(icon)
+        if (image != null) drawNativeImage(image, layerPaint)
+        else drawRect(Color(0x443F4B50))
+    }) { _, constraints ->
         layout(constraints.constrainWidth(16.dp.roundToPx()), constraints.constrainHeight(16.dp.roundToPx())) {}
     }
 }
 
 internal val LocalItemImages = staticCompositionLocalOf<ItemImageMailbox?> { null }
-internal data class PositionedItemIcon(val icon: ItemIcon, val bounds: Rect, val clip: Rect)
 
 /** Only the EDT accesses this mailbox. It never reads the native ItemStack. */
 internal class ItemImageMailbox(private val requestLimit: Int) {
     private data class Request(val icon: ItemIcon, var users: Int)
     private val images = mutableStateMapOf<Long, org.jetbrains.skia.Image>()
     private val requests = linkedMapOf<Long, Request>()
-    private val positions = mutableMapOf<Long, Pair<Rect, Rect>>()
     fun retain(icon: ItemIcon) {
         val existing = requests[icon.id]
         if (existing != null) existing.users++
@@ -102,7 +99,6 @@ internal class ItemImageMailbox(private val requestLimit: Int) {
         val request = checkNotNull(requests[icon.id])
         if (--request.users == 0) {
             requests.remove(icon.id)
-            positions.remove(icon.id)
         }
     }
     fun request(icon: ItemIcon): org.jetbrains.skia.Image? {
@@ -111,10 +107,6 @@ internal class ItemImageMailbox(private val requestLimit: Int) {
     // Draw callbacks can be skipped when Compose replays a cached layer. Composition lifetime
     // preserves demand across those frames and includes the bounded Lazy layout prefetch window.
     fun activeRequests(): List<ItemIcon> = requests.values.map { it.icon }
-    fun position(icon: ItemIcon, bounds: Rect, clip: Rect) { if (requests.containsKey(icon.id)) positions[icon.id] = bounds to clip }
-    fun positionedRequests(): List<PositionedItemIcon> = requests.values.mapNotNull { request ->
-        positions[request.icon.id]?.let { PositionedItemIcon(request.icon, it.first, it.second) }
-    }
     fun put(id: Long, image: org.jetbrains.skia.Image) { images[id] = image }
     fun remove(id: Long, image: org.jetbrains.skia.Image) { if (images[id] === image) images.remove(id) }
     fun clear() { images.clear() }

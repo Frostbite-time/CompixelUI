@@ -63,7 +63,7 @@ OpenGL 借用 Minecraft 当前上下文，管理自身 Skia 上下文和离屏�
 
 standard 配置使用 Skiko 0.150.1；Vulkan 配置使用匹配的 Polyfrost Skiko 0.999.6 JVM/原生库，并加入共享 Vulkan 渲染器。每个适配器在自己的构建文件中选择运行时依赖及匹配的 Skiko 约束。
 
-装配时合并服务注册和第三方许可，包含 Windows/Linux/macOS 的 x64 与 arm64 原生库，不进行会破坏编译器 ABI 或 JNI 的重定位/裁剪，也不打包另一份 LWJGL。归档检查会拒绝开发工具、项目 Mixin 和不匹配的原生库/运行时内容。
+装配时合并服务注册和第三方许可，包含 Windows/Linux/macOS 的 x64 与 arm64 原生库，不进行会破坏编译器 ABI 或 JNI 的重定位/裁剪，也不打包另一份 LWJGL。归档检查会拒绝开发工具、未声明的 Mixin 和不匹配的原生库/运行时内容。
 
 每个运行时项目都生成外部 Kotlin 版和 `with-kotlin` 版。外部版排除 Kotlin 标准库、协程 Core 和 Serialization，保留 Compose 使用的 Swing 调度器集成和 atomicfu。适配器只嵌入一份匹配的运行时，绝不嵌入 KFF。客户端入口使用 Java，在进入 Kotlin 代码前报告缺失的外部依赖。共享 Java 检查验证 stdlib >= 2.2.21 及协程、Serialization 的代表性 API，不触及专用服务器入口。这属于依赖检查，不保证任意库组合都兼容。
 
@@ -94,7 +94,7 @@ standard 配置使用 Skiko 0.150.1；Vulkan 配置使用匹配的 Polyfrost Ski
 
 ## 原生扩展点
 
-优先使用加载器公开 API，当前发行物没有项目 Mixin。访问转换按目标限定：
+优先使用加载器公开 API。26.x 适配器使用一处限定范围的 `GuiRenderer.draw` 重定向，因为 Minecraft 将 GUI 命令直接送到主渲染目标，缺少公开的目标替换接口。重定向只在捕获原生图标时选择离屏目标；普通 GUI 绘制仍使用 Minecraft 目标。归档检查只允许 26.x 中明确声明的这一处 Mixin。访问转换按目标限定：
 
 - 1.21.1 和 26.1.2：用于原生槽位定位的 `Slot.x`、`Slot.y`。
 - 26.2/26.3：上述坐标，以及各目标的 GPU 后端字段。
