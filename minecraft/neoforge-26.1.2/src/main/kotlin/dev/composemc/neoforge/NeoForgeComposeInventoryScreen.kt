@@ -87,7 +87,6 @@ open class NeoForgeComposeInventoryScreen<M : AbstractContainerMenu>(
     // still owns menu extraction, recipe overlays and interaction state.
     override fun extractSlot(graphics: GuiGraphicsExtractor, slot: Slot, mouseX: Int, mouseY: Int) {}
     override fun extractLabels(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int) {}
-    override fun extractCarriedItem(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int) {}
     override fun isHovering(x: Int, y: Int, w: Int, h: Int, mouseX: Double, mouseY: Double): Boolean {
         val id = if (w == 16 && h == 16) nativeCoordinates[x to y] else null
         if (id != null) {
