@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.dp
 import com.mojang.blaze3d.systems.RenderSystem
-import dev.composemc.bridge.drawNativeImage
+import dev.composemc.bridge.drawNativeImageRegion
 import net.minecraft.world.item.ItemStack
 import net.minecraft.client.gui.GuiGraphics
 import java.util.function.Consumer
@@ -67,7 +67,7 @@ data class NativeItemOptions(
 @Composable
 fun MinecraftItemIcon(icon: ItemIcon, modifier: Modifier = Modifier) {
     val images = checkNotNull(LocalItemImages.current) { "MinecraftItemIcon requires a NeoForgeComposeScreen" }
-    val layerPaint = remember { Paint() }
+    val paint = remember { Paint() }
     DisposableEffect(images, icon) {
         images.retain(icon)
         onDispose { images.release(icon) }
@@ -75,7 +75,7 @@ fun MinecraftItemIcon(icon: ItemIcon, modifier: Modifier = Modifier) {
     Layout(content = {}, modifier = modifier.semantics { contentDescription = icon.description }.drawBehind {
         val image = images.request(icon)
         if (image != null) {
-            drawNativeImage(image, layerPaint)
+            drawNativeImageRegion(image, org.jetbrains.skia.Rect.makeWH(image.width.toFloat(), image.height.toFloat()), paint)
         } else {
             drawRect(Color(0x443F4B50))
         }
