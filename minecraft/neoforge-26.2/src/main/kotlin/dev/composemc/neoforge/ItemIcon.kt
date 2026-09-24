@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.mojang.blaze3d.systems.RenderSystem
 import net.minecraft.world.item.ItemStack
 import net.minecraft.client.gui.GuiGraphicsExtractor
+import dev.composemc.bridge.NativeImageRegion
 import dev.composemc.bridge.drawNativeImageRegion
 import java.util.function.Consumer
 import java.util.concurrent.atomic.AtomicLong
@@ -115,6 +116,3 @@ internal class ItemImageMailbox(private val requestLimit: Int) {
     fun removeAtlas(ids: Collection<Long>) { ids.forEach(atlas::remove) }
     fun clear() { images.clear(); atlas.clear() }
 }
-
-/** A published native image and the pixel region that belongs to one icon. */
-internal class NativeImageRegion(val image: org.jetbrains.skia.Image, val source: org.jetbrains.skia.Rect)

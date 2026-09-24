@@ -10,7 +10,7 @@ Compose MC maintains shared UI/runtime code and per-version Minecraft adapters i
 | --- | --- |
 | `platform` | Host-neutral viewport, input, clipboard and platform contracts |
 | `render` | Backend-neutral frames, resource and profiling contracts |
-| `compose-bridge` | Compose scene, thread boundary and frame recording |
+| `compose-bridge` | Compose scene, thread boundary, frame recording, native image drawing and icon atlas scheduling |
 | `host` | UI session lifecycle and immutable state/action bindings |
 | `render-gl` | Shared OpenGL renderer and GPU composition |
 | `render-vulkan` | Shared Skia Vulkan drawing and image-barrier recording |
