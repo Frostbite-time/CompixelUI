@@ -26,8 +26,9 @@ import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.network.chat.Component
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.Items
+import net.minecraft.world.item.enchantment.Enchantments
 
-internal enum class BenchmarkKind { STATIC, ANIMATION, LIST, NATIVE_STATIC, NATIVE_SCROLL, TOOLTIP, ORE_COMPONENTS }
+internal enum class BenchmarkKind { STATIC, ANIMATION, LIST, NATIVE_STATIC, NATIVE_SCROLL, NATIVE_ANIMATED, TOOLTIP, ORE_COMPONENTS }
 internal object BenchmarkEnvironment {
     val background = java.lang.Boolean.getBoolean("composemc.benchmark") &&
         java.lang.Boolean.getBoolean("composemc.benchmark.background")
@@ -46,7 +47,9 @@ internal class BenchmarkScreen private constructor(
     icons: List<ItemIcon>,
     samples: Map<Int, ItemIcon> = if (fixture.kind == BenchmarkKind.ORE_COMPONENTS && fixture.count == dev.composemc.demo.preview.DemoPage.Items.ordinal)
         listOf(0, 1, 3, 8).associateWith { ItemIcon.snapshot(icons[it].stack) } else emptyMap(),
-) : ForgeComposeScreen(Component.literal("Compose MC benchmark"), content = { BenchmarkContent(fixture, model, icons, samples) }) {
+) : ForgeComposeScreen(Component.literal("Compose MC benchmark"),
+    nativeItemOptions = if (fixture.kind == BenchmarkKind.NATIVE_ANIMATED) NativeItemOptions(cacheCapacity = 512) else NativeItemOptions(),
+    content = { BenchmarkContent(fixture, model, icons, samples) }) {
     private val componentExercise = if (fixture.kind == BenchmarkKind.ORE_COMPONENTS)
         dev.composemc.testing.ui.OreComponentExercise(model.preview, dev.composemc.demo.preview.DemoPage.entries[fixture.count]) else null
     fun verifyComponents() { componentExercise?.verify() }
@@ -59,7 +62,9 @@ internal class BenchmarkScreen private constructor(
         check(slot.x == 7 && slot.y == 9) { "Native slot coordinate access was not installed" }
     }
     constructor(fixture: BenchmarkCase) : this(fixture, ComposeThread.call { BenchmarkModel() },
-        if (fixture.kind in setOf(BenchmarkKind.NATIVE_STATIC, BenchmarkKind.NATIVE_SCROLL, BenchmarkKind.TOOLTIP) || fixture.kind == BenchmarkKind.ORE_COMPONENTS && fixture.count in setOf(dev.composemc.demo.preview.DemoPage.Tooltips.ordinal, dev.composemc.demo.preview.DemoPage.Slots.ordinal, dev.composemc.demo.preview.DemoPage.Items.ordinal)) benchmarkIcons(if (fixture.kind == BenchmarkKind.NATIVE_STATIC) IconRefresh.STATIC else IconRefresh.AUTO) else emptyList())
+        // Glint makes AUTO resolve to per-frame refresh, like enchanted items in real inventories.
+        if (fixture.kind == BenchmarkKind.NATIVE_ANIMATED) benchmarkIcons(IconRefresh.AUTO) { enchant(Enchantments.UNBREAKING, 1) }
+        else if (fixture.kind in setOf(BenchmarkKind.NATIVE_STATIC, BenchmarkKind.NATIVE_SCROLL, BenchmarkKind.TOOLTIP) || fixture.kind == BenchmarkKind.ORE_COMPONENTS && fixture.count in setOf(dev.composemc.demo.preview.DemoPage.Tooltips.ordinal, dev.composemc.demo.preview.DemoPage.Slots.ordinal, dev.composemc.demo.preview.DemoPage.Items.ordinal)) benchmarkIcons(if (fixture.kind == BenchmarkKind.NATIVE_STATIC) IconRefresh.STATIC else IconRefresh.AUTO) else emptyList())
 
     protected override fun isUiWindowFocused(): Boolean = BenchmarkEnvironment.background || super.isUiWindowFocused()
 
@@ -70,9 +75,9 @@ internal class BenchmarkScreen private constructor(
     }
 }
 
-private fun benchmarkIcons(refresh: IconRefresh): List<ItemIcon> = BuiltInRegistries.ITEM.asSequence()
-    .filter { it !== Items.AIR }.take(255).map { ItemIcon.snapshot(ItemStack(it), refresh) }.toList() +
-    ItemIcon.snapshot(exampleBundle())
+private fun benchmarkIcons(refresh: IconRefresh, configure: ItemStack.() -> Unit = {}): List<ItemIcon> = BuiltInRegistries.ITEM.asSequence()
+    .filter { it !== Items.AIR }.take(255).map { ItemIcon.snapshot(ItemStack(it).apply(configure), refresh) }.toList() +
+    ItemIcon.snapshot(exampleBundle().apply(configure))
 
 @Composable
 private fun BenchmarkContent(fixture: BenchmarkCase, model: BenchmarkModel, icons: List<ItemIcon>, samples: Map<Int, ItemIcon>) {
@@ -141,6 +146,11 @@ private fun BenchmarkContent(fixture: BenchmarkCase, model: BenchmarkModel, icon
                         }
                     }
                 }
+            }
+            // 256 distinct animated icons on one page; every one must get and refresh its image.
+            BenchmarkKind.NATIVE_ANIMATED -> LazyVerticalGrid(GridCells.Fixed(20), Modifier.fillMaxWidth().weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                items(fixture.count, key = { it }) { index -> MinecraftItemIcon(icons[index % icons.size], Modifier.size(20.dp)) }
             }
             BenchmarkKind.TOOLTIP -> Box(Modifier.fillMaxSize()) {
                 BasicText("Native bundle tooltip", style = text)

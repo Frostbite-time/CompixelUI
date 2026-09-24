@@ -31,6 +31,7 @@ internal class ClientBenchmarkProbe {
         BenchmarkCase("list-100k", BenchmarkKind.LIST, 100000),
         BenchmarkCase("native-static", BenchmarkKind.NATIVE_STATIC, 1000),
         BenchmarkCase("native-scroll-10k", BenchmarkKind.NATIVE_SCROLL, 10000),
+        BenchmarkCase("native-animated", BenchmarkKind.NATIVE_ANIMATED, 1000),
         BenchmarkCase("rich-tooltip", BenchmarkKind.TOOLTIP),
     ) + dev.composemc.testing.ui.oreComponentPages.map { BenchmarkCase("ore-${it.name.lowercase()}", BenchmarkKind.ORE_COMPONENTS, it.ordinal) }
     private val schedule = (0 until repeats).flatMap { repeat ->
@@ -43,6 +44,7 @@ internal class ClientBenchmarkProbe {
     private var frames = 0
     private var firstMeasured = 0L
     private var lastMeasured = 0L
+    private var refreshesAtSampleStart = 0L
     private var screen: BenchmarkScreen? = null
     private var visualScreen: NativeItemVisualScreen? = null
     private var oldGuiScale = 0
@@ -103,6 +105,7 @@ internal class ClientBenchmarkProbe {
                     point.y.toDouble() * active.height / minecraft.window.height)
             }
             if (frames == warmup) firstMeasured = profiler.lastFrameId + 1
+            if (frames == warmup) refreshesAtSampleStart = active.nativeItemStatistics.animationRefreshes
             if (frames == warmup + samples) lastMeasured = profiler.lastFrameId
             if (frames <= warmup + samples) active.advance()
             if (frames == warmup + samples + 16) finishCase(active)
@@ -167,11 +170,17 @@ internal class ClientBenchmarkProbe {
         check(rows.size == samples)
         check(rows.all { it.missingGpuResults == 0 }) { "GPU results did not drain; benchmark is incomplete" }
         check(rows.maxOf { it.recordings } <= 2)
-        check(rows.maxOf { it.cachedItems } <= 128)
+        check(rows.maxOf { it.cachedItems } <= if (active.fixture.kind == BenchmarkKind.NATIVE_ANIMATED) 512 else 128)
         if (active.fixture.kind == BenchmarkKind.STATIC || active.fixture.kind == BenchmarkKind.NATIVE_STATIC)
             check(rows.none { it.rendered }) { "Static fixture kept repainting" }
-        if (active.fixture.kind == BenchmarkKind.LIST || active.fixture.kind == BenchmarkKind.ANIMATION)
+        if (active.fixture.kind in setOf(BenchmarkKind.LIST, BenchmarkKind.ANIMATION, BenchmarkKind.NATIVE_ANIMATED))
             check(rows.count { it.rendered } > samples * 9 / 10) { "Animated/scroll fixture did not advance" }
+        if (active.fixture.kind == BenchmarkKind.NATIVE_ANIMATED) {
+            val items = active.nativeItemStatistics
+            // Every one of the 256 distinct icons must be prepared and keep refreshing in turn.
+            check(items.activeVariants == 256 && items.dynamicVariants == items.activeVariants) { "Animated icons were starved: $items" }
+            check(items.animationRefreshes - refreshesAtSampleStart >= items.activeVariants) { "Animated icons stopped refreshing: $items" }
+        }
         if (active.fixture.kind == BenchmarkKind.TOOLTIP) check(rows.all { it.tooltipVisible }) {
             "Tooltip benchmark lost hover: visible=${rows.count { it.tooltipVisible }}/${rows.size}, " +
                 "target=${ComposeThread.call { active.model.tooltipTarget }}, current=${active.nativeTooltipStatistics}"
