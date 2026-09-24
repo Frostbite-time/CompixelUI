@@ -188,8 +188,8 @@ internal class ClientSmokeProbe {
                 val point = ComposeThread.call { Triple(current.itemBrowser.hitX, current.itemBrowser.hitY, current.itemBrowser.firstVisible) }
                 val guiX = point.first * current.width / minecraft.window.width
                 val guiY = point.second * current.height / minecraft.window.height
-                current.mouseClicked(guiX.toDouble(), guiY.toDouble(), 0)
-                current.mouseReleased(guiX.toDouble(), guiY.toDouble(), 0)
+                current.mouseClicked(guiX.toDouble(), guiY.toDouble(), InputConstants.MOUSE_BUTTON_LEFT)
+                current.mouseReleased(guiX.toDouble(), guiY.toDouble(), InputConstants.MOUSE_BUTTON_LEFT)
                 check(ComposeThread.call { current.itemBrowser.selected } == point.third) { "Native item grid hit testing failed" }
                 tooltipProbe = NativeTooltipProbe()
             }
@@ -272,16 +272,16 @@ internal class ClientSmokeProbe {
     private fun <T> model(block: dev.composemc.demo.preview.DemoModel.() -> T): T = ComposeThread.call { screen!!.model.block() }
     private fun click(screen: Screen, guiX: Double, guiY: Double) {
         screen.mouseMoved(guiX, guiY)
-        screen.mouseClicked(guiX, guiY, 0)
-        screen.mouseReleased(guiX, guiY, 0)
+        screen.mouseClicked(guiX, guiY, InputConstants.MOUSE_BUTTON_LEFT)
+        screen.mouseReleased(guiX, guiY, InputConstants.MOUSE_BUTTON_LEFT)
     }
     private fun clickControl(screen: ComposePreviewScreen, id: String) {
         val bounds = ComposeThread.call { screen.model.bounds.getValue(id) }
         val x = bounds.center.x.toDouble() * screen.width / minecraft.window.width
         val y = bounds.center.y.toDouble() * screen.height / minecraft.window.height
         screen.mouseMoved(x, y)
-        screen.mouseClicked(x, y, 0)
-        screen.mouseReleased(x, y, 0)
+        screen.mouseClicked(x, y, InputConstants.MOUSE_BUTTON_LEFT)
+        screen.mouseReleased(x, y, InputConstants.MOUSE_BUTTON_LEFT)
     }
     private fun key(screen: Screen, key: Int, modifiers: Int = 0) {
         screen.keyPressed(key, 0, modifiers)
