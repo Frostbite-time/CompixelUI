@@ -23,7 +23,7 @@ public record SyncBatch(long revision, boolean snapshot, int index, int operatio
         int index = in.readInt(), operations = in.readInt(); boolean last = SyncCodecs.BOOLEAN.read(in);
         int length = in.readInt();
         if (length < 1 || length > maximumBatchBytes) throw new IOException("Invalid sync batch length: " + length + ", limit=" + maximumBatchBytes);
-        byte[] data = new byte[length]; in.readFully(data);
+        byte[] data = DeclaredBytes.read(in, length, "sync batch");
         return new SyncBatch(revision, snapshot, index, operations, last, data);
     }
 }

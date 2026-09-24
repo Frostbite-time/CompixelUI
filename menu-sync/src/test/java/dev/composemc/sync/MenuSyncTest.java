@@ -3,6 +3,7 @@ package dev.composemc.sync;
 import org.junit.jupiter.api.Test;
 import java.io.*;
 import java.net.*;
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -109,6 +110,28 @@ class MenuSyncTest {
         malformed.write(new DataOutputStream(bytes));
         byte[] truncated = Arrays.copyOf(bytes.toByteArray(), bytes.size() - 1);
         assertThrows(EOFException.class, () -> SyncBatch.read(new DataInputStream(new ByteArrayInputStream(truncated)), SyncLimits.DEFAULT.batchBytes()));
+    }
+
+    @Test void declaredBatchAndRecordLengthsAllocateOnlyForReceivedBytes() throws Exception {
+        int declared = 64 * 1024 * 1024;
+        ByteArrayOutputStream frame = new ByteArrayOutputStream();
+        var out = new DataOutputStream(frame);
+        out.writeLong(1); out.writeBoolean(true); out.writeInt(0); out.writeInt(1); out.writeBoolean(false); out.writeInt(declared);
+        // Link each rejection path first so one-time bootstrap work is not mistaken for decoding memory.
+        assertThrows(EOFException.class, () -> SyncBatch.read(new DataInputStream(new ByteArrayInputStream(frame.toByteArray())), declared));
+        var wire = new DataInputStream(new ByteArrayInputStream(frame.toByteArray()));
+        long batch = Allocations.measure(() -> assertThrows(EOFException.class, () -> SyncBatch.read(wire, declared)));
+        assertTrue(batch < 1024 * 1024, "A truncated batch declaring 64 MiB allocated " + batch + " bytes");
+
+        var limits = new SyncLimits(SyncLimits.DEFAULT.batchBytes(), SyncLimits.DEFAULT.bandwidth(), 16, declared, declared + 4L, 100_000, 200);
+        var header = new SyncBatch(1, true, 0, 1, false, ByteBuffer.allocate(4).putInt(declared).array());
+        try (var warm = new SyncReceiver<>(SCHEMA, limits)) { warm.accept(new Model(), header, 0); }
+        try (var rx = new SyncReceiver<>(SCHEMA, limits)) {
+            var client = new Model();
+            long record = Allocations.measure(() -> assertEquals(SyncReceiver.Result.STAGED, rx.accept(client, header, 0)));
+            assertTrue(record < 1024 * 1024, "A record header declaring 64 MiB allocated " + record + " bytes");
+            assertTrue(rx.bufferedRecordBytes() <= 4096);
+        }
     }
 
     @Test void oneLargeValueIsFragmentedAndPublishedOnce() {

@@ -15,7 +15,7 @@ public final class SyncReceiver<M> implements AutoCloseable {
     private boolean snapshot, closed;
     private boolean[] changed, initialized;
     private final byte[] lengthHeader = new byte[4];
-    private int headerCursor, recordCursor;
+    private int headerCursor, recordCursor, recordLength;
     private byte[] record;
 
     public SyncReceiver(SyncSchema<M> schema, SyncLimits limits) { this.schema = schema; this.limits = limits; }
@@ -62,11 +62,13 @@ public final class SyncReceiver<M> implements AutoCloseable {
                     int length = ((lengthHeader[0] & 255) << 24) | ((lengthHeader[1] & 255) << 16) |
                         ((lengthHeader[2] & 255) << 8) | (lengthHeader[3] & 255);
                     if (length < 5 || length > limits.maxRecordBytes()) throw new SyncException("Invalid sync record length: " + length);
-                    record = new byte[length]; recordCursor = 0; headerCursor = 0;
+                    // A header alone must not reserve its declared record; capacity follows received bytes.
+                    record = DeclaredBytes.start(length); recordLength = length; recordCursor = 0; headerCursor = 0;
                 }
             } else {
+                if (recordCursor == record.length) record = DeclaredBytes.grow(record, recordLength);
                 record[recordCursor++] = value;
-                if (recordCursor == record.length) {
+                if (recordCursor == recordLength) {
                     applyOperation(schema.decode(record)); record = null;
                     if (++operations > expectedOperations) throw new SyncException("Too many sync operations");
                 }
