@@ -1,5 +1,7 @@
 package dev.composemc.forge
 
+import dev.composemc.bridge.NativeIconRefresh
+
 /** Native icon invalidation policy. Only visible requested icons are refreshed, within the host budget. */
 class IconRefresh private constructor(internal val kind: Kind, internal val millis: Long = 0) {
     internal enum class Kind { AUTO, STATIC, GAME_TICK, FRAME, INTERVAL }
@@ -15,4 +17,13 @@ class IconRefresh private constructor(internal val kind: Kind, internal val mill
             return IconRefresh(Kind.INTERVAL, millis)
         }
     }
+}
+
+/** The shared scheduler's form of a resolved policy. */
+internal fun IconRefresh.scheduled(): NativeIconRefresh = when (kind) {
+    IconRefresh.Kind.STATIC -> NativeIconRefresh.STATIC
+    IconRefresh.Kind.GAME_TICK -> NativeIconRefresh.GAME_TICK
+    IconRefresh.Kind.FRAME -> NativeIconRefresh.FRAME
+    IconRefresh.Kind.INTERVAL -> NativeIconRefresh.every(millis)
+    IconRefresh.Kind.AUTO -> error("Unresolved icon refresh policy")
 }

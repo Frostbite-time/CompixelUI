@@ -16,11 +16,11 @@ import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.dp
 import com.mojang.blaze3d.systems.RenderSystem
+import dev.composemc.bridge.NativeImageRegion
 import dev.composemc.bridge.drawNativeImageRegion
 import net.minecraft.world.item.ItemStack
 import net.minecraft.client.gui.GuiGraphics
 import java.util.function.Consumer
-import org.jetbrains.skia.Image
 import java.util.concurrent.atomic.AtomicLong
 
 /** An owned ItemStack copy. Create snapshots on the game thread, then pass the handle to Compose. */
@@ -63,7 +63,7 @@ data class NativeItemOptions(
     }
 }
 
-/** Ordinary Compose image drawing preserves the current transform, clip and layer order. */
+/** Native pixels participate in Compose's transform, clip, alpha and draw order. */
 @Composable
 fun MinecraftItemIcon(icon: ItemIcon, modifier: Modifier = Modifier) {
     val images = checkNotNull(LocalItemImages.current) { "MinecraftItemIcon requires a ForgeComposeScreen" }
@@ -73,12 +73,9 @@ fun MinecraftItemIcon(icon: ItemIcon, modifier: Modifier = Modifier) {
         onDispose { images.release(icon) }
     }
     Layout(content = {}, modifier = modifier.semantics { contentDescription = icon.description }.drawBehind {
-        val image = images.request(icon)
-        if (image != null) {
-            drawNativeImageRegion(image, org.jetbrains.skia.Rect.makeWH(image.width.toFloat(), image.height.toFloat()), paint)
-        } else {
-            drawRect(Color(0x443F4B50))
-        }
+        val region = images.request(icon)
+        if (region != null) drawNativeImageRegion(region.image, region.source, paint)
+        else drawRect(Color(0x443F4B50))
     }) { _, constraints ->
         layout(constraints.constrainWidth(16.dp.roundToPx()), constraints.constrainHeight(16.dp.roundToPx())) {}
     }
@@ -89,7 +86,8 @@ internal val LocalItemImages = staticCompositionLocalOf<ItemImageMailbox?> { nul
 /** Only the EDT accesses this mailbox. It never reads the native ItemStack. */
 internal class ItemImageMailbox(private val requestLimit: Int) {
     private data class Request(val icon: ItemIcon, var users: Int)
-    private val images = mutableStateMapOf<Long, Image>()
+    // Atlas regions invalidate only the icons they replace.
+    private val atlas = mutableStateMapOf<Long, NativeImageRegion>()
     private val requests = linkedMapOf<Long, Request>()
     fun retain(icon: ItemIcon) {
         val existing = requests[icon.id]
@@ -103,13 +101,11 @@ internal class ItemImageMailbox(private val requestLimit: Int) {
         val request = checkNotNull(requests[icon.id])
         if (--request.users == 0) requests.remove(icon.id)
     }
-    fun request(icon: ItemIcon): Image? {
-        return images[icon.id]
-    }
+    fun request(icon: ItemIcon): NativeImageRegion? = atlas[icon.id]
     // Draw callbacks can be skipped when Compose replays a cached layer. Composition lifetime
     // preserves demand across those frames and includes the bounded Lazy layout prefetch window.
     fun activeRequests(): List<ItemIcon> = requests.values.map { it.icon }
-    fun put(id: Long, image: Image) { images[id] = image }
-    fun remove(id: Long, image: Image) { if (images[id] === image) images.remove(id) }
-    fun clear() { images.clear() }
+    fun publishAtlas(regions: Map<Long, NativeImageRegion>) { atlas.putAll(regions) }
+    fun removeAtlas(ids: Collection<Long>) { ids.forEach(atlas::remove) }
+    fun clear() { atlas.clear() }
 }
