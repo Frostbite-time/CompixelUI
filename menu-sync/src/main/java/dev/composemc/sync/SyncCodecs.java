@@ -36,7 +36,7 @@ public final class SyncCodecs {
         });
     }
 
-    /** UTF-8 byte limit, independent of writeUTF's 64K format and Minecraft NBT quotas. */
+    /** UTF-8 byte limit, independent of writeUTF's 64K format and Minecraft NBT quotas. Decoding allocates for received bytes, not the declared length. */
     public static SyncCodec<String> string(int maxBytes) {
         if (maxBytes < 1) throw new IllegalArgumentException("Invalid string limit");
         return SyncCodec.of("utf8:" + maxBytes, (out, value) -> {
@@ -49,7 +49,7 @@ public final class SyncCodecs {
         }, in -> {
             int length = in.readInt();
             if (length < 0 || length > maxBytes) throw new IOException("Invalid string length: " + length);
-            byte[] bytes = new byte[length]; in.readFully(bytes);
+            byte[] bytes = DeclaredBytes.read(in, length, "string");
             return StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
                 .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes)).toString();
         });
