@@ -86,7 +86,7 @@ Gradle 需要 JDK 17 或更新版本，推荐 JDK 25。各适配器所需 Java �
 
 ## 客户端测试套件
 
-每个目标都在真实 Minecraft 客户端中运行两套自动测试：**acceptance** 检查正确性，**benchmark** 测量性能。两者都加载打包后的模组归档，并同时加载独立的开发包：NeoForge 目标加载的就是正式发布包；Forge 1.20.1 加载的是同一归档在 SRG 重映射之前的版本（见 [Forge 1.20.1 生产启动](#forge-1201-生产启动)）；开始前都会新建扁平创造模式测试世界 `saves/composemc-<suite>`（每次运行都会替换），渲染距离为 2，静音，关闭垂直同步。输入通过真实的 Screen 回调送达，并使用逻辑窗口焦点，因此两套测试都不会读取、依赖或抢占系统焦点，隐藏运行与可见运行执行完全相同的帧。测试不会接触系统剪贴板。
+每个目标都在真实 Minecraft 客户端中运行两套自动测试：**acceptance** 检查正确性，**benchmark** 测量性能。两者都加载打包后的模组归档，并同时加载独立的开发包：NeoForge 目标加载的就是正式发布包；Forge 1.20.1 加载的是同一归档在 SRG 重映射之前的版本（见 [Forge 1.20.1 生产启动](#forge-1201-生产启动)）。两者开始前都会新建扁平创造模式测试世界 `saves/composemc-<suite>`（每次运行都会替换），渲染距离为 2，静音，关闭垂直同步。输入通过真实的 Screen 回调送达，并使用逻辑窗口焦点，因此两套测试都不会读取、依赖或抢占系统焦点，隐藏运行与可见运行执行完全相同的帧。测试不会接触系统剪贴板。
 
 五个目标运行完全相同的测试。各适配器 `development` 包中的驱动代码（`SuiteEnvironment`、`SuiteSession`、`ClientAcceptanceProbe`、`PreviewAcceptance`、`ClientBenchmarkProbe` 和 `NativeTooltipProbe`）是逐字节一致的副本，版本差异只放在该适配器的 `SuitePlatform.kt` 和版本专属夹具中。`checkCore` 包含的 `verifySuiteParity` 会拒绝出现偏差的副本、缺失的夹具或错误的目标名。有序步骤表和基准测量规程位于 `testing`：只有全部步骤（或全部计划用例）按顺序完成后，报告才能写 `PASS`。
 
