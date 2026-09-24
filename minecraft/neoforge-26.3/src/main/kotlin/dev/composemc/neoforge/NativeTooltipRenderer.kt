@@ -1,15 +1,19 @@
 package dev.composemc.neoforge
 
-import androidx.compose.ui.geometry.Rect
 import com.mojang.blaze3d.systems.RenderSystem
 import dev.composemc.bridge.ComposeThread
 import net.minecraft.client.Minecraft
-import net.minecraft.client.gui.GuiGraphicsExtractor
+import net.minecraft.client.gui.screens.Screen
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTextTooltip
-import net.neoforged.neoforge.client.event.RenderTooltipEvent
-import net.neoforged.neoforge.common.NeoForge
-import java.util.function.Consumer
-import kotlin.math.roundToInt
+import net.minecraft.client.gui.screens.inventory.tooltip.TooltipRenderUtil
+import net.minecraft.core.component.DataComponents
+import net.neoforged.neoforge.client.ClientHooks
+import org.jetbrains.skia.ColorAlphaType
+import org.jetbrains.skia.ColorType
+import org.jetbrains.skia.Image
+import org.jetbrains.skia.ImageInfo
+import java.util.concurrent.ConcurrentLinkedQueue
+import kotlin.math.ceil
 
 data class NativeTooltipStatistics(
     val visible: Boolean = false,
@@ -22,87 +26,169 @@ data class NativeTooltipStatistics(
     val lastRequestGeneration: Long = 0,
 )
 
-/** Defers native tooltip drawing and observes the resulting NeoForge render event. */
+/** Extracts native components into an image that Compose owns and draws. */
 internal class NativeTooltipRenderer(
     private val mailbox: ItemTooltipMailbox,
 ) : AutoCloseable {
+    private data class Layout(val width: Int, val height: Int, val components: Int, val richComponents: Int)
+    private data class Completion(val epoch: Long, val request: ItemTooltipRequest,
+                                  val metrics: ScreenMetrics, val layout: Layout, val pixels: ByteArray)
+
+    private val completions = ConcurrentLinkedQueue<Completion>()
+    private var capture: NativeGuiCapture? = null
+    private var captureMetrics: ScreenMetrics? = null
+    private var image: Image? = null
+    private var imageRequest: ItemTooltipRequest? = null
+    private var layout: Layout? = null
     private var request: ItemTooltipRequest? = null
+    private var attemptedRequest: ItemTooltipRequest? = null
+    private var attemptedMetrics: ScreenMetrics? = null
+    private var attemptedAt = Long.MIN_VALUE
+    private var inFlight = false
+    private var epoch = 0L
     private var generation = 0L
     private var prepared = 0L
+    private var retired = 0L
     private var closed = false
-    private var metrics: ScreenMetrics? = null
-    private var bounds: Rect? = null
-    private var components = 0
-    private var richComponents = 0
-    private val rendered = Consumer<RenderTooltipEvent.Texture> { event ->
-        val active = request ?: return@Consumer
-        if (event.itemStack !== active.icon.stack) return@Consumer
-        val current = metrics ?: return@Consumer
-        val font = event.font
-        val lines = event.components
-        val width = lines.maxOfOrNull { it.getWidth(font) } ?: return@Consumer
-        val height = lines.sumOf { it.getHeight(font) }
-        bounds = Rect(
-            current.pixelX((event.x - 4).toDouble()), current.pixelY((event.y - 4).toDouble()),
-            current.pixelX((event.x + width + 4).toDouble()), current.pixelY((event.y + height + 4).toDouble()),
-        )
-        components = lines.size
-        richComponents = lines.count { it !is ClientTextTooltip }
-        prepared++
-    }
 
-    init { NeoForge.EVENT_BUS.addListener(rendered) }
-
-    val renderedBounds get() = bounds
-
-    val statistics get() = NativeTooltipStatistics(
-        visible = bounds != null,
-        imageWidth = bounds?.width?.roundToInt() ?: 0,
-        imageHeight = bounds?.height?.roundToInt() ?: 0,
-        components = components,
-        richComponents = richComponents,
-        preparedImages = prepared,
-        lastRequestGeneration = generation,
-    )
+    val statistics get() = NativeTooltipStatistics(image != null && imageRequest === request,
+        layout?.width ?: 0, layout?.height ?: 0, layout?.components ?: 0, layout?.richComponents ?: 0,
+        prepared, retired, generation)
 
     fun recorded(frameGeneration: Long) {
         request = ComposeThread.call { mailbox.request }
         generation = frameGeneration
     }
 
+    /** Readbacks are asynchronous; keep one capture in flight and refresh at most ten times per second. */
     fun prepare(now: Long, current: ScreenMetrics): Boolean {
         RenderSystem.assertOnRenderThread()
         check(!closed)
-        return false
+        var changed = collectCompleted()
+        val active = request
+        if (active == null || imageRequest !== active) {
+            if (image != null) {
+                retireImage()
+                ComposeThread.call { mailbox.clearImage() }
+                changed = true
+            }
+            if (active == null) return changed
+        }
+        if (inFlight) return changed
+        if (attemptedRequest === active && attemptedMetrics == current && now - attemptedAt < 100_000_000L)
+            return changed
+        attemptedRequest = active
+        attemptedMetrics = current
+        attemptedAt = now
+
+        val maxGuiWidth = (current.guiWidth - 8).coerceIn(1, 320)
+        val maxGuiHeight = (current.guiHeight - 8).coerceAtLeast(1)
+        val targetWidth = ceil(maxGuiWidth.toDouble() * current.framebufferWidth / current.guiWidth).toInt().coerceAtLeast(1)
+        val targetHeight = ceil(maxGuiHeight.toDouble() * current.framebufferHeight / current.guiHeight).toInt().coerceAtLeast(1)
+        if (captureMetrics != current) {
+            capture?.close()
+            capture = NativeGuiCapture(targetWidth, targetHeight)
+            captureMetrics = current
+        }
+        var measured: Layout? = null
+        val capturedEpoch = epoch
+        val submitted = checkNotNull(capture).capture(maxGuiWidth, maxGuiHeight, { graphics ->
+            val minecraft = Minecraft.getInstance()
+            val stack = active.icon.stack
+            // NeoForge wraps text 16 units inside screenWidth; the sprite background adds 24.
+            val components = ClientHooks.gatherTooltipComponents(stack, Screen.getTooltipFromItem(minecraft, stack),
+                stack.tooltipImage, 0, maxGuiWidth - 8, maxGuiHeight, minecraft.font)
+            if (components.isEmpty()) return@capture null
+            // NeoForge may change the font or cancel; Compose positions the finished image.
+            val pre = ClientHooks.onRenderTooltipPre(stack, graphics, 12, 12, current.guiWidth, current.guiHeight,
+                components, minecraft.font) { _, _, _, _, _, _ -> org.joml.Vector2i(12, 12) }
+            if (pre.isCanceled) return@capture null
+            val font = pre.font
+            val width = components.maxOf { it.getWidth(font) }
+            val height = components.sumOf { it.getHeight(font) } - if (components.size == 1) 2 else 0
+            val scale = minOf(1f, maxGuiWidth.toFloat() / (width + 24), maxGuiHeight.toFloat() / (height + 24))
+            val pixelWidth = ceil((width + 24) * scale * targetWidth / maxGuiWidth).toInt().coerceIn(1, targetWidth)
+            val pixelHeight = ceil((height + 24) * scale * targetHeight / maxGuiHeight).toInt().coerceIn(1, targetHeight)
+            graphics.pose().pushMatrix()
+            try {
+                graphics.pose().scale(scale, scale)
+                val style = ClientHooks.onRenderTooltipTexture(stack, graphics, 12, 12, font, components,
+                    stack.get(DataComponents.TOOLTIP_STYLE)).texture
+                TooltipRenderUtil.extractTooltipBackground(graphics, 12, 12, width, height, style)
+                var y = 12
+                components.forEachIndexed { index, component ->
+                    component.extractText(graphics, font, 12, y)
+                    y += component.getHeight(font) + if (index == 0 && components.size > 1) 2 else 0
+                }
+                y = 12
+                components.forEachIndexed { index, component ->
+                    component.extractImage(font, 12, y, width, height, graphics)
+                    y += component.getHeight(font) + if (index == 0 && components.size > 1) 2 else 0
+                }
+            } finally { graphics.pose().popMatrix() }
+            measured = Layout(pixelWidth, pixelHeight, components.size, components.count { it !is ClientTextTooltip })
+            pixelWidth to pixelHeight
+        }) { pixels, _, _ ->
+            completions.add(Completion(capturedEpoch, active, current, checkNotNull(measured), pixels))
+        }
+        inFlight = submitted
+        if (!submitted && image != null) {
+            retireImage()
+            ComposeThread.call { mailbox.clearImage() }
+            changed = true
+        }
+        return changed
     }
 
-    fun present(graphics: GuiGraphicsExtractor, metrics: ScreenMetrics) {
-        RenderSystem.assertOnRenderThread()
-        if (closed) return
-        bounds = null
-        components = 0
-        richComponents = 0
-        this.metrics = metrics
-        val active = request ?: return
-        val bounds = ComposeThread.call { mailbox.bounds } ?: return
-        val x = (bounds.left * metrics.guiWidth / metrics.framebufferWidth).roundToInt()
-        val y = (bounds.top * metrics.guiHeight / metrics.framebufferHeight).roundToInt()
-        graphics.setTooltipForNextFrame(Minecraft.getInstance().font, active.icon.stack, x, y)
+    private fun collectCompleted(): Boolean {
+        var changed = false
+        while (true) {
+            val completion = completions.poll() ?: break
+            if (completion.epoch != epoch) continue
+            inFlight = false
+            if (completion.request !== request || completion.metrics != attemptedMetrics) continue
+            val value = Image.makeRaster(ImageInfo(completion.layout.width, completion.layout.height,
+                ColorType.RGBA_8888, ColorAlphaType.PREMUL), completion.pixels, completion.layout.width * 4)
+            val published = ComposeThread.call { mailbox.publish(completion.request, value) }
+            if (published) {
+                prepared++
+                retireImage()
+                image = value
+                imageRequest = completion.request
+                layout = completion.layout
+                changed = true
+            } else {
+                // Statistics count only images handed to Compose, so they balance after close.
+                value.close()
+            }
+        }
+        return changed
+    }
+
+    private fun retireImage() {
+        image?.let { old -> FrameRetirement.afterFrame { old.close() }; retired++ }
+        image = null
+        imageRequest = null
+        layout = null
     }
 
     fun reset() {
         RenderSystem.assertOnRenderThread()
+        epoch++
+        inFlight = false
+        completions.clear()
+        capture?.close()
+        capture = null
+        captureMetrics = null
         request = null
-        bounds = null
-        components = 0
-        richComponents = 0
-        metrics = null
+        attemptedRequest = null
+        attemptedMetrics = null
+        retireImage()
         ComposeThread.call { mailbox.clearImage() }
     }
 
     override fun close() {
         if (closed) return
-        NeoForge.EVENT_BUS.unregister(rendered)
         reset()
         closed = true
     }

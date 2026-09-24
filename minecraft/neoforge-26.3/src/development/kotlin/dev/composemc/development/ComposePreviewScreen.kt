@@ -44,6 +44,9 @@ class ComposePreviewScreen private constructor(
     internal val itemBrowser get() = model.itemBrowser
     constructor(parent: Screen? = null) : this(parent, ComposeThread.call { DemoModel() },
         previewIcons())
+
+    // The hidden benchmark drives hover through Screen callbacks without OS focus.
+    protected override fun isUiWindowFocused(): Boolean = BenchmarkEnvironment.background || super.isUiWindowFocused()
 }
 
 private fun previewIcons(): List<ItemIcon> {

@@ -10,7 +10,7 @@ import org.lwjgl.glfw.GLFW
 import java.util.concurrent.CompletableFuture
 import java.util.function.Consumer
 
-/** Real Compose hit testing and native rich components; advanced only by the client smoke probe. */
+/** Real Compose hit testing and native rich components; advanced by the client smoke probe and hidden benchmark. */
 internal class NativeTooltipProbe : AutoCloseable {
     private val minecraft get() = Minecraft.getInstance()
     private var stage = 0
@@ -182,7 +182,7 @@ internal class NativeTooltipProbe : AutoCloseable {
             }
             check(bounds.width >= 16 && bounds.height >= 16)
         }
-        // The bounds and component checks observe NeoForge's native tooltip draw event.
+        // The bounds and component checks inspect the Compose-hosted native tooltip image.
     }
 
     override fun close() {

@@ -47,7 +47,7 @@ open class NeoForgeComposeScreen(
     private var closedTooltipStatistics = NativeTooltipStatistics()
     val nativeItemStatistics: NativeItemStatistics get() = nativeItems?.statistics ?: closedItemStatistics
     val nativeTooltipStatistics: NativeTooltipStatistics get() = nativeTooltips?.statistics ?: closedTooltipStatistics
-    internal val nativeTooltipBounds get() = nativeTooltips?.renderedBounds
+    internal val nativeTooltipBounds get() = ComposeThread.call { tooltipMailbox.bounds }
     private var resourceEpoch = RendererResources.epoch
     private var metrics: ScreenMetrics? = null
     private var focused: Boolean? = null
@@ -160,7 +160,6 @@ open class NeoForgeComposeScreen(
         frameProfiler.measureCpu(CpuPhase.HOST) { flushClipboard() }
         val presentStart = System.nanoTime()
         frameProfiler.measureCpu(CpuPhase.PRESENT) { backend.present(ScreenRenderDestination(guiGraphics, current)) }
-        tooltips.present(guiGraphics, current)
         presentationTimings.record(System.nanoTime() - presentStart)
         frameProfiler?.let { profiler ->
             val itemStats = items.statistics

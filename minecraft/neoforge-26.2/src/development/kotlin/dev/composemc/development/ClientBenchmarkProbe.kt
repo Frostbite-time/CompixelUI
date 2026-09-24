@@ -32,6 +32,7 @@ internal class ClientBenchmarkProbe {
     private var started = false
     private var awaitingWorld = false
     private var inventoryProbe: InventoryAcceptanceProbe? = null
+    private var tooltipProbe: NativeTooltipProbe? = null
     private var stage = 0
     private var frames = 0
     private var openedAt = 0L
@@ -85,6 +86,10 @@ internal class ClientBenchmarkProbe {
         }
         if (active is NativeItemVisualScreen) {
             validateNativeVisuals(active)
+            return
+        }
+        if (active is ComposePreviewScreen) {
+            validateNativeTooltips(active)
             return
         }
         active as BenchmarkScreen
@@ -204,6 +209,28 @@ internal class ClientBenchmarkProbe {
         if (!pendingCapture) capture("native-visual", visual = active)
         else if (captured) {
             checks += "native item alpha, rotation, shape clipping, occlusion and repeated placement"
+            // The tooltip probe's pointer targets assume the client smoke's 1000x720 item grid.
+            GLFW.glfwSetWindowSize(minecraft.window.handle(), 1000, 720)
+            val preview = ComposePreviewScreen()
+            ComposeThread.call { preview.model.page = dev.composemc.demo.preview.DemoPage.Items }
+            open(preview)
+        }
+    }
+
+    /** Runs the smoke probe's native tooltip sequence in this hidden, world-backed client. */
+    private fun validateNativeTooltips(active: ComposePreviewScreen) {
+        val probe = tooltipProbe
+        if (probe == null) {
+            check(System.nanoTime() - openedAt < 10_000_000_000L) { "Native item browser did not become ready" }
+            val laidOut = minecraft.window.width == 1000 && minecraft.window.height == 720 && ComposeThread.call {
+                active.itemBrowser.visibleCells.keys.containsAll(listOf(1, 8)) && active.itemBrowser.edgeTooltipBounds != null
+            }
+            if (frames < 40 || !laidOut || active.nativeItemStatistics.cachedImages == 0) return
+            tooltipProbe = NativeTooltipProbe()
+        } else if (probe.advance(active)) {
+            tooltipProbe = null
+            checks += probe.report
+            GLFW.glfwSetWindowSize(minecraft.window.handle(), 1280, 960)
             nextCase()
         }
     }
@@ -216,6 +243,14 @@ internal class ClientBenchmarkProbe {
                 if (fixture != null) fixture.verifyPixels(it, minecraft.window.guiScale)
                 else if (visual != null) visual.verifyPixels(it)
                 else {
+                    if (name == "rich-tooltip") {
+                        val bounds = checkNotNull((screen as BenchmarkScreen).nativeTooltipBounds)
+                        val colors = HashSet<Int>()
+                        for (y in bounds.top.toInt() until bounds.bottom.toInt() step 2)
+                            for (x in bounds.left.toInt() until bounds.right.toInt() step 2)
+                                colors += it.getPixel(x, y)
+                        check(colors.size > 8) { "Compose-hosted native tooltip image is blank" }
+                    }
                     val colors = HashSet<Int>()
                     for (y in 0 until it.height step 8) for (x in 0 until it.width step 8) colors += it.getPixel(x, y)
                     check(colors.size > 16) { "Blank screenshot: $name" }
@@ -232,6 +267,9 @@ internal class ClientBenchmarkProbe {
         if (previous != null) check(previous.rendererStatistics.liveSurfaces == 0) { "Renderer leaked after screen close" }
         if (previous != null) check(previous.nativeItemStatistics.preparedImages == previous.nativeItemStatistics.retiredImages) {
             "Native item images leaked after screen close"
+        }
+        if (previous != null) check(previous.nativeTooltipStatistics.preparedImages == previous.nativeTooltipStatistics.retiredImages) {
+            "Native tooltip images leaked after screen close"
         }
         frames = 0; pendingCapture = false; captured = false
         openedAt = System.nanoTime()

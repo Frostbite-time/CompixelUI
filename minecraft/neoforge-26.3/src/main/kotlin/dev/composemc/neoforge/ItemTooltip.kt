@@ -6,6 +6,8 @@ import androidx.compose.foundation.TooltipArea
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -14,6 +16,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.constrainWidth
+import dev.composemc.bridge.drawNativeImage
 import kotlinx.coroutines.delay
 
 /**
@@ -56,6 +59,7 @@ fun MinecraftItemTooltip(
 @Composable
 private fun NativeTooltipImage(icon: ItemIcon, mailbox: ItemTooltipMailbox) {
     val request = remember(icon) { ItemTooltipRequest(icon) }
+    val paint = remember { Paint() }
     DisposableEffect(mailbox, request) {
         mailbox.show(request)
         onDispose { mailbox.hide(request) }
@@ -63,10 +67,10 @@ private fun NativeTooltipImage(icon: ItemIcon, mailbox: ItemTooltipMailbox) {
     Layout(content = {}, modifier = Modifier
         .semantics { contentDescription = icon.description }
         .onGloballyPositioned { mailbox.position(request, it.boundsInWindow()) }
+        .drawBehind { mailbox.imageFor(request)?.let { drawNativeImage(it, paint) } }
     ) { _, constraints ->
-        // The actual rich tooltip is extracted by Minecraft after Compose. A
-        // one-pixel anchor preserves TooltipArea's placement lifecycle.
-        layout(constraints.constrainWidth(1), constraints.constrainHeight(1)) {}
+        val info = mailbox.imageFor(request)?.imageInfo
+        layout(constraints.constrainWidth(info?.width ?: 0), constraints.constrainHeight(info?.height ?: 0)) {}
     }
 }
 
@@ -102,7 +106,9 @@ internal class ItemTooltipMailbox {
         if (image == null) bounds = null
         return true
     }
-    fun position(value: ItemTooltipRequest, bounds: Rect) { if (request === value) this.bounds = bounds }
+    fun position(value: ItemTooltipRequest, bounds: Rect) {
+        if (request === value && result?.request === value) this.bounds = bounds
+    }
     fun clearImage() { checkThread(); result = null; bounds = null }
     fun dismiss() {
         checkThread()

@@ -57,9 +57,9 @@ The native renderer prepares images on the game thread. Compose consumes immutab
 
 ## Native tooltip behavior
 
-`MinecraftItemTooltip(icon, delayMillis = 500) { … }` defaults to a 500 ms hover delay. `enabled=false` suppresses it. Pointer presses, scrolling and key presses restart the delay; blur hides it. The popup flips and clamps to the viewport. On 1.21.1, rich content is wrapped or scaled to fit, and visible content refreshes at most once per 100 ms unless invalidated.
+`MinecraftItemTooltip(icon, delayMillis = 500) { … }` defaults to a 500 ms hover delay. `enabled=false` suppresses it. Pointer presses, scrolling and key presses restart the delay; blur hides it. The popup flips and clamps to the viewport. Rich content is wrapped or scaled to fit, and visible content refreshes at most once per 100 ms unless invalidated.
 
-This wrapper preserves the trigger's composition, click handling and remembered state. On 1.21.1 the renderer uses Minecraft item tooltip components and NeoForge gathering, font, pre-render and color hooks. Drawing-hook coordinates are local to the prepared target; Compose owns placement, so native screen-position overrides do not determine the popup position. Other targets use their version-specific tooltip pipeline.
+This wrapper preserves the trigger's composition, click handling and remembered state. Every adapter renders Minecraft tooltip components into an offscreen image that Compose draws in its popup, so Compose owns its draw order, clipping and placement. The loader's gathering, font and pre-render hooks still run; 1.20.1 and 1.21.1 use the color hook, while 26.x uses the texture hook. Drawing-hook coordinates are local to the prepared target, so native screen-position overrides do not determine the popup position.
 
 Use [OreTooltip](ore-ui.md) for arbitrary nested, interactive Compose bodies. It appears immediately and supports dwell locking; a native item tooltip is rendered content and does not expose its internal words as arbitrary interactive composables. You can place an item image inside an Ore tooltip and wrap that image in another Ore tooltip.
 
