@@ -5,6 +5,8 @@ import dev.composemc.render.RenderBackend
 import dev.composemc.render.RendererStatistics
 import org.jetbrains.skia.BackendRenderTarget
 import org.jetbrains.skia.DirectContext
+import org.jetbrains.skia.IRect
+import org.jetbrains.skia.Image
 import org.jetbrains.skia.Surface
 import org.jetbrains.skia.SurfaceColorFormat
 import org.jetbrains.skia.SurfaceOrigin
@@ -27,11 +29,12 @@ class VulkanFrameRenderer(handles: VulkanDeviceHandles) : AutoCloseable {
     private var closed = false
     private var frames = 0L
     private var generation = 0L
+    private var snapshots = 0L
     var needsFrame = true
         private set
 
     // The adapter adds its retained target's allocation/liveness counters.
-    val statistics get() = RendererStatistics(RenderBackend.VULKAN, frames, 0, 0, generation)
+    val statistics get() = RendererStatistics(RenderBackend.VULKAN, frames, 0, 0, generation, nativeImageCopies = snapshots)
 
     private fun checkOpen() {
         check(Thread.currentThread() === owner) { "Vulkan renderer accessed outside its owning thread" }
@@ -54,6 +57,33 @@ class VulkanFrameRenderer(handles: VulkanDeviceHandles) : AutoCloseable {
         frames++
         generation = frame.generation
         needsFrame = false
+    }
+
+    /**
+     * Copies the top-left [width]x[height] region of a host color image into a Skia-owned image on
+     * the GPU. The host image is wrapped only for the copy, which is submitted before this returns.
+     * [layout] is its layout on entry; afterwards the host must re-establish its own layout before
+     * writing again (see [VulkanImageBarriers.releaseAfterSnapshot]). [bottomUp] marks images whose
+     * first memory row is the bottom of the picture.
+     */
+    fun snapshotImage(source: VulkanImageTarget, layout: Int, width: Int, height: Int, bottomUp: Boolean): Image {
+        checkOpen()
+        require(width in 1..source.width && height in 1..source.height)
+        val image = BackendRenderTarget.makeVulkan(source.width, source.height, source.image,
+            VK12.VK_IMAGE_TILING_OPTIMAL, layout, source.format, source.usage, VK12.VK_SAMPLE_COUNT_1_BIT, 1).use { backend ->
+            checkNotNull(Surface.makeFromBackendRenderTarget(context, backend,
+                if (bottomUp) SurfaceOrigin.BOTTOM_LEFT else SurfaceOrigin.TOP_LEFT, SurfaceColorFormat.RGBA_8888, null)) {
+                "Skia rejected the borrowed Vulkan image"
+            }.use { surface ->
+                // A wrapped render target is not a texture, so the snapshot is a GPU copy.
+                checkNotNull(surface.makeImageSnapshot(IRect.makeWH(width, height))) { "Skia could not copy the Vulkan image" }
+            }
+        }
+        context.flush()
+        context.submit(false)
+        image.imageInfo
+        snapshots++
+        return image
     }
 
     fun reset() { checkOpen(); needsFrame = true }

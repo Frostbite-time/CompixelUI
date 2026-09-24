@@ -32,6 +32,7 @@ class OpenGlFrameRenderer(
     private var width = 0
     private var height = 0
     private var privateVao = 0
+    private var readFramebuffer = 0
     private var compositor = 0
     private var frames = 0L
     private var allocations = 0L
@@ -96,8 +97,32 @@ class OpenGlFrameRenderer(
     /** Copies the top-left region on the GPU. Only the new texture is adopted by Skia. */
     fun copyFramebuffer(source: OpenGlDestination, width: Int = source.width, height: Int = source.height): Image = isolated { profileGpu(GpuPhase.IMAGE_IMPORT) {
         require(width in 1..source.width && height in 1..source.height)
-        val skia = directContext()
         glBindFramebuffer(GL_READ_FRAMEBUFFER, source.framebuffer)
+        adoptCopy(source.height, width, height)
+    } }
+
+    /**
+     * Copies the top-left region of a host-owned RGBA8 texture on the GPU, like [copyFramebuffer].
+     * The host texture is attached to a private read framebuffer only for the copy.
+     */
+    fun copyTexture(sourceTexture: Int, sourceWidth: Int, sourceHeight: Int, width: Int = sourceWidth, height: Int = sourceHeight): Image = isolated { profileGpu(GpuPhase.IMAGE_IMPORT) {
+        require(sourceTexture > 0 && sourceTexture != texture)
+        require(width in 1..sourceWidth && height in 1..sourceHeight)
+        if (readFramebuffer == 0) readFramebuffer = glGenFramebuffers()
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, readFramebuffer)
+        glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, sourceTexture, 0)
+        try {
+            check(glCheckFramebufferStatus(GL_READ_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE) { "Native texture cannot be copied" }
+            glReadBuffer(GL_COLOR_ATTACHMENT0)
+            adoptCopy(sourceHeight, width, height)
+        } finally {
+            glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0)
+        }
+    } }
+
+    /** Copies from the bound read framebuffer; OpenGL rows start at the bottom. */
+    private fun adoptCopy(sourceHeight: Int, width: Int, height: Int): Image {
+        val skia = directContext()
         glActiveTexture(GL_TEXTURE0)
         var copy = glGenTextures()
         try {
@@ -106,9 +131,9 @@ class OpenGlFrameRenderer(
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
-            glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 0, source.height - height, width, height, 0)
+            glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 0, sourceHeight - height, width, height, 0)
             skia.resetGLAll()
-            BackendTexture.makeGL(width, height, false, copy, GL_TEXTURE_2D, GL_RGBA8).use { texture ->
+            return BackendTexture.makeGL(width, height, false, copy, GL_TEXTURE_2D, GL_RGBA8).use { texture ->
                 val image = Image.adoptTextureFrom(skia, texture, SurfaceOrigin.BOTTOM_LEFT, ColorType.RGBA_8888)
                 copy = 0
                 // Cache immutable metadata on the GL owner before publication to the Compose EDT.
@@ -118,7 +143,7 @@ class OpenGlFrameRenderer(
                 image
             }
         } finally { if (copy != 0) glDeleteTextures(copy) }
-    } }
+    }
 
     /** GPU timestamps describe command-stream intervals, not a hardware busy-time percentage. */
     fun <T> profileGpu(phase: GpuPhase, action: () -> T): T = if (profiler == null || !timestampQueries) action()
@@ -249,7 +274,7 @@ class OpenGlFrameRenderer(
 
     override fun close() {
         if (closed) { check(Thread.currentThread() === owner); return }
-        val deleted = intArrayOf(texture, framebuffer, stencil, compositor, privateVao)
+        val deleted = intArrayOf(texture, framebuffer, stencil, compositor, privateVao, readFramebuffer)
         isolated {
             releaseSurface()
             importedImages.forEach(Image::close)
@@ -257,7 +282,8 @@ class OpenGlFrameRenderer(
             context?.close(); context = null
             if (compositor != 0) glDeleteProgram(compositor)
             if (privateVao != 0) glDeleteVertexArrays(privateVao)
-            compositor = 0; privateVao = 0
+            if (readFramebuffer != 0) glDeleteFramebuffers(readFramebuffer)
+            compositor = 0; privateVao = 0; readFramebuffer = 0
             renderTimer?.close()
             presentTimer?.close()
             nativeTimers.values.forEach { it.close() }
@@ -270,6 +296,7 @@ class OpenGlFrameRenderer(
             check(deleted[2] == 0 || !glIsRenderbuffer(deleted[2])) { "GL stencil survived close" }
             check(deleted[3] == 0 || !glIsProgram(deleted[3])) { "GL program survived close" }
             check(deleted[4] == 0 || !glIsVertexArray(deleted[4])) { "GL vertex array survived close" }
+            check(deleted[5] == 0 || !glIsFramebuffer(deleted[5])) { "GL read framebuffer survived close" }
         }
     }
 
