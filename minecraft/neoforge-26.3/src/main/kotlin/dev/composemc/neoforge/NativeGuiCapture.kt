@@ -16,9 +16,7 @@ internal class NativeGuiCapture(private val imageWidth: Int, private val imageHe
     private val minecraft = Minecraft.getInstance()
     private val state = GuiRenderState()
     private val renderer = GuiRenderer(state, minecraft.gameRenderer.featureRenderDispatcher(), emptyList())
-    private val targets = List(buffers) {
-        TextureTarget("composemc-native-gui", imageWidth, imageHeight, GpuFormat.RGBA8_UNORM, GpuFormat.D32_FLOAT)
-    }
+    private val targets = arrayOfNulls<TextureTarget>(buffers)
     private var closed = false
 
     /** Completion may arrive on another thread; the recipient must only enqueue bytes. */
@@ -38,17 +36,16 @@ internal class NativeGuiCapture(private val imageWidth: Int, private val imageHe
                 completed: (ByteArray, Int, Int) -> Unit): Boolean {
         RenderSystem.assertOnRenderThread()
         check(!closed)
-        val target = targets[0]
-        val region = drawInto(target, logicalWidth, logicalHeight) { graphics ->
+        val region = drawInto(0, logicalWidth, logicalHeight, { it }) { graphics ->
             draw(graphics)?.also { require(it.first in 1..imageWidth && it.second in 1..imageHeight) }
         } ?: return false
 
         val device = RenderSystem.getDevice()
-        val colorTexture = checkNotNull(target.colorTexture)
+        val colorTexture = checkNotNull(targets[0]?.colorTexture)
         val rowBytes = region.first * 4
         val bytes = rowBytes * region.second
         val buffer = device.createBuffer({ "composemc-native-gui-readback" }, 9, bytes.toLong())
-        // The GUI's top-left region occupies the final texture rows in readback order.
+        // The target matches the measured region; readback rows still arrive bottom-up.
         device.createCommandEncoder().copyTextureToBuffer(colorTexture, buffer, 0L, {
             try {
                 buffer.map(true, false).use { mapped ->
@@ -63,7 +60,7 @@ internal class NativeGuiCapture(private val imageWidth: Int, private val imageHe
             } finally {
                 buffer.close()
             }
-        }, 0, 0, imageHeight - region.second, region.first, region.second)
+        }, 0, 0, 0, region.first, region.second)
         return true
     }
 
@@ -71,23 +68,45 @@ internal class NativeGuiCapture(private val imageWidth: Int, private val imageHe
     fun <T : Any> render(buffer: Int, logicalWidth: Int, logicalHeight: Int, draw: (GuiGraphicsExtractor) -> T?): T? {
         RenderSystem.assertOnRenderThread()
         check(!closed)
-        return drawInto(targets[buffer], logicalWidth, logicalHeight, draw)
+        return drawInto(buffer, logicalWidth, logicalHeight, { imageWidth to imageHeight }, draw)
     }
 
-    fun texture(buffer: Int): GpuTexture = checkNotNull(targets[buffer].colorTexture)
+    /** Extracts first, then creates a target matching the returned content dimensions. */
+    fun <T : Any> renderSized(buffer: Int, logicalWidth: Int, logicalHeight: Int,
+                              size: (T) -> Pair<Int, Int>, draw: (GuiGraphicsExtractor) -> T?): T? {
+        RenderSystem.assertOnRenderThread()
+        check(!closed)
+        return drawInto(buffer, logicalWidth, logicalHeight, size, draw)
+    }
 
-    private fun <T : Any> drawInto(target: TextureTarget, logicalWidth: Int, logicalHeight: Int,
-                                   draw: (GuiGraphicsExtractor) -> T?): T? {
+    fun texture(buffer: Int): GpuTexture = checkNotNull(targets[buffer]?.colorTexture)
+
+    private fun target(buffer: Int, width: Int, height: Int): TextureTarget {
+        require(width in 1..imageWidth && height in 1..imageHeight)
+        val old = targets[buffer]
+        if (old?.colorTexture?.getWidth(0) == width && old.colorTexture?.getHeight(0) == height) return old
+        val fresh = TextureTarget("composemc-native-gui", width, height, GpuFormat.RGBA8_UNORM, GpuFormat.D32_FLOAT)
+        targets[buffer] = fresh
+        old?.let { FrameRetirement.afterFrame { it.destroyBuffers() } }
+        return fresh
+    }
+
+    private fun <T : Any> drawInto(buffer: Int, logicalWidth: Int, logicalHeight: Int,
+                                   size: (T) -> Pair<Int, Int>, draw: (GuiGraphicsExtractor) -> T?): T? {
         require(logicalWidth > 0 && logicalHeight > 0)
-        RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
-            checkNotNull(target.colorTexture), GuiRenderer.CLEAR_COLOR, checkNotNull(target.depthTexture), 0.0)
         try {
             val graphics = GuiGraphicsExtractor(minecraft, state, 0, 0)
             // GuiRenderer projects against the window; map the local GUI area onto this target.
             graphics.pose().scale(minecraft.window.guiScaledWidth / logicalWidth.toFloat(),
                 minecraft.window.guiScaledHeight / logicalHeight.toFloat())
             val result = draw(graphics)
-            if (result != null) NativeGuiTargetScope.renderTo(renderer, target) { renderer.render() }
+            if (result != null) {
+                val dimensions = size(result)
+                val output = target(buffer, dimensions.first, dimensions.second)
+                RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
+                    checkNotNull(output.colorTexture), GuiRenderer.CLEAR_COLOR, checkNotNull(output.depthTexture), 0.0)
+                NativeGuiTargetScope.renderTo(renderer, output) { renderer.render() }
+            }
             return result
         } finally {
             renderer.endFrame()
@@ -101,7 +120,7 @@ internal class NativeGuiCapture(private val imageWidth: Int, private val imageHe
         closed = true
         FrameRetirement.afterFrame {
             renderer.close()
-            targets.forEach { it.destroyBuffers() }
+            targets.forEach { it?.destroyBuffers() }
         }
     }
 }

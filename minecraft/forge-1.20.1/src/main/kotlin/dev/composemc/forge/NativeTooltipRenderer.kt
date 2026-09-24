@@ -6,11 +6,15 @@ import com.mojang.blaze3d.systems.RenderSystem
 import dev.composemc.bridge.ComposeThread
 import dev.composemc.render.GpuPhase
 import net.minecraft.client.Minecraft
+import net.minecraft.client.gui.Font
+import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.client.gui.screens.Screen
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTextTooltip
 import net.minecraft.client.gui.screens.inventory.tooltip.DefaultTooltipPositioner
 import net.minecraft.client.gui.screens.inventory.tooltip.TooltipRenderUtil
 import net.minecraftforge.client.ForgeHooksClient
+import net.minecraft.world.item.ItemStack
 import org.jetbrains.skia.Image
 import kotlin.math.ceil
 
@@ -31,6 +35,9 @@ internal class NativeTooltipRenderer(
     private val mailbox: ItemTooltipMailbox,
 ) : AutoCloseable {
     private data class Layout(val width: Int, val height: Int, val components: Int, val richComponents: Int)
+    private data class PreparedTooltip(val components: List<ClientTooltipComponent>, val font: Font,
+                                       val width: Int, val height: Int, val scale: Float, val layout: Layout)
+    private val layoutTarget = NativeGuiRenderTarget(backend)
     private val target = NativeGuiRenderTarget(backend)
     private var request: ItemTooltipRequest? = null
     private var preparedRequest: ItemTooltipRequest? = null
@@ -64,7 +71,9 @@ internal class NativeTooltipRenderer(
         val guiHeight = (current.guiHeight - 8).coerceAtLeast(1)
         val targetWidth = ceil(guiWidth * current.guiScale).toInt()
         val targetHeight = ceil(guiHeight * current.guiScale).toInt()
-        val (source, measured) = target.draw(targetWidth, targetHeight, guiWidth.toFloat(), guiHeight.toFloat(), GpuPhase.TOOLTIP) { graphics ->
+        // The pre hook can change the font or components. Run it once in a tiny isolated target,
+        // then allocate the actual capture target from the resulting bounds.
+        val (_, preparedTooltip) = layoutTarget.draw(1, 1, guiWidth.toFloat(), guiHeight.toFloat(), GpuPhase.TOOLTIP) { graphics ->
             val stack = active.icon.stack
             // Use native wrapping, rich component factories, custom fonts and event hooks.
             // Popup placement belongs to Compose; native render coordinates are target-local.
@@ -78,31 +87,18 @@ internal class NativeTooltipRenderer(
             val width = components.maxOf { it.getWidth(font) }
             val height = components.sumOf { it.height } - if (components.size == 1) 2 else 0
             val scale = minOf(1f, guiWidth.toFloat() / (width + 8), guiHeight.toFloat() / (height + 8))
-            val colors = ForgeHooksClient.onRenderTooltipColor(stack, graphics, 4, 4, font, components)
-            graphics.pose().pushPose()
-            try {
-                graphics.pose().scale(scale, scale, 1f)
-                graphics.drawManaged {
-                    TooltipRenderUtil.renderTooltipBackground(graphics, 4, 4, width, height, 400,
-                        colors.backgroundStart, colors.backgroundEnd, colors.borderStart, colors.borderEnd)
-                }
-                graphics.pose().translate(0f, 0f, 400f)
-                var y = 4
-                components.forEachIndexed { index, component ->
-                    component.renderText(font, 4, y, graphics.pose().last().pose(), graphics.bufferSource())
-                    y += component.height + if (index == 0) 2 else 0
-                }
-                y = 4
-                components.forEachIndexed { index, component ->
-                    component.renderImage(font, 4, y, graphics)
-                    y += component.height + if (index == 0) 2 else 0
-                }
-            } finally { graphics.pose().popPose() }
-            Layout(ceil((width + 8) * scale * current.guiScale).toInt().coerceIn(1, targetWidth),
-                ceil((height + 8) * scale * current.guiScale).toInt().coerceIn(1, targetHeight),
-                components.size, components.count { it !is ClientTextTooltip })
+            PreparedTooltip(components, font, width, height, scale,
+                Layout(ceil((width + 8) * scale * current.guiScale).toInt().coerceIn(1, targetWidth),
+                    ceil((height + 8) * scale * current.guiScale).toInt().coerceIn(1, targetHeight),
+                    components.size, components.count { it !is ClientTextTooltip }))
         }
-        val replacement = measured?.let { backend.copyNativeImage(source, it.width, it.height) }
+        val measured = preparedTooltip?.layout
+        val replacement = preparedTooltip?.let { plan ->
+            val (source, _) = target.draw(plan.layout.width, plan.layout.height,
+                plan.layout.width / current.guiScale, plan.layout.height / current.guiScale,
+                GpuPhase.TOOLTIP) { graphics -> drawTooltip(graphics, active.icon.stack, plan) }
+            backend.copyNativeImage(source, plan.layout.width, plan.layout.height)
+        }
         val published = ComposeThread.call { mailbox.publish(active, replacement) }
         val changed = image != null || replacement != null
         retireImage()
@@ -115,6 +111,33 @@ internal class NativeTooltipRenderer(
         metrics = current
         updated = now
         return changed
+    }
+
+    private fun drawTooltip(graphics: GuiGraphics, stack: ItemStack, plan: PreparedTooltip) {
+        val components = plan.components
+        val font = plan.font
+        val width = plan.width
+        val height = plan.height
+        val colors = ForgeHooksClient.onRenderTooltipColor(stack, graphics, 4, 4, font, components)
+        graphics.pose().pushPose()
+        try {
+            graphics.pose().scale(plan.scale, plan.scale, 1f)
+            graphics.drawManaged {
+                TooltipRenderUtil.renderTooltipBackground(graphics, 4, 4, width, height, 400,
+                    colors.backgroundStart, colors.backgroundEnd, colors.borderStart, colors.borderEnd)
+            }
+            graphics.pose().translate(0f, 0f, 400f)
+            var y = 4
+            components.forEachIndexed { index, component ->
+                component.renderText(font, 4, y, graphics.pose().last().pose(), graphics.bufferSource())
+                y += component.height + if (index == 0) 2 else 0
+            }
+            y = 4
+            components.forEachIndexed { index, component ->
+                component.renderImage(font, 4, y, graphics)
+                y += component.height + if (index == 0) 2 else 0
+            }
+        } finally { graphics.pose().popPose() }
     }
 
     private fun retireImage() {
@@ -134,6 +157,7 @@ internal class NativeTooltipRenderer(
     override fun close() {
         reset()
         request = null
+        layoutTarget.close()
         target.close()
     }
 }

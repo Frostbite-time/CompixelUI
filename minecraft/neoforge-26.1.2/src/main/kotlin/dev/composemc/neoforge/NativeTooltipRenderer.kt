@@ -114,7 +114,7 @@ internal class NativeTooltipRenderer(
             return changed
         }
 
-        val measured = target.render(0, maxGuiWidth, maxGuiHeight) { graphics ->
+        val measured = target.renderSized(0, maxGuiWidth, maxGuiHeight, { it.width to it.height }) { graphics ->
             drawTooltip(graphics, active, current, maxGuiWidth, maxGuiHeight, targetWidth, targetHeight)
         }
         if (measured == null) {
@@ -150,6 +150,8 @@ internal class NativeTooltipRenderer(
         val pixelHeight = ceil((height + 24) * scale * targetHeight / maxGuiHeight).toInt().coerceIn(1, targetHeight)
         graphics.pose().pushMatrix()
         try {
+            // The renderer now projects into the measured target, so compensate for its smaller viewport.
+            graphics.pose().scale(targetWidth / pixelWidth.toFloat(), targetHeight / pixelHeight.toFloat())
             graphics.pose().scale(scale, scale)
             val style = ClientHooks.onRenderTooltipTexture(stack, graphics, 12, 12, font, components,
                 stack.get(DataComponents.TOOLTIP_STYLE)).texture
