@@ -82,7 +82,7 @@ open class NeoForgeComposeScreen(
                 renderer = backend
                 nativeItems = backend.nativeSnapshots?.let { NativeItemAtlas(itemMailbox, nativeItemOptions, it) }
                     ?: NativeItemRenderer(itemMailbox, nativeItemOptions)
-                nativeTooltips = NativeTooltipRenderer(tooltipMailbox)
+                nativeTooltips = NativeTooltipRenderer(tooltipMailbox, backend.nativeSnapshots)
                 focused = null
             } catch (error: Throwable) { backend.close(); throw error }
             resourceEpoch = RendererResources.epoch

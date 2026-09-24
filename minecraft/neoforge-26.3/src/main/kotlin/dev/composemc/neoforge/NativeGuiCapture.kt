@@ -67,11 +67,11 @@ internal class NativeGuiCapture(private val imageWidth: Int, private val imageHe
         return true
     }
 
-    /** Draws into [buffer] without a readback, for a GPU snapshot. The callback returns false to cancel. */
-    fun render(buffer: Int, logicalWidth: Int, logicalHeight: Int, draw: (GuiGraphicsExtractor) -> Boolean): Boolean {
+    /** Draws into [buffer] without a readback and returns the measured content, or null to cancel. */
+    fun <T : Any> render(buffer: Int, logicalWidth: Int, logicalHeight: Int, draw: (GuiGraphicsExtractor) -> T?): T? {
         RenderSystem.assertOnRenderThread()
         check(!closed)
-        return drawInto(targets[buffer], logicalWidth, logicalHeight) { graphics -> if (draw(graphics)) Unit else null } != null
+        return drawInto(targets[buffer], logicalWidth, logicalHeight, draw)
     }
 
     fun texture(buffer: Int): GpuTexture = checkNotNull(targets[buffer].colorTexture)
