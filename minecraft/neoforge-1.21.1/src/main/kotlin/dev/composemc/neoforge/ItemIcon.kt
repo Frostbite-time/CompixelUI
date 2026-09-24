@@ -54,7 +54,7 @@ class ItemIcon private constructor(
 data class NativeItemOptions(
     val imageSize: Int = 64,
     val cacheCapacity: Int = 128,
-    val preparationsPerFrame: Int = 8,
+    val preparationsPerFrame: Int = 64,
 ) {
     init {
         require(imageSize in 16..256)

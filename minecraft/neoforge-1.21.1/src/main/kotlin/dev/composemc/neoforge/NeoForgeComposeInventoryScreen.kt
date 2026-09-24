@@ -21,7 +21,7 @@ open class NeoForgeComposeInventoryScreen<M : AbstractContainerMenu>(
     val inventory: ComposeMenuSlots<M> = ComposeMenuSlots(container),
     content: @Composable (ComposeMenuSlots<M>) -> Unit,
 ) : NeoForgeSlotBehaviorScreen<M>(container, checkNotNull(Minecraft.getInstance().player).inventory, title) {
-    private val layer = object : NeoForgeComposeScreen(title, nativeItemOptions = NativeItemOptions(cacheCapacity = 256, preparationsPerFrame = 16), content = { content(inventory) }) {
+    private val layer = object : NeoForgeComposeScreen(title, nativeItemOptions = NativeItemOptions(cacheCapacity = 256), content = { content(inventory) }) {
         override fun isUiWindowFocused() = this@NeoForgeComposeInventoryScreen.isUiWindowFocused()
         override fun onClose() = this@NeoForgeComposeInventoryScreen.onClose()
         override fun prepareFrameContent() = inventory.refreshAfterLayout()
