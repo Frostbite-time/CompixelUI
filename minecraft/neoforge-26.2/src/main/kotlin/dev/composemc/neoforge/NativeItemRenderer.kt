@@ -75,13 +75,16 @@ internal class NativeItemRenderer(
         frame++
         return try {
             val changed = collectCompleted()
+            // Missing images first, then the least recently updated: continuously refreshing
+            // icons must not starve the rest of the visible set.
+            val due = visible.filter { icon ->
+                icon.id !in inFlight && cache[icon.id].let { it == null || needsRefresh(it, now) }
+            }.sortedBy { cache[it.id]?.updated ?: Long.MIN_VALUE }
             var budget = options.preparationsPerFrame
-            for (icon in visible) {
+            for (icon in due) {
                 if (budget == 0 || inFlight.size >= options.cacheCapacity) break
-                if (icon.id in inFlight || !cache.canStore(icon.id)) continue
-                val entry = cache[icon.id]
-                val refresh = entry?.refresh ?: resolveRefresh(icon)
-                if (entry != null && !needsRefresh(entry, now)) continue
+                if (!cache.canStore(icon.id)) continue
+                val refresh = cache[icon.id]?.refresh ?: resolveRefresh(icon)
                 val stamp = if (refresh.kind == IconRefresh.Kind.FRAME) frame else NativeIconClock.tick()
                 val capturedEpoch = epoch
                 capture().capture(icon) { pixels ->

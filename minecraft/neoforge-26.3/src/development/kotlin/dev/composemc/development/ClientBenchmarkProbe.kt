@@ -25,6 +25,7 @@ internal class ClientBenchmarkProbe {
         BenchmarkCase("list-100k", BenchmarkKind.LIST, 100000),
         BenchmarkCase("native-static", BenchmarkKind.NATIVE_STATIC, 1000),
         BenchmarkCase("native-scroll-10k", BenchmarkKind.NATIVE_SCROLL, 10000),
+        BenchmarkCase("native-animated", BenchmarkKind.NATIVE_ANIMATED, 1000),
         BenchmarkCase("rich-tooltip", BenchmarkKind.TOOLTIP),
     ) + dev.composemc.testing.ui.oreComponentPages.map { BenchmarkCase("ore-${it.name.lowercase()}", BenchmarkKind.ORE_COMPONENTS, it.ordinal) }
     private val results = mutableListOf<Map<String, Any?>>()
@@ -36,6 +37,7 @@ internal class ClientBenchmarkProbe {
     private var stage = 0
     private var frames = 0
     private var openedAt = 0L
+    private var refreshesAtSampleStart = 0L
     private var caseIndex = -1
     private var screen: NeoForgeComposeScreen? = null
     private var pendingCapture = false
@@ -100,6 +102,7 @@ internal class ClientBenchmarkProbe {
             }
         }
         active.advance()
+        if (frames == 180) refreshesAtSampleStart = active.nativeItemStatistics.animationRefreshes
         if (!active.componentsReady) return
         if (active.fixture.kind == BenchmarkKind.TOOLTIP && System.nanoTime() - openedAt < 1_500_000_000L) return
         if (frames < 180 + samples) return
@@ -109,8 +112,14 @@ internal class ClientBenchmarkProbe {
             check(rows.size == samples)
             if (active.fixture.kind in listOf(BenchmarkKind.STATIC, BenchmarkKind.NATIVE_STATIC))
                 check(rows.none { it.rendered }) { "Static UI repainted" }
-            if (active.fixture.kind in listOf(BenchmarkKind.ANIMATION, BenchmarkKind.LIST))
+            if (active.fixture.kind in listOf(BenchmarkKind.ANIMATION, BenchmarkKind.LIST, BenchmarkKind.NATIVE_ANIMATED))
                 check(rows.count { it.rendered } > samples * 0.8) { "Animation did not advance" }
+            if (active.fixture.kind == BenchmarkKind.NATIVE_ANIMATED) {
+                val items = active.nativeItemStatistics
+                // Every one of the 256 distinct icons must be prepared and keep refreshing in turn.
+                check(items.activeVariants == 256 && items.dynamicVariants == items.activeVariants) { "Animated icons were starved: $items" }
+                check(items.animationRefreshes - refreshesAtSampleStart >= items.activeVariants) { "Animated icons stopped refreshing: $items" }
+            }
             if (active.fixture.kind == BenchmarkKind.TOOLTIP) {
                 val tooltip = active.nativeTooltipStatistics
                 check(tooltip.visible) { "Tooltip did not appear" }
