@@ -24,7 +24,7 @@ Compose MC 在同一个 Gradle 构建中维护共享 UI/运行时和各版本 Mi
 
 `demo` 只包含预览页面及其状态，桌面截图复用同一套页面。公共测试代码集中在 `testing`：`dev.composemc.testing.render` 管理渲染场景、CPU 参考图和像素比较，`dev.composemc.testing.ui` 管理自动交互脚本。组件回归测试集中在 `testing/src/test`，桌面模块提供预览和截图入口。
 
-`main` 源码集包含可安装的库功能。各适配器的 `development` 源码集包含 F8 预览和探针，打包为可选 `development` 模组，不进入正式产物。Minecraft/加载器相关代码、资源和适配器测试均位于该版本自己的 `src` 目录。各版本独立维护自己的副本；同类修复需要手动同步到其他受影响版本并分别验证。
+`main` 源码集包含可安装的库功能。各适配器的 `development` 源码集包含 F8 预览和探针，打包为可选 `development` 模组，不进入正式产物。Minecraft/加载器相关代码、资源和适配器测试均位于该版本自己的 `src` 目录。各版本独立维护自己的副本；同类修复需要手动同步到其他受影响版本并分别验证。客户端测试驱动是唯一的刻意例外：其副本必须逐字节一致，让每个版本运行相同的正确性步骤和基准规程，由 `verifySuiteParity` 强制检查。详见[客户端测试套件](build-and-test.md#客户端测试套件)。
 
 两种后端的探针分别位于对应的 `render-gl/src/testFixtures` 和 `render-vulkan/src/testFixtures`，统一使用 `testing` 中的场景、两种视口尺寸、预乘 RGBA CPU 参考图及比较阈值。每个探针重复执行绘制、重置和上下文关闭；OpenGL 额外检查宿主状态及保留的图像副本，Vulkan 则在借用的 Minecraft 设备上验证图像屏障和 GPU 读回。版本相关的设备接入与屏幕验证集中在各适配器的 `development/render` 包内。这些辅助代码只进入开发产物；探针对内部实现的访问通过本模块的 Kotlin 测试源码集关联完成。
 
@@ -86,11 +86,11 @@ standard 配置使用 Skiko 0.150.1；Vulkan 配置使用匹配的 Polyfrost Ski
 
 [minecraft-targets.properties](../../gradle/minecraft-targets.properties) 仅索引版本和工程目录，供目标选择和启动脚本使用；[libs.versions.toml](../../gradle/libs.versions.toml) 管理共享依赖版本。根构建提供聚合任务，不再向适配器注入版本构建配置。
 
-各适配器显式调用 [gradle/minecraft](../../gradle/minecraft) 下四个可复用脚本：`sources.gradle` 配置本地开发源码集及 Kotlin 可见性；`artifacts.gradle` 装配、发布产物并展开元数据；`artifact-checks.gradle` 按适配器声明的规则检查归档隔离；`runs.gradle` 提供通用 smoke/benchmark 执行参数与报告检查。辅助脚本不选择 Minecraft 版本、加载器、运行时配置或版本特有例外，也不挂接其他适配器的源码。新增目标通常只需修改自己的目录和目标索引。
+各适配器显式调用 [gradle/minecraft](../../gradle/minecraft) 下四个可复用脚本：`sources.gradle` 配置本地开发源码集及 Kotlin 可见性；`artifacts.gradle` 装配、发布产物并展开元数据；`artifact-checks.gradle` 按适配器声明的规则检查归档隔离；`runs.gradle` 声明通用的 acceptance/benchmark 运行参数、打包部署、时限和报告检查。辅助脚本不选择 Minecraft 版本、加载器、运行时配置或版本特有例外，也不挂接其他适配器的源码。新增目标通常只需修改自己的目录和目标索引。
 
 `artifacts.gradle` 将源码/API 发布交给 [api-docs.gradle](../../gradle/minecraft/api-docs.gradle)。它遍历所选运行时声明的项目依赖，加入 Java 菜单/槽位核心和当前适配器，仅为打包与文档生成读取这些正式源码，不连接适配器的编译源码根。根构建服务将 Dokka 任务串行执行；产物检查在发布前比对源码字节并验证代表性 API 页面。
 
-客户端使用加载器正常的窗口启动流程，直接运行客户端和 benchmark 任务时默认可见。Windows 后台验证通过 [run_isolated_gradle.ps1](../../tools/run_isolated_gradle.ps1) 在独立且从不激活的 Win32 桌面上启动新的 Gradle 进程，版本 benchmark 脚本和消费者测试脚本共用此入口。启动器负责桌面隔离和原生启动失败检查，后台探针在启动后隐藏自己的 GLFW/SDL 窗口。不需要额外的窗口提供者 JAR，渲染器使用 Minecraft/NeoForge 提供的上下文，并报告实际 GL 版本。
+客户端使用加载器正常的窗口启动流程，直接运行客户端和测试任务时默认可见。Windows 后台验证通过 [run_isolated_gradle.ps1](../../tools/run_isolated_gradle.ps1) 在独立且从不激活的 Win32 桌面上启动新的 Gradle 进程，测试脚本和消费者测试脚本共用此入口。启动器负责桌面隔离和原生启动失败检查；测试在启动后隐藏自己的 GLFW/SDL 窗口并使用逻辑焦点，因此从不依赖系统焦点。不需要额外的窗口提供者 JAR，渲染器使用 Minecraft/NeoForge 提供的上下文，并报告实际 GL 版本。
 
 ## 原生扩展点
 
@@ -105,9 +105,9 @@ standard 配置使用 Skiko 0.150.1；Vulkan 配置使用匹配的 Polyfrost Ski
 ## 添加或修改适配器
 
 1. 创建 `minecraft/<loader>-<version>/build.gradle` 和 `gradle.properties`，并将目录加入目标索引。在适配器中声明加载器插件、工具链、依赖、映射和运行任务，按需调用职责明确的公共辅助脚本。
-2. 将 Minecraft/加载器相关实现、资源及测试放在该适配器内。其他版本需要相同修复时，手动修改并分别验证，不通过共享源码目录、链接或生成副本绑定版本实现。与 Minecraft 无关的模块及其测试辅助代码继续作为共享依赖。
+2. 将 Minecraft/加载器相关实现、资源及测试放在该适配器内。其他版本需要相同修复时，手动修改并分别验证，不通过共享源码目录、链接或生成副本绑定版本实现。与 Minecraft 无关的模块及其测试辅助代码继续作为共享依赖。新增目标需复制六个一致的测试驱动，并实现自己的 `SuitePlatform.kt` 和测试夹具。
 3. 选择兼容工具链和运行时配置，锁定依赖，检查正式/开发归档隔离。
-4. 构建所有受影响适配器，再使用打包客户端验证各后端的原生输入、物品、容器钩子、缩放/重载及清理。
+4. 构建所有受影响适配器，再为每个受影响后端运行两套客户端测试，它们在打包客户端中覆盖原生输入、物品、容器钩子、缩放/重载及清理。
 5. 通过单独安装的消费者验证公开 API，并为公共 API 检查专用服务器隔离。
 6. 同步更新中英文指南与受影响截图，让 API 示例和目标表与源码一致。
 

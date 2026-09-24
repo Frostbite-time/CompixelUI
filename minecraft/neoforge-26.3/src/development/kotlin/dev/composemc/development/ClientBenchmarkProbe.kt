@@ -1,300 +1,215 @@
 package dev.composemc.development
 
 import com.google.gson.GsonBuilder
+import com.mojang.logging.LogUtils
 import dev.composemc.bridge.ComposeThread
-import dev.composemc.development.render.PortValidationScreen
-import dev.composemc.development.render.NativeItemVisualScreen
 import dev.composemc.development.render.verifyRenderer
-import dev.composemc.neoforge.*
-import dev.composemc.render.*
+import dev.composemc.render.GpuPhase
+import dev.composemc.testing.suite.BenchmarkKind
+import dev.composemc.testing.suite.BenchmarkLog
+import dev.composemc.testing.suite.BenchmarkPlan
+import dev.composemc.testing.suite.BenchmarkRecords
+import dev.composemc.testing.suite.BenchmarkValidity
+import dev.composemc.testing.suite.ClientSuite
+import dev.composemc.testing.suite.SuitePixels
 import net.minecraft.client.Minecraft
-import net.minecraft.client.Screenshot
 import net.minecraft.client.gui.screens.Screen
-import com.mojang.blaze3d.platform.InputConstants
 import java.io.File
+import java.lang.management.ManagementFactory
+import java.util.concurrent.CompletableFuture
 
-/** Packaged-client acceptance; background runs use the launcher's isolated desktop. */
+// Identical in every adapter; version differences belong in SuitePlatform.kt.
+
+/**
+ * Performance suite: [BenchmarkPlan] in a fresh flat creative world. Each case gets its own warmup,
+ * frame-exact samples joined with delayed GPU results, and a bounded GPU drain. Focus is logical.
+ */
 internal class ClientBenchmarkProbe {
     private val minecraft get() = Minecraft.getInstance()
-    private val background = java.lang.Boolean.getBoolean("composemc.benchmark.background")
-    private val samples = Integer.getInteger("composemc.benchmark.frames", 120)
-    private val cases = listOf(
-        BenchmarkCase("static-ui", BenchmarkKind.STATIC),
-        BenchmarkCase("animation", BenchmarkKind.ANIMATION),
-        BenchmarkCase("list-1k", BenchmarkKind.LIST, 1000),
-        BenchmarkCase("list-100k", BenchmarkKind.LIST, 100000),
-        BenchmarkCase("native-static", BenchmarkKind.NATIVE_STATIC, 1000),
-        BenchmarkCase("native-scroll-10k", BenchmarkKind.NATIVE_SCROLL, 10000),
-        BenchmarkCase("native-animated", BenchmarkKind.NATIVE_ANIMATED, 1000),
-        BenchmarkCase("rich-tooltip", BenchmarkKind.TOOLTIP),
-    ) + dev.composemc.testing.ui.oreComponentPages.map { BenchmarkCase("ore-${it.name.lowercase()}", BenchmarkKind.ORE_COMPONENTS, it.ordinal) }
-    private val results = mutableListOf<Map<String, Any?>>()
-    private val checks = mutableListOf<String>()
+    private val session = SuiteSession(ClientSuite.BENCHMARK, BenchmarkPlan.FRAME_LIMIT)
+    private val log = BenchmarkLog(BenchmarkPlan.samples(), BenchmarkPlan.repeats())
+    private var environment: Map<String, Any?> = emptyMap()
     private var started = false
-    private var awaitingWorld = false
-    private var inventoryProbe: InventoryAcceptanceProbe? = null
-    private var tooltipProbe: NativeTooltipProbe? = null
-    private var stage = 0
+    private var world = false
+    private var finished = false
+    private var warmingPipeline = true
+    private var screen: BenchmarkScreen? = null
+    private var switching = false
+    private var capturing = false
     private var frames = 0
-    private var openedAt = 0L
+    private var firstMeasured = 0L
+    private var lastMeasured = 0L
     private var refreshesAtSampleStart = 0L
-    private var caseIndex = -1
-    private var screen: NeoForgeComposeScreen? = null
-    private var pendingCapture = false
-    private var captured = false
-    private var reload: java.util.concurrent.CompletableFuture<Void>? = null
-    private val output get() = File(minecraft.gameDirectory, "benchmark-results").also { it.mkdirs() }
+    private var hiddenFrames = 0
+    private var focusedFrames = 0
+    private var reload: CompletableFuture<Void>? = null
+    private var framesAfterReload = 0
 
-    fun afterRender(parent: Screen) {
-        if (minecraft.gui.overlay() != null) return
-        if (java.lang.Boolean.getBoolean("composemc.benchmark.control")) {
-            if (!started) {
-                if (background) {
-                    org.lwjgl.sdl.SDLVideo.SDL_HideWindow(minecraft.window.handle())
-                }
-                started = true
-                reload = minecraft.reloadResourcePacks()
-            }
-            if (reload!!.isDone && ++frames == 120) {
-                reload!!.join()
-                File(minecraft.gameDirectory, "composemc-benchmark.txt").writeText("PASS control: no Compose renderer created\n")
-                minecraft.stop()
-            }
-            return
-        }
+    fun afterRender(parent: Screen) = guard {
         if (!started) {
-            started = true
-            if (background) {
-                org.lwjgl.sdl.SDLVideo.SDL_HideWindow(minecraft.window.handle())
-                org.lwjgl.sdl.SDLEvents.SDL_PumpEvents()
-            }
-            minecraft.options.enableVsync().set(false)
-            minecraft.options.framerateLimit().set(260)
-            minecraft.options.guiScale().set(2)
-            minecraft.resizeGui()
-            checks += verifyRenderer()
-            awaitingWorld = true
-            minecraft.execute(Runnable { createWorld(parent) })
-            return
+            if (!SuitePlatform.overlayActive) start(parent)
+            return@guard
         }
-        if (background) check(org.lwjgl.sdl.SDLVideo.SDL_GetWindowFlags(minecraft.window.handle()) and org.lwjgl.sdl.SDLVideo.SDL_WINDOW_HIDDEN != 0L)
-        val active = screen ?: return
-        minecraft.gui.toastManager().clear()
-        if (parent !== active) return
-        frames++
-        if (active is PortValidationScreen) {
-            validate(active)
-            return
-        }
-        if (active is NativeItemVisualScreen) {
-            validateNativeVisuals(active)
-            return
-        }
-        if (active is ComposePreviewScreen) {
-            validateNativeTooltips(active)
-            return
-        }
-        active as BenchmarkScreen
-        if (active.fixture.kind == BenchmarkKind.TOOLTIP) {
-            ComposeThread.call { active.model.tooltipTarget }?.let { bounds ->
-                val scale = minecraft.window.guiScale.toDouble()
-                active.mouseMoved(bounds.center.x / scale, bounds.center.y / scale)
-            }
-        }
-        active.advance()
-        if (frames == 180) refreshesAtSampleStart = active.nativeItemStatistics.animationRefreshes
-        if (!active.componentsReady) return
-        if (active.fixture.kind == BenchmarkKind.TOOLTIP && System.nanoTime() - openedAt < 1_500_000_000L) return
-        if (frames < 180 + samples) return
-        if (!pendingCapture) {
-            active.verifyComponents()
-            val rows = active.frameProfiler!!.frames().takeLast(samples)
-            check(rows.size == samples)
-            if (active.fixture.kind in listOf(BenchmarkKind.STATIC, BenchmarkKind.NATIVE_STATIC))
-                check(rows.none { it.rendered }) { "Static UI repainted" }
-            if (active.fixture.kind in listOf(BenchmarkKind.ANIMATION, BenchmarkKind.LIST, BenchmarkKind.NATIVE_ANIMATED))
-                check(rows.count { it.rendered } > samples * 0.8) { "Animation did not advance" }
-            if (active.fixture.kind == BenchmarkKind.NATIVE_ANIMATED) {
-                val items = active.nativeItemStatistics
-                // Every one of the 256 distinct icons must be prepared and keep refreshing in turn.
-                check(items.activeVariants == 256 && items.dynamicVariants == items.activeVariants) { "Animated icons were starved: $items" }
-                check(items.animationRefreshes - refreshesAtSampleStart >= items.activeVariants) { "Animated icons stopped refreshing: $items" }
-            }
-            if (active.fixture.kind == BenchmarkKind.TOOLTIP) {
-                val tooltip = active.nativeTooltipStatistics
-                check(tooltip.visible) { "Tooltip did not appear" }
-                check(tooltip.components > 1) { "Native tooltip lost its text components: $tooltip" }
-                check(tooltip.richComponents > 0) { "Native bundle tooltip lost its image component: $tooltip" }
-                check(tooltip.imageWidth >= 16 && tooltip.imageHeight >= 16) { "Native tooltip bounds were not recorded: $tooltip" }
-            }
-            check(active.renderBackend == RenderBackend.CPU_RASTER || active.rendererStatistics.fullFrameUploads == 0L)
-            fun summary(values: List<Long>): Map<String, Double> {
-                val sorted = values.sorted()
-                return mapOf("median_ms" to sorted[sorted.size / 2] / 1e6,
-                    "p95_ms" to sorted[(sorted.size * 0.95).toInt().coerceAtMost(sorted.lastIndex)] / 1e6)
-            }
-            results += mapOf("name" to active.fixture.name, "frames" to rows.size,
-                "redraws" to rows.count { it.rendered }, "cpu" to summary(rows.map { it.totalNanos }),
-                "render" to summary(rows.map { it.cpu.getValue(CpuPhase.RENDER) }),
-                "resources" to active.rendererStatistics)
-            capture(active.fixture.name)
-        } else if (captured) nextCase()
+        session.checkWindow()
+        if (!session.rendered(parent) || switching) return@guard
+        if (SuiteEnvironment.control) controlFrame() else screen?.let(::measure)
     }
 
-    fun tick() {
-        if (awaitingWorld && minecraft.player != null && minecraft.gui.overlay() == null) {
-            awaitingWorld = false
-            inventoryProbe = InventoryAcceptanceProbe {
-                checks += "native left/right container input and server acknowledgement"
-                inventoryProbe = null
-                open(PortValidationScreen())
-            }
-        }
-        inventoryProbe?.tick()
-    }
-
-    private fun createWorld(parent: Screen) {
-        val settings = net.minecraft.world.level.LevelSettings("Compose acceptance",
-            net.minecraft.world.level.GameType.CREATIVE,
-            net.minecraft.world.level.LevelSettings.DifficultySettings(net.minecraft.world.Difficulty.PEACEFUL, false, false),
-            true, net.minecraft.world.level.WorldDataConfiguration.DEFAULT)
-        minecraft.createWorldOpenFlows().createFreshLevel("composemc-acceptance-" + System.currentTimeMillis(),
-            settings, net.minecraft.world.level.levelgen.WorldOptions(42L, false, false),
-            { registries -> registries.lookupOrThrow(net.minecraft.core.registries.Registries.WORLD_PRESET)
-                .getOrThrow(net.minecraft.world.level.levelgen.presets.WorldPresets.FLAT).value().createWorldDimensions() }, parent)
-    }
-
-    private fun validate(active: PortValidationScreen) {
-        if (frames < 40) return
-        when (stage) {
-            0 -> if (!pendingCapture) capture("orientation-alpha", active) else if (captured) {
-                active.mouseClicked(32.0, 32.0, InputConstants.MOUSE_BUTTON_LEFT)
-                active.mouseReleased(32.0, 32.0, InputConstants.MOUSE_BUTTON_LEFT)
-                advanceStage()
-            }
-            1 -> {
-                check(ComposeThread.call { active.model.clicks } == 1) { "Rendered top-left button did not receive its click" }
-                active.mouseClicked(active.width / 2.0, 28.0, InputConstants.MOUSE_BUTTON_LEFT)
-                active.mouseReleased(active.width / 2.0, 28.0, InputConstants.MOUSE_BUTTON_LEFT)
-                "Port\u4e2d\uD83D\uDE00".forEach { active.charTyped(it) }
-                check(ComposeThread.call { active.model.text } == "Port\u4e2d\uD83D\uDE00") { "Unicode text input was lost" }
-                active.keyPressed(InputConstants.KEY_A, 0, InputConstants.MOD_CONTROL)
-                active.keyReleased(InputConstants.KEY_A, 0, InputConstants.MOD_CONTROL)
-                active.keyPressed(InputConstants.KEY_BACKSPACE)
-                active.keyReleased(InputConstants.KEY_BACKSPACE)
-                check(ComposeThread.call { active.model.text }.isEmpty()) { "Select-all/backspace shortcut failed" }
-                checks += "top-left pointer coordinates and premultiplied alpha"
-                checks += "Unicode text entry and modifier/key translation"
-                minecraft.options.guiScale().set(3)
-                minecraft.resizeGui()
-                advanceStage()
-            }
-            2 -> if (!pendingCapture) capture("gui-scale-3", active) else if (captured) {
-                minecraft.options.guiScale().set(2)
-                org.lwjgl.sdl.SDLVideo.SDL_SetWindowSize(minecraft.window.handle(), 1000, 700)
-                advanceStage()
-            }
-            3 -> if (!pendingCapture) capture("resize", active) else if (captured) {
-                checks += "GUI scaling and framebuffer resize"
+    fun tick() = guard {
+        if (!started || world) return@guard
+        if (session.worldReady) {
+            world = true
+            if (SuiteEnvironment.control) {
+                session.open(SuiteParentScreen())
                 reload = minecraft.reloadResourcePacks()
-                advanceStage()
-            }
-            4 -> if (reload?.isDone == true) {
-                reload!!.join()
-                if (!pendingCapture) capture("resource-reload", active) else if (captured) {
-                    checks += "resource reload"
-                    org.lwjgl.sdl.SDLVideo.SDL_SetWindowSize(minecraft.window.handle(), 1280, 960)
-                    open(NativeItemVisualScreen())
-                }
-            }
+            } else openCase()
         }
     }
 
-    private fun advanceStage() { stage++; frames = 0; pendingCapture = false; captured = false }
-
-    private fun validateNativeVisuals(active: NativeItemVisualScreen) {
-        check(frames < 600) { "Native visual image did not become ready" }
-        if (frames < 40 || active.nativeItemStatistics.cachedImages == 0 || active.nativeItemStatistics.pendingImages != 0) return
-        if (!pendingCapture) capture("native-visual", visual = active)
-        else if (captured) {
-            checks += "native item alpha, rotation, shape clipping, occlusion and repeated placement"
-            // The tooltip probe's pointer targets assume the client smoke's 1000x720 item grid.
-            org.lwjgl.sdl.SDLVideo.SDL_SetWindowSize(minecraft.window.handle(), 1000, 720)
-            val preview = ComposePreviewScreen()
-            ComposeThread.call { preview.model.page = dev.composemc.demo.preview.DemoPage.Items }
-            open(preview)
-        }
+    private fun start(parent: Screen) {
+        started = true
+        session.prepare()
+        // A control run starts no Compose or Skia renderer at all, including the preflight.
+        val rendererCheck = if (SuiteEnvironment.control) null else verifyRenderer()
+        environment = linkedMapOf(
+            "suite" to ClientSuite.BENCHMARK.id, "label" to System.getProperty("composemc.benchmark.label", "baseline"),
+            "minecraft" to SuitePlatform.MINECRAFT, "loader" to SuitePlatform.LOADER,
+            "java" to System.getProperty("java.version"), "os" to System.getProperty("os.name"),
+            "osVersion" to System.getProperty("os.version"), "cpu" to System.getenv("PROCESSOR_IDENTIFIER"),
+            "logicalProcessors" to Runtime.getRuntime().availableProcessors(), "device" to SuitePlatform.device(),
+            "backend" to SuitePlatform.backend.name, "width" to BenchmarkPlan.WIDTH, "height" to BenchmarkPlan.HEIGHT,
+            "guiScale" to BenchmarkPlan.GUI_SCALE,
+            "windowMode" to if (SuiteEnvironment.background) "background-hidden" else "foreground",
+            "windowIsolation" to if (java.lang.Boolean.getBoolean("composemc.suite.isolated")) "win32-desktop" else "none",
+            "focusSource" to "suite-logical-focus", "world" to "fresh flat creative, render distance 2",
+            "control" to SuiteEnvironment.control, "vsync" to false, "frameLimit" to BenchmarkPlan.FRAME_LIMIT,
+            "warmupFrames" to BenchmarkPlan.WARMUP_FRAMES, "measuredFrames" to log.samples,
+            "pipelineWarmupFrames" to BenchmarkPlan.PIPELINE_WARMUP_FRAMES, "gpuDrainFrames" to BenchmarkPlan.GPU_DRAIN_FRAMES,
+            "repeats" to log.repeats, "repeatOrder" to "forward then reverse",
+            "allocations" to java.lang.Boolean.getBoolean("composemc.allocations"), "rendererPreflight" to rendererCheck,
+            "resourcePacks" to SuitePlatform.resourcePacks(),
+            "jvmArguments" to ManagementFactory.getRuntimeMXBean().inputArguments.filter { it.startsWith("-X") },
+            "notes" to BenchmarkPlan.notes,
+        )
+        writeReport()
+        session.createWorld(parent)
     }
 
-    /** Runs the smoke probe's native tooltip sequence in this hidden, world-backed client. */
-    private fun validateNativeTooltips(active: ComposePreviewScreen) {
-        val probe = tooltipProbe
-        if (probe == null) {
-            check(System.nanoTime() - openedAt < 10_000_000_000L) { "Native item browser did not become ready" }
-            val laidOut = minecraft.window.width == 1000 && minecraft.window.height == 720 && ComposeThread.call {
-                active.itemBrowser.visibleCells.keys.containsAll(listOf(1, 8)) && active.itemBrowser.edgeTooltipBounds != null
-            }
-            if (frames < 40 || !laidOut || active.nativeItemStatistics.cachedImages == 0) return
-            tooltipProbe = NativeTooltipProbe()
-        } else if (probe.advance(active)) {
-            tooltipProbe = null
-            checks += probe.report
-            org.lwjgl.sdl.SDLVideo.SDL_SetWindowSize(minecraft.window.handle(), 1280, 960)
-            nextCase()
-        }
+    private fun controlFrame() {
+        val pending = reload ?: return
+        if (!pending.isDone) return
+        if (++framesAfterReload < 120) return
+        pending.join()
+        finished = true
+        session.finish("PASS ${session.header} control: no Compose renderer created\n")
     }
 
-    private fun capture(name: String, fixture: PortValidationScreen? = null, visual: NativeItemVisualScreen? = null) {
-        pendingCapture = true
-        Screenshot.takeScreenshot(minecraft.gameRenderer.mainRenderTarget()) { image ->
-            image.use {
-                it.writeToFile(File(output, "$name.png"))
-                if (fixture != null) fixture.verifyPixels(it, minecraft.window.guiScale)
-                else if (visual != null) visual.verifyPixels(it)
-                else {
-                    if (name == "rich-tooltip") {
-                        val bounds = checkNotNull((screen as BenchmarkScreen).nativeTooltipBounds)
-                        val colors = HashSet<Int>()
-                        for (y in bounds.top.toInt() until bounds.bottom.toInt() step 2)
-                            for (x in bounds.left.toInt() until bounds.right.toInt() step 2)
-                                colors += it.getPixel(x, y)
-                        check(colors.size > 8) { "Compose-hosted native tooltip image is blank" }
-                    }
-                    val colors = HashSet<Int>()
-                    for (y in 0 until it.height step 8) for (x in 0 until it.width step 8) colors += it.getPixel(x, y)
-                    check(colors.size > 16) { "Blank screenshot: $name" }
-                }
-            }
-            captured = true
-        }
-    }
-
-    private fun open(next: NeoForgeComposeScreen) {
-        val previous = screen
-        minecraft.gui.setScreen(next)
+    private fun openCase() {
+        switching = false
+        val case = if (warmingPipeline) BenchmarkPlan.pipelineWarmup else checkNotNull(log.next).second
+        val next = BenchmarkScreen(case)
+        session.open(next)
         screen = next
-        if (previous != null) check(previous.rendererStatistics.liveSurfaces == 0) { "Renderer leaked after screen close" }
-        if (previous != null) check(previous.nativeItemStatistics.preparedImages == previous.nativeItemStatistics.retiredImages) {
-            "Native item images leaked after screen close"
-        }
-        if (previous != null) check(previous.nativeTooltipStatistics.preparedImages == previous.nativeTooltipStatistics.retiredImages) {
-            "Native tooltip images leaked after screen close"
-        }
-        frames = 0; pendingCapture = false; captured = false
-        openedAt = System.nanoTime()
+        frames = 0
+        hiddenFrames = 0
+        focusedFrames = 0
     }
 
-    private fun nextCase() {
-        caseIndex++
-        if (caseIndex < cases.size) open(BenchmarkScreen(cases[caseIndex]))
-        else {
-            check(results.map { it["name"] } == cases.map { it.name }) { "Incomplete benchmark cases" }
-            val gson = GsonBuilder().setPrettyPrinting().create()
-            File(output, "report.json").writeText(gson.toJson(mapOf("status" to "PASS",
-                "backend" to screen!!.renderBackend, "checks" to checks, "cases" to results,
-                "hidden" to background, "isolatedDesktop" to background)))
-            File(minecraft.gameDirectory, "composemc-benchmark.txt").writeText("PASS\n" + checks.joinToString("\n"))
-            minecraft.stop()
+    /** Screen changes wait for the task queue, outside the frame that finished the previous case. */
+    private fun later(block: () -> Unit) {
+        switching = true
+        SuitePlatform.defer { guard(block) }
+    }
+
+    private fun measure(active: BenchmarkScreen) {
+        check(minecraft.window.width == BenchmarkPlan.WIDTH && minecraft.window.height == BenchmarkPlan.HEIGHT &&
+            SuitePlatform.guiScale == BenchmarkPlan.GUI_SCALE) { "Benchmark viewport changed" }
+        if (capturing) {
+            if (session.capturesIdle) {
+                capturing = false
+                later { if (log.next == null) finish() else openCase() }
+            }
+            return
+        }
+        if (!active.componentsReady) { active.advance(); return }
+        frames++
+        if (warmingPipeline) {
+            active.advance()
+            if (frames % 600 == 0) LOGGER.info("BENCHMARK pipeline warmup {}/{}", frames, BenchmarkPlan.PIPELINE_WARMUP_FRAMES)
+            if (frames == BenchmarkPlan.PIPELINE_WARMUP_FRAMES) {
+                warmingPipeline = false
+                later(::openCase)
+            }
+            return
+        }
+        val warmup = BenchmarkPlan.WARMUP_FRAMES
+        val samples = log.samples
+        val profiler = checkNotNull(active.frameProfiler) { "Benchmark screens need -Dcomposemc.profile=true" }
+        if (frames > warmup && frames <= warmup + samples) {
+            if (SuitePlatform.windowHidden) hiddenFrames++
+            if (SuitePlatform.windowFocused) focusedFrames++
+        }
+        if (frames == BenchmarkPlan.TOOLTIP_HOVER_FRAME && active.fixture.kind == BenchmarkKind.TOOLTIP) {
+            val point = ComposeThread.call { checkNotNull(active.model.tooltipTarget) { "The tooltip target is not laid out" }.center }
+            active.mouseMoved(point.x.toDouble() * active.width / minecraft.window.width,
+                point.y.toDouble() * active.height / minecraft.window.height)
+        }
+        if (frames == warmup) {
+            firstMeasured = profiler.lastFrameId + 1
+            refreshesAtSampleStart = active.nativeItemStatistics.animationRefreshes
+        }
+        if (frames == warmup + samples) lastMeasured = profiler.lastFrameId
+        if (frames <= warmup + samples) active.advance()
+        if (frames == warmup + samples + BenchmarkPlan.GPU_DRAIN_FRAMES) finishCase(active)
+    }
+
+    private fun finishCase(active: BenchmarkScreen) {
+        val (repeat, case) = checkNotNull(log.next)
+        check(active.fixture == case) { "Benchmark screen ${active.fixture.name} does not match the schedule's ${case.name}" }
+        active.verifyComponents()
+        val rows = checkNotNull(active.frameProfiler).frames().filter { it.frameId in firstMeasured..lastMeasured }
+        val items = active.nativeItemStatistics
+        BenchmarkValidity.check(case, rows, log.samples, items.activeVariants, items.dynamicVariants,
+            items.animationRefreshes - refreshesAtSampleStart)
+        val stem = "${repeat + 1}-${case.name}"
+        BenchmarkRecords.writeCsv(File(session.output, "$stem.csv"), rows)
+        val metrics = BenchmarkRecords.metrics(rows)
+        log.record(repeat, case, linkedMapOf("name" to case.name, "dataCount" to case.count, "repeat" to repeat + 1,
+            "frames" to rows.size, "redraws" to rows.count { it.rendered }, "recordings" to rows.sumOf { it.recordings },
+            "hiddenFrames" to hiddenFrames, "windowFocusedFrames" to focusedFrames,
+            "gpuTimed" to BenchmarkRecords.gpuTimed(rows),
+            "gpuOperations" to GpuPhase.entries.associateWith { phase -> rows.sumOf { it.gpuRequests.getValue(phase) } },
+            "maxActiveItems" to rows.maxOf { it.activeItems }, "maxCachedItems" to rows.maxOf { it.cachedItems },
+            "framesWithPendingItems" to rows.count { it.pendingItems > 0 }, "metrics" to metrics,
+            "renderer" to active.rendererStatistics, "nativeItems" to items, "nativeTooltips" to active.nativeTooltipStatistics))
+        writeReport()
+        LOGGER.info("BENCHMARK {}: CPU wall {}, redraws={}", stem, metrics["total_cpu_wall_ns"], rows.count { it.rendered })
+        capturing = true
+        session.capture(stem) { SuitePixels.requireContent(it, stem) }
+    }
+
+    private fun finish() {
+        finished = true
+        writeReport()
+        session.open(SuiteParentScreen())
+        session.finish(log.report(session.header))
+    }
+
+    private fun writeReport() {
+        File(session.output, "report.json").writeText(GsonBuilder().setPrettyPrinting().serializeNulls().create().toJson(
+            linkedMapOf("environment" to environment, "results" to log.recorded)))
+    }
+
+    private inline fun guard(block: () -> Unit) {
+        if (finished) return
+        try {
+            block()
+            session.rethrowCaptureFailure()
+        } catch (failure: Throwable) {
+            finished = true
+            session.fail(log.failure(session.header, failure), failure)
         }
     }
+
+    private companion object { val LOGGER = LogUtils.getLogger() }
 }

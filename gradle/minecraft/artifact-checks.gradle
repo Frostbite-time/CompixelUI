@@ -48,8 +48,9 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
                         def name = entry.name.toLowerCase(java.util.Locale.ROOT)
                         name.startsWith('dev/composemc/development/') || name.startsWith('dev/composemc/demo/') ||
                             name.startsWith('dev/composemc/testing/') || name.startsWith('dev/composemc/render/gl/testing/') ||
-                            name.startsWith('dev/composemc/render/vulkan/testing/') || name.contains('smokeprobe') ||
-                            name.contains('benchmarkprobe') || name.contains('tooltipprobe') || name.contains('composepreviewscreen')
+                            name.startsWith('dev/composemc/render/vulkan/testing/') ||
+                            ['acceptanceprobe', 'benchmarkprobe', 'tooltipprobe', 'composepreviewscreen', 'suitesession', 'suiteplatform']
+                                .any { name.contains(it) }
                     }.collect { it.name }
                     if (!bad.empty) throw new GradleException("Test/injection files leaked into release JAR: $bad")
                     def metadata = zip.getInputStream(zip.getEntry(artifacts.metadataPath)).getText('UTF-8')

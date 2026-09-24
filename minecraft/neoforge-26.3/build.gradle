@@ -39,10 +39,16 @@ if (!(requestedBackend in ['auto', 'cpu'] + minecraft_backends.split(',').toList
 def backend = requestedBackend
 def runSettings = minecraftRunSettings(backend)
 def vulkanValidation = providers.gradleProperty('composemcVulkanValidation').orElse('false').get() == 'true'
+def suiteRun = { run, String suite ->
+    run.client()
+    configureSuiteRun(run, runSettings, suite)
+    run.programArguments.addAll '--graphicsBackend', backend == 'vulkan' ? 'vulkan' : 'opengl'
+    if (vulkanValidation) run.programArguments.add '--vulkanValidation'
+}
 
 neoForge {
     version = neo_version
-    addModdingDependenciesTo sourceSets.packagedSmoke
+    addModdingDependenciesTo sourceSets.packagedRun
     addModdingDependenciesTo sourceSets.test
     addModdingDependenciesTo sourceSets.development
     ideSyncTask artifacts.metadata
@@ -52,14 +58,8 @@ neoForge {
             client()
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
-        clientSmoke { client(); configureSmokeRun(delegate, runSettings, false) }
-        packagedSmoke { client(); configureSmokeRun(delegate, runSettings, true) }
-        benchmark {
-            client()
-            configureBenchmarkRun(delegate, runSettings)
-            programArguments.addAll '--graphicsBackend', backend == 'vulkan' ? 'vulkan' : 'opengl'
-            if (vulkanValidation) programArguments.add '--vulkanValidation'
-        }
+        acceptance { suiteRun(delegate, 'acceptance') }
+        benchmark { suiteRun(delegate, 'benchmark') }
     }
     mods {
         composemc {
@@ -102,14 +102,4 @@ verifyMinecraftArtifacts(artifacts, [
     'public-f net.minecraft.world.inventory.Slot y',
     'public-f com.mojang.renderpearl.frontend.FrontendGpuDevice backend',
 ] as Set, ['composemc.mixins.json', 'dev/composemc/neoforge/mixin/GuiRendererMixin.class'] as Set)
-verifyMinecraftRuns(runSettings)
-tasks.named('runBenchmark') {
-    doFirst {
-        if (runSettings.background == 'true' && providers.gradleProperty('composemcBenchmarkIsolatedDesktop').orElse('false').get() != 'true')
-            throw new GradleException('Run tools/run_background_benchmark.ps1 on an isolated desktop')
-        writeBenchmarkWindowConfig(runSettings, 'earlyWindowControl=false\n')
-    }
-    doLast {
-        if (vulkanValidation) verifyVulkanReport(runSettings, [] as Set)
-    }
-}
+verifyMinecraftRuns(runSettings, 'earlyWindowControl=false\n', vulkanValidation, [] as Set)

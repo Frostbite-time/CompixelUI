@@ -1,21 +1,23 @@
 package dev.composemc.development
 
 import com.mojang.blaze3d.platform.InputConstants
+import dev.composemc.testing.suite.ClientSuite
+import dev.composemc.testing.suite.SuitePixels
 import net.minecraft.client.KeyMapping
 import net.minecraft.client.Minecraft
 import net.neoforged.bus.api.IEventBus
-import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent
-import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent
-import net.minecraft.server.packs.resources.ResourceManagerReloadListener
+import net.neoforged.fml.ModContainer
 import net.neoforged.neoforge.client.event.ClientTickEvent
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent
+import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent
 import net.neoforged.neoforge.client.event.ScreenEvent
-import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.client.settings.KeyConflictContext
+import net.neoforged.neoforge.common.NeoForge
 import org.lwjgl.glfw.GLFW
 
 internal object DevelopmentClientBootstrap {
-    private val smoke by lazy { if (java.lang.Boolean.getBoolean("composemc.smoke")) ClientSmokeProbe() else null }
-    private val benchmark by lazy { if (java.lang.Boolean.getBoolean("composemc.benchmark")) ClientBenchmarkProbe() else null }
+    private val acceptance by lazy { if (SuiteEnvironment.suite == ClientSuite.ACCEPTANCE) ClientAcceptanceProbe() else null }
+    private val benchmark by lazy { if (SuiteEnvironment.suite == ClientSuite.BENCHMARK) ClientBenchmarkProbe() else null }
     private val openPreview = KeyMapping(
         "key.composemc.open_preview",
         KeyConflictContext.IN_GAME,
@@ -24,8 +26,13 @@ internal object DevelopmentClientBootstrap {
         "key.categories.composemc",
     )
 
-    fun register(modEventBus: IEventBus) {
+    fun register(modEventBus: IEventBus, container: ModContainer) {
+        SyncAcceptanceMenu.register(modEventBus)
+        ConfigAcceptance.register(container)
         modEventBus.addListener(::registerKeyMappings)
+        modEventBus.addListener { event: RegisterMenuScreensEvent ->
+            event.register(SyncAcceptanceMenu.TYPE.get(), ::SyncAcceptanceScreen)
+        }
         NeoForge.EVENT_BUS.addListener(::onClientTick)
         NeoForge.EVENT_BUS.addListener(::afterScreenRender)
         NeoForge.EVENT_BUS.addListener(::onScreenKey)
@@ -37,14 +44,19 @@ internal object DevelopmentClientBootstrap {
 
     private fun onClientTick(event: ClientTickEvent.Post) {
         val minecraft = Minecraft.getInstance()
-        smoke?.tick()
+        acceptance?.tick()
+        benchmark?.tick()
         while (openPreview.consumeClick()) {
             if (minecraft.screen == null) minecraft.setScreen(ComposePreviewScreen())
         }
     }
 
     private fun afterScreenRender(event: ScreenEvent.Render.Post) {
-        smoke?.afterRender(event.screen, event.guiGraphics)
+        acceptance?.afterRender(event.screen) { color ->
+            // GuiGraphics batches fills; flush so the marker is drawn in this frame, after Compose.
+            event.guiGraphics.fill(0, 0, SuitePixels.MARKER_GUI_SIZE, SuitePixels.MARKER_GUI_SIZE, color)
+            event.guiGraphics.flush()
+        }
         benchmark?.afterRender(event.screen)
     }
 
@@ -58,4 +70,4 @@ internal object DevelopmentClientBootstrap {
 }
 
 @net.neoforged.fml.common.Mod(value = "composemc_development", dist = [net.neoforged.api.distmarker.Dist.CLIENT])
-class ComposeMcDevelopment(bus: IEventBus) { init { DevelopmentClientBootstrap.register(bus) } }
+class ComposeMcDevelopment(bus: IEventBus, container: ModContainer) { init { DevelopmentClientBootstrap.register(bus, container) } }

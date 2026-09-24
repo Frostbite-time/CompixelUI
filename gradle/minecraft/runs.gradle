@@ -1,18 +1,30 @@
-// Reusable launch/report mechanics. Adapters explicitly declare loader runs and native options.
+// Reusable launch/report mechanics for the two client suites. Adapters explicitly declare loader
+// runs and native options; every adapter gets the same acceptance and benchmark tasks from here.
 ext.minecraftRunSettings = { String backend ->
-    def label = providers.gradleProperty('composemcBenchmarkLabel').orElse('baseline').get()
-    if (!(label ==~ /[a-zA-Z0-9_-]+/)) throw new GradleException('Invalid benchmark label')
-    def background = providers.gradleProperty('composemcBenchmarkBackground').orElse('false').get()
-    if (!(background in ['true', 'false'])) throw new GradleException('composemcBenchmarkBackground must be true or false')
-    def settings = [backend: backend, background: background,
-        clientSmokeDirectory: "client-smoke-$backend", packagedSmokeDirectory: "packaged-smoke-$backend",
-        benchmarkDirectory: "benchmark-$backend-${background == 'true' ? 'background' : 'foreground'}-$label"]
+    def flag = { String name ->
+        def value = providers.gradleProperty(name).orElse('false').get()
+        if (!(value in ['true', 'false'])) throw new GradleException("$name must be true or false")
+        value
+    }
+    def label = providers.gradleProperty('composemcLabel').orElse('baseline').get()
+    if (!(label ==~ /[a-zA-Z0-9_-]+/)) throw new GradleException('composemcLabel may only contain letters, digits, _ and -')
+    def frames = providers.gradleProperty('composemcBenchmarkFrames').orElse('360').get()
+    def repeats = providers.gradleProperty('composemcBenchmarkRepeats').orElse('2').get()
+    if (!(frames ==~ /\d+/) || !(frames.toInteger() in 120..1500)) throw new GradleException('composemcBenchmarkFrames must be 120..1500')
+    if (!(repeats ==~ /\d+/) || !(repeats.toInteger() in 1..5)) throw new GradleException('composemcBenchmarkRepeats must be 1..5')
+    def background = flag('composemcBackground')
+    def window = background == 'true' ? 'background' : 'foreground'
+    def settings = [backend: backend, background: background, isolated: flag('composemcIsolatedDesktop'),
+        control: flag('composemcBenchmarkControl'), frames: frames, repeats: repeats, label: label,
+        directories: [acceptance: "acceptance-$backend-$window", benchmark: "benchmark-$backend-$window-$label"]]
     def kotlinMode = providers.gradleProperty('composemcKotlinMode').orElse('bundled').get()
     if (!(kotlinMode in ['bundled', 'external'])) throw new GradleException('composemcKotlinMode must be bundled or external')
     def providerJar = providers.gradleProperty('composemcKotlinProviderJar').orNull
     if (kotlinMode == 'bundled' && providerJar) throw new GradleException('A Kotlin provider is only used with composemcKotlinMode=external')
-    ['stagePackagedSmoke': settings.packagedSmokeDirectory, 'stageBenchmark': settings.benchmarkDirectory].each { name, directory ->
-        tasks.register(name, Sync) {
+    // Both suites load the packaged mod archive plus the separate development archive. On NeoForge that is the
+    // release archive itself; Forge 1.20.1 releases it after SRG remapping, which tools/run_forge_production.ps1 covers.
+    settings.directories.each { suite, directory ->
+        tasks.register("stage${suite.capitalize()}", Sync) {
             from tasks.named(kotlinMode == 'bundled' ? 'withKotlinJar' : 'jar')
             from tasks.named('developmentJar')
             if (providerJar) from file(providerJar)
@@ -22,63 +34,75 @@ ext.minecraftRunSettings = { String backend ->
     settings
 }
 
-ext.configureSmokeRun = { run, Map settings, boolean packaged ->
-    run.gameDirectory = project.file('build/' + (packaged ? settings.packagedSmokeDirectory : settings.clientSmokeDirectory))
-    run.systemProperty 'composemc.smoke', 'true'
-    run.programArguments.addAll '--width', '1280', '--height', '960'
-    if (packaged) {
-        run.sourceSet = sourceSets.packagedSmoke
-        run.loadedMods = []
-        run.taskBefore tasks.named('stagePackagedSmoke')
-    }
-}
-
-ext.configureBenchmarkRun = { run, Map settings ->
-    run.sourceSet = sourceSets.packagedSmoke
+/** Makes [run] a packaged client run of `acceptance` or `benchmark`. The adapter adds its loader and backend options. */
+ext.configureSuiteRun = { run, Map settings, String suite ->
+    if (!(suite in settings.directories.keySet())) throw new GradleException("Unknown client suite $suite")
+    run.sourceSet = sourceSets.packagedRun
     run.loadedMods = []
-    run.gameDirectory = project.file('build/' + settings.benchmarkDirectory)
-    run.systemProperty 'composemc.benchmark', 'true'
-    run.systemProperty 'composemc.benchmark.control', providers.gradleProperty('composemcBenchmarkControl').orElse('false').get()
-    run.systemProperty 'composemc.benchmark.background', settings.background
-    run.systemProperty 'composemc.profile', 'true'
-    run.systemProperty 'composemc.allocations', 'true'
-    run.systemProperty 'composemc.benchmark.frames', providers.gradleProperty('composemcBenchmarkFrames').orElse('360').get()
-    run.systemProperty 'composemc.benchmark.repeats', providers.gradleProperty('composemcBenchmarkRepeats').orElse('2').get()
+    run.gameDirectory = project.file('build/' + settings.directories[suite])
+    run.systemProperty 'composemc.suite', suite
+    run.systemProperty 'composemc.suite.background', settings.background
+    run.systemProperty 'composemc.suite.isolated', settings.isolated
+    if (suite == 'benchmark') {
+        run.systemProperty 'composemc.benchmark.control', settings.control
+        run.systemProperty 'composemc.benchmark.label', settings.label
+        run.systemProperty 'composemc.benchmark.frames', settings.frames
+        run.systemProperty 'composemc.benchmark.repeats', settings.repeats
+        run.systemProperty 'composemc.profile', 'true'
+        run.systemProperty 'composemc.allocations', 'true'
+    }
     run.programArguments.addAll '--width', '1280', '--height', '960'
-    run.taskBefore tasks.named('stageBenchmark')
+    run.taskBefore tasks.named("stage${suite.capitalize()}")
 }
 
-ext.verifyMinecraftRuns = { Map settings ->
-    // Keep IDE-generated launch files separate for each backend/run.
-    tasks.named('prepareBenchmarkRun') {
-        vmArgsFile = layout.buildDirectory.file("${settings.benchmarkDirectory}/launch/vm.args")
-        programArgsFile = layout.buildDirectory.file("${settings.benchmarkDirectory}/launch/program.args")
-        log4jConfigFile = layout.buildDirectory.file("${settings.benchmarkDirectory}/launch/log4j2.xml")
-    }
-    def reports = [runClientSmoke: [settings.clientSmokeDirectory, 'composemc-smoke.txt', 3],
-        runPackagedSmoke: [settings.packagedSmokeDirectory, 'composemc-smoke.txt', 3],
-        runBenchmark: [settings.benchmarkDirectory, 'composemc-benchmark.txt', 10]]
-    reports.each { name, report ->
-        tasks.named(name) {
-            timeout = java.time.Duration.ofMinutes(report[2])
-            doFirst { delete layout.buildDirectory.file("${report[0]}/${report[1]}") }
-            doLast {
-                def file = layout.buildDirectory.file("${report[0]}/${report[1]}").get().asFile
-                if (!file.exists() || !file.text.startsWith('PASS')) throw new GradleException("Probe did not complete: $file")
-                logger.lifecycle(file.text)
+/**
+ * Report checks for runAcceptance and runBenchmark. [windowConfig] is this loader's early-window
+ * fml.toml; [vulkanDiagnostics] lists accepted upstream validation messages when validation is enabled.
+ */
+ext.verifyMinecraftRuns = { Map settings, String windowConfig, boolean vulkanValidation = false, Set<String> vulkanDiagnostics = [] as Set ->
+    // At 60 FPS a case is about (136 + frames) / 60 seconds; allow half again for world, warmup and startup.
+    def benchmarkMinutes = 12 + (int) Math.ceil(25 * settings.repeats.toInteger() * (136 + settings.frames.toInteger()) / 3600.0 * 1.5)
+    [acceptance: [report: 'composemc-acceptance.txt', minutes: 25], benchmark: [report: 'composemc-benchmark.txt', minutes: benchmarkMinutes]]
+        .each { suite, options ->
+            def directory = settings.directories[suite]
+            def name = suite.capitalize()
+            // Keep IDE-generated launch files separate for each suite and backend.
+            tasks.named("prepare${name}Run") {
+                vmArgsFile = layout.buildDirectory.file("$directory/launch/vm.args")
+                programArgsFile = layout.buildDirectory.file("$directory/launch/program.args")
+                log4jConfigFile = layout.buildDirectory.file("$directory/launch/log4j2.xml")
+            }
+            tasks.named("run${name}") {
+                group = 'verification'
+                description = suite == 'acceptance' ? 'Runs every client correctness step in a fresh test world.' :
+                    'Measures the client benchmark cases in a fresh test world.'
+                timeout = java.time.Duration.ofMinutes(options.minutes)
+                def report = layout.buildDirectory.file("$directory/${options.report}")
+                def fmlConfig = layout.buildDirectory.file("$directory/config/fml.toml")
+                def latestLog = layout.buildDirectory.file("$directory/logs/latest.log")
+                doFirst {
+                    // A window hidden after startup still appears on the user's desktop first.
+                    if (settings.background == 'true' && settings.isolated != 'true')
+                        throw new GradleException("Hidden runs start on an isolated desktop: use tools/run_background_${suite}.ps1")
+                    delete report
+                    def config = fmlConfig.get().asFile
+                    config.parentFile.mkdirs()
+                    config.setText(windowConfig, 'UTF-8')
+                }
+                doLast {
+                    def file = report.get().asFile
+                    if (!file.exists()) throw new GradleException("The $suite suite wrote no report: $file")
+                    def text = file.getText('UTF-8')
+                    logger.lifecycle(text)
+                    if (!text.startsWith('PASS')) throw new GradleException("The $suite suite failed; see $file")
+                    if (vulkanValidation) verifyVulkanReport(latestLog.get().asFile, vulkanDiagnostics)
+                }
             }
         }
-    }
 }
 
-ext.writeBenchmarkWindowConfig = { Map settings, String text ->
-    def config = layout.buildDirectory.file("${settings.benchmarkDirectory}/config/fml.toml").get().asFile
-    config.parentFile.mkdirs()
-    config.setText(text, 'UTF-8')
-}
-
-ext.verifyVulkanReport = { Map settings, Set<String> allowedDiagnostics ->
-    def log = layout.buildDirectory.file("${settings.benchmarkDirectory}/logs/latest.log").get().asFile.text
+ext.verifyVulkanReport = { File latestLog, Set<String> allowedDiagnostics ->
+    def log = latestLog.getText('UTF-8')
     if (!log.contains('Enabling Vulkan validation layers')) throw new GradleException('Vulkan validation layer was not enabled')
     def errors = log.readLines().findAll { it.contains('VUID-') || it.contains('SYNC-HAZARD') }
     def unexpected = errors.findAll { line -> !allowedDiagnostics.any { line.contains(it) } }

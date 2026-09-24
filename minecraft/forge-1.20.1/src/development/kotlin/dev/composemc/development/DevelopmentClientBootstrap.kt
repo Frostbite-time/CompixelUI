@@ -1,21 +1,23 @@
 package dev.composemc.development
 
 import com.mojang.blaze3d.platform.InputConstants
+import dev.composemc.testing.suite.ClientSuite
+import dev.composemc.testing.suite.SuitePixels
 import net.minecraft.client.KeyMapping
 import net.minecraft.client.Minecraft
-import net.minecraftforge.eventbus.api.IEventBus
+import net.minecraft.client.gui.screens.MenuScreens
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent
-import net.minecraftforge.client.event.RegisterClientReloadListenersEvent
-import net.minecraft.server.packs.resources.ResourceManagerReloadListener
-import net.minecraftforge.event.TickEvent
 import net.minecraftforge.client.event.ScreenEvent
-import net.minecraftforge.common.MinecraftForge
 import net.minecraftforge.client.settings.KeyConflictContext
+import net.minecraftforge.common.MinecraftForge
+import net.minecraftforge.event.TickEvent
+import net.minecraftforge.eventbus.api.IEventBus
+import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent
 import org.lwjgl.glfw.GLFW
 
 internal object DevelopmentClientBootstrap {
-    private val smoke by lazy { if (java.lang.Boolean.getBoolean("composemc.smoke")) ClientSmokeProbe() else null }
-    private val benchmark by lazy { if (java.lang.Boolean.getBoolean("composemc.benchmark")) ClientBenchmarkProbe() else null }
+    private val acceptance by lazy { if (SuiteEnvironment.suite == ClientSuite.ACCEPTANCE) ClientAcceptanceProbe() else null }
+    private val benchmark by lazy { if (SuiteEnvironment.suite == ClientSuite.BENCHMARK) ClientBenchmarkProbe() else null }
     private val openPreview = KeyMapping(
         "key.composemc.open_preview",
         KeyConflictContext.IN_GAME,
@@ -26,8 +28,11 @@ internal object DevelopmentClientBootstrap {
 
     fun register(modEventBus: IEventBus) {
         SyncAcceptanceMenu.register(modEventBus)
-        LegacyConfigAcceptance.register()
+        ConfigAcceptance.register()
         modEventBus.addListener(::registerKeyMappings)
+        modEventBus.addListener { event: FMLClientSetupEvent ->
+            event.enqueueWork { MenuScreens.register(SyncAcceptanceMenu.TYPE.get(), ::SyncAcceptanceScreen) }
+        }
         MinecraftForge.EVENT_BUS.addListener(::onClientTick)
         MinecraftForge.EVENT_BUS.addListener(::afterScreenRender)
         MinecraftForge.EVENT_BUS.addListener(::onScreenKey)
@@ -40,7 +45,7 @@ internal object DevelopmentClientBootstrap {
     private fun onClientTick(event: TickEvent.ClientTickEvent) {
         if (event.phase != TickEvent.Phase.END) return
         val minecraft = Minecraft.getInstance()
-        smoke?.tick()
+        acceptance?.tick()
         benchmark?.tick()
         while (openPreview.consumeClick()) {
             if (minecraft.screen == null) minecraft.setScreen(ComposePreviewScreen())
@@ -48,7 +53,11 @@ internal object DevelopmentClientBootstrap {
     }
 
     private fun afterScreenRender(event: ScreenEvent.Render.Post) {
-        smoke?.afterRender(event.screen, event.guiGraphics)
+        acceptance?.afterRender(event.screen) { color ->
+            // GuiGraphics batches fills; flush so the marker is drawn in this frame, after Compose.
+            event.guiGraphics.fill(0, 0, SuitePixels.MARKER_GUI_SIZE, SuitePixels.MARKER_GUI_SIZE, color)
+            event.guiGraphics.flush()
+        }
         benchmark?.afterRender(event.screen)
     }
 

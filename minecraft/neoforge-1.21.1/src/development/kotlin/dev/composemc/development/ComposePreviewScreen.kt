@@ -43,6 +43,9 @@ class ComposePreviewScreen private constructor(
     internal val itemBrowser get() = model.itemBrowser
     constructor(parent: Screen? = null) : this(parent, ComposeThread.call { DemoModel() },
         previewIcons())
+
+    // Suites drive hover and input through Screen callbacks with logical focus, never OS focus.
+    protected override fun isUiWindowFocused(): Boolean = SuiteEnvironment.uiFocused(super.isUiWindowFocused())
 }
 
 private fun previewIcons(): List<ItemIcon> {

@@ -36,7 +36,7 @@ Gradle 需要 JDK 17 或更新版本，推荐 JDK 25。各适配器所需 Java �
 
 适配器的 `development` 编译通过 Kotlin 的 `associateWith` 关联 `main`，允许预览和探针访问适配器的 `internal` 声明。构建约定变更后请重新加载 Gradle 项目，让 IDEA 导入该可见性关系。仅传入编译器 friend paths 并不能向 IDE 声明这种源码集关联。
 
-公共渲染场景、CPU 参考像素和预览交互脚本集中在 `testing`。共享的原生物品视觉场景与像素断言也位于此处；所有适配器都在打包客户端中检查透明度、旋转、形状裁剪、遮挡和重复放置。后端探针分别位于 `render-gl/src/testFixtures` 和 `render-vulkan/src/testFixtures`；版本相关的设备准备和屏幕检查集中在各适配器的 `development/render` 包内。打包后的基准测试会先运行所选 GPU 后端的探针，以两种视口尺寸重复验证绘制、重置、关闭和像素结果。Vulkan 验证层额外检查 API 与同步错误。所有测试辅助代码均不进入正式包和消费者 API 包。
+公共渲染场景、CPU 参考像素和预览交互脚本集中在 `testing`。共享的原生物品视觉场景与像素断言也位于此处；所有适配器都在打包客户端中检查透明度、旋转、形状裁剪、遮挡和重复放置。后端探针分别位于 `render-gl/src/testFixtures` 和 `render-vulkan/src/testFixtures`；版本相关的设备准备和屏幕检查集中在各适配器的 `development/render` 包内。两套客户端测试开始时都会先运行所选 GPU 后端的探针，以两种视口尺寸重复验证绘制、重置、关闭和像素结果。Vulkan 验证层额外检查 API 与同步错误。所有测试辅助代码均不进入正式包和消费者 API 包。
 
 `runClient` 包含开发预览，在游戏中按 **F8** 打开。26.2/26.3 可追加 `-PcomposemcBackend=opengl` 或 `-PcomposemcBackend=vulkan`，`auto` 跟随宿主后端。不支持 Vulkan 的目标会明确拒绝 Vulkan 请求。
 
@@ -84,28 +84,89 @@ Gradle 需要 JDK 17 或更新版本，推荐 JDK 25。各适配器所需 Java �
 
 文档资源使用重新获取、未经编辑的渲染图。[图片来源](../assets/README.md)列出捕获后应复制的文件名。更新界面时，应同时更新图片说明和两种语言页面。
 
-## 打包客户端验证
+## 客户端测试套件
 
-打包基准默认自带 Kotlin。验证外部提供者时，在任一 Windows 基准脚本后追加 `-KotlinMode external -KotlinProviderJar C:\path\to\kotlinforforge.jar`。Gradle 打包运行任务对应参数为 `-PcomposemcKotlinMode=external -PcomposemcKotlinProviderJar=C:/path/to/kotlinforforge.jar`。提供者只安装到测试游戏目录，绝不嵌入发布产物。外部模式下省略提供者可检查缺失运行时的报错。`runClient` 仍是自带运行时的源码开发启动。
+每个目标都在真实 Minecraft 客户端中运行两套自动测试：**acceptance** 检查正确性，**benchmark** 测量性能。两者都加载打包后的模组归档，并同时加载独立的开发包：NeoForge 目标加载的就是正式发布包；Forge 1.20.1 加载的是同一归档在 SRG 重映射之前的版本（见 [Forge 1.20.1 生产启动](#forge-1201-生产启动)）；开始前都会新建扁平创造模式测试世界 `saves/composemc-<suite>`（每次运行都会替换），渲染距离为 2，静音，关闭垂直同步。输入通过真实的 Screen 回调送达，并使用逻辑窗口焦点，因此两套测试都不会读取、依赖或抢占系统焦点，隐藏运行与可见运行执行完全相同的帧。测试不会接触系统剪贴板。
 
-直接运行 `runClient`、`runClientSmoke`、`runPackagedSmoke` 和 `runBenchmark` 时，游戏窗口默认可见。smoke 任务可能操作真实剪贴板，适合有意进行的交互测试。单元测试和 `:desktop:smoke` 仍然不打开窗口。后台脚本会显式开启 `composemcBenchmarkBackground=true` 和桌面隔离；仅设置后台标志并不会自动隐藏启动过程。
+五个目标运行完全相同的测试。各适配器 `development` 包中的驱动代码（`SuiteEnvironment`、`SuiteSession`、`ClientAcceptanceProbe`、`PreviewAcceptance`、`ClientBenchmarkProbe` 和 `NativeTooltipProbe`）是逐字节一致的副本，版本差异只放在该适配器的 `SuitePlatform.kt` 和版本专属夹具中。`checkCore` 包含的 `verifySuiteParity` 会拒绝出现偏差的副本、缺失的夹具或错误的目标名。有序步骤表和基准测量规程位于 `testing`：只有全部步骤（或全部计划用例）按顺序完成后，报告才能写 `PASS`。
 
-自动游戏测试使用 Windows 隐藏启动器。它创建独立且从不激活的桌面，不发送系统键鼠输入，也不修改剪贴板：
+| 任务 | `minecraft/<adapter>/build/` 下的游戏目录 | 输出 |
+| --- | --- | --- |
+| `runAcceptance` | `acceptance-<backend>-<window>/` | `composemc-acceptance.txt`，截图位于 `acceptance-results/` |
+| `runBenchmark` | `benchmark-<backend>-<window>-<label>/` | `composemc-benchmark.txt`，`benchmark-results/report.json`，每个用例一个 CSV 和 PNG |
+
+`<window>` 为 `foreground` 或 `background`。报告不以 `PASS` 开头时任务失败；失败报告会写明所在步骤并附带堆栈。
+
+### 使用 Gradle 可见运行
 
 ```powershell
-.\tools\run_background_benchmark.ps1 -Minecraft 1.21.1 -Backend opengl -Label validation -Frames 120
-.\tools\run_background_benchmark.ps1 -Minecraft 26.3 -Backend vulkan -Label validation -Frames 120
+.\gradlew.bat '-PcomposemcTargets=1.21.1' :minecraft:neoforge-1.21.1:runAcceptance
+.\gradlew.bat '-PcomposemcTargets=26.3' :minecraft:neoforge-26.3:runBenchmark '-PcomposemcBackend=vulkan' '-PcomposemcLabel=candidate'
 ```
 
-启用 Vulkan 校验时，追加 `-ValidationLayerPath C:\path\to\validation-layer`。Forge 还提供针对可安装 SRG 映射 JAR 的生产启动检查：
+1.20.1 使用 `forge-1.20.1`。可见运行会显示游戏窗口，但仍使用逻辑焦点，其他窗口可以留在前台。可选属性：
+
+| 属性 | 默认值 | 含义 |
+| --- | --- | --- |
+| `composemcBackend` | `auto` | `opengl`、`vulkan`（26.2/26.3）或 `cpu` |
+| `composemcLabel` | `baseline` | 基准目录和报告标签 |
+| `composemcBenchmarkFrames` | `360` | 每个用例的测量帧数，120–1500 |
+| `composemcBenchmarkRepeats` | `2` | 重复次数，1–5，用例顺序正反交替 |
+| `composemcBenchmarkControl` | `false` | 执行相同的启动、世界和资源重载，但不创建 Compose 渲染器 |
+| `composemcKotlinMode` | `bundled` | `external` 安装不含 Kotlin 的正式包；追加 `composemcKotlinProviderJar=<jar>` 部署提供者，省略则检查缺少运行时的报错 |
+| `composemcVulkanValidation` | `false` | 启用校验层，并拒绝意外的 `VUID-`/`SYNC-HAZARD` 消息 |
+
+提供者只安装到测试游戏目录，绝不嵌入发布产物。`composemcBackground=true` 会在启动后隐藏窗口，但除非同时设置 `composemcIsolatedDesktop=true`，Gradle 会拒绝运行：否则窗口仍会先出现在用户桌面上。下面的 Windows 脚本会同时设置两者。`runClient` 仍是自带运行时的源码开发启动。
+
+### 在 Windows 上隐藏运行
 
 ```powershell
-.\tools\run_forge_production_benchmark.ps1 -JavaHome C:\path\to\jdk17 -Label validation
+.\tools\run_background_acceptance.ps1
+.\tools\run_background_benchmark.ps1
+.\tools\run_background_acceptance.ps1 -Minecraft 26.2,26.3 -Backend vulkan
+.\tools\run_background_benchmark.ps1 -Minecraft 1.21.1 -Label candidate -Frames 600 -Repeats 3
 ```
 
-基准测试将构建好的正式库/开发 JAR 安装到隔离游戏目录。`composemc-benchmark.txt`、日志和截图位于 `minecraft/<adapter>/build/benchmark-<backend>-background-<label>/`。1.21.1 的 PNG/CSV/JSON 写入 `benchmark-results/`，其他适配器的报告格式和场景数量不同。所有适配器的测试都包含同屏 256 个不同的动画原生图标，并检查每个图标都获得图像且持续轮流更新。26.x 测试还会在测试世界中通过 Screen 回调而非系统输入运行 smoke 套件的原生提示探针。运行必须以 `PASS` 结束。[26.2 上游已知诊断](compatibility.md)与意外校验错误分开处理。
+两个脚本默认覆盖全部目标，逐个版本运行；每个版本都由 [run_isolated_gradle.ps1](../../tools/run_isolated_gradle.ps1) 在独立且从不激活的 Win32 桌面上启动新的 Gradle 进程。游戏不会出现在交互桌面上，不抢焦点，也不发出声音，且不发送任何系统键鼠输入。某个版本失败不会中断其他版本：脚本最后打印 PASS/FAIL 表，只要有版本失败就以错误退出。日志位于 `.work/suites/`。两个包装脚本都调用 [run_background_suite.ps1](../../tools/run_background_suite.ps1)，并传入 `-Suite acceptance` 或 `-Suite benchmark`；它还接受 `-KotlinMode external -KotlinProviderJar <jar>` 和 `-ValidationLayerPath <directory>`。使用 `-Backend vulkan` 时会跳过没有 Vulkan 的目标。
 
-1.21.1 测量器针对屏幕渲染回调，包含预热和正反顺序重复。CPU 指标是墙钟耗时；GPU 时间戳是关联原始帧的异步区间。不要相加 CPU/GPU 时间、将缺失样本记为零，或将结果当作整局游戏 FPS。`-Dcomposemc.profile=true` 开启帧记录，`-Dcomposemc.allocations=true` 增加受支持的 JVM 分配测量。在客户端线程读取 `frameProfiler`。
+### 正确性覆盖
+
+每个目标都按 [ClientSuites.kt](../../testing/src/main/kotlin/dev/composemc/testing/suite/ClientSuites.kt) 中的顺序通过以下步骤：
+
+1. 库与开发包翻译，以及加载器的生产/开发模式。
+2. 所选渲染后端在两种视口尺寸下、多次绘制/重置/关闭后与 CPU 参考像素一致。
+3. 新建的测试世界。
+4. 原生容器：左右键点击、逐格原生渲染钩子、服务端确认和界面释放。
+5. 服务端打开的菜单同步：有界的多批次快照和分片动作往返。
+6. 配置编辑：暂存、标量与列表校验、保存和恢复。
+7. 像素夹具：左上角指针坐标、预乘透明度、Unicode 文本和快捷键；随后是 GUI 缩放 3、帧缓冲调整尺寸和资源重载。
+8. 原生物品视觉场景：透明度、旋转、形状裁剪、遮挡和重复放置。
+9. 通过按键映射打开的真实 F8 预览：保留帧、文本输入、弹窗 Escape 优先级、窗口尺寸与 GUI 缩放、10 万行列表命中测试与滚动、Compose 之后 Minecraft 自身绘制的原生物品像素、原生提示流程（延迟、替换、收纳袋富图像、取消、关闭、弹窗抑制、边缘定位、GUI 缩放和重载）、1 万行原生滚动、资源重载、逻辑焦点丢失与恢复、关闭、重新打开、全部 Ore 组件页面以及 12 次打开/关闭循环。
+
+每次等待都有时限；每个被替换的 Compose 界面都必须释放会话、表面和原生图像。
+
+### 基准测量规程
+
+每个目标都测量同一份 [BenchmarkPlan](../../testing/src/main/kotlin/dev/composemc/testing/suite/BenchmarkPlan.kt)：1280×960 帧缓冲、GUI 缩放 2、帧率上限 60、关闭垂直同步、2400 帧管线预热；每个用例再依次运行 120 帧预热、测量帧和 16 帧 GPU 排空。用例包括静态界面、动画、1k/10k/100k 行列表、静态与滚动的原生图标、同屏 256 个不同的动画原生图标、富提示以及全部 Ore 组件页面。样本不完整、静态场景重绘、动画停止、图标饥饿或提示失去悬停时，用例会被判为无效而不是写入结果。
+
+CPU 指标是屏幕渲染回调内的墙钟时间；GPU 数值是按帧 ID 关联到原始帧的异步命令流区间，不使用阻塞读取。不要相加 CPU/GPU 时间、将缺失样本记为零，或将结果当作整局游戏 FPS。在测试之外，`-Dcomposemc.profile=true` 开启帧记录，`-Dcomposemc.allocations=true` 增加受支持的 JVM 分配测量；在客户端线程读取 `frameProfiler`。
+
+使用汇总脚本比较同一台机器、同一规程的报告。只传一个报告时输出其用例表；传入多个时每个报告一列，并给出相对第一个报告的平均变化，可用于版本间对比或修改前后对比：
+
+```powershell
+python tools/summarize_benchmarks.py minecraft/neoforge-1.21.1/build/benchmark-opengl-background-baseline/benchmark-results/report.json minecraft/neoforge-26.3/build/benchmark-opengl-background-baseline/benchmark-results/report.json
+```
+
+[26.2 上游已知诊断](compatibility.md)与意外校验错误分开处理。
+
+### Forge 1.20.1 生产启动
+
+只有 Forge 1.20.1 的正式包会为生产环境重映射（SRG），因此它的 Gradle 运行无法加载玩家实际安装的文件。该脚本安装 Forge，并针对这个正式包运行任一套测试；NeoForge 目标的 Gradle 运行本身就加载其正式包：
+
+```powershell
+.\tools\run_forge_production.ps1 -JavaHome C:\path\to\jdk17 -Suite acceptance
+.\tools\run_forge_production.ps1 -JavaHome C:\path\to\jdk17 -Suite benchmark -Label production
+```
 
 独立同步诊断可运行：
 
@@ -120,6 +181,6 @@ Gradle 需要 JDK 17 或更新版本，推荐 JDK 25。各适配器所需 Java �
 
 [CI](../../.github/workflows/verify.yml)在 Windows/Linux 检查共享核心，在 Linux 构建全部五个适配器。真实 GPU 验证在合适的宿主上单独执行。
 
-修改依赖或模块边界后，运行 `verifyCoreBoundary` 和受影响的测试/构建。修改共享公开 API 时，编译所有受影响适配器及独立消费者。渲染或原生生命周期变化还需要验证对应版本/后端的打包客户端。
+修改依赖或模块边界后，运行 `verifyCoreBoundary` 和受影响的测试/构建。修改共享公开 API 时，编译所有受影响适配器及独立消费者。渲染或原生生命周期变化还需要为对应版本/后端运行两套客户端测试。修改测试驱动时必须同时修改全部五份副本，否则 `verifySuiteParity` 会失败。
 
 修改文档后运行 `node tools/check_docs.mjs`，检查本地链接、锚点、双语配对和图片引用。生成的 `build/`、`.gradle/` 和 `.work/` 可清理；应保留源码、Gradle Wrapper、目标元数据和依赖锁文件。

@@ -43,7 +43,7 @@ def backend = requestedBackend == 'auto' ? 'opengl' : requestedBackend
 def runSettings = minecraftRunSettings(backend)
 
 legacyForge {
-    addModdingDependenciesTo sourceSets.packagedSmoke
+    addModdingDependenciesTo sourceSets.packagedRun
     addModdingDependenciesTo sourceSets.test
     addModdingDependenciesTo sourceSets.development
     ideSyncTask artifacts.metadata
@@ -53,12 +53,8 @@ legacyForge {
             client()
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
-        clientSmoke { client(); configureSmokeRun(delegate, runSettings, false) }
-        packagedSmoke { client(); configureSmokeRun(delegate, runSettings, true) }
-        benchmark {
-            client()
-            configureBenchmarkRun(delegate, runSettings)
-        }
+        acceptance { client(); configureSuiteRun(delegate, runSettings, 'acceptance') }
+        benchmark { client(); configureSuiteRun(delegate, runSettings, 'benchmark') }
     }
     mods {
         composemc {
@@ -99,11 +95,4 @@ verifyMinecraftArtifacts(artifacts, [
     'public-f net.minecraft.world.inventory.Slot f_40221_',
     'protected net.minecraft.client.gui.screens.inventory.AbstractContainerScreen m_280092_(Lnet/minecraft/client/gui/GuiGraphics;Lnet/minecraft/world/inventory/Slot;)V',
 ] as Set, [] as Set)
-verifyMinecraftRuns(runSettings)
-tasks.named('runBenchmark') {
-    doFirst {
-        if (runSettings.background == 'true' && providers.gradleProperty('composemcBenchmarkIsolatedDesktop').orElse('false').get() != 'true')
-            throw new GradleException('Run tools/run_background_benchmark.ps1 on an isolated desktop')
-        writeBenchmarkWindowConfig(runSettings, 'earlyWindowControl=false\n')
-    }
-}
+verifyMinecraftRuns(runSettings, 'earlyWindowControl=false\n')

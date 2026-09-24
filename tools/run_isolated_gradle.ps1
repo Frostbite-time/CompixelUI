@@ -1,7 +1,9 @@
 param(
     [Parameter(Mandatory)][string]$ProjectDirectory,
     [Parameter(Mandatory)][string[]]$GradleArguments,
-    [Parameter(Mandatory)][string]$LogPath
+    [Parameter(Mandatory)][string]$LogPath,
+    # Includes the Gradle build before the game starts.
+    [ValidateRange(1, 1440)][int]$TimeoutMinutes = 60
 )
 $ErrorActionPreference = 'Stop'
 if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw 'Desktop isolation requires Windows' }
@@ -28,11 +30,11 @@ $taskArguments = @('--no-daemon') + @($taskSettings.arguments)
 exit $LASTEXITCODE
 '@ | Set-Content -LiteralPath $taskRunner -Encoding UTF8
 
-. (Join-Path $PSScriptRoot 'windows_benchmark_desktop.ps1')
+. (Join-Path $PSScriptRoot 'windows_isolated_desktop.ps1')
 $taskPowerShell = (Get-Process -Id $PID).Path
 $taskCommand = '"' + $taskPowerShell + '" -NoLogo -NoProfile -NonInteractive -File "' + $taskRunner + '" -Configuration "' + $taskConfiguration + '"'
-$taskDesktop = 'composemc-benchmark-' + $taskId
+$taskDesktop = 'composemc-isolated-' + $taskId
 Write-Output "Starting isolated Gradle run on $taskDesktop. Log: $taskLog"
-$taskCode = [ComposeBenchmarkDesktop]::Run($taskPowerShell, $taskCommand, $taskProject, $taskDesktop)
+$taskCode = [ComposeIsolatedDesktop]::Run($taskPowerShell, $taskCommand, $taskProject, $taskDesktop, $TimeoutMinutes)
 Get-Content -LiteralPath $taskLog -Tail 35
 if ($taskCode -ne 0) { throw "Isolated Gradle run failed ($taskCode); see $taskLog" }

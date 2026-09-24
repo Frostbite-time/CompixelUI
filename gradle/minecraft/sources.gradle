@@ -1,8 +1,9 @@
 // Source-set mechanics only. Minecraft-facing sources stay inside each adapter.
 ext.configureMinecraftSources = { List<String> backends = [':render-gl'] ->
-    sourceSets { packagedSmoke; development }
-    // Packaged tests must obtain Kotlin from installed mods, not the launcher.
-    configurations.named('packagedSmokeRuntimeClasspath') {
+    // packagedRun has no sources: its runs load only staged archives from the game directory's mods folder.
+    sourceSets { packagedRun; development }
+    // Packaged runs must obtain Kotlin from installed mods, not the launcher.
+    configurations.named('packagedRunRuntimeClasspath') {
         exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib'
     }
     // The compiler and IDEA must agree about same-project internal visibility.

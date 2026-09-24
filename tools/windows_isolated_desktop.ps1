@@ -1,9 +1,10 @@
-if (-not ('ComposeBenchmarkDesktop' -as [type])) { Add-Type -TypeDefinition @'
+# Starts one process on a new, never-activated Win32 desktop and waits for it with a time limit.
+if (-not ('ComposeIsolatedDesktop' -as [type])) { Add-Type -TypeDefinition @'
 using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text;
-public static class ComposeBenchmarkDesktop {
+public static class ComposeIsolatedDesktop {
     [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
     struct STARTUPINFO {
         public int cb; public string reserved, desktop, title;
@@ -22,7 +23,7 @@ public static class ComposeBenchmarkDesktop {
     [DllImport("kernel32.dll")] static extern uint WaitForSingleObject(IntPtr handle, uint ms);
     [DllImport("kernel32.dll")] static extern bool GetExitCodeProcess(IntPtr process, out uint code);
     [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
-    public static int Run(string shell, string command, string cwd, string name) {
+    public static int Run(string shell, string command, string cwd, string name, int timeoutMinutes) {
         IntPtr desktop = CreateDesktopW(name, IntPtr.Zero, IntPtr.Zero, 0, 0x10000000, IntPtr.Zero);
         if (desktop == IntPtr.Zero) throw new Win32Exception();
         try {
@@ -34,9 +35,9 @@ public static class ComposeBenchmarkDesktop {
             try {
                 var elapsed = System.Diagnostics.Stopwatch.StartNew();
                 while (WaitForSingleObject(process.process, 1000) == 258) {
-                    if (elapsed.Elapsed.TotalMinutes > 15) {
+                    if (elapsed.Elapsed.TotalMinutes > timeoutMinutes) {
                         System.Diagnostics.Process.GetProcessById(process.processId).Kill(true);
-                        throw new TimeoutException("Background validation exceeded fifteen minutes");
+                        throw new TimeoutException("Isolated run exceeded " + timeoutMinutes + " minutes");
                     }
                 }
                 uint code; GetExitCodeProcess(process.process, out code); return (int)code;

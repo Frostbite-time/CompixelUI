@@ -52,6 +52,18 @@ class OreExtendedControlsTest {
             }
         }
     }
+    @Test fun `nested tooltip exercise waits for every lock at low and uneven frame rates`() {
+        for(intervals in listOf(listOf(200L),listOf(500L),listOf(16L,16L,450L))) {
+            val page=dev.composemc.demo.preview.DemoPage.Tooltips
+            val model=ComposeThread.call {dev.composemc.demo.preview.DemoModel().apply {this.page=page}}
+            val exercise=dev.composemc.testing.ui.OreComponentExercise(model,page)
+            UiSession(Viewport(1280,960,2f)){dev.composemc.demo.preview.OreDemoScreen(model)}.use {session->
+                var now=1_000_000_000L
+                repeat(90){frame->now+=intervals[frame%intervals.size]*1_000_000L;session.frame(now)?.close();exercise.advance(session,now)}
+                exercise.verify()
+            }
+        }
+    }
     @Test fun `mouse exit is not pinned by a clicked trigger focus before tooltip lock`() {
         Fixture {b->OreTooltip(tooltip={OreText("Details",b("body"))},modifier=b("anchor"),lockDelayMillis=600) {OreButton("Hover",{})}}.use {f->
             f.click("anchor");assertTrue(f.has("body"));f.hoverAt(Offset(450f,350f));assertFalse(f.has("body"))

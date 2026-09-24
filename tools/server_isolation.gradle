@@ -1,7 +1,7 @@
 // Opt-in headless SERVER-side initialization check. It loads only the library
 // JAR in the loader's GameTest harness, then checks the JVM initialization log.
 // Forge uses named development mappings here; its production SRG mappings are
-// separately covered by run_forge_production_benchmark.ps1.
+// separately covered by run_forge_production.ps1.
 gradle.beforeProject { p ->
     p.afterEvaluate {
         if (p.name in ['forge-1.20.1', 'neoforge-26.1.2']) {
@@ -13,7 +13,7 @@ gradle.beforeProject { p ->
             }
             loader.runs.create('serverInitialization') {
                 type = 'gameTestServer'
-                sourceSet = p.sourceSets.packagedSmoke
+                sourceSet = p.sourceSets.packagedRun
                 loadedMods = []
                 gameDirectory = p.file('build/server-initialization')
                 jvmArguments.add '-Xlog:class+init=info:file=class-init.log'

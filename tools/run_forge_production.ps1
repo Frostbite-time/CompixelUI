@@ -1,8 +1,20 @@
+<#
+.SYNOPSIS
+Runs a client suite in a real Forge 1.20.1 installation, hidden on an isolated desktop.
+
+.DESCRIPTION
+Forge 1.20.1 is the only target whose release archive is remapped (SRG) for production, so its
+Gradle runs cannot load the archive players install. This script installs Forge, stages the release
+and development archives and runs the same acceptance or benchmark suite as the Gradle tasks.
+#>
 param(
     [Parameter(Mandatory)][string]$JavaHome,
+    [ValidateSet('acceptance', 'benchmark')][string]$Suite = 'acceptance',
     [ValidatePattern('^[a-zA-Z0-9_-]+$')][string]$Label = 'production',
     [ValidateSet('bundled', 'external')][string]$KotlinMode = 'bundled',
     [string]$KotlinProviderJar,
+    [ValidateRange(120, 1500)][int]$Frames = 360,
+    [ValidateRange(1, 5)][int]$Repeats = 2,
     [switch]$SkipBuild
 )
 $ErrorActionPreference = 'Stop'
@@ -19,7 +31,7 @@ $forgeVersion = $adapterSettings['forge_version']
 $forgeCoordinate = "$mcVersion-$forgeVersion"
 $versionName = "$mcVersion-forge-$forgeVersion"
 $launcher = Join-Path $repo '.work/forge-production'
-$game = Join-Path $repo "$adapterDirectory/build/production-$Label-$KotlinMode"
+$game = Join-Path $repo "$adapterDirectory/build/production-$Suite-$Label-$KotlinMode"
 $libraryRoot = Join-Path $launcher 'libraries'
 $assets = Join-Path $env:USERPROFILE '.gradle/caches/neoformruntime/assets'
 New-Item -ItemType Directory -Force $launcher,$game,$libraryRoot | Out-Null
@@ -142,23 +154,28 @@ function Arguments($items) {
         }
     }
 }
-$arguments = @('-Xmx3G','-Dcomposemc.benchmark=true','-Dcomposemc.benchmark.background=true',
-    '-Dcomposemc.benchmark.production=true',
-    '-Dcomposemc.backend=opengl','-Dcomposemc.profile=true','-Dcomposemc.benchmark.frames=120') +
+$suiteArguments = @("-Dcomposemc.suite=$Suite", '-Dcomposemc.suite.background=true', '-Dcomposemc.suite.isolated=true',
+    '-Dcomposemc.suite.production=true', '-Dcomposemc.backend=opengl')
+if ($Suite -eq 'benchmark') {
+    $suiteArguments += '-Dcomposemc.profile=true', '-Dcomposemc.allocations=true', "-Dcomposemc.benchmark.frames=$Frames",
+        "-Dcomposemc.benchmark.repeats=$Repeats", "-Dcomposemc.benchmark.label=$Label"
+}
+$arguments = @('-Xmx3G') + $suiteArguments +
     @(Arguments $vanilla.arguments.jvm) + @(Arguments $forge.arguments.jvm) + @($forge.mainClass) +
     @(Arguments $vanilla.arguments.game) + @(Arguments $forge.arguments.game)
 $argumentFile = Join-Path $game 'production.args'
 [IO.File]::WriteAllLines($argumentFile, @($arguments | ForEach-Object { '"' + $_.Replace('\','/').Replace('"','\"') + '"' }), [Text.UTF8Encoding]::new($false))
-$resultFile = Join-Path $game 'composemc-benchmark.txt'
+$resultFile = Join-Path $game "composemc-$Suite.txt"
 if (Test-Path -LiteralPath $resultFile) { Remove-Item -LiteralPath $resultFile }
-$log = Join-Path $repo ".work/forge-production-$Label.log"
-. (Join-Path $PSScriptRoot 'windows_benchmark_desktop.ps1')
-$desktopName='composemc-benchmark-'+[Guid]::NewGuid().ToString('N')
+$log = Join-Path $repo ".work/forge-production-$Suite-$Label.log"
+. (Join-Path $PSScriptRoot 'windows_isolated_desktop.ps1')
+$desktopName='composemc-isolated-'+[Guid]::NewGuid().ToString('N')
 $command='"'+$env:ComSpec+'" /d /s /c ""'+$java+'" @"'+$argumentFile+'" > "'+$log+'" 2>&1"'
-Write-Output "Running installed Forge $forgeCoordinate on isolated desktop. Log: $log"
-$code=[ComposeBenchmarkDesktop]::Run($env:ComSpec,$command,$game,$desktopName)
+$timeout = if ($Suite -eq 'benchmark') { 15 + [Math]::Ceiling(25 * $Repeats * (136 + $Frames) / 3600.0 * 1.5) } else { 30 }
+Write-Output "Running the $Suite suite in installed Forge $forgeCoordinate on an isolated desktop. Log: $log"
+$code=[ComposeIsolatedDesktop]::Run($env:ComSpec,$command,$game,$desktopName,$timeout)
 Get-Content $log -Tail 15
 if ($code -ne 0 -or !(Test-Path $resultFile) -or !(Get-Content $resultFile -Raw).StartsWith('PASS')) {
-    throw "Production benchmark failed ($code); inspect $log"
+    throw "Production $Suite failed ($code); inspect $log and $resultFile"
 }
 Get-Content $resultFile

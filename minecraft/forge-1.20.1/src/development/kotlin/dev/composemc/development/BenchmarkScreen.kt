@@ -22,18 +22,14 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.composemc.bridge.ComposeThread
+import dev.composemc.testing.suite.BenchmarkCase
+import dev.composemc.testing.suite.BenchmarkKind
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.network.chat.Component
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.Items
 import net.minecraft.world.item.enchantment.Enchantments
 
-internal enum class BenchmarkKind { STATIC, ANIMATION, LIST, NATIVE_STATIC, NATIVE_SCROLL, NATIVE_ANIMATED, TOOLTIP, ORE_COMPONENTS }
-internal object BenchmarkEnvironment {
-    val background = java.lang.Boolean.getBoolean("composemc.benchmark") &&
-        java.lang.Boolean.getBoolean("composemc.benchmark.background")
-}
-internal data class BenchmarkCase(val name: String, val kind: BenchmarkKind, val count: Int = 0)
 internal class BenchmarkModel {
     val preview = dev.composemc.demo.preview.DemoModel()
     var step by mutableIntStateOf(0)
@@ -66,7 +62,7 @@ internal class BenchmarkScreen private constructor(
         if (fixture.kind == BenchmarkKind.NATIVE_ANIMATED) benchmarkIcons(IconRefresh.AUTO) { enchant(Enchantments.UNBREAKING, 1) }
         else if (fixture.kind in setOf(BenchmarkKind.NATIVE_STATIC, BenchmarkKind.NATIVE_SCROLL, BenchmarkKind.TOOLTIP) || fixture.kind == BenchmarkKind.ORE_COMPONENTS && fixture.count in setOf(dev.composemc.demo.preview.DemoPage.Tooltips.ordinal, dev.composemc.demo.preview.DemoPage.Slots.ordinal, dev.composemc.demo.preview.DemoPage.Items.ordinal)) benchmarkIcons(if (fixture.kind == BenchmarkKind.NATIVE_STATIC) IconRefresh.STATIC else IconRefresh.AUTO) else emptyList())
 
-    protected override fun isUiWindowFocused(): Boolean = BenchmarkEnvironment.background || super.isUiWindowFocused()
+    protected override fun isUiWindowFocused(): Boolean = SuiteEnvironment.uiFocused(super.isUiWindowFocused())
 
     fun advance() {
         componentExercise?.advance(checkNotNull(session))

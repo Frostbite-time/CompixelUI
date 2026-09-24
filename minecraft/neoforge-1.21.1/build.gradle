@@ -45,7 +45,7 @@ neoForge {
         mappingsVersion = parchment_version
         minecraftVersion = minecraft_version
     }
-    addModdingDependenciesTo sourceSets.packagedSmoke
+    addModdingDependenciesTo sourceSets.packagedRun
     addModdingDependenciesTo sourceSets.test
     addModdingDependenciesTo sourceSets.development
     ideSyncTask artifacts.metadata
@@ -55,12 +55,8 @@ neoForge {
             client()
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
-        clientSmoke { client(); configureSmokeRun(delegate, runSettings, false) }
-        packagedSmoke { client(); configureSmokeRun(delegate, runSettings, true) }
-        benchmark {
-            client()
-            configureBenchmarkRun(delegate, runSettings)
-        }
+        acceptance { client(); configureSuiteRun(delegate, runSettings, 'acceptance') }
+        benchmark { client(); configureSuiteRun(delegate, runSettings, 'benchmark') }
     }
     mods {
         composemc {
@@ -100,11 +96,4 @@ verifyMinecraftArtifacts(artifacts, [
     'public-f net.minecraft.world.inventory.Slot x',
     'public-f net.minecraft.world.inventory.Slot y',
 ] as Set, [] as Set)
-verifyMinecraftRuns(runSettings)
-tasks.named('runBenchmark') {
-    doFirst {
-        if (runSettings.background == 'true' && providers.gradleProperty('composemcBenchmarkIsolatedDesktop').orElse('false').get() != 'true')
-            throw new GradleException('Run tools/run_background_benchmark.ps1 on an isolated desktop')
-        writeBenchmarkWindowConfig(runSettings, 'earlyWindowControl=true\nearlyWindowProvider="fmlearlywindow"\n')
-    }
-}
+verifyMinecraftRuns(runSettings, 'earlyWindowControl=true\nearlyWindowProvider="fmlearlywindow"\n')

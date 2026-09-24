@@ -9,9 +9,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.mojang.blaze3d.platform.NativeImage
 import dev.composemc.bridge.ComposeThread
 import dev.composemc.neoforge.NeoForgeComposeScreen
+import dev.composemc.testing.suite.ScreenPixels
 import net.minecraft.network.chat.Component
 
 internal class PortValidationModel {
@@ -32,19 +32,20 @@ internal class PortValidationScreen(val model: PortValidationModel = ComposeThre
                 Modifier.align(Alignment.TopCenter).padding(top = 16.dp).size(120.dp, 30.dp).background(Color.White))
         }
     }) {
-    override fun isUiWindowFocused() = true
+    override fun isUiWindowFocused() = dev.composemc.development.SuiteEnvironment.uiFocused(super.isUiWindowFocused())
 
-    fun verifyPixels(image: NativeImage, scale: Int) {
+    /** [clicked] is the expected state of the top-left target when the frame was captured. */
+    fun verifyPixels(pixels: ScreenPixels, scale: Int, clicked: Boolean) {
         fun pixel(x: Int, y: Int, expected: Int) {
-            val actual = image.getPixel(x, y)
+            val actual = pixels.argb(x, y)
             check((0..2).all { channel ->
                 kotlin.math.abs(((actual ushr (8 * channel)) and 255) - ((expected ushr (8 * channel)) and 255)) <= 4
             }) { "Pixel ($x,$y): expected ${expected.toUInt().toString(16)}, got ${actual.toUInt().toString(16)}" }
         }
         val inset = 32 * scale
-        pixel(inset, inset, if (ComposeThread.call { model.clicks } == 0) 0xFFFF0000.toInt() else 0xFFFFFF00.toInt())
-        pixel(image.width - inset, inset, 0xFF00FF00.toInt())
-        pixel(inset, image.height - inset, 0xFF0000FF.toInt())
-        pixel(image.width / 2, image.height / 2, 0xFF90A0B0.toInt())
+        pixel(inset, inset, if (clicked) 0xFFFFFF00.toInt() else 0xFFFF0000.toInt())
+        pixel(pixels.width - inset, inset, 0xFF00FF00.toInt())
+        pixel(inset, pixels.height - inset, 0xFF0000FF.toInt())
+        pixel(pixels.width / 2, pixels.height / 2, 0xFF90A0B0.toInt())
     }
 }

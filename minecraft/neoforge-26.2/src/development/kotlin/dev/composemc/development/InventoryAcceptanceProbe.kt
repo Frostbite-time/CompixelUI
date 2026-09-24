@@ -7,20 +7,24 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import dev.composemc.neoforge.NeoForgeComposeInventoryScreen
 import net.minecraft.client.Minecraft
+import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.network.chat.Component
+import net.minecraft.world.inventory.InventoryMenu
+import net.minecraft.world.inventory.Slot
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.Items
 import java.util.concurrent.CompletableFuture
 
-/** Real native container prediction, mouse translation and integrated-server acknowledgement. */
+/** Real native container prediction, slot-render hooks, mouse translation, server acknowledgement and screen release. */
 internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
     private val mc get() = Minecraft.getInstance()
     private val player get() = checkNotNull(mc.player)
     private var stage = 0
     private var ticks = 0
+    private var slotHooks = 0
     private var initialized: CompletableFuture<Void>? = null
     private var serverVerified: CompletableFuture<Boolean>? = null
-    private var screen: NeoForgeComposeInventoryScreen<net.minecraft.world.inventory.InventoryMenu>? = null
+    private var screen: NeoForgeComposeInventoryScreen<InventoryMenu>? = null
 
     fun tick() {
         check(++ticks < 600) { "Inventory acceptance timed out at stage $stage" }
@@ -36,30 +40,37 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
             }
             1 -> if (initialized!!.isDone && player.inventory.getItem(0).count == 8) {
                 initialized!!.join()
-                screen = object : NeoForgeComposeInventoryScreen<net.minecraft.world.inventory.InventoryMenu>(
+                screen = object : NeoForgeComposeInventoryScreen<InventoryMenu>(
                     player.inventoryMenu, Component.literal("Native inventory acceptance"), content = { slots ->
                         Column(Modifier.fillMaxSize().background(Color(0xFF204060)).padding(20.dp)) {
                             Row(slots.areaModifier()) { slots.Slot(36); slots.Slot(37); slots.Slot(5); slots.Slot(45) }
                         }
-                    }) { override fun isUiWindowFocused() = true }
-                mc.gui.setScreen(screen)
+                    }) {
+                    override fun isUiWindowFocused() = SuiteEnvironment.uiFocused(super.isUiWindowFocused())
+                    override fun extractSlot(graphics: GuiGraphicsExtractor, slot: Slot, mouseX: Int, mouseY: Int) {
+                        slotHooks++
+                        super.extractSlot(graphics, slot, mouseX, mouseY)
+                    }
+                }
+                SuitePlatform.setScreen(screen)
                 stage++
             }
             2 -> if (screen!!.inventory.bounds(36) != null) {
-                click(36, 0)
+                check(slotHooks > 0) { "The native per-slot render hook was not dispatched" }
+                click(36, SuitePlatform.MOUSE_LEFT)
                 check(player.containerMenu.carried.count == 8) { "Left-click did not pick up the stack" }
                 stage++
             }
             3 -> {
-                click(37, 1)
+                click(37, SuitePlatform.MOUSE_RIGHT)
                 check(player.containerMenu.carried.count == 7 && player.inventory.getItem(1).count == 1) {
                     "Right-click did not place one item"
                 }
                 stage++
             }
             4 -> {
-                click(37, 0)
-                check(player.containerMenu.carried.isEmpty && player.inventory.getItem(1).count == 8)
+                click(37, SuitePlatform.MOUSE_LEFT)
+                check(player.containerMenu.carried.isEmpty && player.inventory.getItem(1).count == 8) { "Left-click did not place the rest" }
                 stage++
             }
             5 -> {
@@ -70,15 +81,22 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
                 stage++
             }
             6 -> if (serverVerified!!.isDone) {
-                if (serverVerified!!.join()) { stage++; done() }
-                else stage = 5 // Client packets may arrive after the queued server task.
+                if (serverVerified!!.join()) {
+                    val active = checkNotNull(screen)
+                    active.onClose()
+                    check(active.rendererStatistics.liveSurfaces == 0 && active.rendererStatistics.liveNativeImages == 0) {
+                        "The inventory screen kept its renderer after closing: ${active.rendererStatistics}"
+                    }
+                    stage++
+                    done()
+                } else stage = 5 // Client packets may arrive after the queued server task.
             }
         }
     }
 
     private fun click(slot: Int, button: Int) {
         val active = checkNotNull(screen)
-        val bounds = checkNotNull(active.inventory.bounds(slot))
+        val bounds = checkNotNull(active.inventory.bounds(slot)) { "Slot $slot is not laid out" }
         val x = (bounds.left + bounds.right) / 2
         val y = (bounds.top + bounds.bottom) / 2
         active.mouseMoved(x, y)

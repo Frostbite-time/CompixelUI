@@ -36,7 +36,7 @@ If the Gradle tool window omits the task tree, enable task-list building in IDEA
 
 Adapter `development` compilations are associated with `main` through Kotlin's `associateWith`, allowing previews and probes to access the adapter's `internal` declarations. Reload the Gradle project after build-convention changes so IDEA imports that visibility relationship. Passing compiler friend paths alone does not declare this source-set relationship to the IDE.
 
-Common renderer scenes, CPU reference pixels and preview exercises live in `testing`. The shared native-item visual scene and pixel assertions also live there; every adapter runs it against a packaged client to check opacity, rotation, shape clipping, occlusion and repeated placement. Backend probes belong to `render-gl/src/testFixtures` and `render-vulkan/src/testFixtures`; version-specific device setup and screen checks are grouped in each adapter's `development/render` package. The selected GPU probe runs at the start of packaged benchmarks, comparing both viewport sizes over repeated render/reset/close cycles. Vulkan validation layers additionally check API and synchronization errors. All test helpers stay out of release and consumer API artifacts.
+Common renderer scenes, CPU reference pixels and preview exercises live in `testing`. The shared native-item visual scene and pixel assertions also live there; every adapter runs it against a packaged client to check opacity, rotation, shape clipping, occlusion and repeated placement. Backend probes belong to `render-gl/src/testFixtures` and `render-vulkan/src/testFixtures`; version-specific device setup and screen checks are grouped in each adapter's `development/render` package. The selected GPU probe runs at the start of both client suites, comparing both viewport sizes over repeated render/reset/close cycles. Vulkan validation layers additionally check API and synchronization errors. All test helpers stay out of release and consumer API artifacts.
 
 `runClient` includes the development preview. Press **F8** in the game to open it. For 26.2/26.3, append `-PcomposemcBackend=opengl` or `-PcomposemcBackend=vulkan`; `auto` follows the host backend. A Vulkan request on an unsupported target fails explicitly.
 
@@ -84,28 +84,89 @@ Attachments use the ordinary `sources` and `javadoc` classifiers. A `:dev` consu
 
 The documentation assets use fresh unedited renders. See [asset sources](../assets/README.md) for the filenames to copy after capture. Keep image captions and both language pages in step with the rendered interface.
 
-## Packaged game validation
+## Client suites
 
-Packaged benchmarks default to bundled Kotlin. To test an external provider, append `-KotlinMode external -KotlinProviderJar C:\path\to\kotlinforforge.jar` to either Windows benchmark script. Gradle packaged tasks accept `-PcomposemcKotlinMode=external -PcomposemcKotlinProviderJar=C:/path/to/kotlinforforge.jar`. The provider is staged only into the test game, never embedded in the release. Omit the provider in external mode to check the missing-runtime error. `runClient` remains a source development launch with its own bundled runtime.
+Every target runs two automated suites in a real Minecraft client: **acceptance** checks correctness and **benchmark** measures performance. Both load the packaged mod archive together with the separate development archive: the release archive itself on NeoForge, and on Forge 1.20.1 the same archive before SRG remapping (see [Forge 1.20.1 production launch](#forge-1201-production-launch)). Both first create a fresh flat creative test world, `saves/composemc-<suite>`, replaced on every run, with render distance 2, sound muted and vsync off. Input reaches screens through real Screen callbacks with logical window focus, so neither suite reads, needs or takes OS focus, and hidden and visible runs execute the same frames. The suites never touch the system clipboard.
 
-Direct `runClient`, `runClientSmoke`, `runPackagedSmoke` and `runBenchmark` tasks use visible game windows. The smoke tasks can exercise the real clipboard and are for deliberate interactive runs. Unit tests and `:desktop:smoke` remain headless. The background wrapper explicitly enables `composemcBenchmarkBackground=true` and desktop isolation; setting the background flag alone is not a hidden launch.
+The five targets run identical suites. The drivers in each adapter's `development` package (`SuiteEnvironment`, `SuiteSession`, `ClientAcceptanceProbe`, `PreviewAcceptance`, `ClientBenchmarkProbe` and `NativeTooltipProbe`) are byte-identical copies; version differences live in that adapter's `SuitePlatform.kt` and its version-specific fixtures. `verifySuiteParity`, part of `checkCore`, rejects a drifted copy, a missing fixture or a wrong target name. The ordered step list and the benchmark protocol live in `testing`. A report can say `PASS` only after every step, or every scheduled case, completed in order.
 
-Use the hidden Windows launcher for automated game runs. It creates a separate, never-activated desktop and does not send OS keyboard/mouse input or change the clipboard:
+| Task | Game directory under `minecraft/<adapter>/build/` | Output |
+| --- | --- | --- |
+| `runAcceptance` | `acceptance-<backend>-<window>/` | `composemc-acceptance.txt`; captures in `acceptance-results/` |
+| `runBenchmark` | `benchmark-<backend>-<window>-<label>/` | `composemc-benchmark.txt`; `benchmark-results/report.json` and one CSV and PNG per case |
+
+`<window>` is `foreground` or `background`. A task fails unless its report starts with `PASS`; a failed report names the step and includes the stack trace.
+
+### Run visibly with Gradle
 
 ```powershell
-.\tools\run_background_benchmark.ps1 -Minecraft 1.21.1 -Backend opengl -Label validation -Frames 120
-.\tools\run_background_benchmark.ps1 -Minecraft 26.3 -Backend vulkan -Label validation -Frames 120
+.\gradlew.bat '-PcomposemcTargets=1.21.1' :minecraft:neoforge-1.21.1:runAcceptance
+.\gradlew.bat '-PcomposemcTargets=26.3' :minecraft:neoforge-26.3:runBenchmark '-PcomposemcBackend=vulkan' '-PcomposemcLabel=candidate'
 ```
 
-For Vulkan validation, also pass `-ValidationLayerPath C:\path\to\validation-layer`. Forge additionally has a production-launch check for the installable SRG-mapped JAR:
+Use `forge-1.20.1` for 1.20.1. A visible run shows the game window but still uses logical focus, so other windows can stay in front. Optional properties:
+
+| Property | Default | Meaning |
+| --- | --- | --- |
+| `composemcBackend` | `auto` | `opengl`, `vulkan` (26.2/26.3) or `cpu` |
+| `composemcLabel` | `baseline` | Benchmark directory and report label |
+| `composemcBenchmarkFrames` | `360` | Measured frames per case, 120–1500 |
+| `composemcBenchmarkRepeats` | `2` | Repetitions, 1–5, alternating forward and reverse case order |
+| `composemcBenchmarkControl` | `false` | The same startup, world and resource reload with no Compose renderer |
+| `composemcKotlinMode` | `bundled` | `external` installs the release JAR without Kotlin; add `composemcKotlinProviderJar=<jar>` to stage a provider, or omit it to check the missing-runtime error |
+| `composemcVulkanValidation` | `false` | Enables validation layers and rejects unexpected `VUID-`/`SYNC-HAZARD` messages |
+
+A provider is staged only into the test game, never embedded in the release. `composemcBackground=true` hides the window after startup, but Gradle refuses it unless `composemcIsolatedDesktop=true` is also set, because the window would still appear on the user's desktop first. The Windows scripts below set both. `runClient` remains a source development launch with its own bundled runtime.
+
+### Run hidden on Windows
 
 ```powershell
-.\tools\run_forge_production_benchmark.ps1 -JavaHome C:\path\to\jdk17 -Label validation
+.\tools\run_background_acceptance.ps1
+.\tools\run_background_benchmark.ps1
+.\tools\run_background_acceptance.ps1 -Minecraft 26.2,26.3 -Backend vulkan
+.\tools\run_background_benchmark.ps1 -Minecraft 1.21.1 -Label candidate -Frames 600 -Repeats 3
 ```
 
-The benchmark installs built library/development JARs into an isolated game directory. Look under `minecraft/<adapter>/build/benchmark-<backend>-background-<label>/` for `composemc-benchmark.txt`, logs and captures. The 1.21.1 profiler writes PNG/CSV/JSON under `benchmark-results/`; other adapters have different report formats and scenario counts. Every suite includes a page of 256 distinct animated native icons and checks that all receive images and keep refreshing. The 26.x suite also runs the smoke suite's native tooltip probe in its test world through Screen callbacks rather than OS input. The run must finish with `PASS`. The documented [26.2 upstream diagnostic](compatibility.md) is handled separately from unexpected validation errors.
+Both scripts default to every target and run the versions one at a time, each in a fresh Gradle process on a separate, never-activated Win32 desktop started by [run_isolated_gradle.ps1](../../tools/run_isolated_gradle.ps1). The game never appears on, takes focus from, or plays sound on the interactive desktop, and no OS keyboard or mouse input is sent. A failed version does not stop the others: the script prints a PASS/FAIL table and exits with an error when any version failed. Logs are in `.work/suites/`. Both wrappers call [run_background_suite.ps1](../../tools/run_background_suite.ps1) with `-Suite acceptance` or `-Suite benchmark`; it also accepts `-KotlinMode external -KotlinProviderJar <jar>` and `-ValidationLayerPath <directory>`. With `-Backend vulkan`, targets without Vulkan are skipped.
 
-The 1.21.1 profiler measures screen-render callbacks with warmup and forward/reverse repetitions. Its CPU spans are wall time; GPU timestamps are asynchronous intervals tied to the originating frame. Do not add CPU and GPU times, treat missing samples as zero, or present these numbers as whole-game FPS. `-Dcomposemc.profile=true` enables frame history; `-Dcomposemc.allocations=true` adds supported JVM allocation measurements. Read `frameProfiler` on the client thread.
+### Acceptance coverage
+
+Every target passes these steps, in this order, as listed in [ClientSuites.kt](../../testing/src/main/kotlin/dev/composemc/testing/suite/ClientSuites.kt):
+
+1. Library and development translations, and the loader's production or development mode.
+2. The selected renderer backend against CPU reference pixels at two viewport sizes, over repeated render/reset/close cycles.
+3. The fresh test world.
+4. A native container: left and right clicks, the per-slot render hook, server acknowledgement and screen release.
+5. Menu synchronization on a server-opened menu: a bounded multi-batch snapshot and a fragmented action round trip.
+6. Config editing: staging, scalar and list validation, save and restore.
+7. A pixel fixture: top-left pointer coordinates, premultiplied alpha, Unicode text and shortcut keys; then GUI scale 3, a framebuffer resize and a resource reload.
+8. The native-item visual scene: opacity, rotation, shape clipping, occlusion and repeated placement.
+9. The real F8 preview, opened through its key mapping: retained frames, text input, modal Escape priority, resize and GUI scale, 100k-row list hit testing and scrolling, native item pixels with Minecraft drawing after Compose, the native tooltip sequence (delay, replacement, rich bundle image, cancellation, dismissal, modal suppression, edge placement, GUI scales and reload), 10k-row native scrolling, resource reload, logical focus loss and return, close, reopen, every Ore component page and 12 open/close cycles.
+
+Every wait has a time limit, and each replaced Compose screen must release its session, surfaces and native images.
+
+### Benchmark protocol
+
+Every target measures the same [BenchmarkPlan](../../testing/src/main/kotlin/dev/composemc/testing/suite/BenchmarkPlan.kt): a 1280×960 framebuffer at GUI scale 2, a 60 FPS frame limit with vsync off and 2,400 pipeline warmup frames, then for each case 120 warmup frames, the measured frames and 16 GPU drain frames. The cases cover static UI, animation, 1k/10k/100k-row lists, static and scrolling native icons, 256 distinct animated native icons, a rich tooltip and every Ore component page. A case is rejected rather than reported when its samples are incomplete, a static fixture repaints, an animated one stalls, icons starve or the tooltip loses hover.
+
+CPU spans are wall time inside the screen render callback. GPU values are asynchronous command-stream intervals joined to the originating frame by ID, without blocking reads. Do not add CPU and GPU times, treat missing samples as zero, or present these numbers as whole-game FPS. Outside the suite, `-Dcomposemc.profile=true` enables frame history and `-Dcomposemc.allocations=true` adds supported JVM allocation measurements; read `frameProfiler` on the client thread.
+
+Compare reports from the same machine and protocol with the summarizer. One report prints its case table; several print one column per report with the mean change against the first, for version-to-version or before/after comparisons:
+
+```powershell
+python tools/summarize_benchmarks.py minecraft/neoforge-1.21.1/build/benchmark-opengl-background-baseline/benchmark-results/report.json minecraft/neoforge-26.3/build/benchmark-opengl-background-baseline/benchmark-results/report.json
+```
+
+The documented [26.2 upstream diagnostic](compatibility.md) is accepted separately from unexpected validation errors.
+
+### Forge 1.20.1 production launch
+
+Forge 1.20.1 is the only target whose release archive is remapped (SRG) for production, so its Gradle runs cannot load the file players install. This script installs Forge and runs either suite against that archive; the NeoForge targets' Gradle runs already load their release archives:
+
+```powershell
+.\tools\run_forge_production.ps1 -JavaHome C:\path\to\jdk17 -Suite acceptance
+.\tools\run_forge_production.ps1 -JavaHome C:\path\to\jdk17 -Suite benchmark -Label production
+```
 
 For standalone synchronization diagnostics:
 
@@ -120,6 +181,6 @@ Profile outputs are in `menu-sync/build/profiles`. They measure JVM snapshot/pro
 
 [CI](../../.github/workflows/verify.yml) checks the shared core on Windows/Linux and builds all five adapters on Linux. Real GPU validation runs separately on a suitable host.
 
-For dependency/module-boundary changes, run `verifyCoreBoundary` and the affected tests/builds. For shared public API changes, compile all affected adapters and a separate consumer. Rendering or native-lifecycle changes also require packaged clients for affected versions/backends.
+For dependency/module-boundary changes, run `verifyCoreBoundary` and the affected tests/builds. For shared public API changes, compile all affected adapters and a separate consumer. Rendering or native-lifecycle changes also require both client suites for affected versions/backends. A change to a suite driver goes into all five copies at once; `verifySuiteParity` fails otherwise.
 
 Run `node tools/check_docs.mjs` after documentation edits to check local links, anchors, bilingual pairing and image references. Generated `build/`, `.gradle/` and `.work/` content is disposable; preserve source, Gradle wrapper files, target metadata and dependency lockfiles.

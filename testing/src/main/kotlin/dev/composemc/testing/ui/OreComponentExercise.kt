@@ -14,7 +14,7 @@ class OreComponentExercise(private val model:DemoModel,private val page:DemoPage
     private var frame=0
     private var exercised=false
     private var tooltipStage=0
-    private var tooltipSince=0L
+    private var tooltipLock:TooltipLock?=null
     val complete get()=exercised
     fun advance(session:UiSession,nowNanos:Long=System.nanoTime()) {
         frame++
@@ -56,14 +56,11 @@ class OreComponentExercise(private val model:DemoModel,private val page:DemoPage
                 40->key(UiKey.LEFT)
                 60->{key(UiKey.RIGHT);exercised=true}
             }
-            DemoPage.Tooltips -> if(frame>=10&&(tooltipStage==0||nowNanos-tooltipSince>=800_000_000L)) {
-                when(tooltipStage) {
-                    0->hover("tooltip-anchor")
-                    1->hover("tooltip-term")
-                    2->hover("tooltip-item")
-                    3->{click("tooltip-action");exercised=true}
-                }
-                tooltipStage++;tooltipSince=nowNanos
+            // Each nested target lies inside the previous popup, which must lock before the pointer leaves its anchor.
+            DemoPage.Tooltips -> if(frame>=10&&tooltipStage<tooltipTargets.size&&tooltipLock?.reached(nowNanos)!=false) {
+                val target=tooltipTargets[tooltipStage++]
+                if(tooltipStage==tooltipTargets.size) {click(target);exercised=true;tooltipLock=null}
+                else {hover(target);tooltipLock=TooltipLock(session,nowNanos)}
             }
             DemoPage.Windows -> if(frame==20) {
                 click("window-field");session.commitText("Window input");exercised=true
@@ -103,5 +100,31 @@ class OreComponentExercise(private val model:DemoModel,private val page:DemoPage
             DemoPage.Items->check(model.itemBrowser.selected==0&&model.itemBrowser.firstVisible>=120)
             else->error("Not a component page")
         }
+    }
+}
+
+private val tooltipTargets=listOf("tooltip-anchor","tooltip-term","tooltip-item","tooltip-action")
+
+/**
+ * An Ore tooltip locks after a 600 ms progress animation that only advances on rendered frames, so a fixed delay
+ * fails at low frame rates. Session commands run at the start of each frame; a marker command counts frames.
+ */
+private class TooltipLock(private val session:UiSession,private var postedAt:Long) {
+    private val ran=java.util.concurrent.atomic.AtomicBoolean()
+    private var frames=0
+    private var animatingBy=0L
+    private var lockedFrames=0
+    init {mark()}
+    private fun mark()=check(session.post {ran.set(true)}) {"The session rejected a frame marker"}
+    fun reached(nowNanos:Long):Boolean {
+        if(ran.compareAndSet(true,false)) {
+            // The popup composes on the first frame after the hover; its animation has started by the fourth.
+            if(++frames==4) animatingBy=nowNanos
+            // A frame that starts after a later post runs at least that late; two such frames finish the lock.
+            if(frames>4&&postedAt-animatingBy>=700_000_000L) lockedFrames++
+            postedAt=nowNanos
+            mark()
+        }
+        return lockedFrames>=2
     }
 }

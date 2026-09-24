@@ -1,11 +1,12 @@
 package dev.composemc.development.render
 
-import com.mojang.blaze3d.platform.NativeImage
+import androidx.compose.ui.geometry.Rect
 import dev.composemc.bridge.ComposeThread
 import dev.composemc.neoforge.IconRefresh
 import dev.composemc.neoforge.ItemIcon
 import dev.composemc.neoforge.MinecraftItemIcon
 import dev.composemc.neoforge.NeoForgeComposeScreen
+import dev.composemc.testing.suite.ScreenPixels
 import dev.composemc.testing.ui.NATIVE_VISUAL_RED
 import dev.composemc.testing.ui.NativeItemVisualModel
 import dev.composemc.testing.ui.NativeItemVisualScene
@@ -19,10 +20,11 @@ internal class NativeItemVisualScreen(
 ) : NeoForgeComposeScreen(Component.literal("Native item visual acceptance"), content = {
     NativeItemVisualScene(model) { modifier -> MinecraftItemIcon(icon, modifier) }
 }) {
-    override fun isUiWindowFocused() = true
+    override fun isUiWindowFocused() = dev.composemc.development.SuiteEnvironment.uiFocused(super.isUiWindowFocused())
 
-    fun verifyPixels(image: NativeImage) {
-        val bounds = ComposeThread.call { model.bounds() }
-        verifyNativeItemVisualPixels(bounds, image.width, image.height, image::getPixelRGBA)
+    fun bounds(): Map<String, Rect> = ComposeThread.call { model.bounds() }
+
+    fun verifyPixels(pixels: ScreenPixels, bounds: Map<String, Rect>) {
+        verifyNativeItemVisualPixels(bounds, pixels.width, pixels.height, pixels::argb)
     }
 }

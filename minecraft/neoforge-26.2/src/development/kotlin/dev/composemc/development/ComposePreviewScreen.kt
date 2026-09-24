@@ -45,8 +45,8 @@ class ComposePreviewScreen private constructor(
     constructor(parent: Screen? = null) : this(parent, ComposeThread.call { DemoModel() },
         previewIcons())
 
-    // The hidden benchmark drives hover through Screen callbacks without OS focus.
-    protected override fun isUiWindowFocused(): Boolean = BenchmarkEnvironment.background || super.isUiWindowFocused()
+    // Suites drive hover and input through Screen callbacks with logical focus, never OS focus.
+    protected override fun isUiWindowFocused(): Boolean = SuiteEnvironment.uiFocused(super.isUiWindowFocused())
 }
 
 private fun previewIcons(): List<ItemIcon> {

@@ -55,10 +55,11 @@ subprojects {
     }
 }
 apply(from = "gradle/verify-core-boundary.gradle.kts")
+apply(from = "gradle/verify-suite-parity.gradle.kts")
 
 tasks.register("checkCore") {
     group = "verification"
-    dependsOn("verifyCoreBoundary", ":desktop:smoke")
+    dependsOn("verifyCoreBoundary", "verifySuiteParity", ":desktop:smoke")
     dependsOn(listOf("platform", "render", "render-gl", "render-vulkan", "compose-bridge", "host", "ui-ore", "menu-sync", "slot-core", "demo", "desktop", "testing")
         .map { ":$it:check" })
 }
