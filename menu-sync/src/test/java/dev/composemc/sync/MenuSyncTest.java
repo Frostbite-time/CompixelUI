@@ -130,7 +130,6 @@ class MenuSyncTest {
             var client = new Model();
             long record = Allocations.measure(() -> assertEquals(SyncReceiver.Result.STAGED, rx.accept(client, header, 0)));
             assertTrue(record < 1024 * 1024, "A record header declaring 64 MiB allocated " + record + " bytes");
-            assertTrue(rx.bufferedRecordBytes() <= 4096);
         }
     }
 

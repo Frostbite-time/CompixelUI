@@ -20,6 +20,5 @@ public final class MessageAssembly implements AutoCloseable {
         byte[] result=bytes.toByteArray();bytes=null;return result;
     }
     public boolean expired(long tick,long timeout){return !closed&&tick-lastProgress>timeout;}
-    public int receivedBytes(){return bytes==null?0:bytes.size();}
     @Override public void close(){closed=true;bytes=null;}
 }

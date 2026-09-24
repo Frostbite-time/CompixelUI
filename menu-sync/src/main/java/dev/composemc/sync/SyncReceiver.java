@@ -23,7 +23,6 @@ public final class SyncReceiver<M> implements AutoCloseable {
     public long revision() { return revision; }
     public boolean receiving() { return staging != null; }
     public double progress() { return staging == null ? (revision > 0 ? 1 : 0) : (double) operations / Math.max(1, expectedOperations); }
-    public int bufferedRecordBytes() { return record == null ? headerCursor : record.length; }
     public boolean expired(long tick) { return staging != null && tick - lastActivity > limits.timeoutTicks(); }
 
     @SuppressWarnings("unchecked")
