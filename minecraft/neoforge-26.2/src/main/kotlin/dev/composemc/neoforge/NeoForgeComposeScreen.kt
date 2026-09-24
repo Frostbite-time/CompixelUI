@@ -41,7 +41,7 @@ open class NeoForgeComposeScreen(
     private var renderer: ScreenFrameRenderer? = null
     private val itemMailbox = ComposeThread.call { ItemImageMailbox(nativeItemOptions.cacheCapacity * 4) }
     private val tooltipMailbox = ComposeThread.call { ItemTooltipMailbox() }
-    private var nativeItems: NativeItemRenderer? = null
+    private var nativeItems: NativeItemPreparer? = null
     private var nativeTooltips: NativeTooltipRenderer? = null
     private var closedItemStatistics = NativeItemStatistics()
     private var closedTooltipStatistics = NativeTooltipStatistics()
@@ -80,7 +80,8 @@ open class NeoForgeComposeScreen(
                     }
                 }
                 renderer = backend
-                nativeItems = NativeItemRenderer(itemMailbox, nativeItemOptions)
+                nativeItems = backend.nativeSnapshots?.let { NativeItemAtlas(itemMailbox, nativeItemOptions, it) }
+                    ?: NativeItemRenderer(itemMailbox, nativeItemOptions)
                 nativeTooltips = NativeTooltipRenderer(tooltipMailbox)
                 focused = null
             } catch (error: Throwable) { backend.close(); throw error }

@@ -10,6 +10,7 @@ import com.mojang.renderpearl.api.textures.GpuTexture
 import com.mojang.renderpearl.api.textures.GpuTextureView
 import dev.composemc.render.*
 import dev.composemc.render.gl.OpenGlFrameRenderer
+import org.jetbrains.skia.Image
 
 internal class OpenGlScreenFrameRenderer(override val profiler: UiFrameProfiler?) : ScreenFrameRenderer {
     private val renderer = OpenGlFrameRenderer(profiler = profiler)
@@ -19,6 +20,14 @@ internal class OpenGlScreenFrameRenderer(override val profiler: UiFrameProfiler?
     private var closed = false
     override val statistics get() = renderer.statistics
     override val needsFrame get() = renderer.needsFrame
+
+    // Minecraft issues its GL commands immediately in this same context.
+    override val nativeSnapshots = object : NativeSnapshots {
+        override val immediate = true
+        override fun snapshot(texture: GpuTexture, width: Int, height: Int): Image =
+            renderer.copyTexture((texture as GlTexture).glId(), texture.getWidth(0), texture.getHeight(0), width, height)
+        override fun release(image: Image) = renderer.releaseImage(image)
+    }
 
     override fun render(frame: RecordedFrame) {
         RenderSystem.assertOnRenderThread()

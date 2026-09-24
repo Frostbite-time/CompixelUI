@@ -3,20 +3,22 @@ package dev.composemc.neoforge
 import com.mojang.blaze3d.pipeline.TextureTarget
 import com.mojang.blaze3d.systems.RenderSystem
 import com.mojang.renderpearl.api.GpuFormat
+import com.mojang.renderpearl.api.textures.GpuTexture
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.gui.render.GuiRenderer
 import net.minecraft.client.renderer.state.gui.GuiRenderState
 
-/** Draws a native GUI command stream into an owned image target. */
-internal class NativeGuiCapture(private val imageWidth: Int, private val imageHeight: Int) : AutoCloseable {
+/** Draws native GUI command streams into owned image targets; one renderer serves every buffer. */
+internal class NativeGuiCapture(private val imageWidth: Int, private val imageHeight: Int, buffers: Int = 1) : AutoCloseable {
     constructor(imageSize: Int) : this(imageSize, imageSize)
-    init { require(imageWidth > 0 && imageHeight > 0) }
+    init { require(imageWidth > 0 && imageHeight > 0 && buffers > 0) }
     private val minecraft = Minecraft.getInstance()
     private val state = GuiRenderState()
     private val renderer = GuiRenderer(state, minecraft.gameRenderer.featureRenderDispatcher(), emptyList())
-    private val target = TextureTarget("composemc-native-gui", imageWidth, imageHeight,
-        GpuFormat.RGBA8_UNORM, GpuFormat.D32_FLOAT)
+    private val targets = List(buffers) {
+        TextureTarget("composemc-native-gui", imageWidth, imageHeight, GpuFormat.RGBA8_UNORM, GpuFormat.D32_FLOAT)
+    }
     private var closed = false
 
     /** Completion may arrive on another thread; the recipient must only enqueue bytes. */
@@ -36,29 +38,13 @@ internal class NativeGuiCapture(private val imageWidth: Int, private val imageHe
                 completed: (ByteArray, Int, Int) -> Unit): Boolean {
         RenderSystem.assertOnRenderThread()
         check(!closed)
-        require(logicalWidth > 0 && logicalHeight > 0)
+        val target = targets[0]
+        val region = drawInto(target, logicalWidth, logicalHeight) { graphics ->
+            draw(graphics)?.also { require(it.first in 1..imageWidth && it.second in 1..imageHeight) }
+        } ?: return false
+
         val device = RenderSystem.getDevice()
         val colorTexture = checkNotNull(target.colorTexture)
-        val depthTexture = checkNotNull(target.depthTexture)
-        device.createCommandEncoder().clearColorAndDepthTextures(
-            colorTexture, GuiRenderer.CLEAR_COLOR, depthTexture, 0.0)
-        val region = try {
-            val graphics = GuiGraphicsExtractor(minecraft, state, 0, 0)
-            // GuiRenderer projects against the window; map the local GUI area onto this target.
-            graphics.pose().scale(minecraft.window.guiScaledWidth / logicalWidth.toFloat(),
-                minecraft.window.guiScaledHeight / logicalHeight.toFloat())
-            val measured = draw(graphics)
-            if (measured != null) {
-                require(measured.first in 1..imageWidth && measured.second in 1..imageHeight)
-                NativeGuiTargetScope.renderTo(renderer, target) { renderer.render() }
-            }
-            measured
-        } finally {
-            renderer.endFrame()
-            state.reset()
-        }
-        if (region == null) return false
-
         val rowBytes = region.first * 4
         val bytes = rowBytes * region.second
         val buffer = device.createBuffer({ "composemc-native-gui-readback" }, 9, bytes.toLong())
@@ -81,13 +67,41 @@ internal class NativeGuiCapture(private val imageWidth: Int, private val imageHe
         return true
     }
 
+    /** Draws into [buffer] without a readback, for a GPU snapshot. The callback returns false to cancel. */
+    fun render(buffer: Int, logicalWidth: Int, logicalHeight: Int, draw: (GuiGraphicsExtractor) -> Boolean): Boolean {
+        RenderSystem.assertOnRenderThread()
+        check(!closed)
+        return drawInto(targets[buffer], logicalWidth, logicalHeight) { graphics -> if (draw(graphics)) Unit else null } != null
+    }
+
+    fun texture(buffer: Int): GpuTexture = checkNotNull(targets[buffer].colorTexture)
+
+    private fun <T : Any> drawInto(target: TextureTarget, logicalWidth: Int, logicalHeight: Int,
+                                   draw: (GuiGraphicsExtractor) -> T?): T? {
+        require(logicalWidth > 0 && logicalHeight > 0)
+        RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
+            checkNotNull(target.colorTexture), GuiRenderer.CLEAR_COLOR, checkNotNull(target.depthTexture), 0.0)
+        try {
+            val graphics = GuiGraphicsExtractor(minecraft, state, 0, 0)
+            // GuiRenderer projects against the window; map the local GUI area onto this target.
+            graphics.pose().scale(minecraft.window.guiScaledWidth / logicalWidth.toFloat(),
+                minecraft.window.guiScaledHeight / logicalHeight.toFloat())
+            val result = draw(graphics)
+            if (result != null) NativeGuiTargetScope.renderTo(renderer, target) { renderer.render() }
+            return result
+        } finally {
+            renderer.endFrame()
+            state.reset()
+        }
+    }
+
     override fun close() {
         RenderSystem.assertOnRenderThread()
         if (closed) return
         closed = true
         FrameRetirement.afterFrame {
             renderer.close()
-            target.destroyBuffers()
+            targets.forEach { it.destroyBuffers() }
         }
     }
 }

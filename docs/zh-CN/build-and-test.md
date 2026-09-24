@@ -103,7 +103,7 @@ Gradle 需要 JDK 17 或更新版本，推荐 JDK 25。各适配器所需 Java �
 .\tools\run_forge_production_benchmark.ps1 -JavaHome C:\path\to\jdk17 -Label validation
 ```
 
-基准测试将构建好的正式库/开发 JAR 安装到隔离游戏目录。`composemc-benchmark.txt`、日志和截图位于 `minecraft/<adapter>/build/benchmark-<backend>-background-<label>/`。1.21.1 的 PNG/CSV/JSON 写入 `benchmark-results/`，其他适配器的报告格式和场景数量不同。26.x 基准测试还会在测试世界中通过 Screen 回调而非系统输入运行 smoke 套件的原生提示探针。运行必须以 `PASS` 结束。[26.2 上游已知诊断](compatibility.md)与意外校验错误分开处理。
+基准测试将构建好的正式库/开发 JAR 安装到隔离游戏目录。`composemc-benchmark.txt`、日志和截图位于 `minecraft/<adapter>/build/benchmark-<backend>-background-<label>/`。1.21.1 的 PNG/CSV/JSON 写入 `benchmark-results/`，其他适配器的报告格式和场景数量不同。26.x 测试包含同屏 256 个不同的动画原生图标，并检查每个图标都获得图像且持续轮流更新。它还会在测试世界中通过 Screen 回调而非系统输入运行 smoke 套件的原生提示探针。运行必须以 `PASS` 结束。[26.2 上游已知诊断](compatibility.md)与意外校验错误分开处理。
 
 1.21.1 测量器针对屏幕渲染回调，包含预热和正反顺序重复。CPU 指标是墙钟耗时；GPU 时间戳是关联原始帧的异步区间。不要相加 CPU/GPU 时间、将缺失样本记为零，或将结果当作整局游戏 FPS。`-Dcomposemc.profile=true` 开启帧记录，`-Dcomposemc.allocations=true` 增加受支持的 JVM 分配测量。在客户端线程读取 `frameProfiler`。
 

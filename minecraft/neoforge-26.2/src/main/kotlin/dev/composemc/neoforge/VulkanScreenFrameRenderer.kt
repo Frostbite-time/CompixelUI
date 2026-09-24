@@ -9,6 +9,7 @@ import dev.composemc.render.*
 import dev.composemc.render.vulkan.VulkanFrameRenderer
 import dev.composemc.render.vulkan.VulkanImageTarget
 import dev.composemc.render.vulkan.VulkanImageBarriers
+import org.jetbrains.skia.Image
 import org.lwjgl.vulkan.VK12
 
 /** Owns Minecraft targets and command-pool scheduling; rendering and barriers are shared. */
@@ -22,6 +23,32 @@ internal class VulkanScreenFrameRenderer(override val profiler: UiFrameProfiler?
     override val statistics get() = renderer.statistics.copy(
         surfaceAllocations = allocations, liveSurfaces = if (target == null) 0 else 1)
     override val needsFrame get() = renderer.needsFrame
+
+    // Minecraft submits recorded GUI work at frame end. Copy a page on the following frame,
+    // after an acquire barrier; release it into the next host batch before it is reused.
+    override val nativeSnapshots = object : NativeSnapshots {
+        override val immediate = false
+        override fun snapshot(texture: GpuTexture, width: Int, height: Int): Image {
+            RenderSystem.assertOnRenderThread()
+            check(!closed)
+            val source = texture as VulkanGpuTexture
+            val image = VulkanImageTarget(source.vkImage(), source.getWidth(0), source.getHeight(0),
+                VulkanConst.toVk(source.format), VulkanConst.textureUsageToVk(source.usage(), source.format))
+            val device = minecraftVulkanDevice()
+            val encoder = device.createCommandEncoder()
+            val acquire = encoder.allocateAndBeginTransientCommandBuffer()
+            VulkanImageBarriers.acquireForSnapshot(acquire, image.image)
+            check(VK12.vkEndCommandBuffer(acquire) == VK12.VK_SUCCESS)
+            device.graphicsQueue().beginSubmit().use { it.executeCommands(acquire) }
+            val copy = renderer.snapshotImage(image, VK12.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, width, height, bottomUp = true)
+            val release = encoder.allocateAndBeginTransientCommandBuffer()
+            VulkanImageBarriers.releaseAfterSnapshot(release, image.image)
+            check(VK12.vkEndCommandBuffer(release) == VK12.VK_SUCCESS)
+            encoder.execute(release)
+            return copy
+        }
+        override fun release(image: Image) { image.close() }
+    }
 
     private fun target(width: Int, height: Int): Target {
         target?.takeIf { it.image.width == width && it.image.height == height }?.let { return it }

@@ -22,11 +22,19 @@ data class NativeItemStatistics(
     val animationRefreshes: Long = 0,
 )
 
-/** Prepares native pixels on the game thread and publishes immutable images to Compose. */
+/** Prepares native icon pixels on the render thread and publishes immutable images to Compose. */
+internal interface NativeItemPreparer : AutoCloseable {
+    val statistics: NativeItemStatistics
+    fun recorded(frameGeneration: Long)
+    fun prepare(now: Long): Boolean
+    fun reset()
+}
+
+/** Reads native pixels back per icon; used where the renderer cannot copy them on the GPU. */
 internal class NativeItemRenderer(
     private val mailbox: ItemImageMailbox,
     private val options: NativeItemOptions,
-) : AutoCloseable {
+) : NativeItemPreparer {
     private data class Entry(val image: Image, val updated: Long, val refresh: IconRefresh, val stamp: Long)
     private data class Completion(val id: Long, val epoch: Long, val issuedAt: Long,
                                   val refresh: IconRefresh, val stamp: Long, val pixels: ByteArray)
@@ -51,7 +59,7 @@ internal class NativeItemRenderer(
     private var animationRefreshes = 0L
     private var closed = false
 
-    val statistics get() = NativeItemStatistics(
+    override val statistics get() = NativeItemStatistics(
         activeVariants = visible.size,
         cachedImages = cache.size,
         pendingImages = inFlight.size,
@@ -62,14 +70,14 @@ internal class NativeItemRenderer(
         animationRefreshes = animationRefreshes,
     )
 
-    fun recorded(frameGeneration: Long) {
+    override fun recorded(frameGeneration: Long) {
         visible = ComposeThread.call { mailbox.activeRequests() }
         cache.visible = visible.mapTo(hashSetOf()) { it.id }
         generation = frameGeneration
     }
 
     /** Readbacks complete asynchronously; each host frame starts at most one bounded batch. */
-    fun prepare(now: Long): Boolean {
+    override fun prepare(now: Long): Boolean {
         RenderSystem.assertOnRenderThread()
         check(!closed)
         frame++
@@ -84,7 +92,7 @@ internal class NativeItemRenderer(
             for (icon in due) {
                 if (budget == 0 || inFlight.size >= options.cacheCapacity) break
                 if (!cache.canStore(icon.id)) continue
-                val refresh = cache[icon.id]?.refresh ?: resolveRefresh(icon)
+                val refresh = cache[icon.id]?.refresh ?: icon.resolvedRefresh()
                 val stamp = if (refresh.kind == IconRefresh.Kind.FRAME) frame else NativeIconClock.tick()
                 val capturedEpoch = epoch
                 capture().capture(icon) { pixels ->
@@ -107,16 +115,6 @@ internal class NativeItemRenderer(
         IconRefresh.Kind.FRAME -> entry.stamp != frame
         IconRefresh.Kind.INTERVAL -> now - entry.updated >= entry.refresh.millis * 1_000_000L
         IconRefresh.Kind.AUTO -> error("Unresolved icon refresh policy")
-    }
-
-    private fun resolveRefresh(icon: ItemIcon): IconRefresh {
-        if (icon.refresh !== IconRefresh.AUTO) return icon.refresh
-        if (icon.stack.isEmpty) return IconRefresh.GAME_TICK
-        val minecraft = Minecraft.getInstance()
-        val state = TrackingItemStackRenderState()
-        minecraft.itemModelResolver.updateForTopItem(state, icon.stack, ItemDisplayContext.GUI,
-            minecraft.level, null, 0)
-        return if (state.isAnimated || icon.stack.hasFoil()) IconRefresh.FRAME else IconRefresh.STATIC
     }
 
     private fun collectCompleted(): Boolean {
@@ -153,7 +151,7 @@ internal class NativeItemRenderer(
         FrameRetirement.afterFrame { old.forEach(Image::close) }
     }
 
-    fun reset() {
+    override fun reset() {
         RenderSystem.assertOnRenderThread()
         epoch++
         inFlight.clear()
@@ -175,4 +173,14 @@ internal class NativeItemRenderer(
         cache.visible = emptySet()
         closed = true
     }
+}
+
+/** Resolves AUTO from the item model: animated sprites, overrides and glint refresh every frame. */
+internal fun ItemIcon.resolvedRefresh(): IconRefresh {
+    if (refresh !== IconRefresh.AUTO) return refresh
+    if (stack.isEmpty) return IconRefresh.GAME_TICK
+    val minecraft = Minecraft.getInstance()
+    val state = TrackingItemStackRenderState()
+    minecraft.itemModelResolver.updateForTopItem(state, stack, ItemDisplayContext.GUI, minecraft.level, null, 0)
+    return if (state.isAnimated || stack.hasFoil()) IconRefresh.FRAME else IconRefresh.STATIC
 }
