@@ -107,8 +107,13 @@ internal class ClientBenchmarkProbe {
                 check(rows.none { it.rendered }) { "Static UI repainted" }
             if (active.fixture.kind in listOf(BenchmarkKind.ANIMATION, BenchmarkKind.LIST))
                 check(rows.count { it.rendered } > samples * 0.8) { "Animation did not advance" }
-            if (active.fixture.kind == BenchmarkKind.TOOLTIP)
-                check(active.nativeTooltipStatistics.visible) { "Tooltip did not appear" }
+            if (active.fixture.kind == BenchmarkKind.TOOLTIP) {
+                val tooltip = active.nativeTooltipStatistics
+                check(tooltip.visible) { "Tooltip did not appear" }
+                check(tooltip.components > 1) { "Native tooltip lost its text components: $tooltip" }
+                check(tooltip.richComponents > 0) { "Native bundle tooltip lost its image component: $tooltip" }
+                check(tooltip.imageWidth >= 16 && tooltip.imageHeight >= 16) { "Native tooltip bounds were not recorded: $tooltip" }
+            }
             check(active.renderBackend == RenderBackend.CPU_RASTER || active.rendererStatistics.fullFrameUploads == 0L)
             fun summary(values: List<Long>): Map<String, Double> {
                 val sorted = values.sorted()

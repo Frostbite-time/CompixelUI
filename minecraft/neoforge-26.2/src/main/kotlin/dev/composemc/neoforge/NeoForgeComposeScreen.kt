@@ -47,7 +47,7 @@ open class NeoForgeComposeScreen(
     private var closedTooltipStatistics = NativeTooltipStatistics()
     val nativeItemStatistics: NativeItemStatistics get() = nativeItems?.statistics ?: closedItemStatistics
     val nativeTooltipStatistics: NativeTooltipStatistics get() = nativeTooltips?.statistics ?: closedTooltipStatistics
-    internal val nativeTooltipBounds get() = ComposeThread.call { tooltipMailbox.bounds }
+    internal val nativeTooltipBounds get() = nativeTooltips?.renderedBounds
     private var resourceEpoch = RendererResources.epoch
     private var metrics: ScreenMetrics? = null
     private var focused: Boolean? = null

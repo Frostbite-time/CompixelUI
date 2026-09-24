@@ -24,7 +24,7 @@ internal class NativeTooltipProbe : AutoCloseable {
     private var preparedBeforeScroll = 0L
     private var closed = false
     val report = "Native tooltips: delayed hover, exclusive replacement, rich bundle image, event cancellation, " +
-        "click/scroll dismissal, pending/visible modal suppression, edge placement, GUI scales 2/3, reload and retirement"
+        "click/scroll dismissal, pending/visible modal suppression, edge placement, GUI scales 2/3 and reload"
 
     init { NeoForge.EVENT_BUS.addListener(cancellation) }
 
@@ -182,9 +182,7 @@ internal class NativeTooltipProbe : AutoCloseable {
             }
             check(bounds.width >= 16 && bounds.height >= 16)
         }
-        // 26.2 readback is asynchronous and backend-neutral. Visibility and
-        // rich-component assertions above validate the extracted tooltip; the
-        // real game render pass owns the eventual framebuffer presentation.
+        // The bounds and component checks observe NeoForge's native tooltip draw event.
     }
 
     override fun close() {
