@@ -43,11 +43,13 @@ The snapshot owns a copy of the stack. Create another snapshot when its content 
 
 | Refresh policy | Meaning |
 | --- | --- |
-| `IconRefresh.AUTO` | Default item policy; detect native model/texture animation |
+| `IconRefresh.AUTO` | Default item policy: glint refreshes each frame, animated textures on game ticks, anything else stays static |
 | `IconRefresh.STATIC` | Intentionally freeze the prepared image until invalidation |
 | `IconRefresh.GAME_TICK` | Refresh on game ticks |
 | `IconRefresh.FRAME` | Refresh each frame |
 | `IconRefresh.every(milliseconds)` | Explicit 16–60,000 ms interval |
+
+On 1.20.1/1.21.1, `AUTO` also refreshes custom item renderers each frame and model overrides, such as compass and clock angles, on game ticks. The 26.x targets do not detect these two cases; pass `GAME_TICK` or `FRAME` explicitly for such items.
 
 `ItemIcon.drawn(description, drawing, refresh)` supplies custom native drawing inside a 16×16 GUI area. Its callback runs on the render thread and defaults to `GAME_TICK`. Capture the data needed to draw a resource; business resource types remain in the consumer. A drawn icon does not contain an item-tooltip snapshot.
 

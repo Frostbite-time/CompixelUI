@@ -6,7 +6,7 @@ import dev.composemc.bridge.NativeIconRefresh
 class IconRefresh private constructor(internal val kind: Kind, internal val millis: Long = 0) {
     internal enum class Kind { AUTO, STATIC, GAME_TICK, FRAME, INTERVAL }
     companion object {
-        /** Inspect item models for animated sprites, overrides, glint and custom renderers. */
+        /** Inspect item models: glint refreshes every frame, animated sprites every game tick. */
         @JvmField val AUTO = IconRefresh(Kind.AUTO)
         @JvmField val STATIC = IconRefresh(Kind.STATIC)
         /** Follows Minecraft texture ticks, including paused-world and frozen-tick behavior. */

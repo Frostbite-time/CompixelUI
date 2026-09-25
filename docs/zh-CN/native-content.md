@@ -43,11 +43,13 @@ fun openItemScreen(stack: ItemStack) {
 
 | 刷新策略 | 含义 |
 | --- | --- |
-| `IconRefresh.AUTO` | 物品默认策略，检测原生模型/纹理动画 |
+| `IconRefresh.AUTO` | 物品默认策略：附魔光效每帧刷新，动画纹理按游戏 tick 刷新，其余保持静态 |
 | `IconRefresh.STATIC` | 在失效之前有意保持已准备的图像不变 |
 | `IconRefresh.GAME_TICK` | 按游戏 tick 刷新 |
 | `IconRefresh.FRAME` | 每帧刷新 |
 | `IconRefresh.every(milliseconds)` | 指定 16–60,000 ms 间隔 |
+
+在 1.20.1/1.21.1 上，`AUTO` 还会让自定义物品渲染器每帧刷新，让指南针、时钟等模型覆盖按游戏 tick 刷新。26.x 目标不检测这两类情况，这类物品请显式传入 `GAME_TICK` 或 `FRAME`。
 
 `ItemIcon.drawn(description, drawing, refresh)` 允许在 16×16 GUI 区域内自定义原生绘制。回调在渲染线程执行，默认使用 `GAME_TICK`。应捕获绘制资源所需的数据，业务资源类型仍由消费者持有。自定义绘制图标不包含物品提示快照。
 

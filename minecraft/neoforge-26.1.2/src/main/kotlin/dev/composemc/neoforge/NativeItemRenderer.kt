@@ -175,12 +175,14 @@ internal class NativeItemRenderer(
     }
 }
 
-/** Resolves AUTO from the item model: animated sprites, overrides and glint refresh every frame. */
+/** Resolves AUTO as 1.20.1/1.21.1 do: glint refreshes every frame, animated sprites every game tick. */
 internal fun ItemIcon.resolvedRefresh(): IconRefresh {
     if (refresh !== IconRefresh.AUTO) return refresh
     if (stack.isEmpty) return IconRefresh.GAME_TICK
+    // Glint also marks the render state animated, so it is checked first.
+    if (stack.hasFoil()) return IconRefresh.FRAME
     val minecraft = Minecraft.getInstance()
     val state = TrackingItemStackRenderState()
     minecraft.itemModelResolver.updateForTopItem(state, stack, ItemDisplayContext.GUI, minecraft.level, null, 0)
-    return if (state.isAnimated || stack.hasFoil()) IconRefresh.FRAME else IconRefresh.STATIC
+    return if (state.isAnimated) IconRefresh.GAME_TICK else IconRefresh.STATIC
 }
