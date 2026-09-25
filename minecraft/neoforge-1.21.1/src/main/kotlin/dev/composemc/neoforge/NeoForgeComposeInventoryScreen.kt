@@ -7,6 +7,7 @@ import dev.composemc.slots.SlotIntent
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.client.gui.components.EditBox
+import net.minecraft.client.gui.components.Renderable
 import net.minecraft.client.gui.components.events.GuiEventListener
 import net.minecraft.network.chat.Component
 import net.minecraft.world.inventory.AbstractContainerMenu
@@ -46,7 +47,13 @@ open class NeoForgeComposeInventoryScreen<M : AbstractContainerMenu>(
     }
     override fun slotAt(x: Double, y: Double): Slot? = if (inventory.interactionsEnabled) container.slots.getOrNull(inventory.slotAt(x, y)) else null
 
-    override fun init() { cancelInteraction(); super.init(); layer.init(Minecraft.getInstance(), width, height); updateViewport() }
+    // The first renderable, so container background hooks draw beneath Compose and widgets above it.
+    private val composeLayer = Renderable { graphics, mouseX, mouseY, partialTick -> drawLayer(graphics, mouseX, mouseY, partialTick) }
+    override fun init() {
+        cancelInteraction(); super.init()
+        renderables.remove(composeLayer); renderables.add(0, composeLayer)
+        layer.init(Minecraft.getInstance(), width, height); updateViewport()
+    }
     private fun updateViewport() {
         val window = Minecraft.getInstance().window
         inventory.viewport(width.coerceAtLeast(1), height.coerceAtLeast(1), window.width.coerceAtLeast(1), window.height.coerceAtLeast(1))
@@ -62,8 +69,9 @@ open class NeoForgeComposeInventoryScreen<M : AbstractContainerMenu>(
         super.render(graphics, mouseX, mouseY, partialTick)
         inventory.overlay(graphics, mouseX, mouseY, drawCursor = false)
     }
-    override fun renderBackground(graphics: GuiGraphics, mouseX: Int, mouseY: Int, partialTick: Float) { renderBg(graphics, partialTick, mouseX, mouseY) }
-    override fun renderBg(graphics: GuiGraphics, partialTick: Float, mouseX: Int, mouseY: Int) {
+    override fun renderBackground(graphics: GuiGraphics, mouseX: Int, mouseY: Int, partialTick: Float) {}
+    override fun renderBg(graphics: GuiGraphics, partialTick: Float, mouseX: Int, mouseY: Int) {} // Drawn by composeLayer.
+    private fun drawLayer(graphics: GuiGraphics, mouseX: Int, mouseY: Int, partialTick: Float) {
         layer.render(graphics, mouseX, mouseY, partialTick)
         inventory.areaBounds()?.let { bounds ->
             leftPos = floor(bounds.left).toInt(); topPos = floor(bounds.top).toInt()

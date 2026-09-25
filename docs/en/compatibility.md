@@ -82,4 +82,4 @@ Compose MC contains no project Mixin workaround. Prefer an upstream fix and reva
 
 The adapters support committed text, selection and clipboard editing. Full IME composition/candidate-window integration is not established. Platform font fallback also varies; see [Ore typography](ore-ui.md).
 
-Inventory hosts preserve native container hooks and geometry, but third-party compatibility is not universal. Test recipe-viewer, shader and input integrations in your own target/modpack. GPU timings from bounded UI fixtures do not describe whole-game FPS or establish long-term leak freedom.
+Inventory hosts preserve native container hooks and geometry, but third-party compatibility is not universal. On every target, screen pre-render and background hooks draw beneath the Compose layer; foreground and post-render hooks draw above it. Widgets added through screen initialization events appear above the Compose layer in inventory hosts but are not supported by plain Compose screens. Test recipe-viewer, shader and input integrations in your own target/modpack. GPU timings from bounded UI fixtures do not describe whole-game FPS or establish long-term leak freedom.
