@@ -218,6 +218,9 @@ internal class ComposeLayer(
         val text = characters.accept(character) ?: return character.isHighSurrogate() && hasTextInputFocus
         return session?.commitText(text) == true
     }
+    // No IME support: Minecraft 1.21.1 has neither text input control nor preedit events. The 26.x
+    // layers add text input and composition hooks here (see their MinecraftTextInput.kt); keep this
+    // difference when comparing or syncing adapters.
 
     /** Releases the session and every owned resource. [open] can start a new session afterwards. */
     fun close() {

@@ -52,6 +52,10 @@ internal object SuitePlatform {
     val windowFocused: Boolean get() = GLFW.glfwGetWindowAttrib(window, GLFW.GLFW_FOCUSED) == GLFW.GLFW_TRUE
     /** GLFW delivers typed characters without opening text input first. */
     fun textInputOpen(@Suppress("UNUSED_PARAMETER") screen: Screen): Boolean = true
+    /** Minecraft 1.20.1 reports no input method composition, so the preview skips it. */
+    val preeditSupported: Boolean get() = false
+    fun preedit(@Suppress("UNUSED_PARAMETER") screen: Screen, @Suppress("UNUSED_PARAMETER") text: String?): Unit =
+        throw UnsupportedOperationException("Minecraft 1.20.1 has no preedit events")
 
     fun setScreen(screen: Screen?) = minecraft.setScreen(screen)
     fun defer(task: () -> Unit) = minecraft.tell(Runnable(task))

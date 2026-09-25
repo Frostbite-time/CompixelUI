@@ -14,6 +14,7 @@ import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.input.CharacterEvent
 import net.minecraft.client.input.KeyEvent
+import net.minecraft.client.input.PreeditEvent // IME
 import net.minecraft.client.resources.sounds.SimpleSoundInstance
 import net.minecraft.sounds.SoundEvents
 import java.util.concurrent.atomic.AtomicBoolean
@@ -58,10 +59,12 @@ internal class ComposeLayer(
     private var closedStatistics = RendererStatistics(renderBackend, 0, 0, 0)
     val rendererStatistics: RendererStatistics get() = renderer?.statistics ?: closedStatistics
     val hasTextInputFocus: Boolean get() = session?.hasTextInputFocus == true
-    /** Whether Compose holds Minecraft's text input for a focused text field; see [syncTextInput]. */
-    var textInputOpen = false
-        private set
-    private var nativeFocus = false
+    // IME support (26.x only). Minecraft's text input and input method composition are handled in
+    // MinecraftTextInput.kt; 1.20.1 and 1.21.1 have neither, so their layers lack every line marked
+    // "IME". Keep those lines when comparing or syncing this file with the other adapters.
+    private val textInput = MinecraftTextInput() // IME
+    /** Whether Compose holds Minecraft's text input for a focused text field. */
+    val textInputOpen: Boolean get() = textInput.open // IME
     /** Opt-in per-frame history. Read snapshots on the game/render thread. */
     val frameProfiler: UiFrameProfiler? = if (java.lang.Boolean.getBoolean("composemc.profile"))
         UiFrameProfiler(measureAllocations = java.lang.Boolean.getBoolean("composemc.allocations")) else null
@@ -176,7 +179,7 @@ internal class ComposeLayer(
                 frameProfiler?.rendered()
             } finally { frameProfiler.measureCpu(CpuPhase.FRAME_RELEASE) { it.close() } }
         }
-        frameProfiler.measureCpu(CpuPhase.HOST) { flushClipboard(); syncTextInput() }
+        frameProfiler.measureCpu(CpuPhase.HOST) { flushClipboard(); textInput.afterFrame(active, current) } // IME
         return current
     }
 
@@ -194,6 +197,7 @@ internal class ComposeLayer(
 
     fun press(x: Double, y: Double, button: Int): Boolean {
         refreshClipboard()
+        textInput.beforePress(session) // IME: a press discards an unconfirmed composition.
         return pointer(PointerAction.PRESS, x, y, button.toMouseButton())
     }
     fun release(x: Double, y: Double, button: Int): Boolean = pointer(PointerAction.RELEASE, x, y, button.toMouseButton())
@@ -221,22 +225,15 @@ internal class ComposeLayer(
         return consumed
     }
 
-    /**
-     * Called by the host after its native focus changes. A focused native widget receives keys and
-     * manages Minecraft's text input itself. It may stop that input when it lets go, so a Compose
-     * text field that still has focus then claims it again.
-     */
-    fun nativeFocusChanged(focused: Boolean) {
-        if (focused == nativeFocus) return
-        nativeFocus = focused
-        if (focused) return
-        if (textInputOpen && wantsTextInput) textInputFocusChanged(this, true) else syncTextInput()
-    }
+    /** IME: called by the host after its native focus changes; see [MinecraftTextInput]. */
+    fun nativeFocusChanged(focused: Boolean) = textInput.nativeFocusChanged(session, focused) // IME
+    /** IME: the input method's composition for the focused text field; see [MinecraftTextInput]. */
+    fun preedit(event: PreeditEvent?): Boolean = textInput.preedit(session, event) // IME
 
     /** Releases the session and every owned resource. [open] can start a new session afterwards. */
     fun close() {
         if (prepared != null) { prepared = null; frameProfiler?.endFrame() }
-        if (textInputOpen) { textInputOpen = false; textInputFocusChanged(this, false) }
+        textInput.close() // IME
         try { session?.close() } finally {
             session = null
             characters.reset()
@@ -274,19 +271,6 @@ internal class ComposeLayer(
         windowFocus = now
         if (!now) ComposeThread.call { tooltipMailbox.dismiss() }
         session?.setFocused(now)
-    }
-    private val wantsTextInput: Boolean get() = session?.lastTextInputFocus == true
-    /**
-     * Mirrors Compose text focus into Minecraft's text input after every frame, because focus can move
-     * without input. On 26.3 SDL sends typed text only while it is open; on GLFW targets it keeps the
-     * IME available. While a native widget has focus, that widget manages the input instead.
-     */
-    private fun syncTextInput() {
-        if (nativeFocus) return
-        val wanted = wantsTextInput
-        if (wanted == textInputOpen) return
-        textInputOpen = wanted
-        textInputFocusChanged(this, wanted)
     }
     private fun refreshClipboard() {
         flushClipboard()

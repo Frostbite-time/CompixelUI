@@ -10,7 +10,9 @@ import net.minecraft.client.InactivityFpsLimit
 import net.minecraft.client.Minecraft
 import net.minecraft.client.Screenshot
 import net.minecraft.client.gui.screens.Screen
+import net.minecraft.client.KeyboardHandler
 import net.minecraft.client.input.KeyEvent
+import net.minecraft.client.input.PreeditEvent
 import net.minecraft.core.registries.Registries
 import net.minecraft.network.chat.contents.TranslatableContents
 import net.minecraft.sounds.SoundSource
@@ -54,6 +56,10 @@ internal object SuitePlatform {
     val windowFocused: Boolean get() = minecraft.window.isFocused
     /** Whether the Compose host opened Minecraft's text input, which keeps the IME available. */
     fun textInputOpen(screen: Screen): Boolean = (screen as? SuiteComposeScreen)?.textInputOpen == true
+    /** Input method composition arrives as preedit events; [preedit] submits one as KeyboardHandler does. */
+    val preeditSupported: Boolean get() = true
+    fun preedit(screen: Screen, text: String?) =
+        KeyboardHandler.submitPreeditEvent(screen, text?.let { PreeditEvent(it, it.length, listOf(it), 0) })
 
     fun setScreen(screen: Screen?) = minecraft.setScreen(screen)
     fun defer(task: () -> Unit) = minecraft.schedule(Runnable(task))

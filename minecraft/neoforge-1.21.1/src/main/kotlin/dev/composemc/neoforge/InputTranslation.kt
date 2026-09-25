@@ -56,3 +56,6 @@ internal fun Int.toModifiers() = Modifiers(
     shift = and(GLFW.GLFW_MOD_SHIFT) != 0, control = and(GLFW.GLFW_MOD_CONTROL) != 0,
     alt = and(GLFW.GLFW_MOD_ALT) != 0, meta = and(GLFW.GLFW_MOD_SUPER) != 0,
 )
+
+// No IME support: Minecraft 1.21.1 reports no input method composition. The 26.x adapters translate
+// their PreeditEvent here; keep this difference when comparing or syncing adapters.

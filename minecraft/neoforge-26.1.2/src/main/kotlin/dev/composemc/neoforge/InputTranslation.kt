@@ -1,8 +1,8 @@
 package dev.composemc.neoforge
 
 import dev.composemc.platform.*
-import net.minecraft.client.Minecraft
 import net.minecraft.client.input.KeyEvent
+import net.minecraft.client.input.PreeditEvent // IME
 import org.lwjgl.glfw.GLFW
 
 /** The key a Minecraft key event reports, resolved as [uiKey] describes. */
@@ -62,6 +62,11 @@ internal fun Int.toModifiers() = Modifiers(
     alt = and(GLFW.GLFW_MOD_ALT) != 0, meta = and(GLFW.GLFW_MOD_SUPER) != 0,
 )
 
-/** Tells Minecraft whether a Compose text field has focus; while it does, the IME stays available. */
-internal fun textInputFocusChanged(@Suppress("UNUSED_PARAMETER") owner: Any, focused: Boolean) =
-    Minecraft.getInstance().textInputManager().onTextInputFocusChange(focused)
+// IME support (26.x only). Minecraft reports input method composition as a PreeditEvent, which
+// MinecraftTextInput.kt passes to Compose. 1.20.1 and 1.21.1 have no such event, so their
+// InputTranslation ends above; keep this when comparing or syncing the file with other adapters.
+/** The composition [this] preedit event shows, or null once the composition ends. */
+internal fun PreeditEvent?.toComposingText(): ComposingText? {
+    if (this == null || fullText().isEmpty()) return null
+    return ComposingText(fullText(), caretPosition().coerceIn(0, fullText().length))
+}

@@ -10,6 +10,7 @@ import net.minecraft.client.gui.components.EditBox
 import net.minecraft.client.gui.components.events.GuiEventListener
 import net.minecraft.client.input.CharacterEvent
 import net.minecraft.client.input.KeyEvent
+import net.minecraft.client.input.PreeditEvent // IME
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.network.chat.Component
 import net.minecraft.world.inventory.AbstractContainerMenu
@@ -156,11 +157,13 @@ open class NeoForgeComposeInventoryScreen<M : AbstractContainerMenu>(
     }
     override fun keyReleased(event: KeyEvent): Boolean = super.keyReleased(event) || layer.keyReleased(event)
     override fun charTyped(event: CharacterEvent): Boolean = focused?.charTyped(event) == true || layer.charTyped(event)
-    // A focused widget manages Minecraft's text input itself; once it lets go, Compose can claim it again.
+    // IME support (26.x only; see MinecraftTextInput): a focused widget manages Minecraft's text input and
+    // Compose reclaims it afterwards, while input method composition goes where typed text goes.
     override fun setFocused(listener: GuiEventListener?) {
         super.setFocused(listener)
         layer.nativeFocusChanged(listener != null)
     }
+    override fun preeditUpdated(event: PreeditEvent?): Boolean = focused?.preeditUpdated(event) == true || layer.preedit(event)
     /** Where native key handling is bypassed, an Escape that Compose leaves still closes the screen. */
     private fun closeOnEscape(event: KeyEvent): Boolean {
         if (!event.isEscape() || !shouldCloseOnEsc()) return false

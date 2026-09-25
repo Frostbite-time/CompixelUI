@@ -88,6 +88,12 @@ internal class PreviewAcceptance(private val session: SuiteSession, private val 
         script.act("focus the profile field") { click(control("profile")) }
         script.pause(100)
         script.until("text input opened for the field") { SuitePlatform.textInputOpen(screen) }
+        if (SuitePlatform.preeditSupported) {
+            script.act("compose text with the input method") { SuitePlatform.preedit(screen, COMPOSING) }
+            script.until("the composition shows in the field") { model { query } == COMPOSING }
+            script.act("click the field while composing") { click(control("profile")) }
+            script.until("the click discarded the composition") { model { query }.isEmpty() }
+        }
         script.act("type supplementary Unicode text") { TEXT.forEach { screen.charTyped(it, 0) } }
         script.until("the typed text reached the field") { model { query } == TEXT }
         script.act("select all and delete") {
@@ -385,5 +391,6 @@ internal class PreviewAcceptance(private val session: SuiteSession, private val 
 
     private companion object {
         const val TEXT = "Compose MC 界面 😀"
+        const val COMPOSING = "拼音"
     }
 }

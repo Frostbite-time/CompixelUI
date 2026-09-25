@@ -9,6 +9,7 @@ import net.minecraft.client.gui.components.events.GuiEventListener
 import net.minecraft.client.gui.screens.Screen
 import net.minecraft.client.input.CharacterEvent
 import net.minecraft.client.input.KeyEvent
+import net.minecraft.client.input.PreeditEvent // IME
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.network.chat.Component
 
@@ -77,11 +78,13 @@ open class NeoForgeComposeScreen(
     override fun keyPressed(event: KeyEvent): Boolean = focused == null && layer.keyPressed(event) || super.keyPressed(event)
     override fun keyReleased(event: KeyEvent): Boolean = focused == null && layer.keyReleased(event) || super.keyReleased(event)
     override fun charTyped(event: CharacterEvent): Boolean = focused == null && layer.charTyped(event) || super.charTyped(event)
-    // A focused widget manages Minecraft's text input itself; once it lets go, Compose can claim it again.
+    // IME support (26.x only; see MinecraftTextInput): a focused widget manages Minecraft's text input and
+    // Compose reclaims it afterwards, while input method composition goes where typed text goes.
     override fun setFocused(listener: GuiEventListener?) {
         super.setFocused(listener)
         layer.nativeFocusChanged(listener != null)
     }
+    override fun preeditUpdated(event: PreeditEvent?): Boolean = focused == null && layer.preedit(event) || super.preeditUpdated(event)
 
     override fun onClose() {
         // Gui owns both the parent-screen and return-to-game transitions.
