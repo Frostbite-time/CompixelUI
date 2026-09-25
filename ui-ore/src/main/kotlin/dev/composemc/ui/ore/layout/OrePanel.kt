@@ -44,7 +44,7 @@ fun OrePanel(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (onClose != null) Spacer(Modifier.width(18.dp))
                 OreText(title, Modifier.weight(1f), style = OreTheme.typography.title, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (onClose != null) OreIconButton(OreGlyph.Close, closeLabel, onClose, style = OreButtonStyle.Quiet)
+                if (onClose != null) OreIconButton(OreGlyph.Cross, closeLabel, onClose, style = OreButtonStyle.Quiet)
             }
             Box(Modifier.fillMaxWidth().height(2.dp).background(colors.ledge))
             Column(Modifier.weight(1f).fillMaxWidth().padding(contentPadding), verticalArrangement = Arrangement.spacedBy(6.dp), content = content)

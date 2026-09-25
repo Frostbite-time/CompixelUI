@@ -114,7 +114,7 @@ fun OreMenu(expanded: Boolean, onDismissRequest: () -> Unit, items: List<OreMenu
                         OreListItem(index == active, { activate(index) }, Modifier.fillMaxWidth()
                             .onPointerEvent(PointerEventType.Enter) { if (item.enabled) activeId = item.id }, enabled = item.enabled) {
                             if (item.checked != null) Box(Modifier.size(8.dp), contentAlignment = Alignment.Center) {
-                                if (item.checked) OreIcon(OreGlyph.Check)
+                                if (item.checked) OreIcon(OreGlyph.Checkmark)
                             }
                             OreText(item.label, Modifier.weight(1f), color = if (!item.enabled) OreTheme.colors.mutedText else if (item.destructive) lerp(OreTheme.colors.danger, OreTheme.colors.text, .65f) else OreTheme.colors.text,
                                 maxLines = 2, overflow = TextOverflow.Ellipsis)

@@ -3,6 +3,7 @@ package dev.composemc.ui.ore.display
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -11,37 +12,94 @@ import androidx.compose.ui.unit.dp
 import dev.composemc.ui.ore.theme.LocalOreContentColor
 import kotlin.math.roundToInt
 
-/** Bundled pixel glyphs. Custom visuals can use OreIconButton's composable icon slot. */
-enum class OreGlyph { Close, Search, Edit, Network, Check, ArrowRight, Back, Settings }
+/**
+ * A single-color pixel icon on Ore's 16x16 grid. Ore's glyphs use two-cell strokes; define domain icons
+ * the same way, once, and draw them with [OreIcon]. Original geometry only: no Minecraft or Bedrock
+ * assets are redistributed.
+ */
+@Immutable
+class OrePixelArt private constructor(private val cells: BooleanArray) {
+    /** 16 rows of 16 characters, top to bottom: `#` fills a cell and `.` leaves it empty. */
+    constructor(vararg rows: String) : this(parse(rows))
 
-/** Original pixel geometry; no Minecraft or Bedrock assets are redistributed. */
-@Composable
-fun OreIcon(glyph: OreGlyph, modifier: Modifier = Modifier, color: Color = LocalOreContentColor.current) {
-    Canvas(modifier.size(8.dp)) {
-        fun rect(x: Int, y: Int, w: Int, h: Int) {
-            val x1 = (x * size.width / 16).roundToInt().toFloat()
-            val y1 = (y * size.height / 16).roundToInt().toFloat()
-            val x2 = ((x + w) * size.width / 16).roundToInt().toFloat()
-            val y2 = ((y + h) * size.height / 16).roundToInt().toFloat()
-            drawRect(color, Offset(x1, y1), Size(x2 - x1, y2 - y1))
+    /** Filled cells merged into rectangles, four values each: x, y, width and height in cells. */
+    internal val rects: IntArray = merge(cells)
+
+    fun isFilled(x: Int, y: Int): Boolean {
+        require(x in 0 until SIZE && y in 0 until SIZE) { "Cell ($x, $y) is outside the 16x16 grid" }
+        return cells[y * SIZE + x]
+    }
+
+    /** The art flipped left to right. */
+    fun mirrored(): OrePixelArt = OrePixelArt(BooleanArray(CELLS) { cells[it - it % SIZE + SIZE - 1 - it % SIZE] })
+
+    /** The art turned clockwise by [quarterTurns] right angles. */
+    fun rotated(quarterTurns: Int = 1): OrePixelArt {
+        var turned = cells
+        repeat(quarterTurns.mod(4)) {
+            val source = turned
+            turned = BooleanArray(CELLS) { source[(SIZE - 1 - it % SIZE) * SIZE + it / SIZE] }
         }
-        when (glyph) {
-            OreGlyph.Close -> repeat(10) { rect(3 + it, 3 + it, 2, 2); rect(12 - it, 3 + it, 2, 2) }
-            OreGlyph.Check -> { repeat(4) { rect(2 + it, 7 + it, 2, 2) }; repeat(7) { rect(5 + it, 10 - it, 2, 2) } }
-            OreGlyph.Search -> {
-                rect(4, 2, 6, 2); rect(2, 4, 2, 6); rect(4, 10, 6, 2); rect(10, 4, 2, 6)
-                repeat(4) { rect(10 + it, 10 + it, 2, 2) }
+        return OrePixelArt(turned)
+    }
+
+    override fun equals(other: Any?) = other is OrePixelArt && cells.contentEquals(other.cells)
+    override fun hashCode() = cells.contentHashCode()
+    override fun toString() = (0 until SIZE).joinToString("\n") { y -> String(CharArray(SIZE) { x -> if (cells[y * SIZE + x]) '#' else '.' }) }
+
+    private companion object {
+        const val SIZE = 16
+        const val CELLS = SIZE * SIZE
+
+        fun parse(rows: Array<out String>): BooleanArray {
+            require(rows.size == SIZE && rows.all { it.length == SIZE }) { "Pixel art needs 16 rows of 16 characters" }
+            return BooleanArray(CELLS) { index ->
+                when (val cell = rows[index / SIZE][index % SIZE]) {
+                    '#' -> true
+                    '.' -> false
+                    else -> throw IllegalArgumentException("Pixel art uses '#' and '.', not '$cell'")
+                }
             }
-            OreGlyph.Edit -> { repeat(8) { rect(3 + it, 10 - it, 3, 3) }; rect(2, 12, 3, 2); rect(11, 1, 3, 2) }
-            OreGlyph.Network -> {
-                rect(6, 1, 4, 4); rect(1, 11, 4, 4); rect(11, 11, 4, 4)
-                rect(7, 5, 2, 4); rect(2, 8, 12, 2); rect(2, 8, 2, 3); rect(12, 8, 2, 3)
+        }
+
+        /** Row runs, extended downward while the next row repeats the same run. */
+        fun merge(cells: BooleanArray): IntArray {
+            val rects = ArrayList<IntArray>()
+            var open = emptyList<IntArray>()
+            for (y in 0 until SIZE) {
+                val next = ArrayList<IntArray>()
+                var x = 0
+                while (x < SIZE) {
+                    if (!cells[y * SIZE + x]) { x++; continue }
+                    val start = x
+                    while (x < SIZE && cells[y * SIZE + x]) x++
+                    val above = open.firstOrNull { it[0] == start && it[2] == x - start }
+                    if (above != null) { above[3]++; next += above }
+                    else intArrayOf(start, y, x - start, 1).also { rects += it; next += it }
+                }
+                open = next
             }
-            OreGlyph.ArrowRight, OreGlyph.Back -> {
-                rect(2, 7, 11, 2)
-                repeat(6) { val x = if (glyph == OreGlyph.ArrowRight) 8 + it else 6 - it; rect(x, 2 + it, 2, 2); rect(x, 12 - it, 2, 2) }
-            }
-            OreGlyph.Settings -> { rect(2, 4, 12, 2); rect(2, 10, 12, 2); rect(5, 2, 2, 6); rect(10, 8, 2, 6) }
+            return IntArray(rects.size * 4) { rects[it / 4][it % 4] }
         }
     }
 }
+
+/** Draws [art] in [color], 8dp square unless [modifier] sets a size. */
+@Composable
+fun OreIcon(art: OrePixelArt, modifier: Modifier = Modifier, color: Color = LocalOreContentColor.current) {
+    Canvas(modifier.size(8.dp)) {
+        val rects = art.rects
+        for (i in rects.indices step 4) {
+            // Each edge snaps to a device pixel, so strokes keep equal widths at every size.
+            val x1 = (rects[i] * size.width / 16).roundToInt().toFloat()
+            val y1 = (rects[i + 1] * size.height / 16).roundToInt().toFloat()
+            val x2 = ((rects[i] + rects[i + 2]) * size.width / 16).roundToInt().toFloat()
+            val y2 = ((rects[i + 1] + rects[i + 3]) * size.height / 16).roundToInt().toFloat()
+            drawRect(color, Offset(x1, y1), Size(x2 - x1, y2 - y1))
+        }
+    }
+}
+
+@Composable
+fun OreIcon(glyph: OreGlyph, modifier: Modifier = Modifier, color: Color = LocalOreContentColor.current) =
+    OreIcon(glyph.art, modifier, color)

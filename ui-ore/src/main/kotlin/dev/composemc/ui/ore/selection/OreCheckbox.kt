@@ -53,7 +53,7 @@ fun OreCheckbox(state: ToggleableState, onClick: () -> Unit, modifier: Modifier 
         Box(Modifier.size(13.dp).oreFrame(fill,
             if (enabled) colors.edge else colors.disabledEdge, lerp(fill, Color.White, .28f))
             .oreOutline(if (focused && enabled) colors.focus else null), contentAlignment = Alignment.Center) {
-            if (state == ToggleableState.On) OreIcon(OreGlyph.Check, color = if (enabled) colors.text else colors.mutedText)
+            if (state == ToggleableState.On) OreIcon(OreGlyph.Checkmark, color = if (enabled) colors.text else colors.mutedText)
             else if (state == ToggleableState.Indeterminate)
                 Box(Modifier.size(7.dp, 1.dp).background(if (enabled) colors.text else colors.mutedText))
         }

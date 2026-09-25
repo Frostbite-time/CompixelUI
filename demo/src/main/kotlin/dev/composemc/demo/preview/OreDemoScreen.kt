@@ -79,6 +79,7 @@ fun OreDemoScreen(model: DemoModel, tooltipItem: (@Composable (Modifier) -> Unit
                     DemoNavEntry(model, DemoPage.Settings, label("Settings", "设置"))
                     DemoNavEntry(model, DemoPage.Catalog, label("Catalog", "目录"))
                     DemoNavEntry(model, DemoPage.Buttons, label("Buttons", "按钮"))
+                    DemoNavEntry(model, DemoPage.Icons, label("Icons", "图标"))
                     DemoNavEntry(model, DemoPage.Fields, label("Fields", "输入"))
                     DemoNavEntry(model, DemoPage.Toggles, label("Toggles", "开关"))
                     DemoNavEntry(model, DemoPage.Sliders, label("Sliders", "滑杆"))
@@ -101,6 +102,7 @@ fun OreDemoScreen(model: DemoModel, tooltipItem: (@Composable (Modifier) -> Unit
                         DemoPage.Settings -> SettingsPage(model, ::label)
                         DemoPage.Catalog -> CatalogPage(model, ::label)
                         DemoPage.Buttons -> ButtonsPage(::label)
+                        DemoPage.Icons -> IconsPage(::label)
                         DemoPage.Fields -> FieldsPage(model, ::label)
                         DemoPage.Toggles -> TogglesPage(model, ::label)
                         DemoPage.Sliders -> SlidersPage(model, ::label)
@@ -161,7 +163,7 @@ private fun SettingsPage(model: DemoModel, label: (String, String) -> String) {
 @Composable
 private fun CatalogPage(model: DemoModel, label: (String, String) -> String) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        OreTextField(model.query, { model.query = it }, placeholder = label("Search entries", "搜索条目"), leadingIcon = OreGlyph.Search, modifier = Modifier.fillMaxWidth())
+        OreTextField(model.query, { model.query = it }, placeholder = label("Search entries", "搜索条目"), leadingIcon = OreGlyph.MagnifyingGlass, modifier = Modifier.fillMaxWidth())
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(1000, 10000, 100000).forEach { count -> OreTab("${count / 1000}k", model.count == count, { model.count = count }, Modifier.weight(1f)) }
         }
@@ -178,7 +180,7 @@ private fun CatalogPage(model: DemoModel, label: (String, String) -> String) {
                 LazyColumn(Modifier.weight(1f).fillMaxWidth().demoBounds(model, "list"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     items(indices, key = { it }) { index ->
                         OreListItem(model.selected == index, { model.selected = index }, Modifier.fillMaxWidth().demoBounds(model, "entry:$index")) {
-                            OreIcon(OreGlyph.Network)
+                            OreIcon(DemoNetworkArt)
                             OreText("Entry ${index.toString().padStart(5, '0')}", Modifier.weight(1f))
                             OreText("${(index * 37L % 4096) + 1}", color = OreTheme.colors.mutedText)
                         }
@@ -204,10 +206,8 @@ private fun ButtonsPage(label: (String, String) -> String) {
         }
         OreButton(label("Disabled", "禁用"), {}, Modifier.fillMaxWidth(), enabled = false)
         OreText(label("Icons", "图标"), style = OreTheme.typography.title)
-        OreGlyph.entries.chunked(4).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                row.forEach { glyph -> OreIconButton(glyph, glyph.name, {}) }
-            }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            for (glyph in listOf(OreGlyph.Plus, OreGlyph.Pencil, OreGlyph.Trash, OreGlyph.Gear)) OreIconButton(glyph, glyph.name, {})
         }
         OreText(label("Custom icons", "自定义图标"), style = OreTheme.typography.title)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -229,7 +229,7 @@ private fun FieldsPage(model: DemoModel, label: (String, String) -> String) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         OreText(label("Text fields", "文本框"), style = OreTheme.typography.title)
         OreTextField(model.scrolledText, { model.scrolledText = it }, label = label("Search", "搜索"),
-            placeholder = label("Type to filter…", "输入过滤…"), leadingIcon = OreGlyph.Search)
+            placeholder = label("Type to filter…", "输入过滤…"), leadingIcon = OreGlyph.MagnifyingGlass)
         OreTextField(model.scrolledText, { model.scrolledText = it }, placeholder = label("Read only", "只读"), readOnly = true)
         OreTextField(model.scrolledText, { model.scrolledText = it }, modifier = Modifier.componentBounds(model, "field-error"), placeholder = label("Error state", "错误状态"), isError = true)
         OreIntField(model.intValue, { model.intValue = it }, range = 0..100, label = label("Count (0–100)", "数量（0–100）"))
@@ -272,7 +272,7 @@ private fun ListsPage(model: DemoModel, label: (String, String) -> String) {
             LazyColumn(Modifier.fillMaxSize().padding(end = 10.dp), state = list, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 items(20, key = { it }) { index ->
                     OreListItem(model.selected == index, { model.selected = index }, Modifier.fillMaxWidth()) {
-                        OreIcon(if (index % 2 == 0) OreGlyph.Network else OreGlyph.Settings)
+                        if (index % 2 == 0) OreIcon(DemoNetworkArt) else OreIcon(OreGlyph.Gear)
                         Column(Modifier.weight(1f)) {
                             OreText(label("Row ${index + 1}", "第 ${index + 1} 行"))
                             OreText(label("Subtitle", "副标题"), style = OreTheme.typography.caption, color = OreTheme.colors.mutedText)
@@ -491,7 +491,7 @@ private fun TooltipsPage(model:DemoModel,label: (String, String) -> String,item:
                     OreButton(label("Inspect","查看"),{model.tooltipClicks++},Modifier.componentBounds(model,"tooltip-action"))
                 },modifier=Modifier.componentBounds(model,"tooltip-item")) {
                     Row(horizontalArrangement=Arrangement.spacedBy(5.dp)) {
-                        if(item!=null)item(Modifier.size(24.dp))else OreIcon(OreGlyph.Network,Modifier.size(20.dp))
+                        if(item!=null)item(Modifier.size(24.dp))else OreIcon(DemoNetworkArt,Modifier.size(20.dp))
                         OreText(label("Inspect this item","查看这个物品"))
                     }
                 }

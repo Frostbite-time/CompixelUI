@@ -35,7 +35,7 @@
 
 ## 自定义图标按钮
 
-`OreGlyph` 是内置图标目录。`OreIconButton` 同时提供 `icon: @Composable (Color) -> Unit` 内容槽，消费者可以传入 painter、矢量图、Canvas 或已准备好的原生图像，无需扩展枚举。按钮统一处理样式、鼠标/键盘点击、反馈、禁用状态和 tooltip。内容槽会收到当前前景色，包括次要按钮的对比色及禁用色，可用于单色图标着色；全彩图像可以不使用该着色。
+`OreGlyph` 是内置图标目录，按形状命名，每个类别都成套提供：四向箭头与折角；加号、减号、叉号与对勾；三横线与横竖两种省略号；圆形对勾、信息、感叹号及警告三角；以及常用工具（放大镜、铅笔、垃圾桶、齿轮、滑杆、漏斗、循环箭头）。领域图标应留在消费者中，定义为 `OrePixelArt`：16 行、每行 16 个 `#`/`.` 字符，用 `OreIcon(art)` 以同样风格绘制；`mirrored()` 与 `rotated()` 可派生其他方向。`OreIconButton` 同时提供 `icon: @Composable (Color) -> Unit` 内容槽，消费者可以传入像素图标、painter、矢量图、Canvas 或已准备好的原生图像。按钮统一处理样式、鼠标/键盘点击、反馈、禁用状态和 tooltip。内容槽会收到当前前景色，包括次要按钮的对比色及禁用色，可用于单色图标着色；全彩图像可以不使用该着色。
 
 ```kotlin
 import androidx.compose.foundation.Image
@@ -56,7 +56,7 @@ fun RefreshButton(painter: Painter, onRefresh: () -> Unit, enabled: Boolean = tr
 }
 ```
 
-按钮的 `contentDescription` 同时用于 tooltip，内部图像应作为装饰（`contentDescription = null`），内容槽内避免再嵌套可点击控件。图标尺寸在内容槽内设置，按钮外部尺寸通过其 `modifier` 设置。`OreIconButton(OreGlyph.Edit, description, onClick)` 重载仍然保留，复用同一套实现。F8 的按钮页展示了自定义 Canvas 图标及其启用、禁用样式。
+按钮的 `contentDescription` 同时用于 tooltip，内部图像应作为装饰（`contentDescription = null`），内容槽内避免再嵌套可点击控件。图标尺寸在内容槽内设置，按钮外部尺寸通过其 `modifier` 设置。`OreIconButton(OreGlyph.Pencil, description, onClick)` 重载仍然保留，复用同一套实现。F8 的按钮页展示了自定义 Canvas 图标及其启用、禁用样式，图标页按类别列出全部内置图标。
 
 ## 状态与选择
 

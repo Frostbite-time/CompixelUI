@@ -105,7 +105,7 @@ fun OreWindow(title:String,onClose:()->Unit,state:OreWindowState=rememberOreWind
                         }.padding(horizontal=8.dp,vertical=5.dp),contentAlignment=Alignment.Center) {
                         OreText(title,textAlign=TextAlign.Center,style=OreTheme.typography.title,maxLines=1,overflow=TextOverflow.Ellipsis)
                     }
-                    OreIconButton(OreGlyph.Close,closeLabel,onClose,Modifier.padding(end=4.dp))
+                    OreIconButton(OreGlyph.Cross,closeLabel,onClose,Modifier.padding(end=4.dp))
                 }
                 OreDivider()
                 Column(Modifier.weight(1f).fillMaxWidth().clipToBounds().padding(7.dp),verticalArrangement=Arrangement.spacedBy(5.dp),content=content)

@@ -35,7 +35,7 @@ Each independent public component has a matching file. Overloads and component-s
 
 ## Custom icon buttons
 
-`OreGlyph` is the bundled glyph catalog. `OreIconButton` also accepts an `icon: @Composable (Color) -> Unit` slot, so consumers can supply a painter, vector, Canvas or prepared native image without extending that enum. The button keeps its styling, click/keyboard handling, feedback, disabled state and tooltip. The slot receives the current foreground color, including secondary-button contrast and disabled colors; use it to tint monochrome visuals. A full-color image may omit the tint.
+`OreGlyph` is the bundled glyph catalog, named by shape and complete within each family: four-way arrows and chevrons; plus, minus, cross and checkmark; bars and both ellipses; circled checkmark, information and exclamation marks and a warning triangle; and common tools (magnifying glass, pencil, trash, gear, sliders, funnel and cycle arrows). Keep domain icons in the consumer as `OrePixelArt`, 16 rows of 16 `#`/`.` cells drawn with `OreIcon(art)` in the same style; `mirrored()` and `rotated()` derive other directions. `OreIconButton` also accepts an `icon: @Composable (Color) -> Unit` slot, so consumers can supply pixel art, a painter, vector, Canvas or prepared native image. The button keeps its styling, click/keyboard handling, feedback, disabled state and tooltip. The slot receives the current foreground color, including secondary-button contrast and disabled colors; use it to tint monochrome visuals. A full-color image may omit the tint.
 
 ```kotlin
 import androidx.compose.foundation.Image
@@ -56,7 +56,7 @@ fun RefreshButton(painter: Painter, onRefresh: () -> Unit, enabled: Boolean = tr
 }
 ```
 
-The action's `contentDescription` also supplies its tooltip; keep the child image decorative (`contentDescription = null`) and avoid nested clickable controls in the icon slot. Size the visual inside the slot and use the button's `modifier` for its outer bounds. The `OreIconButton(OreGlyph.Edit, description, onClick)` overload remains a convenience over this same implementation. The F8 Buttons page shows custom Canvas icons in enabled and disabled styles.
+The action's `contentDescription` also supplies its tooltip; keep the child image decorative (`contentDescription = null`) and avoid nested clickable controls in the icon slot. Size the visual inside the slot and use the button's `modifier` for its outer bounds. The `OreIconButton(OreGlyph.Pencil, description, onClick)` overload remains a convenience over this same implementation. The F8 Buttons page shows custom Canvas icons in enabled and disabled styles, and the Icons page lists every glyph by family.
 
 ## State and selection
 

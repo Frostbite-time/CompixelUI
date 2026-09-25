@@ -46,7 +46,7 @@ fun OreDialog(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Spacer(Modifier.width(18.dp))
                     OreText(title, Modifier.weight(1f), style = OreTheme.typography.title, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    OreIconButton(OreGlyph.Close, closeLabel, onDismissRequest, style = OreButtonStyle.Quiet)
+                    OreIconButton(OreGlyph.Cross, closeLabel, onDismissRequest, style = OreButtonStyle.Quiet)
                 }
                 Box(Modifier.fillMaxWidth().height(2.dp).background(colors.edge))
                 Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
