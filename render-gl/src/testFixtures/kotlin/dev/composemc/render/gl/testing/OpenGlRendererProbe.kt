@@ -19,6 +19,7 @@ object OpenGlRendererProbe {
         val height = frame.viewport.height
         require(expectedRgba.size == width * height * 4)
         val original = GlStateSnapshot.capture(glGetInteger(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS))
+        val drawBuffers = glGetInteger(GL_MAX_DRAW_BUFFERS)
         var targetTexture = 0
         var targetFbo = 0
         var hostVao = 0
@@ -68,9 +69,24 @@ object OpenGlRendererProbe {
                         glBlendEquationSeparate(GL_FUNC_REVERSE_SUBTRACT, GL_FUNC_ADD)
                         glBlendFuncSeparate(GL_SRC_ALPHA, GL_DST_ALPHA, GL_ZERO, GL_ONE)
                         glColorMask(false, true, false, false)
+                        // RenderPearl caches these per draw buffer, including currently unused ones.
+                        // Global glEnable/glColorMask restoration must not flatten distinct values.
+                        for (index in 0 until drawBuffers) {
+                            if (index % 2 == iteration % 2) glEnablei(GL_BLEND, index) else glDisablei(GL_BLEND, index)
+                            glColorMaski(index, index % 2 == 0, true, false, index % 2 != 0)
+                        }
                         glActiveTexture(GL_TEXTURE3)
                         renderer.render(frame)
                         renderer.present(OpenGlDestination(targetFbo, width, height))
+                        for (index in 0 until drawBuffers) {
+                            check(glIsEnabledi(GL_BLEND, index) == (index % 2 == iteration % 2)) {
+                                "Host blend enable changed for draw buffer $index"
+                            }
+                            val mask = IntArray(4).also { glGetIntegeri_v(GL_COLOR_WRITEMASK, index, it) }
+                            check(mask.contentEquals(intArrayOf(if (index % 2 == 0) 1 else 0, 1, 0, if (index % 2 != 0) 1 else 0))) {
+                                "Host color mask changed for draw buffer $index"
+                            }
+                        }
                         if (iteration != 1) {
                             // A recorded image must survive overwriting its source and retiring the cache reference.
                             val copied = renderer.copyFramebuffer(OpenGlDestination(targetFbo, width, height))

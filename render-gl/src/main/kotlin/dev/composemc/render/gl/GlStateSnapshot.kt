@@ -28,6 +28,13 @@ internal class GlStateSnapshot private constructor(private val textureUnits: Int
     private val blend = blendParameters.map(::glGetInteger).toIntArray()
     private val blendColor = floats(GL_BLEND_COLOR_EXT, 4)
     private val colorMask = ints(GL_COLOR_WRITEMASK, 4)
+    // Global setters broadcast to every draw buffer, even with a single attachment bound.
+    // Preserve indexed state too: RenderPearl caches blend enables and write masks per buffer.
+    private val drawBuffers = glGetInteger(GL_MAX_DRAW_BUFFERS)
+    private val blendEnabled = BooleanArray(drawBuffers) { glIsEnabledi(GL_BLEND, it) }
+    private val colorMasks = Array(drawBuffers) { index ->
+        IntArray(4).also { glGetIntegeri_v(GL_COLOR_WRITEMASK, index, it) }
+    }
     private val depthMask = glGetBoolean(GL_DEPTH_WRITEMASK)
     private val depthFunc = glGetInteger(GL_DEPTH_FUNC)
     private val depthRange = DoubleArray(2).also { glGetDoublev(GL_DEPTH_RANGE, it) }
@@ -79,6 +86,11 @@ internal class GlStateSnapshot private constructor(private val textureUnits: Int
         glBlendEquationSeparate(blend[4], blend[5])
         glBlendColor(blendColor[0], blendColor[1], blendColor[2], blendColor[3])
         glColorMask(colorMask[0] != 0, colorMask[1] != 0, colorMask[2] != 0, colorMask[3] != 0)
+        for (index in 0 until drawBuffers) {
+            if (blendEnabled[index]) glEnablei(GL_BLEND, index) else glDisablei(GL_BLEND, index)
+            val mask = colorMasks[index]
+            glColorMaski(index, mask[0] != 0, mask[1] != 0, mask[2] != 0, mask[3] != 0)
+        }
         glDepthMask(depthMask)
         glDepthFunc(depthFunc)
         glDepthRange(depthRange[0], depthRange[1])
@@ -114,6 +126,7 @@ internal class GlStateSnapshot private constructor(private val textureUnits: Int
         "activeTexture" to activeTexture, "textures" to textures.toList(), "samplers" to samplers.toList(),
         "enabled" to enabled, "blend" to blend.toList(), "blendColor" to blendColor.toList(),
         "colorMask" to colorMask.toList(), "depthMask" to depthMask, "depthFunc" to depthFunc,
+        "blendEnabled" to blendEnabled.toList(), "colorMasks" to colorMasks.map { it.toList() },
         "depthRange" to depthRange.toList(), "frontFace" to frontFace, "cullFace" to cullFace,
         "polygonMode" to polygonMode.toList(), "polygonOffset" to polygonOffset.toList(),
         "lineWidth" to lineWidth, "logicOp" to logicOp, "stencil" to stencil.toList(),
