@@ -171,6 +171,30 @@ class UiSessionTest {
             assertEquals("active", ComposeThread.call { value.value.text })
         }
     }
+    @Test fun `frames and window focus refresh the last text input focus`() {
+        val value = ComposeThread.call { mutableStateOf(TextFieldValue("")) }
+        UiSession(Viewport(320, 120)) {
+            BasicTextField(value.value, { value.value = it }, modifier = Modifier.fillMaxSize())
+        }.use { session ->
+            fun click() {
+                session.pointer(PointerInput(PointerAction.PRESS, 10f, 10f, MouseButton.LEFT))
+                session.pointer(PointerInput(PointerAction.RELEASE, 10f, 10f, MouseButton.LEFT))
+            }
+            session.frame(1_000_000)?.close()
+            assertFalse(session.lastTextInputFocus)
+            click()
+            session.frame(2_000_000)?.close()
+            assertTrue(session.lastTextInputFocus)
+            session.setFocused(false)
+            assertFalse(session.lastTextInputFocus)
+            session.setFocused(true)
+            click()
+            session.frame(3_000_000)?.close()
+            assertTrue(session.lastTextInputFocus)
+            session.close()
+            assertFalse(session.lastTextInputFocus)
+        }
+    }
     @Test fun `Escape dismisses Compose dialog before returning to the host`() {
         val visible = ComposeThread.call { mutableStateOf(true) }
         UiSession(Viewport(400, 300)) {

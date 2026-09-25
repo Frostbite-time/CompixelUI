@@ -48,17 +48,20 @@ class UiSession(
             // New/reentrant posts wait for a later frame, even when the queue initially held one task.
             val count = synchronized(commands) { minOf(commandsPerFrame, commands.size) }
             repeat(count) { synchronized(commands) { commands.pollFirst() }?.run() }
-            bridge.recordFrame(timeNanos)
+            bridge.recordFrame(timeNanos).also { lastTextInputFocus = bridge.textInputFocused }
         }
     }
     fun resize(viewport: Viewport) { checkOpen(); ComposeThread.call { bridge.resize(viewport) } }
     fun invalidate() { checkOpen(); ComposeThread.call { bridge.invalidate() } }
     fun configure(rtl: Boolean = false, layoutBounds: Boolean = false) { checkOpen(); ComposeThread.call { bridge.configure(rtl, layoutBounds) } }
-    fun setFocused(focused: Boolean) { checkOpen(); ComposeThread.call { bridge.setFocused(focused) } }
+    fun setFocused(focused: Boolean) {
+        checkOpen()
+        ComposeThread.call { bridge.setFocused(focused); lastTextInputFocus = bridge.textInputFocused }
+    }
     fun setActive(active: Boolean) {
         checkOpen()
         state = if (active) SessionState.ACTIVE else SessionState.SUSPENDED
-        ComposeThread.call { bridge.setFocused(active) }
+        ComposeThread.call { bridge.setFocused(active); lastTextInputFocus = bridge.textInputFocused }
     }
     fun pointer(event: PointerInput): Boolean { checkOpen(); return state == SessionState.ACTIVE && ComposeThread.call { bridge.pointer(event) } }
     fun key(event: KeyInput): Boolean { checkOpen(); return state == SessionState.ACTIVE && ComposeThread.call { bridge.key(event) } }
@@ -66,10 +69,17 @@ class UiSession(
     fun diagnosticThread(): String { checkOpen(); return ComposeThread.call { bridge.diagnosticThread } }
     /** Use to give a focused Compose editor priority over game shortcuts. */
     val hasTextInputFocus: Boolean get() { checkOpen(); return ComposeThread.call { bridge.hasTextInputFocus } }
+    /**
+     * [hasTextInputFocus] as of the latest [frame] or focus change. Reading it never waits for Compose,
+     * so a host can check it every frame, for example to open the platform's text input.
+     */
+    @Volatile var lastTextInputFocus = false
+        private set
     override fun close() {
         checkOwner()
         if (!closed.compareAndSet(false, true)) return
         state = SessionState.CLOSED
+        lastTextInputFocus = false
         synchronized(commands) { commands.clear() }
         ComposeThread.call { bridge.close() }
     }

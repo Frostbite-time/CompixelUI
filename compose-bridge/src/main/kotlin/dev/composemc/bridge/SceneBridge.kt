@@ -244,8 +244,10 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
     val hasTextInputFocus: Boolean get() {
         checkOpen()
         prepareForInput()
-        return info.isWindowFocused && textInput.active
+        return textInputFocused
     }
+    /** [hasTextInputFocus] as the scene stands, without applying pending state (and animation frames) first. */
+    val textInputFocused: Boolean get() { checkOpen(); return info.isWindowFocused && textInput.active }
 
     override fun close() {
         ComposeThread.check()
