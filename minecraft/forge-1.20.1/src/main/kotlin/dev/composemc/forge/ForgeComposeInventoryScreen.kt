@@ -140,10 +140,10 @@ open class ForgeComposeInventoryScreen<M : AbstractContainerMenu>(
     override fun keyPressed(keyCode: Int, scanCode: Int, modifiers: Int): Boolean {
         if (focused?.keyPressed(keyCode, scanCode, modifiers) == true) return true
         if (sendingAction() && !hasTextInputFocus && Minecraft.getInstance().options.keyInventory.isActiveAndMatches(com.mojang.blaze3d.platform.InputConstants.getKey(keyCode, scanCode))) { onClose(); return true }
-        if (hasTextInputFocus || !inventory.interactionsEnabled || sendingAction()) return layer.keyPressed(keyCode, modifiers) || closeOnEscape(keyCode)
-        return super.keyPressed(keyCode, scanCode, modifiers) || layer.keyPressed(keyCode, modifiers)
+        if (hasTextInputFocus || !inventory.interactionsEnabled || sendingAction()) return layer.keyPressed(keyCode, scanCode, modifiers) || closeOnEscape(keyCode)
+        return super.keyPressed(keyCode, scanCode, modifiers) || layer.keyPressed(keyCode, scanCode, modifiers)
     }
-    override fun keyReleased(keyCode: Int, scanCode: Int, modifiers: Int): Boolean = super.keyReleased(keyCode, scanCode, modifiers) || layer.keyReleased(keyCode, modifiers)
+    override fun keyReleased(keyCode: Int, scanCode: Int, modifiers: Int): Boolean = super.keyReleased(keyCode, scanCode, modifiers) || layer.keyReleased(keyCode, scanCode, modifiers)
     override fun charTyped(character: Char, modifiers: Int): Boolean = focused?.charTyped(character, modifiers) == true || layer.charTyped(character)
     /** Where native key handling is bypassed, an Escape that Compose leaves still closes the screen. */
     private fun closeOnEscape(keyCode: Int): Boolean {

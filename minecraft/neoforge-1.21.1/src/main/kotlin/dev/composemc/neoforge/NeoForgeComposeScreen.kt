@@ -65,9 +65,9 @@ open class NeoForgeComposeScreen(
     // A focused widget, otherwise Compose, gets keys and text first. What they leave reaches vanilla
     // handling (Escape, focus navigation); an unconsumed event returns false, so its Post event fires.
     override fun keyPressed(keyCode: Int, scanCode: Int, modifiers: Int): Boolean =
-        focused == null && layer.keyPressed(keyCode, modifiers) || super.keyPressed(keyCode, scanCode, modifiers)
+        focused == null && layer.keyPressed(keyCode, scanCode, modifiers) || super.keyPressed(keyCode, scanCode, modifiers)
     override fun keyReleased(keyCode: Int, scanCode: Int, modifiers: Int): Boolean =
-        focused == null && layer.keyReleased(keyCode, modifiers) || super.keyReleased(keyCode, scanCode, modifiers)
+        focused == null && layer.keyReleased(keyCode, scanCode, modifiers) || super.keyReleased(keyCode, scanCode, modifiers)
     override fun charTyped(codePoint: Char, modifiers: Int): Boolean =
         focused == null && layer.charTyped(codePoint) || super.charTyped(codePoint, modifiers)
 

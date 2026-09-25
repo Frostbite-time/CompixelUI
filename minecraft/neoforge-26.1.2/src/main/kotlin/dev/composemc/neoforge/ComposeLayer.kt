@@ -16,7 +16,6 @@ import net.minecraft.client.input.CharacterEvent
 import net.minecraft.client.input.KeyEvent
 import net.minecraft.client.resources.sounds.SimpleSoundInstance
 import net.minecraft.sounds.SoundEvents
-import org.lwjgl.glfw.GLFW
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -201,13 +200,13 @@ internal class ComposeLayer(
     fun keyPressed(event: KeyEvent): Boolean {
         refreshClipboard()
         ComposeThread.call { tooltipMailbox.dismiss() }
-        val consumed = session?.key(KeyInput(event.key().toUiKey(), true, event.modifiers().toModifiers())) == true
+        val consumed = session?.key(KeyInput(event.toUiKey(), true, event.modifiers().toModifiers())) == true
         flushClipboard()
         flushOreFeedback()
         return consumed
     }
     fun keyReleased(event: KeyEvent): Boolean {
-        val consumed = session?.key(KeyInput(event.key().toUiKey(), false, event.modifiers().toModifiers())) == true
+        val consumed = session?.key(KeyInput(event.toUiKey(), false, event.modifiers().toModifiers())) == true
         flushClipboard()
         flushOreFeedback()
         return consumed
@@ -282,23 +281,4 @@ internal class ComposeLayer(
         flushOreFeedback()
         return consumed
     }
-}
-
-private fun Int.toMouseButton(): MouseButton? = when (this) {
-    GLFW.GLFW_MOUSE_BUTTON_LEFT -> MouseButton.LEFT
-    GLFW.GLFW_MOUSE_BUTTON_RIGHT -> MouseButton.RIGHT
-    GLFW.GLFW_MOUSE_BUTTON_MIDDLE -> MouseButton.MIDDLE
-    else -> null
-}
-private fun Int.toModifiers() = Modifiers(
-    shift = and(GLFW.GLFW_MOD_SHIFT) != 0, control = and(GLFW.GLFW_MOD_CONTROL) != 0,
-    alt = and(GLFW.GLFW_MOD_ALT) != 0, meta = and(GLFW.GLFW_MOD_SUPER) != 0,
-)
-private fun Int.toUiKey(): UiKey = when (this) {
-    GLFW.GLFW_KEY_A -> UiKey.A; GLFW.GLFW_KEY_C -> UiKey.C; GLFW.GLFW_KEY_V -> UiKey.V; GLFW.GLFW_KEY_X -> UiKey.X; GLFW.GLFW_KEY_Y -> UiKey.Y; GLFW.GLFW_KEY_Z -> UiKey.Z
-    GLFW.GLFW_KEY_ENTER, GLFW.GLFW_KEY_KP_ENTER -> UiKey.ENTER; GLFW.GLFW_KEY_ESCAPE -> UiKey.ESCAPE; GLFW.GLFW_KEY_TAB -> UiKey.TAB; GLFW.GLFW_KEY_SPACE -> UiKey.SPACE
-    GLFW.GLFW_KEY_BACKSPACE -> UiKey.BACKSPACE; GLFW.GLFW_KEY_DELETE -> UiKey.DELETE
-    GLFW.GLFW_KEY_LEFT -> UiKey.LEFT; GLFW.GLFW_KEY_RIGHT -> UiKey.RIGHT; GLFW.GLFW_KEY_UP -> UiKey.UP; GLFW.GLFW_KEY_DOWN -> UiKey.DOWN
-    GLFW.GLFW_KEY_HOME -> UiKey.HOME; GLFW.GLFW_KEY_END -> UiKey.END; GLFW.GLFW_KEY_PAGE_UP -> UiKey.PAGE_UP; GLFW.GLFW_KEY_PAGE_DOWN -> UiKey.PAGE_DOWN
-    else -> UiKey.UNKNOWN
 }

@@ -2,7 +2,6 @@ package dev.composemc.neoforge
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import com.mojang.blaze3d.platform.InputConstants
 import com.mojang.blaze3d.systems.RenderSystem
 import dev.composemc.bridge.ComposeThread
 import dev.composemc.host.SessionState
@@ -282,38 +281,4 @@ internal class ComposeLayer(
         flushOreFeedback()
         return consumed
     }
-}
-
-private fun Int.toMouseButton(): MouseButton? = when (this) {
-    InputConstants.MOUSE_BUTTON_LEFT -> MouseButton.LEFT
-    InputConstants.MOUSE_BUTTON_RIGHT -> MouseButton.RIGHT
-    InputConstants.MOUSE_BUTTON_MIDDLE -> MouseButton.MIDDLE
-    else -> null
-}
-private fun Int.toModifiers() = Modifiers(
-    shift = and(InputConstants.MOD_SHIFT) != 0, control = and(InputConstants.MOD_CONTROL) != 0,
-    alt = and(InputConstants.MOD_ALT) != 0, meta = and(InputConstants.MOD_SUPER) != 0,
-)
-private fun Int.toUiKey(): UiKey = when (this) {
-    InputConstants.KEY_A -> UiKey.A; InputConstants.KEY_C -> UiKey.C; InputConstants.KEY_V -> UiKey.V; InputConstants.KEY_X -> UiKey.X; InputConstants.KEY_Y -> UiKey.Y; InputConstants.KEY_Z -> UiKey.Z
-    InputConstants.KEY_RETURN, InputConstants.KEY_NUMPADENTER -> UiKey.ENTER; InputConstants.KEY_ESCAPE -> UiKey.ESCAPE; InputConstants.KEY_TAB -> UiKey.TAB; InputConstants.KEY_SPACE -> UiKey.SPACE
-    InputConstants.KEY_BACKSPACE -> UiKey.BACKSPACE; InputConstants.KEY_DELETE -> UiKey.DELETE
-    InputConstants.KEY_LEFT -> UiKey.LEFT; InputConstants.KEY_RIGHT -> UiKey.RIGHT; InputConstants.KEY_UP -> UiKey.UP; InputConstants.KEY_DOWN -> UiKey.DOWN
-    InputConstants.KEY_HOME -> UiKey.HOME; InputConstants.KEY_END -> UiKey.END; InputConstants.KEY_PAGEUP -> UiKey.PAGE_UP; InputConstants.KEY_PAGEDOWN -> UiKey.PAGE_DOWN
-    else -> UiKey.UNKNOWN
-}
-
-/** SDL separates the physical scancode from the active keyboard layout's shortcut key. */
-private fun KeyEvent.toUiKey(): UiKey {
-    if (modifiers() and (InputConstants.MOD_CONTROL or InputConstants.MOD_SUPER) != 0) {
-        when (Character.toLowerCase(keycode())) {
-            'a'.code -> return UiKey.A
-            'c'.code -> return UiKey.C
-            'v'.code -> return UiKey.V
-            'x'.code -> return UiKey.X
-            'y'.code -> return UiKey.Y
-            'z'.code -> return UiKey.Z
-        }
-    }
-    return key().toUiKey()
 }
