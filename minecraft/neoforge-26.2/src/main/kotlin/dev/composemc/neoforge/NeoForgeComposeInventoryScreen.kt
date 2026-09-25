@@ -24,11 +24,8 @@ open class NeoForgeComposeInventoryScreen<M : AbstractContainerMenu>(
     val inventory: ComposeMenuSlots<M> = ComposeMenuSlots(container),
     content: @Composable (ComposeMenuSlots<M>) -> Unit,
 ) : NeoForgeSlotBehaviorScreen<M>(container, checkNotNull(Minecraft.getInstance().player).inventory, title) {
-    private val layer = object : NeoForgeComposeScreen(title, nativeItemOptions = NativeItemOptions(cacheCapacity = 256), content = { content(inventory) }) {
-        override fun isUiWindowFocused() = this@NeoForgeComposeInventoryScreen.isUiWindowFocused()
-        override fun onClose() = this@NeoForgeComposeInventoryScreen.onClose()
-        override fun prepareFrameContent() = inventory.refreshAfterLayout()
-    }
+    private val layer = ComposeLayer(nativeItemOptions = NativeItemOptions(cacheCapacity = 256), windowFocused = { isUiWindowFocused() },
+        prepareFrameContent = { inventory.refreshAfterLayout() }) { content(inventory) }
     val hasTextInputFocus get() = layer.hasTextInputFocus || (focused as? EditBox)?.canConsumeInput() == true
     val rendererStatistics get() = layer.rendererStatistics
     val nativeItemStatistics get() = layer.nativeItemStatistics
@@ -49,7 +46,11 @@ open class NeoForgeComposeInventoryScreen<M : AbstractContainerMenu>(
     }
     override fun slotAt(x: Double, y: Double): Slot? = if (inventory.interactionsEnabled) container.slots.getOrNull(inventory.slotAt(x, y)) else null
 
-    override fun init() { cancelInteraction(); super.init(); layer.init(width, height); updateViewport() }
+    override fun init() {
+        cancelInteraction(); super.init(); layer.open(width, height); updateViewport()
+        // Lay out now, so initialization hooks already see the Compose container area.
+        layer.layout(); updateSlotCoordinates()
+    }
     private fun updateViewport() {
         val window = Minecraft.getInstance().window
         inventory.viewport(width.coerceAtLeast(1), height.coerceAtLeast(1), window.width.coerceAtLeast(1), window.height.coerceAtLeast(1))
@@ -58,19 +59,24 @@ open class NeoForgeComposeInventoryScreen<M : AbstractContainerMenu>(
     private fun mirrorDrag() { inventory.nativeInteraction(nativePress, dragButton, if (isQuickCrafting) quickCraftSlots.mapTo(linkedSetOf()) { it.index } else emptySet()) }
 
     // As on 1.20.1/1.21.1, Compose supplies the container backdrop: skip the vanilla dimming,
-    // but keep the deferred subtitle pass that vanilla runs here.
+    // but keep the deferred subtitle pass that vanilla runs here. The frame is laid out here,
+    // so the background event that follows already sees this frame's container geometry.
     override fun extractBackground(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, partialTick: Float) {
         Minecraft.getInstance().gui.hud.extractDeferredSubtitles()
+        prepareFrame()
     }
     override fun extractRenderState(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, partialTick: Float) {
-        updateViewport()
-        if (!isUiWindowFocused() || !inventory.interactionsEnabled || sendingAction()) cancelInteraction()
-        mirrorDrag(); inventory.refresh()
-        layer.extractRenderState(graphics, mouseX, mouseY, partialTick)
-        updateSlotCoordinates()
+        if (!layer.framePrepared) prepareFrame()
+        layer.render(graphics, width, height)
         // Preserve native extraction hooks used by recipe overlays and other container integrations.
         super.extractRenderState(graphics, mouseX, mouseY, partialTick)
         inventory.overlay(graphics, mouseX, mouseY, drawCursor = false)
+    }
+    private fun prepareFrame() {
+        updateViewport()
+        if (!isUiWindowFocused() || !inventory.interactionsEnabled || sendingAction()) cancelInteraction()
+        mirrorDrag(); inventory.refresh()
+        layer.prepare(width, height); updateSlotCoordinates()
     }
     private fun updateSlotCoordinates() {
         inventory.areaBounds()?.let { bounds ->
@@ -111,11 +117,11 @@ open class NeoForgeComposeInventoryScreen<M : AbstractContainerMenu>(
         nativePress = !sendingAction() && inventory.interactionsEnabled && (inventory.slotAt(x, y) >= 0 || outside)
         dragButton = if (button == 0 || button == 1) button else 2
         val handled = if (nativePress) super.mouseClicked(event, doubleClick) else false
-        val ui = layer.mouseClicked(event, doubleClick)
+        val ui = layer.press(x, y, button)
         mirrorDrag(); inventory.refresh()
         return handled || ui
     }
-    override fun mouseMoved(x: Double, y: Double) { inventory.move(x, y); layer.mouseMoved(x, y); super.mouseMoved(x, y) }
+    override fun mouseMoved(x: Double, y: Double) { inventory.move(x, y); layer.move(x, y); super.mouseMoved(x, y) }
     override fun mouseDragged(event: MouseButtonEvent, dx: Double, dy: Double): Boolean {
         nativeCapture?.let { return it.mouseDragged(event, dx, dy) }
         val handled = if (nativePress && inventory.interactionsEnabled && !sendingAction()) {
@@ -123,34 +129,41 @@ open class NeoForgeComposeInventoryScreen<M : AbstractContainerMenu>(
             try { super.mouseDragged(event, dx, dy) } finally { duringDrag = false }
         } else false
         mirrorDrag(); inventory.refresh()
-        return layer.mouseDragged(event, dx, dy) || handled
+        return layer.move(event.x(), event.y()) || handled
     }
     override fun mouseReleased(event: MouseButtonEvent): Boolean {
         nativeCapture?.let { nativeCapture = null; it.mouseReleased(event); return true }
         val handled = if (nativePress && inventory.interactionsEnabled && !sendingAction()) super.mouseReleased(event) else false
         nativePress = false; mirrorDrag(); inventory.refresh()
-        return layer.mouseReleased(event) || handled
+        return layer.release(event.x(), event.y(), event.button()) || handled
     }
     override fun mouseScrolled(x: Double, y: Double, sx: Double, sy: Double): Boolean {
         for (child in children().asReversed()) if (child.isMouseOver(x, y) && child.mouseScrolled(x, y, sx, sy)) return true
         cancelInteraction()
         // Calling the native hook also lets container integrations consume wheel gestures.
-        return super.mouseScrolled(x, y, sx, sy) || layer.mouseScrolled(x, y, sx, sy)
+        return super.mouseScrolled(x, y, sx, sy) || layer.scroll(x, y, sx, sy)
     }
+    // Every handler reports real consumption, so keys and text that nothing uses reach the Post events.
     override fun keyPressed(event: KeyEvent): Boolean {
         if (focused?.keyPressed(event) == true) return true
         if (sendingAction() && !hasTextInputFocus && Minecraft.getInstance().options.keyInventory.isActiveAndMatches(com.mojang.blaze3d.platform.InputConstants.getKey(event))) { onClose(); return true }
-        if (hasTextInputFocus || !inventory.interactionsEnabled || sendingAction()) return layer.keyPressed(event)
+        if (hasTextInputFocus || !inventory.interactionsEnabled || sendingAction()) return layer.keyPressed(event) || closeOnEscape(event)
         return super.keyPressed(event) || layer.keyPressed(event)
     }
     override fun keyReleased(event: KeyEvent): Boolean = super.keyReleased(event) || layer.keyReleased(event)
     override fun charTyped(event: CharacterEvent): Boolean = focused?.charTyped(event) == true || layer.charTyped(event)
+    /** Where native key handling is bypassed, an Escape that Compose leaves still closes the screen. */
+    private fun closeOnEscape(event: KeyEvent): Boolean {
+        if (!event.isEscape() || !shouldCloseOnEsc()) return false
+        onClose()
+        return true
+    }
     private fun sendingAction() = (container as? dev.composemc.neoforge.sync.SyncedMenu)?.menuSync()?.isSendingAction() == true
     override fun onClose() { cancelInteraction(); super.onClose() }
     override fun removed() {
         cancelInteraction()
         val menuStillOpen = Minecraft.getInstance().player?.containerMenu === container
-        try { layer.removed() } finally {
+        try { layer.close() } finally {
             if (menuStillOpen) inventory.detachLayout() // A recipe overlay can return to this same Screen.
             else { inventory.close(); super.removed() }
         }
