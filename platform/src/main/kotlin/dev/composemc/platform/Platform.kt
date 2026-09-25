@@ -67,3 +67,14 @@ enum class UiKey {
     }
 }
 data class KeyInput(val key: UiKey, val pressed: Boolean, val modifiers: Modifiers = Modifiers())
+
+/**
+ * Text an input method is composing but has not committed, such as pinyin before a candidate is
+ * chosen. Hosts show it inside the focused text field; [cursor] is a UTF-16 index into [text].
+ */
+data class ComposingText(val text: String, val cursor: Int = text.length) {
+    init { require(text.isNotEmpty() && cursor in 0..text.length) { "Composing text needs a cursor inside non-empty text" } }
+}
+
+/** A text field's caret in viewport pixels. Hosts place an input method's candidate window next to it. */
+data class TextInputArea(val left: Float, val top: Float, val right: Float, val bottom: Float)

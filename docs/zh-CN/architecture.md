@@ -11,7 +11,7 @@ Compose MC 在同一个 Gradle 构建中维护共享 UI/运行时和各版本 Mi
 | `platform` | 独立于宿主的视口、输入、剪贴板和平台约定 |
 | `render` | 独立于后端的帧、资源和性能记录约定 |
 | `compose-bridge` | Compose 场景、线程边界、帧录制、原生图像绘制和图标图集调度 |
-| `host` | UI 会话生命周期、不可变状态与动作绑定 |
+| `host` | UI 会话生命周期、不可变状态与动作绑定，以及宿主文本输入协调 |
 | `render-gl` | 共享 OpenGL 渲染器和 GPU 合成 |
 | `render-vulkan` | 共享 Skia Vulkan 绘制和图像屏障记录 |
 | `ui-ore` | 共享视觉参数、字体和控件 |

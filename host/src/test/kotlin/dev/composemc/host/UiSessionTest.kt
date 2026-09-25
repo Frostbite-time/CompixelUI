@@ -13,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
 import dev.composemc.bridge.ComposeThread
@@ -193,6 +194,92 @@ class UiSessionTest {
             assertTrue(session.lastTextInputFocus)
             session.close()
             assertFalse(session.lastTextInputFocus)
+        }
+    }
+    @Test fun `composing text shows in the field until committed or removed`() {
+        val value = ComposeThread.call { mutableStateOf("") }
+        UiSession(Viewport(320, 120)) {
+            BasicTextField(value.value, { value.value = it }, modifier = Modifier.fillMaxSize())
+        }.use { session ->
+            fun text() = ComposeThread.call { value.value }
+            session.frame(1_000_000)?.close()
+            session.pointer(PointerInput(PointerAction.PRESS, 10f, 10f, MouseButton.LEFT))
+            session.pointer(PointerInput(PointerAction.RELEASE, 10f, 10f, MouseButton.LEFT))
+            session.frame(2_000_000)?.close()
+            assertFalse(session.setComposingText(null), "There was no composition to remove")
+            assertTrue(session.setComposingText(ComposingText("pin")))
+            assertEquals("pin", text())
+            assertTrue(session.setComposingText(ComposingText("pinyin")))
+            assertEquals("pinyin", text())
+            assertTrue(session.commitText("拼音"))
+            assertEquals("拼音", text())
+            assertFalse(session.setComposingText(null), "Committed text ended the composition")
+            assertTrue(session.setComposingText(ComposingText("ni")))
+            assertTrue(session.setComposingText(null))
+            assertEquals("拼音", text())
+            assertTrue(session.setComposingText(ComposingText("hao")))
+            session.setFocused(false)
+            assertEquals("拼音", text(), "Window blur left the unconfirmed composition in the field")
+        }
+    }
+    @Test fun `composition keeps the input method cursor and never deletes a selection when removed`() {
+        val value = ComposeThread.call { mutableStateOf(TextFieldValue("")) }
+        UiSession(Viewport(320, 120)) {
+            BasicTextField(value.value, { value.value = it }, modifier = Modifier.fillMaxSize())
+        }.use { session ->
+            fun current() = ComposeThread.call { value.value }
+            session.frame(1_000_000)?.close()
+            session.pointer(PointerInput(PointerAction.PRESS, 10f, 10f, MouseButton.LEFT))
+            session.pointer(PointerInput(PointerAction.RELEASE, 10f, 10f, MouseButton.LEFT))
+            session.frame(2_000_000)?.close()
+            assertTrue(session.commitText("keep"))
+            ComposeThread.call { value.value = value.value.copy(selection = TextRange(0, 4)) }
+            session.frame(3_000_000)?.close()
+            assertFalse(session.setComposingText(null))
+            assertEquals("keep", current().text)
+            assertTrue(session.setComposingText(ComposingText("xyz", cursor = 1)))
+            assertEquals(TextFieldValue("xyz", TextRange(1), TextRange(0, 3)), current())
+        }
+    }
+    @Test fun `state-based text fields take composing text too`() {
+        val state = ComposeThread.call { TextFieldState() }
+        UiSession(Viewport(320, 120)) {
+            BasicTextField(state, modifier = Modifier.fillMaxSize())
+        }.use { session ->
+            fun text() = ComposeThread.call { state.text.toString() }
+            session.frame(1_000_000)?.close()
+            session.pointer(PointerInput(PointerAction.PRESS, 10f, 10f, MouseButton.LEFT))
+            session.pointer(PointerInput(PointerAction.RELEASE, 10f, 10f, MouseButton.LEFT))
+            session.frame(2_000_000)?.close()
+            assertTrue(session.setComposingText(ComposingText("ni")))
+            assertEquals("ni", text())
+            assertTrue(session.commitText("你"))
+            assertTrue(session.setComposingText(ComposingText("hao")))
+            assertTrue(session.setComposingText(null))
+            assertEquals("你", text())
+            assertNotNull(session.frame(3_000_000)).close()
+            assertNotNull(session.lastTextInputArea)
+        }
+    }
+    @Test fun `the text input area follows the caret of the focused field`() {
+        val value = ComposeThread.call { mutableStateOf("") }
+        UiSession(Viewport(320, 120)) {
+            Box(Modifier.fillMaxSize()) {
+                BasicTextField(value.value, { value.value = it }, modifier = Modifier.offset(40.dp, 30.dp).size(200.dp, 40.dp))
+            }
+        }.use { session ->
+            session.frame(1_000_000)?.close()
+            assertNull(session.lastTextInputArea)
+            session.pointer(PointerInput(PointerAction.PRESS, 50f, 40f, MouseButton.LEFT))
+            session.pointer(PointerInput(PointerAction.RELEASE, 50f, 40f, MouseButton.LEFT))
+            session.frame(2_000_000)?.close()
+            val empty = assertNotNull(session.lastTextInputArea)
+            assertTrue(empty.left >= 40f && empty.top >= 30f && empty.bottom <= 70f, "Caret $empty lies outside the field")
+            assertTrue(session.commitText("abc"))
+            session.frame(3_000_000)?.close()
+            assertTrue(assertNotNull(session.lastTextInputArea).left > empty.left, "The area did not follow the caret")
+            session.setFocused(false)
+            assertNull(session.lastTextInputArea)
         }
     }
     @Test fun `Escape dismisses Compose dialog before returning to the host`() {

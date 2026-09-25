@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect as LayoutRect
 import androidx.compose.ui.graphics.asComposeCanvas
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
@@ -54,11 +55,11 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
         override val architectureComponentsOwner = owners
         override val textInputService: PlatformTextInputService = textInput
         override suspend fun startInputMethod(request: PlatformTextInputMethodRequest): Nothing {
-            textInput.request = request
+            textInput.startRequest(request)
             try {
                 awaitCancellation()
             } finally {
-                if (textInput.request === request) textInput.request = null
+                textInput.endRequest(request)
             }
         }
     }
@@ -130,6 +131,8 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
         if (info.isWindowFocused == focused) return
         info.isWindowFocused = focused
         if (!focused) {
+            // An unconfirmed composition is discarded, not left behind in the field as typed text.
+            textInput.setComposing(null)
             buttons.clear()
             scene.cancelPointerInput()
             scene.focusManager.releaseFocus()
@@ -232,6 +235,13 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
         return info.isWindowFocused && text.isNotEmpty() && textInput.commit(text)
     }
 
+    /** Shows [text] as the focused field's composition, replacing the previous one; null removes it. */
+    fun setComposingText(text: ComposingText?): Boolean {
+        checkOpen()
+        prepareForInput()
+        return info.isWindowFocused && textInput.setComposing(text)
+    }
+
     private fun prepareForInput() {
         // Several GLFW events can arrive between rendered frames. Apply selection/state writes
         // before the next event, without advancing animation time beyond the last host frame.
@@ -248,6 +258,12 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
     }
     /** [hasTextInputFocus] as the scene stands, without applying pending state (and animation frames) first. */
     val textInputFocused: Boolean get() { checkOpen(); return info.isWindowFocused && textInput.active }
+    /** The focused field's caret while [textInputFocused], as the scene stands. */
+    val textInputArea: TextInputArea? get() {
+        if (!textInputFocused) return null
+        val caret = textInput.focusedArea ?: return null
+        return TextInputArea(caret.left, caret.top, caret.right, caret.bottom)
+    }
 
     override fun close() {
         ComposeThread.check()
@@ -285,20 +301,56 @@ private class SessionWindowInfo(viewport: Viewport) : WindowInfo {
     override var containerSize by mutableStateOf(IntSize(viewport.width, viewport.height))
 }
 
+/** Text input for the focused field, through a method request or the legacy service. */
 private class SessionTextInput : PlatformTextInputService {
-    var request: PlatformTextInputMethodRequest? = null
+    private var request: PlatformTextInputMethodRequest? = null
     private var edit: ((List<EditCommand>) -> Unit)? = null
+    // The legacy service is told the value and caret; a request is asked for them.
+    private var value = TextFieldValue()
+    private var caret: LayoutRect? = null
+    /** Where the current composition starts in the field, or -1 without one. */
+    private var compositionStart = -1
     val active: Boolean get() = request != null || edit != null
+    /** The caret in root pixels, as the focused field reports it. */
+    val focusedArea: LayoutRect? get() = request?.focusedRectInRoot?.invoke() ?: caret
+
+    fun startRequest(request: PlatformTextInputMethodRequest) { this.request = request; compositionStart = -1 }
+    fun endRequest(request: PlatformTextInputMethodRequest) {
+        if (this.request === request) { this.request = null; compositionStart = -1 }
+    }
     override fun startInput(value: TextFieldValue, imeOptions: ImeOptions, onEditCommand: (List<EditCommand>) -> Unit, onImeActionPerformed: (ImeAction) -> Unit) {
         edit = onEditCommand
+        this.value = value
+        caret = null
+        compositionStart = -1
     }
-    override fun stopInput() { edit = null; request = null }
+    override fun stopInput() { edit = null; request = null; caret = null; compositionStart = -1 }
     override fun showSoftwareKeyboard() = Unit
     override fun hideSoftwareKeyboard() = Unit
-    override fun updateState(oldValue: TextFieldValue?, newValue: TextFieldValue) = Unit
+    override fun updateState(oldValue: TextFieldValue?, newValue: TextFieldValue) { value = newValue }
+    override fun notifyFocusedRect(rect: LayoutRect) { caret = rect }
     fun commit(text: String): Boolean {
         val callback = request?.onEditCommand ?: edit ?: return false
+        compositionStart = -1 // Committed text replaces the composition.
         callback(listOf(CommitTextCommand(text, 1)))
+        return true
+    }
+    /** Null removes the composition, and only an existing one: it never deletes a selection. */
+    fun setComposing(text: ComposingText?): Boolean {
+        val callback = request?.onEditCommand ?: edit ?: return false
+        if (text == null) {
+            if (compositionStart < 0) return false
+            compositionStart = -1
+            callback(listOf(SetComposingTextCommand("", 1)))
+            return true
+        }
+        if (compositionStart < 0) {
+            // A new composition replaces the selection; later ones replace the composition in place.
+            val current = request?.value?.invoke() ?: value
+            compositionStart = current.composition?.start ?: current.selection.min
+        }
+        val cursor = compositionStart + text.cursor
+        callback(listOf(SetComposingTextCommand(text.text, 1), SetSelectionCommand(cursor, cursor)))
         return true
     }
 }

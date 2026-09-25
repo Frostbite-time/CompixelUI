@@ -45,7 +45,7 @@ Ore UI 现按职责划分子包。请依据[组件与包对照表](ore-ui.md#选
 | 动作大小常量 | `MenuAction.DEFAULT_MAX_BYTES` 表示 8 KiB 默认值。显式声明所需 `maximumBytes`，不再提供 `MAX_FRAGMENTED_BYTES` 常量。 |
 | 自定义核心传输 | 调用 `SyncBatch.read(input, maximumBatchBytes)` 时传入传输上限；状态字段索引使用 32 位帧格式。 |
 | Ore 图标 | `OreGlyph` 改为按形状命名：`Close` → `Cross`、`Check` → `Checkmark`、`Search` → `MagnifyingGlass`、`Edit` → `Pencil`、`Back` → `ArrowLeft`、`Settings` → `Sliders`。`Network` 已移出库，领域图标请定义为 `OrePixelArt`。 |
-| 自定义宿主 | `UiKey` 覆盖标准键盘。自行映射原生按键的宿主需要转换全部条目，并按当前键盘布局解析字母与标点。 |
+| 自定义宿主 | `UiKey` 覆盖标准键盘。自行映射原生按键的宿主需要转换全部条目，并按当前键盘布局解析字母与标点。与原生控件共用窗口的宿主可以用 `HostTextInput` 管理文本输入和输入法。 |
 
 两端的状态/动作策略和动作声明必须一致。客户端确认菜单挂接与策略后才开始发送状态正文，打开时增加一次确认往返。完整默认值、拒绝处理及突发行为见[菜单同步](menu-sync.md)。
 
