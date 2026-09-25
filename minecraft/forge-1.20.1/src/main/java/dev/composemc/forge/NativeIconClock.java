@@ -7,7 +7,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
 import net.minecraftforge.event.TickEvent;
 
-/** Advances after TextureManager.tick, using the same running-level condition as Minecraft. */
+/** Advances after TextureManager.tick, using the same condition as Minecraft 1.20.1: a loaded level, paused or not. */
 @EventBusSubscriber(modid = "composemc", value = Dist.CLIENT)
 public final class NativeIconClock {
     private static long tick;
@@ -15,7 +15,6 @@ public final class NativeIconClock {
     @SubscribeEvent(priority = EventPriority.HIGH)
     public static void afterTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
-        var level = Minecraft.getInstance().level;
-        if (level == null || !Minecraft.getInstance().isPaused()) tick++;
+        if (Minecraft.getInstance().level != null) tick++;
     }
 }
