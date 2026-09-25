@@ -32,8 +32,38 @@ data class PointerInput(
     val modifiers: Modifiers = Modifiers(),
     val timeMillis: Long = System.nanoTime() / 1_000_000,
 )
+/**
+ * Host-neutral identity of a key on a standard keyboard, for key events and shortcuts. Typed text
+ * arrives separately as committed characters. Letters and punctuation follow the active keyboard
+ * layout, as on common desktop platforms: a host reports the key that types that character, and keeps
+ * the US position where the layout types no Latin character there. Digits and every other key keep
+ * their US position.
+ */
 enum class UiKey {
-    A, C, V, X, Y, Z, ENTER, ESCAPE, TAB, SPACE, BACKSPACE, DELETE,
-    LEFT, RIGHT, UP, DOWN, HOME, END, PAGE_UP, PAGE_DOWN, UNKNOWN,
+    A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
+    DIGIT_0, DIGIT_1, DIGIT_2, DIGIT_3, DIGIT_4, DIGIT_5, DIGIT_6, DIGIT_7, DIGIT_8, DIGIT_9,
+    MINUS, EQUALS, LEFT_BRACKET, RIGHT_BRACKET, BACKSLASH, SEMICOLON, APOSTROPHE, GRAVE, COMMA, PERIOD, SLASH,
+    F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
+    ENTER, ESCAPE, TAB, SPACE, BACKSPACE, DELETE, INSERT,
+    LEFT, RIGHT, UP, DOWN, HOME, END, PAGE_UP, PAGE_DOWN,
+    NUMPAD_0, NUMPAD_1, NUMPAD_2, NUMPAD_3, NUMPAD_4, NUMPAD_5, NUMPAD_6, NUMPAD_7, NUMPAD_8, NUMPAD_9,
+    NUMPAD_DECIMAL, NUMPAD_DIVIDE, NUMPAD_MULTIPLY, NUMPAD_SUBTRACT, NUMPAD_ADD, NUMPAD_ENTER, NUMPAD_EQUALS,
+    SHIFT_LEFT, SHIFT_RIGHT, CTRL_LEFT, CTRL_RIGHT, ALT_LEFT, ALT_RIGHT, META_LEFT, META_RIGHT,
+    CAPS_LOCK, NUM_LOCK, SCROLL_LOCK, PRINT_SCREEN, PAUSE, MENU,
+    UNKNOWN;
+
+    /** Whether hosts resolve this key through the active layout with [layoutKey]. */
+    val followsLayout: Boolean get() = this in A..Z || this in MINUS..SLASH
+
+    companion object {
+        /** The letter or punctuation key that types [codePoint] unshifted, or null for any other character. */
+        fun layoutKey(codePoint: Int): UiKey? = when (val character = Character.toLowerCase(codePoint)) {
+            in 'a'.code..'z'.code -> entries[A.ordinal + character - 'a'.code]
+            '-'.code -> MINUS; '='.code -> EQUALS; '['.code -> LEFT_BRACKET; ']'.code -> RIGHT_BRACKET
+            '\\'.code -> BACKSLASH; ';'.code -> SEMICOLON; '\''.code -> APOSTROPHE; '`'.code -> GRAVE
+            ','.code -> COMMA; '.'.code -> PERIOD; '/'.code -> SLASH
+            else -> null
+        }
+    }
 }
 data class KeyInput(val key: UiKey, val pressed: Boolean, val modifiers: Modifiers = Modifiers())

@@ -45,6 +45,7 @@ This release uses menu protocol **5**. Rebuild the consumer against the matching
 | Action size constants | `MenuAction.DEFAULT_MAX_BYTES` names the 8 KiB default. Declare the desired `maximumBytes` explicitly; there is no `MAX_FRAGMENTED_BYTES` constant. |
 | Custom core transport | Supply the transport cap to `SyncBatch.read(input, maximumBatchBytes)`. State field indexes use 32-bit framing. |
 | Ore glyphs | `OreGlyph` entries are named by shape: `Close` → `Cross`, `Check` → `Checkmark`, `Search` → `MagnifyingGlass`, `Edit` → `Pencil`, `Back` → `ArrowLeft`, `Settings` → `Sliders`. `Network` left the library; define domain icons as `OrePixelArt`. |
+| Custom hosts | `UiKey` covers the standard keyboard. A host that maps its own native keys translates every entry and resolves letters and punctuation through the active layout. |
 
 State/action policies and action declarations must match on both sides. The client confirms its menu attachment and policy before state bodies are sent, adding one opening confirmation round trip. See [menu synchronization](menu-sync.md) for all defaults, refusal handling and burst behavior.
 

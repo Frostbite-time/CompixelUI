@@ -190,11 +190,33 @@ private fun openPreview() {
 }
 
 private fun InputEvent.modifiers() = Modifiers(isShiftDown, isControlDown, isAltDown, isMetaDown)
-private fun KeyEvent.uiKey(): UiKey = when (keyCode) {
-    KeyEvent.VK_A -> UiKey.A; KeyEvent.VK_C -> UiKey.C; KeyEvent.VK_V -> UiKey.V; KeyEvent.VK_X -> UiKey.X; KeyEvent.VK_Y -> UiKey.Y; KeyEvent.VK_Z -> UiKey.Z
-    KeyEvent.VK_ENTER -> UiKey.ENTER; KeyEvent.VK_ESCAPE -> UiKey.ESCAPE; KeyEvent.VK_TAB -> UiKey.TAB; KeyEvent.VK_SPACE -> UiKey.SPACE
-    KeyEvent.VK_BACK_SPACE -> UiKey.BACKSPACE; KeyEvent.VK_DELETE -> UiKey.DELETE
-    KeyEvent.VK_LEFT -> UiKey.LEFT; KeyEvent.VK_RIGHT -> UiKey.RIGHT; KeyEvent.VK_UP -> UiKey.UP; KeyEvent.VK_DOWN -> UiKey.DOWN
-    KeyEvent.VK_HOME -> UiKey.HOME; KeyEvent.VK_END -> UiKey.END; KeyEvent.VK_PAGE_UP -> UiKey.PAGE_UP; KeyEvent.VK_PAGE_DOWN -> UiKey.PAGE_DOWN
-    else -> UiKey.UNKNOWN
+/** AWT virtual keys already follow the active layout for letters and punctuation, as UiKey expects. */
+private fun KeyEvent.uiKey(): UiKey {
+    val numpad = keyLocation == KeyEvent.KEY_LOCATION_NUMPAD
+    val right = keyLocation == KeyEvent.KEY_LOCATION_RIGHT
+    return when (keyCode) {
+        in KeyEvent.VK_A..KeyEvent.VK_Z -> UiKey.entries[UiKey.A.ordinal + keyCode - KeyEvent.VK_A]
+        in KeyEvent.VK_0..KeyEvent.VK_9 -> UiKey.entries[UiKey.DIGIT_0.ordinal + keyCode - KeyEvent.VK_0]
+        in KeyEvent.VK_F1..KeyEvent.VK_F12 -> UiKey.entries[UiKey.F1.ordinal + keyCode - KeyEvent.VK_F1]
+        in KeyEvent.VK_NUMPAD0..KeyEvent.VK_NUMPAD9 -> UiKey.entries[UiKey.NUMPAD_0.ordinal + keyCode - KeyEvent.VK_NUMPAD0]
+        KeyEvent.VK_MINUS -> UiKey.MINUS; KeyEvent.VK_EQUALS -> if (numpad) UiKey.NUMPAD_EQUALS else UiKey.EQUALS
+        KeyEvent.VK_OPEN_BRACKET -> UiKey.LEFT_BRACKET; KeyEvent.VK_CLOSE_BRACKET -> UiKey.RIGHT_BRACKET
+        KeyEvent.VK_BACK_SLASH -> UiKey.BACKSLASH; KeyEvent.VK_SEMICOLON -> UiKey.SEMICOLON; KeyEvent.VK_QUOTE -> UiKey.APOSTROPHE
+        KeyEvent.VK_BACK_QUOTE -> UiKey.GRAVE; KeyEvent.VK_COMMA -> UiKey.COMMA; KeyEvent.VK_PERIOD -> UiKey.PERIOD; KeyEvent.VK_SLASH -> UiKey.SLASH
+        KeyEvent.VK_ENTER -> if (numpad) UiKey.NUMPAD_ENTER else UiKey.ENTER
+        KeyEvent.VK_ESCAPE -> UiKey.ESCAPE; KeyEvent.VK_TAB -> UiKey.TAB; KeyEvent.VK_SPACE -> UiKey.SPACE
+        KeyEvent.VK_BACK_SPACE -> UiKey.BACKSPACE; KeyEvent.VK_DELETE -> UiKey.DELETE; KeyEvent.VK_INSERT -> UiKey.INSERT
+        KeyEvent.VK_LEFT, KeyEvent.VK_KP_LEFT -> UiKey.LEFT; KeyEvent.VK_RIGHT, KeyEvent.VK_KP_RIGHT -> UiKey.RIGHT
+        KeyEvent.VK_UP, KeyEvent.VK_KP_UP -> UiKey.UP; KeyEvent.VK_DOWN, KeyEvent.VK_KP_DOWN -> UiKey.DOWN
+        KeyEvent.VK_HOME -> UiKey.HOME; KeyEvent.VK_END -> UiKey.END; KeyEvent.VK_PAGE_UP -> UiKey.PAGE_UP; KeyEvent.VK_PAGE_DOWN -> UiKey.PAGE_DOWN
+        KeyEvent.VK_DECIMAL -> UiKey.NUMPAD_DECIMAL; KeyEvent.VK_DIVIDE -> UiKey.NUMPAD_DIVIDE; KeyEvent.VK_MULTIPLY -> UiKey.NUMPAD_MULTIPLY
+        KeyEvent.VK_SUBTRACT -> UiKey.NUMPAD_SUBTRACT; KeyEvent.VK_ADD -> UiKey.NUMPAD_ADD
+        KeyEvent.VK_SHIFT -> if (right) UiKey.SHIFT_RIGHT else UiKey.SHIFT_LEFT
+        KeyEvent.VK_CONTROL -> if (right) UiKey.CTRL_RIGHT else UiKey.CTRL_LEFT
+        KeyEvent.VK_ALT -> if (right) UiKey.ALT_RIGHT else UiKey.ALT_LEFT; KeyEvent.VK_ALT_GRAPH -> UiKey.ALT_RIGHT
+        KeyEvent.VK_META, KeyEvent.VK_WINDOWS -> if (right) UiKey.META_RIGHT else UiKey.META_LEFT
+        KeyEvent.VK_CAPS_LOCK -> UiKey.CAPS_LOCK; KeyEvent.VK_NUM_LOCK -> UiKey.NUM_LOCK; KeyEvent.VK_SCROLL_LOCK -> UiKey.SCROLL_LOCK
+        KeyEvent.VK_PRINTSCREEN -> UiKey.PRINT_SCREEN; KeyEvent.VK_PAUSE -> UiKey.PAUSE; KeyEvent.VK_CONTEXT_MENU -> UiKey.MENU
+        else -> UiKey.UNKNOWN
+    }
 }

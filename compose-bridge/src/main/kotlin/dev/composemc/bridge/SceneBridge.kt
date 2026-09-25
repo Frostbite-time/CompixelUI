@@ -301,11 +301,32 @@ private class SessionTextInput : PlatformTextInputService {
     }
 }
 
-private fun UiKey.composeKey(): Key = when (this) {
-    UiKey.A -> Key.A; UiKey.C -> Key.C; UiKey.V -> Key.V; UiKey.X -> Key.X; UiKey.Y -> Key.Y; UiKey.Z -> Key.Z
+internal fun UiKey.composeKey(): Key = when (this) {
+    UiKey.A -> Key.A; UiKey.B -> Key.B; UiKey.C -> Key.C; UiKey.D -> Key.D; UiKey.E -> Key.E; UiKey.F -> Key.F
+    UiKey.G -> Key.G; UiKey.H -> Key.H; UiKey.I -> Key.I; UiKey.J -> Key.J; UiKey.K -> Key.K; UiKey.L -> Key.L
+    UiKey.M -> Key.M; UiKey.N -> Key.N; UiKey.O -> Key.O; UiKey.P -> Key.P; UiKey.Q -> Key.Q; UiKey.R -> Key.R
+    UiKey.S -> Key.S; UiKey.T -> Key.T; UiKey.U -> Key.U; UiKey.V -> Key.V; UiKey.W -> Key.W; UiKey.X -> Key.X
+    UiKey.Y -> Key.Y; UiKey.Z -> Key.Z
+    UiKey.DIGIT_0 -> Key.Zero; UiKey.DIGIT_1 -> Key.One; UiKey.DIGIT_2 -> Key.Two; UiKey.DIGIT_3 -> Key.Three; UiKey.DIGIT_4 -> Key.Four
+    UiKey.DIGIT_5 -> Key.Five; UiKey.DIGIT_6 -> Key.Six; UiKey.DIGIT_7 -> Key.Seven; UiKey.DIGIT_8 -> Key.Eight; UiKey.DIGIT_9 -> Key.Nine
+    UiKey.MINUS -> Key.Minus; UiKey.EQUALS -> Key.Equals; UiKey.LEFT_BRACKET -> Key.LeftBracket; UiKey.RIGHT_BRACKET -> Key.RightBracket
+    UiKey.BACKSLASH -> Key.Backslash; UiKey.SEMICOLON -> Key.Semicolon; UiKey.APOSTROPHE -> Key.Apostrophe; UiKey.GRAVE -> Key.Grave
+    UiKey.COMMA -> Key.Comma; UiKey.PERIOD -> Key.Period; UiKey.SLASH -> Key.Slash
+    UiKey.F1 -> Key.F1; UiKey.F2 -> Key.F2; UiKey.F3 -> Key.F3; UiKey.F4 -> Key.F4; UiKey.F5 -> Key.F5; UiKey.F6 -> Key.F6
+    UiKey.F7 -> Key.F7; UiKey.F8 -> Key.F8; UiKey.F9 -> Key.F9; UiKey.F10 -> Key.F10; UiKey.F11 -> Key.F11; UiKey.F12 -> Key.F12
     UiKey.ENTER -> Key.Enter; UiKey.ESCAPE -> Key.Escape; UiKey.TAB -> Key.Tab; UiKey.SPACE -> Key.Spacebar
-    UiKey.BACKSPACE -> Key.Backspace; UiKey.DELETE -> Key.Delete
+    UiKey.BACKSPACE -> Key.Backspace; UiKey.DELETE -> Key.Delete; UiKey.INSERT -> Key.Insert
     UiKey.LEFT -> Key.DirectionLeft; UiKey.RIGHT -> Key.DirectionRight; UiKey.UP -> Key.DirectionUp; UiKey.DOWN -> Key.DirectionDown
     UiKey.HOME -> Key.MoveHome; UiKey.END -> Key.MoveEnd; UiKey.PAGE_UP -> Key.PageUp; UiKey.PAGE_DOWN -> Key.PageDown
+    UiKey.NUMPAD_0 -> Key.NumPad0; UiKey.NUMPAD_1 -> Key.NumPad1; UiKey.NUMPAD_2 -> Key.NumPad2; UiKey.NUMPAD_3 -> Key.NumPad3
+    UiKey.NUMPAD_4 -> Key.NumPad4; UiKey.NUMPAD_5 -> Key.NumPad5; UiKey.NUMPAD_6 -> Key.NumPad6; UiKey.NUMPAD_7 -> Key.NumPad7
+    UiKey.NUMPAD_8 -> Key.NumPad8; UiKey.NUMPAD_9 -> Key.NumPad9
+    UiKey.NUMPAD_DECIMAL -> Key.NumPadDot; UiKey.NUMPAD_DIVIDE -> Key.NumPadDivide; UiKey.NUMPAD_MULTIPLY -> Key.NumPadMultiply
+    UiKey.NUMPAD_SUBTRACT -> Key.NumPadSubtract; UiKey.NUMPAD_ADD -> Key.NumPadAdd; UiKey.NUMPAD_ENTER -> Key.NumPadEnter
+    UiKey.NUMPAD_EQUALS -> Key.NumPadEquals
+    UiKey.SHIFT_LEFT -> Key.ShiftLeft; UiKey.SHIFT_RIGHT -> Key.ShiftRight; UiKey.CTRL_LEFT -> Key.CtrlLeft; UiKey.CTRL_RIGHT -> Key.CtrlRight
+    UiKey.ALT_LEFT -> Key.AltLeft; UiKey.ALT_RIGHT -> Key.AltRight; UiKey.META_LEFT -> Key.MetaLeft; UiKey.META_RIGHT -> Key.MetaRight
+    UiKey.CAPS_LOCK -> Key.CapsLock; UiKey.NUM_LOCK -> Key.NumLock; UiKey.SCROLL_LOCK -> Key.ScrollLock
+    UiKey.PRINT_SCREEN -> Key.PrintScreen; UiKey.PAUSE -> Key.Break; UiKey.MENU -> Key.Menu
     UiKey.UNKNOWN -> Key.Unknown
 }
