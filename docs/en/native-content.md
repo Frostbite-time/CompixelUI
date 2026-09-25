@@ -43,19 +43,19 @@ The snapshot owns a copy of the stack. Create another snapshot when its content 
 
 | Refresh policy | Meaning |
 | --- | --- |
-| `IconRefresh.AUTO` | Default item policy: glint refreshes each frame, animated textures on game ticks, anything else stays static |
+| `IconRefresh.AUTO` | Default item policy: glint refreshes each frame, animated textures on game ticks, anything else when its appearance changes |
 | `IconRefresh.STATIC` | Intentionally freeze the prepared image until invalidation |
 | `IconRefresh.GAME_TICK` | Refresh on game ticks |
 | `IconRefresh.FRAME` | Refresh each frame |
 | `IconRefresh.every(milliseconds)` | Explicit 16–60,000 ms interval |
 
-On 1.20.1/1.21.1, `AUTO` also refreshes custom item renderers each frame and model overrides, such as compass and clock angles, on game ticks. The 26.x targets do not detect these two cases; pass `GAME_TICK` or `FRAME` explicitly for such items.
+An `AUTO` item's appearance is the model Minecraft selects for it plus its cooldown overlay, compared once per game tick. Compasses, clocks and other items whose model follows the world, time or input therefore redraw when their selected model changes, and a cooldown overlay shrinks as it expires. 1.20.1/1.21.1 also refresh custom item renderers each frame. Changes made only by other mods' item decorators, or by special renderers that animate without changing their model, are not detected; pass `GAME_TICK` or `FRAME` explicitly for such items.
 
 `ItemIcon.drawn(description, drawing, refresh)` supplies custom native drawing inside a 16×16 GUI area. Its callback runs on the render thread and defaults to `GAME_TICK`. Capture the data needed to draw a resource; business resource types remain in the consumer. A drawn icon does not contain an item-tooltip snapshot.
 
 `NativeItemOptions` defaults to a 64-pixel image resolution, 128 cached images and 64 preparations per frame. Inventory screens use 256 images. Size the cache for visible variants and lazy-layout prefetch. Active demand pins entries; preparation remains bounded and can take multiple frames for a new grid.
 
-The native renderer prepares images on the game thread. Compose consumes immutable image handles with clipping, transforms and opacity. Every adapter draws native icons into small atlas pages with stable icon slots. Each frame redraws at most one page of `preparationsPerFrame` icons, choosing the page whose visible icon has waited longest; this scheduling is shared, and adapters only draw and copy pages. OpenGL and Vulkan copy a page to a Skia image on the GPU. Native tooltips use their own offscreen target and are also copied on the GPU. Vulkan publishes completed icons and tooltips on the following frame because Minecraft defers its GUI submission. With the diagnostic CPU renderer, 1.20.1/1.21.1 read pages back and 26.x keeps asynchronous per-icon readback. The adapter owns temporary targets and releases replaced images; reload invalidates prepared images, and final screen removal releases owned resources.
+The native renderer prepares images on the game thread. Compose consumes immutable image handles with clipping, transforms and opacity. Every adapter draws native icons into small atlas pages with stable icon slots. Each frame redraws at most one page of `preparationsPerFrame` icons, choosing the page whose visible icon has waited longest; this scheduling is shared, and adapters only draw and copy pages. OpenGL and Vulkan copy a page to a Skia image on the GPU. Native tooltips use their own offscreen target and are also copied on the GPU. Vulkan publishes completed icons and tooltips on the following frame because Minecraft defers its GUI submission. With the diagnostic CPU renderer, every adapter reads the page back instead; 26.x publishes it once the asynchronous copy arrives. The adapter owns temporary targets and releases replaced images; reload invalidates prepared images, and final screen removal releases owned resources.
 
 ## Native tooltip behavior
 

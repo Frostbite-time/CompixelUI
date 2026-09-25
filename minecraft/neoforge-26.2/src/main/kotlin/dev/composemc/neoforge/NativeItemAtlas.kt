@@ -5,38 +5,63 @@ import dev.composemc.bridge.ComposeThread
 import dev.composemc.bridge.NativeIconAtlas
 import dev.composemc.bridge.NativeImageRegion
 import net.minecraft.client.Minecraft
+import org.jetbrains.skia.ColorAlphaType
+import org.jetbrains.skia.ColorType
 import org.jetbrains.skia.Image
+import org.jetbrains.skia.ImageInfo
+import java.util.concurrent.ConcurrentLinkedQueue
+
+data class NativeItemStatistics(
+    val activeVariants: Int = 0,
+    val cachedImages: Int = 0,
+    val pendingImages: Int = 0,
+    val preparedImages: Long = 0,
+    val retiredImages: Long = 0,
+    val lastRequestGeneration: Long = 0,
+    val dynamicVariants: Int = 0,
+    val animationRefreshes: Long = 0,
+)
 
 /**
- * Draws the shared [NativeIconAtlas] schedule into native GUI pages and copies each page to a Skia
- * image on the GPU. Vulkan publishes a completed page on the next frame; OpenGL can publish immediately.
+ * Draws the shared [NativeIconAtlas] schedule into native GUI pages. With [snapshots], each page is copied
+ * to a Skia image on the GPU: Vulkan publishes it on the next frame, OpenGL immediately. The CPU reference
+ * renderer has no snapshots; it reads each page back and publishes it once the copy arrives.
  */
 internal class NativeItemAtlas(
     private val mailbox: ItemImageMailbox,
     options: NativeItemOptions,
-    private val snapshots: NativeSnapshots,
-) : NativeItemPreparer {
+    private val snapshots: NativeSnapshots?,
+) : AutoCloseable {
+    private class Readback(val request: Long, val pixels: ByteArray, val width: Int, val height: Int)
+    private val animations = NativeIconAnimation()
     private val atlas = NativeIconAtlas(options.cacheCapacity, options.preparationsPerFrame, options.imageSize, Pages())
     private var capture: NativeGuiCapture? = null
     private var generation = 0L
+    // Copies may complete on another thread. At most one page is pending, so any other copy is stale.
+    private val readbacks = ConcurrentLinkedQueue<Readback>()
+    private var requests = 0L
+    private var requested = 0L
 
-    override val statistics get() = atlas.statistics.let {
+    val statistics get() = atlas.statistics.let {
         NativeItemStatistics(it.activeVariants, it.cachedImages, it.pendingImages, it.preparedImages, it.retiredImages,
             generation, it.dynamicVariants, it.animationRefreshes)
     }
 
-    override fun recorded(frameGeneration: Long) {
+    fun recorded(frameGeneration: Long) {
         atlas.recorded(ComposeThread.call { mailbox.activeRequests() })
         generation = frameGeneration
     }
 
-    override fun prepare(now: Long): Boolean {
+    /** At most one bounded page is prepared per host frame. */
+    fun prepare(now: Long): Boolean {
         RenderSystem.assertOnRenderThread()
         return atlas.prepare(now, NativeIconClock.tick(), Minecraft.getInstance().window.guiScale.toDouble())
     }
 
-    override fun reset() {
+    fun reset() {
         RenderSystem.assertOnRenderThread()
+        requested = 0
+        readbacks.clear()
         try { capture?.close() } finally {
             capture = null
             atlas.reset()
@@ -45,6 +70,8 @@ internal class NativeItemAtlas(
 
     override fun close() {
         RenderSystem.assertOnRenderThread()
+        requested = 0
+        readbacks.clear()
         try { capture?.close() } finally {
             capture = null
             atlas.close()
@@ -52,9 +79,10 @@ internal class NativeItemAtlas(
     }
 
     private inner class Pages : NativeIconAtlas.Host<ItemIcon> {
-        override val immediate get() = snapshots.immediate
+        override val immediate get() = snapshots?.immediate ?: false
         override fun id(icon: ItemIcon) = icon.id
-        override fun refresh(icon: ItemIcon) = icon.resolvedRefresh().scheduled()
+        override fun refresh(icon: ItemIcon) = animations.resolve(icon).scheduled()
+        override fun appearance(icon: ItemIcon) = animations.appearance(icon)
 
         override fun draw(buffer: Int, icons: List<NativeIconAtlas.Placement<ItemIcon>>) {
             val target = capture ?: NativeGuiCapture(atlas.width, atlas.height, atlas.buffers).also { capture = it }
@@ -76,10 +104,24 @@ internal class NativeItemAtlas(
                 }
                 true
             }
+            if (snapshots == null) {
+                val request = ++requests
+                requested = request
+                target.readback(buffer) { pixels, width, height -> readbacks.add(Readback(request, pixels, width, height)) }
+            }
         }
 
-        override fun snapshot(buffer: Int) = snapshots.snapshot(checkNotNull(capture).texture(buffer), atlas.width, atlas.height)
-        override fun release(image: Image) = snapshots.release(image)
+        override fun snapshot(buffer: Int): Image? {
+            if (snapshots != null) return snapshots.snapshot(checkNotNull(capture).texture(buffer), atlas.width, atlas.height)
+            while (true) {
+                val copy = readbacks.poll() ?: return null
+                if (copy.request == requested) return Image.makeRaster(
+                    ImageInfo(copy.width, copy.height, ColorType.RGBA_8888, ColorAlphaType.PREMUL), copy.pixels, copy.width * 4)
+            }
+        }
+        override fun release(image: Image) {
+            if (snapshots != null) snapshots.release(image) else FrameRetirement.afterFrame { image.close() }
+        }
         override fun publish(regions: Map<Long, NativeImageRegion>, removed: Set<Long>) {
             mailbox.removeAtlas(removed)
             mailbox.publishAtlas(regions)

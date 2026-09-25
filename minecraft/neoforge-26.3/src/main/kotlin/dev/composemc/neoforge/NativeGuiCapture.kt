@@ -19,49 +19,50 @@ internal class NativeGuiCapture(private val imageWidth: Int, private val imageHe
     private val targets = arrayOfNulls<TextureTarget>(buffers)
     private var closed = false
 
-    /** Completion may arrive on another thread; the recipient must only enqueue bytes. */
-    fun capture(icon: ItemIcon, completed: (ByteArray) -> Unit) {
-        capture(16, 16, { graphics ->
-            icon.drawing?.accept(graphics) ?: run {
-                graphics.fakeItem(icon.stack, 0, 0)
-                graphics.itemDecorations(minecraft.font, icon.stack, 0, 0)
-            }
-            imageWidth to imageHeight
-        }) { pixels, _, _ -> completed(pixels) }
-    }
-
-    /** The draw callback returns the top-left pixel region to publish, or null to cancel. */
+    /**
+     * The draw callback returns the top-left pixel region to publish, or null to cancel. Completion may
+     * arrive on another thread; the recipient must only enqueue bytes.
+     */
     fun capture(logicalWidth: Int, logicalHeight: Int,
                 draw: (GuiGraphicsExtractor) -> Pair<Int, Int>?,
                 completed: (ByteArray, Int, Int) -> Unit): Boolean {
         RenderSystem.assertOnRenderThread()
         check(!closed)
-        val region = drawInto(0, logicalWidth, logicalHeight, { it }) { graphics ->
+        drawInto(0, logicalWidth, logicalHeight, { it }) { graphics ->
             draw(graphics)?.also { require(it.first in 1..imageWidth && it.second in 1..imageHeight) }
         } ?: return false
+        // The target matches the measured region.
+        readback(0, completed)
+        return true
+    }
 
+    /** Copies the whole of [buffer] with top-down rows. Completion may arrive on another thread. */
+    fun readback(buffer: Int, completed: (ByteArray, Int, Int) -> Unit) {
+        RenderSystem.assertOnRenderThread()
+        check(!closed)
         val device = RenderSystem.getDevice()
-        val colorTexture = checkNotNull(targets[0]?.colorTexture)
-        val rowBytes = region.first * 4
-        val bytes = rowBytes * region.second
-        val buffer = device.createBuffer({ "composemc-native-gui-readback" }, 9, bytes.toLong())
-        // The target matches the measured region; readback rows still arrive bottom-up.
-        device.createCommandEncoder().copyTextureToBuffer(colorTexture, buffer, 0L, {
+        val colorTexture = texture(buffer)
+        val width = colorTexture.getWidth(0)
+        val height = colorTexture.getHeight(0)
+        val rowBytes = width * 4
+        val bytes = rowBytes * height
+        val readback = device.createBuffer({ "composemc-native-gui-readback" }, 9, bytes.toLong())
+        // Readback rows arrive bottom-up.
+        device.createCommandEncoder().copyTextureToBuffer(colorTexture, readback, 0L, {
             try {
-                buffer.map(true, false).use { mapped ->
+                readback.map(true, false).use { mapped ->
                     val source = mapped.data()
                     val pixels = ByteArray(bytes)
-                    for (row in 0 until region.second) {
-                        val sourceStart = (region.second - 1 - row) * rowBytes
+                    for (row in 0 until height) {
+                        val sourceStart = (height - 1 - row) * rowBytes
                         for (column in 0 until rowBytes) pixels[row * rowBytes + column] = source.get(sourceStart + column)
                     }
-                    completed(pixels, region.first, region.second)
+                    completed(pixels, width, height)
                 }
             } finally {
-                buffer.close()
+                readback.close()
             }
-        }, 0, 0, 0, region.first, region.second)
-        return true
+        }, 0, 0, 0, width, height)
     }
 
     /** Draws into [buffer] without a readback and returns the measured content, or null to cancel. */

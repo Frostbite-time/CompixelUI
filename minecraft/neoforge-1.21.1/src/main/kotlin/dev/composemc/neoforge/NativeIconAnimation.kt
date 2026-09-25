@@ -1,36 +1,43 @@
 package dev.composemc.neoforge
 
 import net.minecraft.client.Minecraft
-import net.minecraft.client.renderer.block.model.ItemOverrides
 import net.minecraft.client.renderer.texture.SpriteContents
 import net.minecraft.client.renderer.texture.TextureAtlasSprite
 import net.minecraft.core.Direction
+import net.minecraft.util.Mth
 import net.minecraft.util.RandomSource
+import net.minecraft.world.item.ItemStack
 import java.util.IdentityHashMap
 
-/** Inspects only newly prepared immutable item handles; discarded on resource reload. */
+/** Resolves AUTO for newly cached immutable item handles and reports their appearance; reset on resource reload. */
 internal class NativeIconAnimation {
     private val sprites = IdentityHashMap<SpriteContents, Boolean>()
     private val random = RandomSource.create(42)
     fun resolve(icon: ItemIcon): IconRefresh {
         if (icon.refresh !== IconRefresh.AUTO) return icon.refresh
         if (icon.stack.isEmpty) return IconRefresh.GAME_TICK // An opaque custom drawing has no model to inspect.
-        val mc = Minecraft.getInstance()
         val stack = icon.stack
-        val base = mc.itemRenderer.itemModelShaper.getItemModel(stack)
-        if (stack.hasFoil() || base.isCustomRenderer) return IconRefresh.FRAME
-        if (base.overrides !== ItemOverrides.EMPTY) return IconRefresh.GAME_TICK
-        val model = mc.itemRenderer.getModel(stack, mc.level, null, 0)
-        for (pass in model.getRenderPasses(stack, true)) {
+        if (stack.hasFoil() || Minecraft.getInstance().itemRenderer.itemModelShaper.getItemModel(stack).isCustomRenderer)
+            return IconRefresh.FRAME
+        // Model overrides, such as compass and clock angles, are followed through appearance().
+        for (pass in model(stack).getRenderPasses(stack, true)) {
             if (pass.isCustomRenderer) return IconRefresh.FRAME
-            if (pass.overrides !== ItemOverrides.EMPTY || animated(pass.particleIcon)) return IconRefresh.GAME_TICK
+            if (animated(pass.particleIcon)) return IconRefresh.GAME_TICK
             for (face in Direction.entries + listOf(null)) {
                 random.setSeed(42)
                 if (pass.getQuads(null, face, random).any { animated(it.sprite) }) return IconRefresh.GAME_TICK
             }
         }
-        return IconRefresh.STATIC
+        return IconRefresh.ON_CHANGE
     }
+    /** What a page draws for an ON_CHANGE icon: its override-resolved model and cooldown overlay rows. */
+    fun appearance(icon: ItemIcon): Any {
+        val mc = Minecraft.getInstance()
+        val cooldown = mc.player?.cooldowns?.getCooldownPercent(icon.stack.item, mc.timer.getGameTimeDeltaPartialTick(true)) ?: 0f
+        return listOf(model(icon.stack), Mth.ceil(16f * cooldown))
+    }
+    // Resolved as GuiGraphics.renderFakeItem does: no entity, the current level and seed 0.
+    private fun model(stack: ItemStack) = Minecraft.getInstance().let { it.itemRenderer.getModel(stack, it.level, null, 0) }
     private fun animated(sprite: TextureAtlasSprite): Boolean {
         val contents = sprite.contents()
         return sprites.getOrPut(contents) { contents.uniqueFrames.use { it.limit(2).count() > 1 } }

@@ -86,8 +86,7 @@ internal val LocalItemImages = staticCompositionLocalOf<ItemImageMailbox?> { nul
 /** Only the EDT accesses this mailbox. It never reads the native ItemStack. */
 internal class ItemImageMailbox(private val requestLimit: Int) {
     private data class Request(val icon: ItemIcon, var users: Int)
-    // Read-back images and GPU atlas regions invalidate only the icons they replace.
-    private val images = mutableStateMapOf<Long, NativeImageRegion>()
+    // Atlas regions invalidate only the icons they replace.
     private val atlas = mutableStateMapOf<Long, NativeImageRegion>()
     private val requests = linkedMapOf<Long, Request>()
     fun retain(icon: ItemIcon) {
@@ -100,19 +99,13 @@ internal class ItemImageMailbox(private val requestLimit: Int) {
     }
     fun release(icon: ItemIcon) {
         val request = checkNotNull(requests[icon.id])
-        if (--request.users == 0) {
-            requests.remove(icon.id)
-        }
+        if (--request.users == 0) requests.remove(icon.id)
     }
-    fun request(icon: ItemIcon): NativeImageRegion? = atlas[icon.id] ?: images[icon.id]
+    fun request(icon: ItemIcon): NativeImageRegion? = atlas[icon.id]
     // Draw callbacks can be skipped when Compose replays a cached layer. Composition lifetime
     // preserves demand across those frames and includes the bounded Lazy layout prefetch window.
     fun activeRequests(): List<ItemIcon> = requests.values.map { it.icon }
-    fun put(id: Long, image: org.jetbrains.skia.Image) {
-        images[id] = NativeImageRegion(image, org.jetbrains.skia.Rect.makeWH(image.width.toFloat(), image.height.toFloat()))
-    }
-    fun remove(id: Long, image: org.jetbrains.skia.Image) { if (images[id]?.image === image) images.remove(id) }
     fun publishAtlas(regions: Map<Long, NativeImageRegion>) { atlas.putAll(regions) }
     fun removeAtlas(ids: Collection<Long>) { ids.forEach(atlas::remove) }
-    fun clear() { images.clear(); atlas.clear() }
+    fun clear() { atlas.clear() }
 }

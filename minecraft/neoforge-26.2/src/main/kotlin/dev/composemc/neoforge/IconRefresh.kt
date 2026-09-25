@@ -4,9 +4,12 @@ import dev.composemc.bridge.NativeIconRefresh
 
 /** Native icon invalidation policy. Only visible requested icons are refreshed, within the host budget. */
 class IconRefresh private constructor(internal val kind: Kind, internal val millis: Long = 0) {
-    internal enum class Kind { AUTO, STATIC, GAME_TICK, FRAME, INTERVAL }
+    internal enum class Kind { AUTO, STATIC, GAME_TICK, FRAME, INTERVAL, ON_CHANGE }
     companion object {
-        /** Inspect item models: glint refreshes every frame, animated sprites every game tick. */
+        /**
+         * Inspect item models: glint refreshes every frame, animated sprites every game tick, and other
+         * items whenever their resolved model or cooldown overlay changes.
+         */
         @JvmField val AUTO = IconRefresh(Kind.AUTO)
         @JvmField val STATIC = IconRefresh(Kind.STATIC)
         /** Follows Minecraft texture ticks, including paused-world and frozen-tick behavior. */
@@ -16,6 +19,8 @@ class IconRefresh private constructor(internal val kind: Kind, internal val mill
             require(millis in 16..60_000) { "Icon refresh interval must be 16..60000 ms" }
             return IconRefresh(Kind.INTERVAL, millis)
         }
+        /** AUTO's result for items redrawn only when their resolved model or cooldown overlay changes. */
+        internal val ON_CHANGE = IconRefresh(Kind.ON_CHANGE)
     }
 }
 
@@ -25,5 +30,6 @@ internal fun IconRefresh.scheduled(): NativeIconRefresh = when (kind) {
     IconRefresh.Kind.GAME_TICK -> NativeIconRefresh.GAME_TICK
     IconRefresh.Kind.FRAME -> NativeIconRefresh.FRAME
     IconRefresh.Kind.INTERVAL -> NativeIconRefresh.every(millis)
+    IconRefresh.Kind.ON_CHANGE -> NativeIconRefresh.ON_CHANGE
     IconRefresh.Kind.AUTO -> error("Unresolved icon refresh policy")
 }

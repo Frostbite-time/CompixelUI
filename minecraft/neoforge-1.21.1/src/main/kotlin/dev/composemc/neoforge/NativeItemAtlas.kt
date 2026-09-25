@@ -70,6 +70,7 @@ internal class NativeItemAtlas(
         override val immediate = true
         override fun id(icon: ItemIcon) = icon.id
         override fun refresh(icon: ItemIcon) = animations.resolve(icon).scheduled()
+        override fun appearance(icon: ItemIcon) = animations.appearance(icon)
 
         override fun draw(buffer: Int, icons: List<NativeIconAtlas.Placement<ItemIcon>>) {
             val font = Minecraft.getInstance().font
