@@ -98,7 +98,7 @@ class OreControlsTest {
         }
     }
 
-    @Test fun `integer editor commits complete values rejects overflow and bounds keyboard steps`() {
+    @Test fun `integer editor commits complete values clamps overflow and bounds keyboard steps`() {
         val value = mutableIntStateOf(20)
         val enabled = mutableStateOf(true)
         val updates = mutableListOf<Int>()
@@ -126,6 +126,50 @@ class OreControlsTest {
             ComposeThread.call { enabled.value = false }; fixture.frame()
             fixture.key(UiKey.DOWN)
             assertEquals(90, value.intValue)
+        }
+    }
+
+    @Test fun `integer editor steps from the committed value when its draft is out of range`() {
+        val value = mutableIntStateOf(20)
+        val updates = mutableListOf<Int>()
+        Fixture { bound ->
+            OreIntField(value.intValue, { value.intValue = it; updates += it }, bound("number").width(300.dp), range = 0..100)
+            OreButton("Other", {}, bound("other"))
+        }.use { fixture ->
+            fixture.click("number")
+            fixture.key(UiKey.A, Modifiers(control = true))
+            fixture.session.commitText("200"); fixture.frame()
+            fixture.key(UiKey.DOWN)
+            assertEquals(19, value.intValue)
+            assertEquals(listOf(19), updates)
+
+            fixture.key(UiKey.A, Modifiers(control = true))
+            fixture.session.commitText("2147483648"); fixture.frame()
+            fixture.click("other")
+            assertEquals(100, value.intValue)
+            fixture.click("number")
+            fixture.key(UiKey.DOWN)
+            assertEquals(99, value.intValue)
+        }
+    }
+
+    @Test fun `integer editor clamps out of range drafts on enter and focus loss`() {
+        val value = mutableIntStateOf(20)
+        Fixture { bound ->
+            OreIntField(value.intValue, { value.intValue = it }, bound("number").width(300.dp), range = 10..100)
+            OreButton("Other", {}, bound("other"))
+        }.use { fixture ->
+            fixture.click("number")
+            fixture.key(UiKey.A, Modifiers(control = true))
+            fixture.session.commitText("200"); fixture.frame()
+            assertEquals(20, value.intValue)
+            fixture.key(UiKey.ENTER)
+            assertEquals(100, value.intValue)
+
+            fixture.key(UiKey.A, Modifiers(control = true))
+            fixture.session.commitText("0"); fixture.frame()
+            fixture.click("other")
+            assertEquals(10, value.intValue)
         }
     }
 

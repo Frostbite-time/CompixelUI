@@ -75,21 +75,23 @@ class OreExtendedControlsTest {
             f.click("field");f.key(UiKey.UP);assertEquals(9_007_199_254_740_994L,number.longValue)
             f.replace("9223372036854775807");f.key(UiKey.ENTER);f.key(UiKey.UP,Modifiers(control=true));assertEquals(Long.MAX_VALUE,number.longValue)
             f.replace("-9223372036854775808");f.key(UiKey.ENTER);f.key(UiKey.DOWN,Modifiers(control=true));assertEquals(Long.MIN_VALUE,number.longValue)
-            f.replace("9223372036854775808");f.key(UiKey.ENTER);assertEquals(Long.MIN_VALUE,number.longValue)
+            f.replace("9223372036854775808");f.key(UiKey.ENTER);assertEquals(Long.MAX_VALUE,number.longValue)
+            f.replace("-9223372036854775809");f.key(UiKey.ENTER);assertEquals(Long.MIN_VALUE,number.longValue)
             f.key(UiKey.ESCAPE);f.click("field");f.key(UiKey.UP);assertEquals(Long.MIN_VALUE+1,number.longValue)
         }
     }
-    @Test fun `double editor supports partial scientific input and rejects nonfinite or out of range values`() {
+    @Test fun `double editor supports partial scientific input and clamps out of range values`() {
         val number=mutableDoubleStateOf(.3)
         Fixture {b->Column {OreDoubleField(number.doubleValue,{number.doubleValue=it},b("field").width(320.dp),range=-2000.0..2000.0,step=.1)
             OreButton("Other",{},b("other"))}}.use {f->
             f.click("field");f.key(UiKey.UP);assertEquals(.4,number.doubleValue)
             f.replace("1e3");f.key(UiKey.ENTER);assertEquals(1000.0,number.doubleValue)
-            f.replace("1e999");f.key(UiKey.ENTER);assertEquals(1000.0,number.doubleValue)
+            f.replace("1e999999999999");f.key(UiKey.ENTER);assertEquals(2000.0,number.doubleValue)
             f.click("other");f.click("field");f.replace("-")
             ComposeThread.call {number.doubleValue=100.0};f.frame()
             f.session.commitText(".5");f.frame();f.key(UiKey.ENTER);assertEquals(-.5,number.doubleValue)
-            f.replace("3000");f.key(UiKey.ENTER);assertEquals(-.5,number.doubleValue)
+            f.replace("3000");f.key(UiKey.ENTER);assertEquals(2000.0,number.doubleValue)
+            f.replace("-3000");f.key(UiKey.ENTER);assertEquals(-2000.0,number.doubleValue)
         }
     }
     @Test fun `radio and mixed checkbox activate once and honor disabled state`() {

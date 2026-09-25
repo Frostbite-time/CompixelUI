@@ -89,7 +89,7 @@ fun DifficultyOptions() {
 
 ## Editing and structured data
 
-- Numeric controls require a value inside their declared range. `OreLongField` preserves the full signed 64-bit range without converting to floating point. `OreDoubleField` accepts finite values and positive finite steps, with decimal stepping. Numeric editors support buttons, arrow keys, wheel input and Shift/Ctrl step sizes. Incomplete drafts stay in the editor; invalid values do not become business values.
+- Numeric controls require a value inside their declared range. `OreLongField` preserves the full signed 64-bit range without converting to floating point. `OreDoubleField` accepts finite values and positive finite steps, with decimal stepping. Numeric editors support buttons, arrow keys, wheel input and Shift/Ctrl step sizes. Incomplete drafts stay in the editor and do not become business values. On Enter or focus loss, a complete number outside the range is clamped to the nearest bound and submitted; an incomplete draft is not submitted and resets on focus loss. Stepping from an invalid or out-of-range draft starts from the supplied value.
 - `OreColorPicker` accepts a Compose `Color`, offers HSV controls and hexadecimal entry, and can hide its alpha control through `showAlpha=false`.
 - `OreTreeView` accepts immutable `OreTreeNode` values, a selected ID and expanded IDs. IDs must be unique. Its callbacks report selection and expansion changes; your state decides whether to retain them. Visible rows use lazy layout, with keyboard navigation.
 - Supply localized labels, option text, placeholders and accessibility descriptions. Built-in English defaults are conveniences, not automatic translation of consumer content.

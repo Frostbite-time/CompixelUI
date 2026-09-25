@@ -3,6 +3,7 @@ package dev.composemc.ui.ore.input
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
+import java.math.BigInteger
 
 /** Exact signed 64-bit editor; stepping saturates without a floating-point conversion. */
 @Composable
@@ -13,6 +14,9 @@ fun OreLongField(value: Long, onValueChange: (Long) -> Unit, modifier: Modifier 
     require(!range.isEmpty() && value in range && step > 0 && shiftStep > 0 && controlStep > 0)
     OreNumberEditor(value, onValueChange, modifier, label, enabled, range,
         parse = { it.toLongOrNull()?.takeIf { number -> number in range } },
+        clampDraft = { text ->
+            text.toBigIntegerOrNull()?.coerceIn(BigInteger.valueOf(range.first), BigInteger.valueOf(range.last))?.toLong()
+        },
         accepts = { text -> text.length <= 20 && text.withIndex().all { (i, c) -> c in '0'..'9' || i == 0 && c == '-' && range.first < 0 } },
         adjust = { base, direction, scale ->
             val amount = when (scale) { 2 -> controlStep; 1 -> shiftStep; else -> step }

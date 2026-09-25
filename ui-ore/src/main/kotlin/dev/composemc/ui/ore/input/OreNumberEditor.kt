@@ -38,7 +38,7 @@ import dev.composemc.ui.ore.display.OreText
 
 @Composable
 internal fun <T : Any> OreNumberEditor(value: T, onValueChange: (T) -> Unit, modifier: Modifier,
-    label: String?, enabled: Boolean, rangeKey: Any, parse: (String) -> T?, accepts: (String) -> Boolean,
+    label: String?, enabled: Boolean, rangeKey: Any, parse: (String) -> T?, clampDraft: (String) -> T?, accepts: (String) -> Boolean,
     adjust: (T, Int, Int) -> T, canDecrease: (T) -> Boolean, canIncrease: (T) -> Boolean,
     keyboardType: KeyboardType, decreaseLabel: String, increaseLabel: String) {
     var draft by remember { mutableStateOf(value.toString()) }
@@ -50,10 +50,13 @@ internal fun <T : Any> OreNumberEditor(value: T, onValueChange: (T) -> Unit, mod
     }
     val parsed = parse(draft)
     fun reset() { draft = value.toString(); dirty = false }
-    fun commit() {
-        if (enabled && dirty && parsed != null) {
-            draft = parsed.toString(); dirty = false
-            if (parsed != value) onValueChange(parsed)
+    fun commit(resetInvalid: Boolean = false) {
+        if (enabled && dirty) {
+            val next = parsed ?: clampDraft(draft)
+            if (next != null) {
+                draft = next.toString(); dirty = false
+                if (next != value) onValueChange(next)
+            } else if (resetInvalid) reset()
         }
     }
     fun step(direction: Int, scale: Int) {
@@ -69,7 +72,7 @@ internal fun <T : Any> OreNumberEditor(value: T, onValueChange: (T) -> Unit, mod
                 enabled && canDecrease(parsed ?: value), OreButtonStyle.Secondary)
             OreTextField(draft, { if (accepts(it)) { draft = it; dirty = true } },
                 Modifier.weight(1f).onFocusChanged {
-                    if (focused && !it.isFocused) { if (parsed == null) reset() else commit() }
+                    if (focused && !it.isFocused) commit(resetInvalid = true)
                     focused = it.isFocused
                 }.onPreviewKeyEvent { event ->
                     if (!enabled || event.type != KeyEventType.KeyDown) false else when (event.key) {

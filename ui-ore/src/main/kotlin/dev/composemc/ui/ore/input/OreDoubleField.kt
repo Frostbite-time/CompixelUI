@@ -16,6 +16,10 @@ fun OreDoubleField(value: Double, onValueChange: (Double) -> Unit, modifier: Mod
     require(listOf(step, shiftStep, controlStep).all { it.isFinite() && it > 0 })
     OreNumberEditor(value, onValueChange, modifier, label, enabled, range,
         parse = { it.toDoubleOrNull()?.takeIf { number -> number.isFinite() && number in range } },
+        clampDraft = { text ->
+            text.toBigDecimalOrNull()?.coerceIn(BigDecimal.valueOf(range.start), BigDecimal.valueOf(range.endInclusive))?.toDouble()
+                ?: text.toDoubleOrNull()?.takeUnless { it.isNaN() }?.coerceIn(range.start, range.endInclusive)
+        },
         accepts = { text -> text.length <= 128 && text.matches(decimalDraft) },
         adjust = { base, direction, scale ->
             val amount = when (scale) { 2 -> controlStep; 1 -> shiftStep; else -> step }
