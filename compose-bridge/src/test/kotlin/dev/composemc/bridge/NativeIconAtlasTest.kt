@@ -16,10 +16,18 @@ class NativeIconAtlasTest {
         /** Snapshot indices; closed Skia images compare equal, so identity is tracked here. */
         val released = mutableListOf<Int>()
         val published = HashMap<Long, NativeImageRegion>()
+        val appearances = HashMap<Long, Any>()
+        val appearanceCalls = HashMap<Long, Int>()
+        var copyReady = true
         override fun id(icon: Icon) = icon.id
         override fun refresh(icon: Icon) = icon.refresh
+        override fun appearance(icon: Icon): Any? {
+            appearanceCalls.merge(icon.id, 1, Int::plus)
+            return appearances[icon.id]
+        }
         override fun draw(buffer: Int, icons: List<NativeIconAtlas.Placement<Icon>>) { draws += buffer to icons }
-        override fun snapshot(buffer: Int): Image {
+        override fun snapshot(buffer: Int): Image? {
+            if (!copyReady) return null
             val surface = Surface.makeRasterN32Premul(4, 4)
             return try { surface.makeImageSnapshot().also { snapshots += it } } finally { surface.close() }
         }
@@ -117,6 +125,43 @@ class NativeIconAtlasTest {
         atlas.prepare(0, 0, 1.0)
         assertEquals(setOf(0L, 1, 2, 3), host.published.keys)
         assertEquals(listOf(0, 1, 0), host.draws.map { it.first })
+        atlas.close()
+    }
+
+    @Test fun deferredCopiesHoldTheirBufferUntilComplete() {
+        val host = Host(immediate = false)
+        val atlas = NativeIconAtlas(4, 2, 16, host)
+        atlas.recorded(icons(4))
+        assertFalse(atlas.prepare(0, 0, 1.0))
+        host.copyReady = false
+        repeat(3) { assertFalse(atlas.prepare(0, 0, 1.0)) }
+        assertEquals(1, host.draws.size)
+        assertTrue(host.published.isEmpty())
+        host.copyReady = true
+        assertTrue(atlas.prepare(0, 0, 1.0))
+        assertEquals(setOf(0L, 1), host.published.keys)
+        assertEquals(listOf(0, 1), host.draws.map { it.first })
+        assertTrue(atlas.prepare(0, 0, 1.0))
+        assertEquals(setOf(0L, 1, 2, 3), host.published.keys)
+        atlas.close()
+    }
+
+    @Test fun changedAppearancesRedrawTheirPageAndAreComparedOncePerTick() {
+        val host = Host()
+        val atlas = NativeIconAtlas(8, 4, 16, host)
+        val changing = icons(8, NativeIconRefresh.ON_CHANGE)
+        changing.forEach { host.appearances[it.id] = "still" }
+        atlas.recorded(changing)
+        repeat(2) { assertTrue(atlas.prepare(0, 0, 1.0)) }
+        assertFalse(atlas.prepare(0, 1, 1.0))
+        host.appearances[5] = "moved"
+        // The tick that already compared its appearances notices the change only on the next tick.
+        assertFalse(atlas.prepare(0, 1, 1.0))
+        assertTrue(atlas.prepare(0, 2, 1.0))
+        assertEquals(listOf(4L, 5, 6, 7), host.drawnIds(2))
+        assertFalse(atlas.prepare(0, 3, 1.0))
+        assertEquals(3, host.draws.size)
+        assertEquals((0L until 8).associateWith { 4 }, host.appearanceCalls)
         atlas.close()
     }
 

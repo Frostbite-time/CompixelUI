@@ -10,11 +10,13 @@ class NativeImageRegion(val image: Image, val source: Rect)
 
 /** A resolved redraw policy. Adapters resolve automatic policies before an icon is scheduled. */
 class NativeIconRefresh private constructor(val kind: Kind, val intervalMillis: Long) {
-    enum class Kind { STATIC, GAME_TICK, FRAME, INTERVAL }
+    enum class Kind { STATIC, GAME_TICK, FRAME, INTERVAL, ON_CHANGE }
     companion object {
         val STATIC = NativeIconRefresh(Kind.STATIC, 0)
         val GAME_TICK = NativeIconRefresh(Kind.GAME_TICK, 0)
         val FRAME = NativeIconRefresh(Kind.FRAME, 0)
+        /** Redraws when [NativeIconAtlas.Host.appearance] changes, comparing it once per game tick. */
+        val ON_CHANGE = NativeIconRefresh(Kind.ON_CHANGE, 0)
         fun every(millis: Long): NativeIconRefresh {
             require(millis > 0) { "Icon refresh interval must be positive" }
             return NativeIconRefresh(Kind.INTERVAL, millis)
@@ -27,8 +29,9 @@ class NativeIconRefresh private constructor(val kind: Kind, val intervalMillis: 
  *
  * Slots remain stable while their icons are cached. Each [prepare] redraws at most one page of up to
  * `preparationsPerFrame` icons: the page whose visible, due icon has waited longest. One snapshot then
- * replaces that page's image. A deferred host publishes a page on the following frame and alternates
- * two buffers. Call every member on the render thread; publication runs on the Compose thread.
+ * replaces that page's image. A deferred host publishes a page on a later frame, once its copy is
+ * complete, and alternates two buffers. Call every member on the render thread; publication runs on
+ * the Compose thread.
  */
 class NativeIconAtlas<I : Any>(
     cacheCapacity: Int,
@@ -42,10 +45,15 @@ class NativeIconAtlas<I : Any>(
         fun id(icon: I): Long
         /** Resolves the redraw policy once, when [icon] receives a slot. */
         fun refresh(icon: I): NativeIconRefresh
+        /**
+         * For [NativeIconRefresh.ON_CHANGE] icons: a value that differs, by [Any.equals], whenever drawing
+         * [icon] would produce different pixels. Called at most once per game tick for each cached icon.
+         */
+        fun appearance(icon: I): Any? = null
         /** Clears page [buffer] and draws [icons], mapping the page GUI area onto its pixels. */
         fun draw(buffer: Int, icons: List<Placement<I>>)
-        /** Copies page [buffer] into an immutable image. */
-        fun snapshot(buffer: Int): Image
+        /** Copies page [buffer] into an immutable image; a deferred host returns null until its copy completes. */
+        fun snapshot(buffer: Int): Image?
         fun release(image: Image)
         /** Runs on the Compose thread. */
         fun publish(regions: Map<Long, NativeImageRegion>, removed: Set<Long>)
@@ -72,6 +80,9 @@ class NativeIconAtlas<I : Any>(
         var tick = 0L
         var guiScale = 0.0
         var hasImage = false
+        var appearance: Any? = null
+        var appearanceTick = Long.MIN_VALUE
+        var drawnAppearance: Any? = null
     }
     private class Page {
         var image: Image? = null
@@ -130,7 +141,12 @@ class NativeIconAtlas<I : Any>(
         check(!closed)
         frame++
         var changed = false
-        pending?.let { publish(it); pending = null; changed = true }
+        pending?.let {
+            // The pending buffer is not redrawn until its copy completes, possibly several frames later.
+            if (!publish(it)) return false
+            pending = null
+            changed = true
+        }
         for ((id, icon) in visible) {
             if (id in byId) continue
             val free = slots.indexOfFirst { it == null }
@@ -156,9 +172,13 @@ class NativeIconAtlas<I : Any>(
             entry.drawnAt = now
             entry.tick = tick
             entry.guiScale = guiScale
+            if (entry.refresh.kind == NativeIconRefresh.Kind.ON_CHANGE) entry.drawnAppearance = appearance(entry, tick)
         }
         val next = Pending(buffer, duePage, entries)
-        if (host.immediate) { publish(next); return true }
+        if (host.immediate) {
+            check(publish(next)) { "An immediate host must copy its page in the frame that drew it" }
+            return true
+        }
         pending = next
         return changed
     }
@@ -170,7 +190,16 @@ class NativeIconAtlas<I : Any>(
             NativeIconRefresh.Kind.GAME_TICK -> entry.tick != tick
             NativeIconRefresh.Kind.FRAME -> entry.drawnFrame != frame
             NativeIconRefresh.Kind.INTERVAL -> now - entry.drawnAt >= entry.refresh.intervalMillis * 1_000_000L
+            NativeIconRefresh.Kind.ON_CHANGE -> appearance(entry, tick) != entry.drawnAppearance
         }
+    }
+
+    private fun appearance(entry: Entry<I>, tick: Long): Any? {
+        if (entry.appearanceTick != tick) {
+            entry.appearanceTick = tick
+            entry.appearance = host.appearance(entry.icon)
+        }
+        return entry.appearance
     }
 
     private fun pageEntries(page: Int): List<Entry<I>> =
@@ -179,8 +208,9 @@ class NativeIconAtlas<I : Any>(
     private fun x(slot: Int) = slot % pageCapacity % columns * SLOT_UNITS
     private fun y(slot: Int) = slot % pageCapacity / columns * SLOT_UNITS
 
-    private fun publish(result: Pending<I>) {
-        val copy = host.snapshot(result.buffer)
+    /** False while a deferred host is still copying [result]. */
+    private fun publish(result: Pending<I>): Boolean {
+        val copy = host.snapshot(result.buffer) ?: return false
         prepared++
         val page = pages[result.page]
         val regions = HashMap<Long, NativeImageRegion>(result.entries.size * 2)
@@ -195,6 +225,7 @@ class NativeIconAtlas<I : Any>(
         page.published = regions.keys
         page.image?.let { host.release(it); retired++ }
         page.image = copy
+        return true
     }
 
     private fun evict(entry: Entry<I>) {
