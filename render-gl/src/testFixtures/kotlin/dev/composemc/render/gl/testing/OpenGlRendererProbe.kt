@@ -3,6 +3,7 @@ package dev.composemc.render.gl.testing
 import dev.composemc.render.gl.*
 
 import dev.composemc.render.RecordedFrame
+import dev.composemc.render.UiFrameProfiler
 import dev.composemc.testing.render.RendererPixels
 import dev.composemc.testing.render.RendererProbeResult
 import org.jetbrains.skia.PictureRecorder
@@ -129,6 +130,19 @@ object OpenGlRendererProbe {
                     }
                     check(renderer.statistics.surfaceAllocations == 2L) { "Retained surface was not reused" }
                 }
+            }
+            // A host that composites through its own pipeline never calls present(); polling alone must deliver timings.
+            val profiler = UiFrameProfiler()
+            OpenGlFrameRenderer(verifyState = true, profiler = profiler).use { renderer ->
+                profiler.beginFrame()
+                renderer.render(frame)
+                profiler.endFrame()
+                // Probe-only wait, so the non-blocking poll is certain to find the timestamps available.
+                glFinish()
+                profiler.beginFrame()
+                renderer.collectGpuTimings()
+                profiler.endFrame()
+                check(profiler.frames().first().missingGpuResults == 0) { "GPU timings stayed pending without present" }
             }
             return RendererProbeResult(pixels, cycles, worstPixels, worstMean)
         } finally {

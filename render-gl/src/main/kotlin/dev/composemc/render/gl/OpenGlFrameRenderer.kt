@@ -184,13 +184,22 @@ class OpenGlFrameRenderer(
         frames++
     }
 
+    /**
+     * Hands finished GPU timestamps to the profiler without waiting. [present] does this every frame.
+     * A host that composites the frame through its own pipeline must call this once per frame instead;
+     * otherwise a phase's latest samples stay pending until that phase runs again, which may be never.
+     */
+    fun collectGpuTimings() {
+        if (profiler == null) return
+        checkContext()
+        renderTimer?.collect()
+        presentTimer?.collect()
+        nativeTimers.values.forEach { it.collect() }
+    }
+
     override fun present(destination: OpenGlDestination) {
         checkContext()
-        if (profiler != null) {
-            renderTimer?.collect()
-            presentTimer?.collect()
-            nativeTimers.values.forEach { it.collect() }
-        }
+        collectGpuTimings()
         if (!hasFrame) return
         // This compositor is our own GL code and binds only texture/sampler unit zero.
         // Skia render/import/retirement scopes continue to capture every available unit.
