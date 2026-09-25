@@ -94,7 +94,7 @@ Client runs use the loader's ordinary window startup. Direct client and suite ta
 
 ## Native extension points
 
-Prefer public loader APIs. The 26.x adapters use one narrowly scoped `GuiRenderer.draw` redirect because Minecraft sends GUI commands to its main render target without a public target override. The redirect selects an offscreen target only while native icons are being captured; ordinary GUI drawing keeps the Minecraft target. Archive checks allow only this declared Mixin on 26.x. Access transformers are target-specific:
+Prefer public loader APIs. The 26.x adapters use one narrowly scoped `GuiRenderer.draw` redirect because Minecraft sends GUI commands to its main render target without a public target override. The redirect selects an offscreen target only while native icons or tooltips are being captured; ordinary GUI drawing keeps the Minecraft target. Archive checks allow only this declared Mixin on 26.x. Access transformers are target-specific:
 
 - 1.21.1: `Slot.x` and `Slot.y` for native slot positioning.
 - 26.1.2: those coordinates plus non-final `AbstractContainerScreen.imageWidth` and `imageHeight`, so the inventory host reports its Compose area as the container size, as on 1.20.1/1.21.1.

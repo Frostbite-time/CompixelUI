@@ -24,8 +24,9 @@ internal class VulkanScreenFrameRenderer(override val profiler: UiFrameProfiler?
         surfaceAllocations = allocations, liveSurfaces = if (target == null) 0 else 1)
     override val needsFrame get() = renderer.needsFrame
 
-    // Minecraft submits recorded GUI work at frame end. Copy a page on the following frame,
-    // after an acquire barrier; release it into the next host batch before it is reused.
+    // Minecraft submits its recorded work at the end of the frame, so a texture drawn in one
+    // frame is copied in the next: the acquire runs after that host batch, the release before
+    // the next one. Both queue orders follow submission order on the shared graphics queue.
     override val nativeSnapshots = object : NativeSnapshots {
         override val immediate = false
         override fun snapshot(texture: GpuTexture, width: Int, height: Int): Image {
@@ -40,6 +41,7 @@ internal class VulkanScreenFrameRenderer(override val profiler: UiFrameProfiler?
             VulkanImageBarriers.acquireForSnapshot(acquire, image.image)
             check(VK12.vkEndCommandBuffer(acquire) == VK12.VK_SUCCESS)
             device.graphicsQueue().beginSubmit().use { it.executeCommands(acquire) }
+            // Minecraft renders GUI targets bottom-up on Vulkan as well.
             val copy = renderer.snapshotImage(image, VK12.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, width, height, bottomUp = true)
             val release = encoder.allocateAndBeginTransientCommandBuffer()
             VulkanImageBarriers.releaseAfterSnapshot(release, image.image)

@@ -50,7 +50,7 @@ class ComposePreviewScreen private constructor(
 }
 
 private fun previewIcons(): List<ItemIcon> {
-    // Since 26.2 item defaults are supplied by a connected world's registry data.
+    // Item defaults are supplied by a connected world's registry data.
     if (net.minecraft.client.Minecraft.getInstance().level == null) return emptyList()
     val examples = listOf(
         ItemIcon.snapshot(ItemStack(Items.STONE, 64)),

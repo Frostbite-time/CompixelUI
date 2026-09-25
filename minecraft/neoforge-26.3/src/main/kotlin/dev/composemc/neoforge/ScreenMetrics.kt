@@ -23,7 +23,7 @@ internal data class ScreenMetrics(
     fun pixelY(guiY: Double): Float = (guiY * framebufferHeight / guiHeight).toFloat()
 }
 
-/** GLFW characters arrive as UTF-16 through Screen in 1.21.1. */
+/** Joins the UTF-16 units of each typed code point and drops control characters. */
 internal class CommittedCharacters {
     private var pendingHigh: Char? = null
     fun accept(character: Char): String? {

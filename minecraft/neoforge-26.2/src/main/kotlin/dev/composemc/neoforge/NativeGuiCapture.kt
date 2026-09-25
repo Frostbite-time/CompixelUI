@@ -97,6 +97,7 @@ internal class NativeGuiCapture(private val imageWidth: Int, private val imageHe
         require(logicalWidth > 0 && logicalHeight > 0)
         try {
             val graphics = GuiGraphicsExtractor(minecraft, state, 0, 0)
+            // GuiRenderer projects against the window; map the local GUI area onto this target.
             graphics.pose().scale(minecraft.window.guiScaledWidth / logicalWidth.toFloat(),
                 minecraft.window.guiScaledHeight / logicalHeight.toFloat())
             val result = draw(graphics)

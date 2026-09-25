@@ -26,6 +26,7 @@ apply from: rootProject.file('gradle/minecraft/artifact-checks.gradle')
 apply from: rootProject.file('gradle/minecraft/runs.gradle')
 
 def rendererFixtures = configureMinecraftSources()
+// Reobfuscating the development archive (Forge only) needs its source set's apiElements/runtimeElements, which a feature provides.
 java.registerFeature('development') { usingSourceSet sourceSets.development }
 legacyForge { version = "$minecraft_version-$forge_version" }
 def artifacts = configureMinecraftArtifacts(

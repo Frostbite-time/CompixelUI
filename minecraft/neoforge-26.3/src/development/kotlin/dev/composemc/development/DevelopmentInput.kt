@@ -6,7 +6,7 @@ import net.minecraft.client.input.KeyEvent
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.client.input.MouseButtonInfo
 
-/** Compatibility helpers for deterministic development probes on the 26.2 input API. */
+/** Compatibility helpers for deterministic development probes on the 26.x input API. */
 internal fun Screen.mouseClicked(x: Double, y: Double, button: Int, modifiers: Int = 0): Boolean =
     mouseClicked(MouseButtonEvent(x, y, MouseButtonInfo(button, modifiers)), false)
 

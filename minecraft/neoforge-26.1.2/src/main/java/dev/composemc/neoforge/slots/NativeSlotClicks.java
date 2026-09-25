@@ -7,7 +7,7 @@ import net.minecraft.world.inventory.ContainerInput;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-/** Public translation between platform-neutral gestures and the 26.2 menu input protocol. */
+/** Public translation between platform-neutral gestures and the 26.1.2 menu input protocol. */
 public final class NativeSlotClicks {
     private NativeSlotClicks() {}
 

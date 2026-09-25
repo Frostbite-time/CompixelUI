@@ -217,7 +217,7 @@ open class NeoForgeComposeScreen(
     }
 
     override fun onClose() {
-        // Gui owns both the parent-screen and return-to-game transitions.
+        // Minecraft.setScreen owns both the parent-screen and return-to-game transitions.
         Minecraft.getInstance().setScreen(parent)
     }
     override fun removed() {

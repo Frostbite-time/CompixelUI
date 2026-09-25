@@ -86,4 +86,3 @@ internal class CpuScreenFrameRenderer(
 
     private companion object { val nextTexture = AtomicLong() }
 }
-

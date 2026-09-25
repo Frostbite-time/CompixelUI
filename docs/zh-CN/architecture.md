@@ -94,7 +94,7 @@ standard 配置使用 Skiko 0.150.1；Vulkan 配置使用匹配的 Polyfrost Ski
 
 ## 原生扩展点
 
-优先使用加载器公开 API。26.x 适配器使用一处限定范围的 `GuiRenderer.draw` 重定向，因为 Minecraft 将 GUI 命令直接送到主渲染目标，缺少公开的目标替换接口。重定向只在捕获原生图标时选择离屏目标；普通 GUI 绘制仍使用 Minecraft 目标。归档检查只允许 26.x 中明确声明的这一处 Mixin。访问转换按目标限定：
+优先使用加载器公开 API。26.x 适配器使用一处限定范围的 `GuiRenderer.draw` 重定向，因为 Minecraft 将 GUI 命令直接送到主渲染目标，缺少公开的目标替换接口。重定向只在捕获原生图标或提示框时选择离屏目标；普通 GUI 绘制仍使用 Minecraft 目标。归档检查只允许 26.x 中明确声明的这一处 Mixin。访问转换按目标限定：
 
 - 1.21.1：用于原生槽位定位的 `Slot.x`、`Slot.y`。
 - 26.1.2：上述坐标，以及去掉 final 的 `AbstractContainerScreen.imageWidth`、`imageHeight`，使容器宿主与 1.20.1/1.21.1 一样把 Compose 区域报告为容器尺寸。

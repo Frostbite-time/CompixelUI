@@ -19,7 +19,10 @@ internal interface ScreenFrameRenderer : FrameRenderer<ScreenRenderDestination> 
 internal interface NativeSnapshots {
     /** Whether native GUI work recorded in this frame is visible to [snapshot] in the same frame. */
     val immediate: Boolean
-    /** An immutable GPU copy of the top-left [width]x[height] region of [texture]. */
+    /**
+     * A Skia-owned GPU copy of the top-left [width]x[height] region of [texture]. Where not
+     * [immediate], the texture's contents are consumed: redraw it completely before the next snapshot.
+     */
     fun snapshot(texture: GpuTexture, width: Int, height: Int): Image
     fun release(image: Image)
 }

@@ -35,7 +35,7 @@ The `dev` JAR is the full compile-only API bundle for either variant. The librar
 
 Ore UI now uses responsibility-based subpackages. Replace root-package imports using the [component/package table](ore-ui.md#choose-a-component), then rebuild the consumer and install the matching library. This changes JVM names as well as source imports; an already compiled consumer needs recompilation.
 
-Alpha.33 uses menu protocol **5**. Rebuild the consumer against the matching `dev` artifact and upgrade the installed library on both sides together. Protocol 4 peers and the previous state-record framing are incompatible.
+This release uses menu protocol **5**. Rebuild the consumer against the matching `dev` artifact and upgrade the installed library on both sides together. Protocol 4 peers and the previous state-record framing are incompatible.
 
 | Integration point | Current API |
 | --- | --- |
