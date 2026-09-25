@@ -91,4 +91,4 @@ Import `dev.composemc.slots.SlotTransferRoutes`. Ranges are disjoint and end-exc
 
 The executor merges matching stacks before filling empty slots, respects pickup/placement and stack limits, and calls native source hooks. It is not a rollback transaction manager. Crafting/merchant result slots are rejected by the generic executor. Ghost slots, virtual resources and special crafting outputs need consumer-owned execution; the same route declarations can still be reused.
 
-The Java 17 `slot-core` module contains only policies and routes. Native gesture translation, packets and execution live in version adapters. [Architecture](architecture.md) documents the small target-specific access transformers used for slot geometry and rendering.
+The Java 17 `slot-core` module contains only policies and routes. Native gesture translation, packets and execution live in version adapters. [Architecture](architecture.md) documents the small target-specific access transformers used for slot and container geometry and rendering.

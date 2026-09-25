@@ -57,6 +57,11 @@ open class NeoForgeComposeInventoryScreen<M : AbstractContainerMenu>(
     private fun cancelInteraction() { nativePress = false; isQuickCrafting = false; quickCraftSlots.clear(); cancelSlotClickCapture(); inventory.reset() }
     private fun mirrorDrag() { inventory.nativeInteraction(nativePress, dragButton, if (isQuickCrafting) quickCraftSlots.mapTo(linkedSetOf()) { it.index } else emptySet()) }
 
+    // As on 1.20.1/1.21.1, Compose supplies the container backdrop: skip the vanilla dimming,
+    // but keep the deferred subtitle pass that vanilla runs here.
+    override fun extractBackground(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, partialTick: Float) {
+        Minecraft.getInstance().gui.extractDeferredSubtitles()
+    }
     override fun extractRenderState(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, partialTick: Float) {
         updateViewport()
         if (!isUiWindowFocused() || !inventory.interactionsEnabled || sendingAction()) cancelInteraction()
@@ -70,6 +75,7 @@ open class NeoForgeComposeInventoryScreen<M : AbstractContainerMenu>(
     private fun updateSlotCoordinates() {
         inventory.areaBounds()?.let { bounds ->
             leftPos = floor(bounds.left).toInt(); topPos = floor(bounds.top).toInt()
+            imageWidth = ceil(bounds.right - bounds.left).toInt(); imageHeight = ceil(bounds.bottom - bounds.top).toInt()
         }
         val positions = HashMap<Pair<Int, Int>, Int>(inventory.visibleSlotIds.size)
         for (slot in container.slots) {

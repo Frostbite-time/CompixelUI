@@ -91,6 +91,12 @@ open class NeoForgeComposeScreen(
         updateWindowFocus()
     }
 
+    // Compose supplies the backdrop, as on 1.20.1/1.21.1: skip the vanilla panorama, blur and
+    // menu texture, but keep the deferred subtitle pass that vanilla runs here.
+    override fun extractBackground(guiGraphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, partialTick: Float) {
+        Minecraft.getInstance().gui.hud.extractDeferredSubtitles()
+    }
+
     override fun extractRenderState(guiGraphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, partialTick: Float) {
         RenderSystem.assertOnRenderThread()
         if (session == null) return

@@ -64,7 +64,7 @@ Use `side="BOTH"` if you use menu synchronization or common slot operations. Gen
 
 ## 3. Open a screen
 
-Place this file in the consumer's client code. Call `openCounterScreen()` from a client-thread event or key-binding handler. The host installs `OreTheme` and game click feedback.
+Place this file in the consumer's client code. Call `openCounterScreen()` from a client-thread event or key-binding handler. The host installs `OreTheme` and game click feedback. Compose MC hosts draw no Minecraft menu background, blur or dimming on any target; `OreScreen` supplies its own backdrop.
 
 ```kotlin
 import androidx.compose.runtime.*

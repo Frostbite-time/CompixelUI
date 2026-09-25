@@ -64,7 +64,7 @@ side="CLIENT"
 
 ## 3. 打开一个屏幕
 
-将以下文件放在消费者的客户端代码中，从客户端线程事件或按键处理器调用 `openCounterScreen()`。宿主会自动提供 `OreTheme` 和游戏点击反馈。
+将以下文件放在消费者的客户端代码中，从客户端线程事件或按键处理器调用 `openCounterScreen()`。宿主会自动提供 `OreTheme` 和游戏点击反馈。Compose MC 的宿主在所有目标上都不绘制 Minecraft 的菜单背景、模糊或压暗，`OreScreen` 自带背景遮罩。
 
 ```kotlin
 import androidx.compose.runtime.*
