@@ -49,7 +49,7 @@ The snapshot owns a copy of the stack. Create another snapshot when its content 
 | `IconRefresh.FRAME` | Refresh each frame |
 | `IconRefresh.every(milliseconds)` | Explicit 16–60,000 ms interval |
 
-An `AUTO` item's appearance is the model Minecraft selects for it plus its cooldown overlay, compared once per game tick. Compasses, clocks and other items whose model follows the world, time or input therefore redraw when their selected model changes, and a cooldown overlay shrinks as it expires. 1.20.1/1.21.1 also refresh custom item renderers each frame. Changes made only by other mods' item decorators, or by special renderers that animate without changing their model, are not detected; pass `GAME_TICK` or `FRAME` explicitly for such items.
+Items are drawn as container slots draw them, held by the local player if there is one. An `AUTO` item's appearance is the model Minecraft selects for it plus its cooldown overlay, compared once per game tick. Compasses, clocks and other items whose model follows the holder, world, time or input therefore redraw when their selected model changes, and a cooldown overlay shrinks as it expires. 1.20.1/1.21.1 also refresh custom item renderers each frame. Changes made only by other mods' item decorators, or by special renderers that animate without changing their model, are not detected; pass `GAME_TICK` or `FRAME` explicitly for such items.
 
 `ItemIcon.drawn(description, drawing, refresh)` supplies custom native drawing inside a 16×16 GUI area. Its callback runs on the render thread and defaults to `GAME_TICK`. Capture the data needed to draw a resource; business resource types remain in the consumer. A drawn icon does not contain an item-tooltip snapshot.
 

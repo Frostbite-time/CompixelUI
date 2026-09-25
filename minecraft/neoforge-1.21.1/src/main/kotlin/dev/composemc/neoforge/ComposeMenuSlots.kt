@@ -215,7 +215,7 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(val menu: M, val adapter: Menu
             if (remaining > 0) {
                 val image = carried.copyWithCount(remaining)
                 graphics.pose().pushPose()
-                try { graphics.pose().translate(0f, 0f, 400f); graphics.renderFakeItem(image, x - 8, y - 8); graphics.renderItemDecorations(mc.font, image, x - 8, y - 8) }
+                try { graphics.pose().translate(0f, 0f, 400f); graphics.renderItem(image, x - 8, y - 8); graphics.renderItemDecorations(mc.font, image, x - 8, y - 8) }
                 finally { graphics.pose().popPose() }
             }
         } else if (!interacting) {

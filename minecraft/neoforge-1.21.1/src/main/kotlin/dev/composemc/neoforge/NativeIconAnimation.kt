@@ -36,8 +36,8 @@ internal class NativeIconAnimation {
         val cooldown = mc.player?.cooldowns?.getCooldownPercent(icon.stack.item, mc.timer.getGameTimeDeltaPartialTick(true)) ?: 0f
         return listOf(model(icon.stack), Mth.ceil(16f * cooldown))
     }
-    // Resolved as GuiGraphics.renderFakeItem does: no entity, the current level and seed 0.
-    private fun model(stack: ItemStack) = Minecraft.getInstance().let { it.itemRenderer.getModel(stack, it.level, null, 0) }
+    // Resolved as the page draws it: held by the local player, in the current level, with seed 0.
+    private fun model(stack: ItemStack) = Minecraft.getInstance().let { it.itemRenderer.getModel(stack, it.level, it.player, 0) }
     private fun animated(sprite: TextureAtlasSprite): Boolean {
         val contents = sprite.contents()
         return sprites.getOrPut(contents) { contents.uniqueFrames.use { it.limit(2).count() > 1 } }

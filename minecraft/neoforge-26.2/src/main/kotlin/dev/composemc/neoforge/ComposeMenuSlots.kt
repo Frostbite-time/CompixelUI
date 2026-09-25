@@ -216,7 +216,7 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(val menu: M, val adapter: Menu
             if (remaining > 0) {
                 val image = carried.copyWithCount(remaining)
                 graphics.nextStratum()
-                graphics.fakeItem(image, x - 8, y - 8)
+                graphics.item(image, x - 8, y - 8)
                 graphics.itemDecorations(mc.font, image, x - 8, y - 8)
             }
         } else if (!interacting) {

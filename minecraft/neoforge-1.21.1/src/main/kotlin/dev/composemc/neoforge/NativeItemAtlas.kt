@@ -78,7 +78,8 @@ internal class NativeItemAtlas(
                 icons.forEach { placement ->
                     val icon = placement.icon
                     if (icon.drawing == null) {
-                        graphics.renderFakeItem(icon.stack, placement.x, placement.y)
+                        // Held by the local player, as in a container slot; compass and clock models need a holder.
+                        graphics.renderItem(icon.stack, placement.x, placement.y)
                         graphics.renderItemDecorations(font, icon.stack, placement.x, placement.y)
                     } else {
                         graphics.pose().pushPose()

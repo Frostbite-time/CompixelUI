@@ -25,9 +25,9 @@ internal class NativeIconAnimation {
             ?.getCooldownPercent(icon.stack, minecraft.deltaTracker.getGameTimeDeltaPartialTick(true)) ?: 0f
         return listOf(resolved(icon.stack).modelIdentity, Mth.ceil(16f * cooldown))
     }
-    // Resolved as GuiGraphicsExtractor.fakeItem does: no owner, the current level and seed 0.
+    // Resolved as the page draws it: held by the local player, in the current level, with seed 0.
     private fun resolved(stack: ItemStack) = TrackingItemStackRenderState().also {
         val minecraft = Minecraft.getInstance()
-        minecraft.itemModelResolver.updateForTopItem(it, stack, ItemDisplayContext.GUI, minecraft.level, null, 0)
+        minecraft.itemModelResolver.updateForTopItem(it, stack, ItemDisplayContext.GUI, minecraft.level, minecraft.player, 0)
     }
 }
