@@ -1,6 +1,7 @@
 package dev.composemc.neoforge
 
 import dev.composemc.platform.*
+import net.minecraft.client.Minecraft
 import net.minecraft.client.input.KeyEvent
 import org.lwjgl.glfw.GLFW
 
@@ -60,3 +61,7 @@ internal fun Int.toModifiers() = Modifiers(
     shift = and(GLFW.GLFW_MOD_SHIFT) != 0, control = and(GLFW.GLFW_MOD_CONTROL) != 0,
     alt = and(GLFW.GLFW_MOD_ALT) != 0, meta = and(GLFW.GLFW_MOD_SUPER) != 0,
 )
+
+/** Tells Minecraft whether a Compose text field has focus; while it does, the IME stays available. */
+internal fun textInputFocusChanged(@Suppress("UNUSED_PARAMETER") owner: Any, focused: Boolean) =
+    Minecraft.getInstance().textInputManager().onTextInputFocusChange(focused)

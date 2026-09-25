@@ -52,6 +52,8 @@ internal object SuitePlatform {
     val resourceEpoch: Long get() = RendererResources.epoch
     val windowHidden: Boolean get() = GLFW.glfwGetWindowAttrib(window, GLFW.GLFW_VISIBLE) == GLFW.GLFW_FALSE
     val windowFocused: Boolean get() = minecraft.window.isFocused
+    /** Whether the Compose host opened Minecraft's text input, which keeps the IME available. */
+    fun textInputOpen(screen: Screen): Boolean = (screen as? SuiteComposeScreen)?.textInputOpen == true
 
     fun setScreen(screen: Screen?) = minecraft.gui.setScreen(screen)
     fun defer(task: () -> Unit) = minecraft.schedule(Runnable(task))

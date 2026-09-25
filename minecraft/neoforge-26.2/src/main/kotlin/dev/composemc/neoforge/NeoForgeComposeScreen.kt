@@ -34,6 +34,7 @@ open class NeoForgeComposeScreen(
     internal val nativeTooltipBounds get() = layer.nativeTooltipBounds
     val rendererStatistics: RendererStatistics get() = layer.rendererStatistics
     val hasTextInputFocus: Boolean get() = layer.hasTextInputFocus || (focused as? EditBox)?.canConsumeInput() == true
+    internal val textInputOpen: Boolean get() = layer.textInputOpen
     /** Opt-in per-frame history. Read snapshots on the game/render thread. */
     val frameProfiler: UiFrameProfiler? get() = layer.frameProfiler
 
@@ -76,6 +77,11 @@ open class NeoForgeComposeScreen(
     override fun keyPressed(event: KeyEvent): Boolean = focused == null && layer.keyPressed(event) || super.keyPressed(event)
     override fun keyReleased(event: KeyEvent): Boolean = focused == null && layer.keyReleased(event) || super.keyReleased(event)
     override fun charTyped(event: CharacterEvent): Boolean = focused == null && layer.charTyped(event) || super.charTyped(event)
+    // A focused widget manages Minecraft's text input itself; once it lets go, Compose can claim it again.
+    override fun setFocused(listener: GuiEventListener?) {
+        super.setFocused(listener)
+        layer.nativeFocusChanged(listener != null)
+    }
 
     override fun onClose() {
         // Gui owns both the parent-screen and return-to-game transitions.

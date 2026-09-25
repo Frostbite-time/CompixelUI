@@ -50,6 +50,8 @@ internal object SuitePlatform {
     val resourceEpoch: Long get() = RendererResources.epoch
     val windowHidden: Boolean get() = GLFW.glfwGetWindowAttrib(window, GLFW.GLFW_VISIBLE) == GLFW.GLFW_FALSE
     val windowFocused: Boolean get() = GLFW.glfwGetWindowAttrib(window, GLFW.GLFW_FOCUSED) == GLFW.GLFW_TRUE
+    /** GLFW delivers typed characters without opening text input first. */
+    fun textInputOpen(@Suppress("UNUSED_PARAMETER") screen: Screen): Boolean = true
 
     fun setScreen(screen: Screen?) = minecraft.setScreen(screen)
     fun defer(task: () -> Unit) = minecraft.tell(Runnable(task))

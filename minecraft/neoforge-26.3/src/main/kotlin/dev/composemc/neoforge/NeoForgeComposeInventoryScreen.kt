@@ -156,6 +156,11 @@ open class NeoForgeComposeInventoryScreen<M : AbstractContainerMenu>(
     }
     override fun keyReleased(event: KeyEvent): Boolean = super.keyReleased(event) || layer.keyReleased(event)
     override fun charTyped(event: CharacterEvent): Boolean = focused?.charTyped(event) == true || layer.charTyped(event)
+    // A focused widget manages Minecraft's text input itself; once it lets go, Compose can claim it again.
+    override fun setFocused(listener: GuiEventListener?) {
+        super.setFocused(listener)
+        layer.nativeFocusChanged(listener != null)
+    }
     /** Where native key handling is bypassed, an Escape that Compose leaves still closes the screen. */
     private fun closeOnEscape(event: KeyEvent): Boolean {
         if (!event.isEscape() || !shouldCloseOnEsc()) return false

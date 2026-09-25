@@ -87,6 +87,7 @@ internal class PreviewAcceptance(private val session: SuiteSession, private val 
     private fun textField() {
         script.act("focus the profile field") { click(control("profile")) }
         script.pause(100)
+        script.until("text input opened for the field") { SuitePlatform.textInputOpen(screen) }
         script.act("type supplementary Unicode text") { TEXT.forEach { screen.charTyped(it, 0) } }
         script.until("the typed text reached the field") { model { query } == TEXT }
         script.act("select all and delete") {

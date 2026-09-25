@@ -2,6 +2,7 @@ package dev.composemc.neoforge
 
 import com.mojang.blaze3d.platform.InputConstants
 import dev.composemc.platform.*
+import net.minecraft.client.Minecraft
 import net.minecraft.client.input.KeyEvent
 import org.lwjgl.sdl.SDLScancode
 
@@ -67,3 +68,7 @@ internal fun Int.toModifiers() = Modifiers(
     shift = and(InputConstants.MOD_SHIFT) != 0, control = and(InputConstants.MOD_CONTROL) != 0,
     alt = and(InputConstants.MOD_ALT) != 0, meta = and(InputConstants.MOD_SUPER) != 0,
 )
+
+/** Tells Minecraft whether [owner] has a focused text field; SDL delivers typed text only while one does. */
+internal fun textInputFocusChanged(owner: Any, focused: Boolean) =
+    Minecraft.getInstance().textInputManager().onTextInputFocusChange(owner, focused)

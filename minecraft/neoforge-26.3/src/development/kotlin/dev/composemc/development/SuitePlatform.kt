@@ -56,6 +56,9 @@ internal object SuitePlatform {
     val resourceEpoch: Long get() = RendererResources.epoch
     val windowHidden: Boolean get() = SDLVideo.SDL_GetWindowFlags(window) and SDLVideo.SDL_WINDOW_HIDDEN != 0L
     val windowFocused: Boolean get() = minecraft.window.isFocused
+    /** Whether the Compose host opened SDL text input, without which typed text never arrives. */
+    fun textInputOpen(screen: Screen): Boolean =
+        (screen as? SuiteComposeScreen)?.textInputOpen == true && SDLKeyboard.SDL_TextInputActive(window)
 
     fun setScreen(screen: Screen?) = minecraft.gui.setScreen(screen)
     fun defer(task: () -> Unit) = minecraft.schedule(Runnable(task))
