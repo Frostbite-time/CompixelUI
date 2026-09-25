@@ -51,7 +51,7 @@ State/action policies and action declarations must match on both sides. The clie
 
 Default rendering follows Minecraft's selected backend on 26.2/26.3. Earlier targets use OpenGL. Native GPU paths avoid full-frame pixel readback, PNG conversion and CPU upload. OpenGL supports the 3.2 context used by vanilla 1.20.1; optional queries and state handling follow host capabilities.
 
-`-Dcomposemc.backend=cpu` selects a diagnostic reference renderer. It is useful for investigating pixels, not representative of normal GPU performance. Backend selection during development launches is covered in [build and test](build-and-test.md).
+The `composemc.backend` property accepts `auto` (the default), `opengl` and `cpu` on every target, plus `vulkan` on 26.2/26.3; other targets reject `vulkan` with an explicit error. `-Dcomposemc.backend=cpu` selects a diagnostic reference renderer. It is useful for investigating pixels, not representative of normal GPU performance. Backend selection during development launches is covered in [build and test](build-and-test.md).
 
 Each normal JAR includes Skiko natives for Windows, Linux and macOS on x64 and arm64. Bundling a native library does not establish runtime support for every OS/GPU/driver combination. Actual game GPU validation has covered Windows x64 on NVIDIA hardware. Hosted Windows/Linux CI covers core/desktop checks and adapter builds, not real GPU clients. macOS, other GPU vendors, shader-mod combinations, device-loss recovery and long-duration stress require separate validation.
 

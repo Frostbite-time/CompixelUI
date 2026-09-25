@@ -51,7 +51,7 @@ Alpha.33 使用菜单协议 **5**。请针对匹配的 `dev` 产物重新构建�
 
 26.2/26.3 默认跟随 Minecraft 当前选择的后端，较早目标使用 OpenGL。原生 GPU 路径不经过整帧像素读回、PNG 转换和 CPU 上传。OpenGL 支持原版 1.20.1 使用的 3.2 上下文，可选查询和状态处理依据宿主能力启用。
 
-`-Dcomposemc.backend=cpu` 选择诊断参考渲染器，适合调查像素问题，不代表正常 GPU 性能。开发启动时的后端选择见[构建与测试](build-and-test.md)。
+`composemc.backend` 在所有目标上都接受 `auto`（默认）、`opengl` 和 `cpu`，26.2/26.3 另外接受 `vulkan`；其他目标会对 `vulkan` 明确报错。`-Dcomposemc.backend=cpu` 选择诊断参考渲染器，适合调查像素问题，不代表正常 GPU 性能。开发启动时的后端选择见[构建与测试](build-and-test.md)。
 
 每个正式 JAR 均包含 Windows、Linux、macOS 的 x64 和 arm64 Skiko 原生库。打包原生库不等于已验证全部系统/GPU/驱动组合。实际游戏 GPU 验证覆盖 Windows x64 与 NVIDIA 硬件。托管 Windows/Linux CI 覆盖核心、桌面检查及适配器构建，不运行真实 GPU 客户端。macOS、其他 GPU 厂商、光影模组组合、设备丢失恢复和长时间压力仍需单独验证。
 

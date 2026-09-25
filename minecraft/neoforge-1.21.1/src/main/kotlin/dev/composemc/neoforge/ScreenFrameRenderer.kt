@@ -143,11 +143,13 @@ private class CpuScreenFrameRenderer(override val profiler: UiFrameProfiler?) : 
     private companion object { val nextTexture = AtomicLong() }
 }
 
-internal fun configuredRenderBackend(value: String = System.getProperty("composemc.backend", "opengl")): RenderBackend =
+internal fun configuredRenderBackend(value: String = System.getProperty("composemc.backend", "auto")): RenderBackend =
     when (value.lowercase(java.util.Locale.ROOT)) {
-        "opengl" -> RenderBackend.OPENGL
+        // Minecraft 1.21.1 renders only through OpenGL, so auto has a single choice.
+        "auto", "opengl" -> RenderBackend.OPENGL
         "cpu", "cpu_raster" -> RenderBackend.CPU_RASTER
-        else -> error("Unknown Compose MC backend '$value'; use opengl or cpu")
+        "vulkan" -> error("NeoForge 1.21.1 does not provide a Vulkan renderer; use auto, opengl or cpu")
+        else -> error("Unknown Compose MC backend '$value'; use auto, opengl or cpu")
     }
 
 /** Reload callbacks only publish an epoch; the next Screen render owns GPU retirement. */

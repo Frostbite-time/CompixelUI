@@ -5,6 +5,7 @@ import kotlin.test.*
 
 class AdapterContractsTest {
     @Test fun unsupportedBackendsFailWithoutFallback() {
+        assertEquals(dev.composemc.render.RenderBackend.OPENGL, configuredRenderBackend("auto"))
         assertEquals(dev.composemc.render.RenderBackend.OPENGL, configuredRenderBackend("opengl"))
         assertEquals(dev.composemc.render.RenderBackend.CPU_RASTER, configuredRenderBackend("cpu"))
         assertFailsWith<IllegalStateException> { configuredRenderBackend("vulkan") }

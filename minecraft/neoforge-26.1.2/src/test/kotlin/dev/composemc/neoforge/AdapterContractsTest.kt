@@ -4,10 +4,11 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class AdapterContractsTest {
-    @Test fun supportedBackendsAreExplicitWithoutFallback() {
+    @Test fun unsupportedBackendsFailWithoutFallback() {
+        assertEquals(dev.composemc.render.RenderBackend.OPENGL, configuredRenderBackend("auto"))
         assertEquals(dev.composemc.render.RenderBackend.OPENGL, configuredRenderBackend("opengl"))
         assertEquals(dev.composemc.render.RenderBackend.CPU_RASTER, configuredRenderBackend("cpu"))
-        assertEquals(dev.composemc.render.RenderBackend.VULKAN, configuredRenderBackend("vulkan"))
+        assertFailsWith<IllegalStateException> { configuredRenderBackend("vulkan") }
         assertFailsWith<IllegalStateException> { configuredRenderBackend("unknown") }
     }
     @Test fun `GUI input conversion does not use Compose density`() {

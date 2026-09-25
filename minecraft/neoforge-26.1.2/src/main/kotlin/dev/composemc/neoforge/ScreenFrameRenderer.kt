@@ -32,11 +32,11 @@ internal fun createScreenRenderer(backend: RenderBackend, profiler: UiFrameProfi
 
 internal fun configuredRenderBackend(value: String = System.getProperty("composemc.backend", "auto")): RenderBackend =
     when (value.lowercase(java.util.Locale.ROOT)) {
-        "auto" -> RenderBackend.OPENGL
-        "opengl" -> RenderBackend.OPENGL
-        "vulkan" -> RenderBackend.VULKAN
+        // Minecraft 26.1.2 renders only through OpenGL, so auto has a single choice.
+        "auto", "opengl" -> RenderBackend.OPENGL
         "cpu", "cpu_raster" -> RenderBackend.CPU_RASTER
-        else -> error("Unknown Compose MC backend '$value'; use auto, opengl, vulkan or cpu")
+        "vulkan" -> error("Minecraft 26.1.2 does not provide Vulkan; use auto, opengl or cpu")
+        else -> error("Unknown Compose MC backend '$value'; use auto, opengl or cpu")
     }
 
 /** Reload callbacks publish an epoch; the render thread owns retirement. */
