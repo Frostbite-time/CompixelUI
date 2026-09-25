@@ -54,6 +54,8 @@ internal object SuitePlatform {
     fun setScreen(screen: Screen?) = minecraft.setScreen(screen)
     fun defer(task: () -> Unit) = minecraft.tell(Runnable(task))
     fun clearToasts() = minecraft.toasts.clear()
+    /** The translation key of the category that holds the key mapping [name]. */
+    fun keyCategory(name: String): String? = minecraft.options.keyMappings.firstOrNull { it.name == name }?.category
 
     fun setGuiScale(scale: Int) {
         minecraft.options.guiScale().set(scale)

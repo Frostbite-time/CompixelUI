@@ -19,7 +19,7 @@ import org.lwjgl.glfw.GLFW
 internal object DevelopmentClientBootstrap {
     private val acceptance by lazy { if (SuiteEnvironment.suite == ClientSuite.ACCEPTANCE) ClientAcceptanceProbe() else null }
     private val benchmark by lazy { if (SuiteEnvironment.suite == ClientSuite.BENCHMARK) ClientBenchmarkProbe() else null }
-    private val category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("composemc", "composemc"))
+    private val category = KeyMapping.Category(Identifier.fromNamespaceAndPath("composemc", "development"))
     private val openPreview = KeyMapping(
         "key.composemc.open_preview",
         KeyConflictContext.IN_GAME,
@@ -41,6 +41,7 @@ internal object DevelopmentClientBootstrap {
     }
 
     private fun registerKeyMappings(event: RegisterKeyMappingsEvent) {
+        event.registerCategory(category)
         event.register(openPreview)
     }
 

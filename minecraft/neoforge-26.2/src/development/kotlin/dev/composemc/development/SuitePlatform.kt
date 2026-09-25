@@ -12,6 +12,7 @@ import net.minecraft.client.Screenshot
 import net.minecraft.client.gui.screens.Screen
 import net.minecraft.client.input.KeyEvent
 import net.minecraft.core.registries.Registries
+import net.minecraft.network.chat.contents.TranslatableContents
 import net.minecraft.sounds.SoundSource
 import net.minecraft.world.Difficulty
 import net.minecraft.world.level.GameType
@@ -55,6 +56,9 @@ internal object SuitePlatform {
     fun setScreen(screen: Screen?) = minecraft.gui.setScreen(screen)
     fun defer(task: () -> Unit) = minecraft.schedule(Runnable(task))
     fun clearToasts() = minecraft.gui.toastManager().clear()
+    /** The translation key of the category that holds the key mapping [name]. */
+    fun keyCategory(name: String): String? = minecraft.options.keyMappings.firstOrNull { it.name == name }
+        ?.category?.label()?.contents?.let { (it as? TranslatableContents)?.key }
 
     fun setGuiScale(scale: Int) {
         minecraft.options.guiScale().set(scale)

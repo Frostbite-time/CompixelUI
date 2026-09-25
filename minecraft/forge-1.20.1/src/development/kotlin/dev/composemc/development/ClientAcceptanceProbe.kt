@@ -62,7 +62,9 @@ internal class ClientAcceptanceProbe {
     private fun start(screen: Screen) {
         started = true
         val language = Language.getInstance()
-        check(language.has("composemc.config.title") && language.has("key.composemc.open_preview")) {
+        val previewCategory = SuitePlatform.keyCategory("key.composemc.open_preview")
+        check(language.has("composemc.config.title") && language.has("key.composemc.open_preview") &&
+            previewCategory != null && language.has(previewCategory)) {
             "Library/development translations did not load"
         }
         check(SuitePlatform.loaderProduction == SuiteEnvironment.production) {
