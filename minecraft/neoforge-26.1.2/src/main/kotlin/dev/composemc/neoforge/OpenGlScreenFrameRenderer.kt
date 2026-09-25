@@ -48,6 +48,8 @@ internal class OpenGlScreenFrameRenderer(override val profiler: UiFrameProfiler?
     }
 
     override fun present(destination: ScreenRenderDestination) {
+        // Minecraft composites the copied frame, so OpenGlFrameRenderer.present never polls GPU timings.
+        renderer.collectGpuTimings()
         val output = view ?: return
         presentPremultiplied(destination, output, sampler!!, flipY = true)
     }
