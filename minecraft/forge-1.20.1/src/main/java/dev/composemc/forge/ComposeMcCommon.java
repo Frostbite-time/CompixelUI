@@ -15,6 +15,7 @@ public final class ComposeMcCommon {
         MinecraftForge.EVENT_BUS.addListener(MenuSyncNetworking::tick);
         MinecraftForge.EVENT_BUS.addListener(MenuSyncNetworking::stopped);
         net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn(net.minecraftforge.api.distmarker.Dist.CLIENT, () -> () -> {
+            dev.composemc.platform.ComposeRuntime.requireAvailable();
             dev.composemc.platform.KotlinRuntime.requireAvailable();
             ClientBootstrap.INSTANCE.register(bus);
         });
