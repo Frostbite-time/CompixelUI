@@ -181,7 +181,8 @@ internal class SuiteSession(val suite: ClientSuite, private val frameLimit: Int)
 
 /**
  * A tick-driven sequence: one operation completes per client tick, and only after the suite screen rendered a frame
- * since the previous operation, so every input is seen by a real frame.
+ * since the previous operation, so every input is seen by a real frame. Over the game view, with no suite screen, an
+ * operation waits until no loading overlay covers the game.
  */
 internal class SuiteScript(private val session: SuiteSession) {
     private class Operation(
@@ -219,7 +220,9 @@ internal class SuiteScript(private val session: SuiteSession) {
         if (startedAt == 0L) startedAt = now
         val elapsed = now - startedAt
         val baseline = if (session.current === screenAtLastOperation) framesAtLastOperation else 0
-        val rendered = session.current == null || session.frames > baseline
+        // A screen under a loading overlay renders no suite frames; the game view has no frames to count, so it
+        // waits for the overlay itself. A resource reload keeps its overlay for two seconds after it completes.
+        val rendered = if (session.current == null) !SuitePlatform.overlayActive else session.frames > baseline
         if (rendered && elapsed >= operation.minimumNanos && operation.poll()) {
             operations.removeFirst()
             startedAt = 0L
@@ -229,6 +232,8 @@ internal class SuiteScript(private val session: SuiteSession) {
         }
         check(elapsed < operation.timeoutNanos) {
             (if (rendered) "Timed out after ${elapsed / 1_000_000} ms waiting for: "
+            else if (session.current == null)
+                "A loading overlay covered the game for ${elapsed / 1_000_000} ms before: "
             else "No suite frame rendered for ${elapsed / 1_000_000} ms before: ") + operation.description
         }
     }

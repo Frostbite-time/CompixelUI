@@ -30,6 +30,7 @@ internal class HudAcceptance(
     private lateinit var first: UiSession
     private lateinit var port: PortValidationScreen
     private var frames = 0L
+    private var prepared = 0L
     private var reload: CompletableFuture<Void>? = null
 
     fun schedule() {
@@ -122,11 +123,17 @@ internal class HudAcceptance(
         }
         script.pause(150)
         capture("hud-resize")
-        script.act("reload resources") { reload = minecraft.reloadResourcePacks() }
+        script.act("reload resources") {
+            prepared = hud.nativeItemStatistics.preparedImages
+            reload = minecraft.reloadResourcePacks()
+        }
         script.until("the resource reload", 120_000) { reload?.isDone == true }
         script.act("finish the reload") { checkNotNull(reload).join() }
-        script.until("the HUD item prepared after the reload", 20_000) {
-            hud.nativeItemStatistics.let { it.cachedImages > 0 && it.pendingImages == 0 }
+        // The reload invalidates the item image; wait for a fresh one, not the image from before the reload.
+        script.until("the HUD item prepared again after the reload", 20_000) {
+            hud.nativeItemStatistics.let {
+                it.preparedImages > prepared && it.cachedImages > 0 && it.pendingImages == 0
+            }
         }
         script.pause(150)
         capture("hud-reloaded")
