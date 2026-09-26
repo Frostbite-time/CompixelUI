@@ -1,10 +1,11 @@
 package dev.composemc.render
 
-import org.junit.jupiter.api.Test
 import kotlin.test.*
+import org.junit.jupiter.api.Test
 
 class UiFrameProfilerTest {
-    @Test fun delayedGpuResultsStayWithTheirFrameAndMissingValuesAreExplicit() {
+    @Test
+    fun delayedGpuResultsStayWithTheirFrameAndMissingValuesAreExplicit() {
         val profiler = UiFrameProfiler()
         profiler.beginFrame()
         val first = profiler.gpuRequested(GpuPhase.RENDER)
@@ -23,7 +24,8 @@ class UiFrameProfilerTest {
         assertEquals(0L, rows[1].gpu[GpuPhase.PRESENT])
     }
 
-    @Test fun multipleImportsAccumulateAndEvictedGpuResultsCannotPolluteNewFrames() {
+    @Test
+    fun multipleImportsAccumulateAndEvictedGpuResultsCannotPolluteNewFrames() {
         val profiler = UiFrameProfiler(capacity = 1)
         profiler.beginFrame()
         val discarded = profiler.gpuRequested(GpuPhase.IMAGE_IMPORT)
@@ -40,7 +42,8 @@ class UiFrameProfilerTest {
         assertEquals(1L, profiler.discardedGpuResults)
     }
 
-    @Test fun dispatchWaitIsSeparateFromExecutionAndDetailsAreNotAddedToCpuSpans() {
+    @Test
+    fun dispatchWaitIsSeparateFromExecutionAndDetailsAreNotAddedToCpuSpans() {
         val profiler = UiFrameProfiler()
         profiler.beginFrame()
         profiler.composeCall(100, 40, 80)

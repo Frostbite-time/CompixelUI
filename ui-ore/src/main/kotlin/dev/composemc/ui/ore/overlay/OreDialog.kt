@@ -38,20 +38,49 @@ fun OreDialog(
     buttons: @Composable ColumnScope.() -> Unit,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Dialog(onDismissRequest, properties = DialogProperties(usePlatformDefaultWidth = false, animateTransition = false)) {
+    Dialog(
+        onDismissRequest,
+        properties = DialogProperties(usePlatformDefaultWidth = false, animateTransition = false),
+    ) {
         val colors = OreTheme.colors
-        OreSurface(modifier.widthIn(max = 230.dp).fillMaxWidth(), bottomLedge = 2.dp, ledgeColor = colors.ledge, frameEdge = colors.frameEdge) {
+        OreSurface(
+            modifier.widthIn(max = 230.dp).fillMaxWidth(),
+            bottomLedge = 2.dp,
+            ledgeColor = colors.ledge,
+            frameEdge = colors.frameEdge,
+        ) {
             Column(Modifier.fillMaxWidth()) {
-                Row(Modifier.fillMaxWidth().background(colors.raised).heightIn(min = 20.dp).padding(horizontal = 5.dp, vertical = 2.5.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    Modifier.fillMaxWidth()
+                        .background(colors.raised)
+                        .heightIn(min = 20.dp)
+                        .padding(horizontal = 5.dp, vertical = 2.5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
                     Spacer(Modifier.width(18.dp))
-                    OreText(title, Modifier.weight(1f), style = OreTheme.typography.title, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    OreText(
+                        title,
+                        Modifier.weight(1f),
+                        style = OreTheme.typography.title,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     OreIconButton(OreGlyph.Cross, closeLabel, onDismissRequest, style = OreButtonStyle.Quiet)
                 }
                 Box(Modifier.fillMaxWidth().height(2.dp).background(colors.edge))
-                Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
+                Column(
+                    Modifier.fillMaxWidth().padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    content = content,
+                )
                 Box(Modifier.fillMaxWidth().height(1.dp).background(colors.highlight))
-                Column(Modifier.fillMaxWidth().background(colors.raised).padding(5.dp), verticalArrangement = Arrangement.spacedBy(4.dp), content = buttons)
+                Column(
+                    Modifier.fillMaxWidth().background(colors.raised).padding(5.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    content = buttons,
+                )
             }
         }
     }

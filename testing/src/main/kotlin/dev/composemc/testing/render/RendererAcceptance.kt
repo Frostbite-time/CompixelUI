@@ -16,10 +16,21 @@ object RendererAcceptance {
                 checkNotNull(session.frame(1_000_000L + index)).use { frame ->
                     val expected = RendererPixels.reference(frame)
                     val label = "${viewport.width}x${viewport.height}"
-                    RendererPixels.save(File(directory, "composemc-renderer-cpu-$label.png"), expected, viewport.width, viewport.height)
+                    RendererPixels.save(
+                        File(directory, "composemc-renderer-cpu-$label.png"),
+                        expected,
+                        viewport.width,
+                        viewport.height,
+                    )
                     val result = probe(frame, expected)
-                    RendererPixels.save(File(directory, "composemc-renderer-$backend-$label.png"), result.rgba, viewport.width, viewport.height)
-                    reports += "$label: ${result.cycles} cycles, worst different pixels=${result.worstDifferentPixels}, mean channel error=${result.worstMeanChannelError}"
+                    RendererPixels.save(
+                        File(directory, "composemc-renderer-$backend-$label.png"),
+                        result.rgba,
+                        viewport.width,
+                        viewport.height,
+                    )
+                    reports +=
+                        "$label: ${result.cycles} cycles, worst different pixels=${result.worstDifferentPixels}, mean channel error=${result.worstMeanChannelError}"
                 }
             }
         }

@@ -12,20 +12,22 @@ import dev.composemc.testing.suite.BenchmarkRecords
 import dev.composemc.testing.suite.BenchmarkValidity
 import dev.composemc.testing.suite.ClientSuite
 import dev.composemc.testing.suite.SuitePixels
-import net.minecraft.client.Minecraft
-import net.minecraft.client.gui.screens.Screen
 import java.io.File
 import java.lang.management.ManagementFactory
 import java.util.concurrent.CompletableFuture
+import net.minecraft.client.Minecraft
+import net.minecraft.client.gui.screens.Screen
 
 // Identical in every adapter; version differences belong in SuitePlatform.kt.
 
 /**
- * Performance suite: [BenchmarkPlan] in a fresh flat creative world. Each case gets its own warmup,
- * frame-exact samples joined with delayed GPU results, and a bounded GPU drain. Focus is logical.
+ * Performance suite: [BenchmarkPlan] in a fresh flat creative world. Each case gets its own warmup, frame-exact samples
+ * joined with delayed GPU results, and a bounded GPU drain. Focus is logical.
  */
 internal class ClientBenchmarkProbe {
-    private val minecraft get() = Minecraft.getInstance()
+    private val minecraft
+        get() = Minecraft.getInstance()
+
     private val session = SuiteSession(ClientSuite.BENCHMARK, BenchmarkPlan.FRAME_LIMIT)
     private val log = BenchmarkLog(BenchmarkPlan.samples(), BenchmarkPlan.repeats())
     private var environment: Map<String, Any?> = emptyMap()
@@ -71,26 +73,42 @@ internal class ClientBenchmarkProbe {
         session.prepare()
         // A control run starts no Compose or Skia renderer at all, including the preflight.
         val rendererCheck = if (SuiteEnvironment.control) null else verifyRenderer()
-        environment = linkedMapOf(
-            "suite" to ClientSuite.BENCHMARK.id, "label" to System.getProperty("composemc.benchmark.label", "baseline"),
-            "minecraft" to SuitePlatform.MINECRAFT, "loader" to SuitePlatform.LOADER,
-            "java" to System.getProperty("java.version"), "os" to System.getProperty("os.name"),
-            "osVersion" to System.getProperty("os.version"), "cpu" to System.getenv("PROCESSOR_IDENTIFIER"),
-            "logicalProcessors" to Runtime.getRuntime().availableProcessors(), "device" to SuitePlatform.device(),
-            "backend" to SuitePlatform.backend.name, "width" to BenchmarkPlan.WIDTH, "height" to BenchmarkPlan.HEIGHT,
-            "guiScale" to BenchmarkPlan.GUI_SCALE,
-            "windowMode" to if (SuiteEnvironment.background) "background-hidden" else "foreground",
-            "windowIsolation" to if (java.lang.Boolean.getBoolean("composemc.suite.isolated")) "win32-desktop" else "none",
-            "focusSource" to "suite-logical-focus", "world" to "fresh flat creative, render distance 2",
-            "control" to SuiteEnvironment.control, "vsync" to false, "frameLimit" to BenchmarkPlan.FRAME_LIMIT,
-            "warmupFrames" to BenchmarkPlan.WARMUP_FRAMES, "measuredFrames" to log.samples,
-            "pipelineWarmupFrames" to BenchmarkPlan.PIPELINE_WARMUP_FRAMES, "gpuDrainFrames" to BenchmarkPlan.GPU_DRAIN_FRAMES,
-            "repeats" to log.repeats, "repeatOrder" to "forward then reverse",
-            "allocations" to java.lang.Boolean.getBoolean("composemc.allocations"), "rendererPreflight" to rendererCheck,
-            "resourcePacks" to SuitePlatform.resourcePacks(),
-            "jvmArguments" to ManagementFactory.getRuntimeMXBean().inputArguments.filter { it.startsWith("-X") },
-            "notes" to BenchmarkPlan.notes,
-        )
+        environment =
+            linkedMapOf(
+                "suite" to ClientSuite.BENCHMARK.id,
+                "label" to System.getProperty("composemc.benchmark.label", "baseline"),
+                "minecraft" to SuitePlatform.MINECRAFT,
+                "loader" to SuitePlatform.LOADER,
+                "java" to System.getProperty("java.version"),
+                "os" to System.getProperty("os.name"),
+                "osVersion" to System.getProperty("os.version"),
+                "cpu" to System.getenv("PROCESSOR_IDENTIFIER"),
+                "logicalProcessors" to Runtime.getRuntime().availableProcessors(),
+                "device" to SuitePlatform.device(),
+                "backend" to SuitePlatform.backend.name,
+                "width" to BenchmarkPlan.WIDTH,
+                "height" to BenchmarkPlan.HEIGHT,
+                "guiScale" to BenchmarkPlan.GUI_SCALE,
+                "windowMode" to if (SuiteEnvironment.background) "background-hidden" else "foreground",
+                "windowIsolation" to
+                    if (java.lang.Boolean.getBoolean("composemc.suite.isolated")) "win32-desktop" else "none",
+                "focusSource" to "suite-logical-focus",
+                "world" to "fresh flat creative, render distance 2",
+                "control" to SuiteEnvironment.control,
+                "vsync" to false,
+                "frameLimit" to BenchmarkPlan.FRAME_LIMIT,
+                "warmupFrames" to BenchmarkPlan.WARMUP_FRAMES,
+                "measuredFrames" to log.samples,
+                "pipelineWarmupFrames" to BenchmarkPlan.PIPELINE_WARMUP_FRAMES,
+                "gpuDrainFrames" to BenchmarkPlan.GPU_DRAIN_FRAMES,
+                "repeats" to log.repeats,
+                "repeatOrder" to "forward then reverse",
+                "allocations" to java.lang.Boolean.getBoolean("composemc.allocations"),
+                "rendererPreflight" to rendererCheck,
+                "resourcePacks" to SuitePlatform.resourcePacks(),
+                "jvmArguments" to ManagementFactory.getRuntimeMXBean().inputArguments.filter { it.startsWith("-X") },
+                "notes" to BenchmarkPlan.notes,
+            )
         writeReport()
         session.createWorld(parent)
     }
@@ -122,8 +140,13 @@ internal class ClientBenchmarkProbe {
     }
 
     private fun measure(active: BenchmarkScreen) {
-        check(minecraft.window.width == BenchmarkPlan.WIDTH && minecraft.window.height == BenchmarkPlan.HEIGHT &&
-            SuitePlatform.guiScale == BenchmarkPlan.GUI_SCALE) { "Benchmark viewport changed" }
+        check(
+            minecraft.window.width == BenchmarkPlan.WIDTH &&
+                minecraft.window.height == BenchmarkPlan.HEIGHT &&
+                SuitePlatform.guiScale == BenchmarkPlan.GUI_SCALE
+        ) {
+            "Benchmark viewport changed"
+        }
         if (capturing) {
             if (session.capturesIdle) {
                 capturing = false
@@ -131,11 +154,15 @@ internal class ClientBenchmarkProbe {
             }
             return
         }
-        if (!active.componentsReady) { active.advance(); return }
+        if (!active.componentsReady) {
+            active.advance()
+            return
+        }
         frames++
         if (warmingPipeline) {
             active.advance()
-            if (frames % 600 == 0) LOGGER.info("BENCHMARK pipeline warmup {}/{}", frames, BenchmarkPlan.PIPELINE_WARMUP_FRAMES)
+            if (frames % 600 == 0)
+                LOGGER.info("BENCHMARK pipeline warmup {}/{}", frames, BenchmarkPlan.PIPELINE_WARMUP_FRAMES)
             if (frames == BenchmarkPlan.PIPELINE_WARMUP_FRAMES) {
                 warmingPipeline = false
                 later(::openCase)
@@ -150,9 +177,13 @@ internal class ClientBenchmarkProbe {
             if (SuitePlatform.windowFocused) focusedFrames++
         }
         if (frames == BenchmarkPlan.TOOLTIP_HOVER_FRAME && active.fixture.kind == BenchmarkKind.TOOLTIP) {
-            val point = ComposeThread.call { checkNotNull(active.model.tooltipTarget) { "The tooltip target is not laid out" }.center }
-            active.mouseMoved(point.x.toDouble() * active.width / minecraft.window.width,
-                point.y.toDouble() * active.height / minecraft.window.height)
+            val point = ComposeThread.call {
+                checkNotNull(active.model.tooltipTarget) { "The tooltip target is not laid out" }.center
+            }
+            active.mouseMoved(
+                point.x.toDouble() * active.width / minecraft.window.width,
+                point.y.toDouble() * active.height / minecraft.window.height,
+            )
         }
         if (frames == warmup) {
             firstMeasured = profiler.lastFrameId + 1
@@ -165,25 +196,54 @@ internal class ClientBenchmarkProbe {
 
     private fun finishCase(active: BenchmarkScreen) {
         val (repeat, case) = checkNotNull(log.next)
-        check(active.fixture == case) { "Benchmark screen ${active.fixture.name} does not match the schedule's ${case.name}" }
+        check(active.fixture == case) {
+            "Benchmark screen ${active.fixture.name} does not match the schedule's ${case.name}"
+        }
         active.verifyComponents()
         val rows = checkNotNull(active.frameProfiler).frames().filter { it.frameId in firstMeasured..lastMeasured }
         val items = active.nativeItemStatistics
-        BenchmarkValidity.check(case, rows, log.samples, items.activeVariants, items.dynamicVariants,
-            items.animationRefreshes - refreshesAtSampleStart)
+        BenchmarkValidity.check(
+            case,
+            rows,
+            log.samples,
+            items.activeVariants,
+            items.dynamicVariants,
+            items.animationRefreshes - refreshesAtSampleStart,
+        )
         val stem = "${repeat + 1}-${case.name}"
         BenchmarkRecords.writeCsv(File(session.output, "$stem.csv"), rows)
         val metrics = BenchmarkRecords.metrics(rows)
-        log.record(repeat, case, linkedMapOf("name" to case.name, "dataCount" to case.count, "repeat" to repeat + 1,
-            "frames" to rows.size, "redraws" to rows.count { it.rendered }, "recordings" to rows.sumOf { it.recordings },
-            "hiddenFrames" to hiddenFrames, "windowFocusedFrames" to focusedFrames,
-            "gpuTimed" to BenchmarkRecords.gpuTimed(rows),
-            "gpuOperations" to GpuPhase.entries.associateWith { phase -> rows.sumOf { it.gpuRequests.getValue(phase) } },
-            "maxActiveItems" to rows.maxOf { it.activeItems }, "maxCachedItems" to rows.maxOf { it.cachedItems },
-            "framesWithPendingItems" to rows.count { it.pendingItems > 0 }, "metrics" to metrics,
-            "renderer" to active.rendererStatistics, "nativeItems" to items, "nativeTooltips" to active.nativeTooltipStatistics))
+        log.record(
+            repeat,
+            case,
+            linkedMapOf(
+                "name" to case.name,
+                "dataCount" to case.count,
+                "repeat" to repeat + 1,
+                "frames" to rows.size,
+                "redraws" to rows.count { it.rendered },
+                "recordings" to rows.sumOf { it.recordings },
+                "hiddenFrames" to hiddenFrames,
+                "windowFocusedFrames" to focusedFrames,
+                "gpuTimed" to BenchmarkRecords.gpuTimed(rows),
+                "gpuOperations" to
+                    GpuPhase.entries.associateWith { phase -> rows.sumOf { it.gpuRequests.getValue(phase) } },
+                "maxActiveItems" to rows.maxOf { it.activeItems },
+                "maxCachedItems" to rows.maxOf { it.cachedItems },
+                "framesWithPendingItems" to rows.count { it.pendingItems > 0 },
+                "metrics" to metrics,
+                "renderer" to active.rendererStatistics,
+                "nativeItems" to items,
+                "nativeTooltips" to active.nativeTooltipStatistics,
+            ),
+        )
         writeReport()
-        LOGGER.info("BENCHMARK {}: CPU wall {}, redraws={}", stem, metrics["total_cpu_wall_ns"], rows.count { it.rendered })
+        LOGGER.info(
+            "BENCHMARK {}: CPU wall {}, redraws={}",
+            stem,
+            metrics["total_cpu_wall_ns"],
+            rows.count { it.rendered },
+        )
         capturing = true
         session.capture(stem) { SuitePixels.requireContent(it, stem) }
     }
@@ -196,8 +256,14 @@ internal class ClientBenchmarkProbe {
     }
 
     private fun writeReport() {
-        File(session.output, "report.json").writeText(GsonBuilder().setPrettyPrinting().serializeNulls().create().toJson(
-            linkedMapOf("environment" to environment, "results" to log.recorded)))
+        File(session.output, "report.json")
+            .writeText(
+                GsonBuilder()
+                    .setPrettyPrinting()
+                    .serializeNulls()
+                    .create()
+                    .toJson(linkedMapOf("environment" to environment, "results" to log.recorded))
+            )
     }
 
     private inline fun guard(block: () -> Unit) {
@@ -211,5 +277,7 @@ internal class ClientBenchmarkProbe {
         }
     }
 
-    private companion object { val LOGGER = LogUtils.getLogger() }
+    private companion object {
+        val LOGGER = LogUtils.getLogger()
+    }
 }

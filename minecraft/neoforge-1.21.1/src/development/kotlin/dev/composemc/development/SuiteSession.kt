@@ -4,10 +4,10 @@ import com.mojang.logging.LogUtils
 import dev.composemc.testing.suite.BenchmarkPlan
 import dev.composemc.testing.suite.ClientSuite
 import dev.composemc.testing.suite.ScreenPixels
+import java.io.File
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.screens.Screen
 import net.minecraft.network.chat.Component
-import java.io.File
 
 // Identical in every adapter; version differences belong in SuitePlatform.kt.
 
@@ -18,10 +18,15 @@ internal class SuiteParentScreen : Screen(Component.literal("Compose MC suite"))
 
 /** Client state shared by both suites: pinned options, the hidden window, the test world, screens and captures. */
 internal class SuiteSession(val suite: ClientSuite, private val frameLimit: Int) {
-    private val minecraft get() = Minecraft.getInstance()
+    private val minecraft
+        get() = Minecraft.getInstance()
+
     val output = File(minecraft.gameDirectory, suite.results)
-    val header get() = "${SuitePlatform.MINECRAFT} ${SuitePlatform.LOADER} ${SuitePlatform.backend.name.lowercase()}" +
-        if (SuiteEnvironment.background) " hidden" else " visible"
+    val header
+        get() =
+            "${SuitePlatform.MINECRAFT} ${SuitePlatform.LOADER} ${SuitePlatform.backend.name.lowercase()}" +
+                if (SuiteEnvironment.background) " hidden" else " visible"
+
     private var restoreOptions: (() -> Unit)? = null
     private var worldRequestedAt = 0L
     private var pendingCaptures = 0
@@ -30,16 +35,20 @@ internal class SuiteSession(val suite: ClientSuite, private val frameLimit: Int)
     /** The suite screen whose rendered frames drive the suite. Other screens' frames are ignored. */
     var current: Screen? = null
         private set
+
     /** Frames rendered by [current] since it was adopted. */
     var frames = 0
         private set
-    val capturesIdle get() = pendingCaptures == 0
+
+    val capturesIdle
+        get() = pendingCaptures == 0
 
     /** Pins every option that changes pacing, layout or background work, then hides the window when requested. */
     fun prepare() {
         output.deleteRecursively()
         check(output.mkdirs()) { "Cannot create $output" }
-        restoreOptions = SuitePlatform.prepareOptions(frameLimit, BenchmarkPlan.WIDTH, BenchmarkPlan.HEIGHT, BenchmarkPlan.GUI_SCALE)
+        restoreOptions =
+            SuitePlatform.prepareOptions(frameLimit, BenchmarkPlan.WIDTH, BenchmarkPlan.HEIGHT, BenchmarkPlan.GUI_SCALE)
         if (SuiteEnvironment.background) SuitePlatform.hideWindow()
         checkWindow()
     }
@@ -54,13 +63,21 @@ internal class SuiteSession(val suite: ClientSuite, private val frameLimit: Int)
         SuitePlatform.defer { SuitePlatform.createFlatWorld("composemc-${suite.id}", parent) }
     }
 
-    val worldReady: Boolean get() {
-        check(worldRequestedAt != 0L) { "The test world was never requested" }
-        val ready = minecraft.level != null && minecraft.player != null && minecraft.singleplayerServer != null &&
-            !SuitePlatform.overlayActive && SuitePlatform.screen == null
-        if (!ready) check(System.nanoTime() - worldRequestedAt < 180_000_000_000L) { "The test world did not load within 180 s" }
-        return ready
-    }
+    val worldReady: Boolean
+        get() {
+            check(worldRequestedAt != 0L) { "The test world was never requested" }
+            val ready =
+                minecraft.level != null &&
+                    minecraft.player != null &&
+                    minecraft.singleplayerServer != null &&
+                    !SuitePlatform.overlayActive &&
+                    SuitePlatform.screen == null
+            if (!ready)
+                check(System.nanoTime() - worldRequestedAt < 180_000_000_000L) {
+                    "The test world did not load within 180 s"
+                }
+            return ready
+        }
 
     /** Opens [next] outside rendering and verifies that a replaced Compose screen released everything. */
     fun open(next: Screen) {
@@ -91,7 +108,9 @@ internal class SuiteSession(val suite: ClientSuite, private val frameLimit: Int)
         val items = screen.nativeItemStatistics
         val tooltips = screen.nativeTooltipStatistics
         check(screen.session == null) { "$name kept its Compose session after closing" }
-        check(renderer.liveSurfaces == 0 && renderer.liveNativeImages == 0) { "$name leaked renderer resources: $renderer" }
+        check(renderer.liveSurfaces == 0 && renderer.liveNativeImages == 0) {
+            "$name leaked renderer resources: $renderer"
+        }
         check(items.preparedImages == items.retiredImages) { "$name leaked native item images: $items" }
         check(tooltips.preparedImages == tooltips.retiredImages) { "$name leaked native tooltip images: $tooltips" }
     }
@@ -101,11 +120,17 @@ internal class SuiteSession(val suite: ClientSuite, private val frameLimit: Int)
         pendingCaptures++
         SuitePlatform.screenshot(File(output, "$name.png")) { pixels ->
             pendingCaptures--
-            try { check(pixels) } catch (failure: Throwable) { if (captureFailure == null) captureFailure = failure }
+            try {
+                check(pixels)
+            } catch (failure: Throwable) {
+                if (captureFailure == null) captureFailure = failure
+            }
         }
     }
 
-    fun rethrowCaptureFailure() { captureFailure?.let { throw it } }
+    fun rethrowCaptureFailure() {
+        captureFailure?.let { throw it }
+    }
 
     fun finish(report: String) {
         if (finished) return
@@ -120,7 +145,11 @@ internal class SuiteSession(val suite: ClientSuite, private val frameLimit: Int)
         if (finished) return
         finished = true
         LOGGER.error("Compose MC {} suite failed", suite.id, error)
-        try { restore() } catch (restoreFailure: Throwable) { error.addSuppressed(restoreFailure) }
+        try {
+            restore()
+        } catch (restoreFailure: Throwable) {
+            error.addSuppressed(restoreFailure)
+        }
         write(report)
         minecraft.stop()
     }
@@ -133,23 +162,36 @@ internal class SuiteSession(val suite: ClientSuite, private val frameLimit: Int)
 
     private fun write(report: String) = File(minecraft.gameDirectory, suite.report).writeText(report)
 
-    private companion object { val LOGGER = LogUtils.getLogger() }
+    private companion object {
+        val LOGGER = LogUtils.getLogger()
+    }
 }
 
 /**
- * A tick-driven sequence: one operation completes per client tick, and only after the suite screen
- * rendered a frame since the previous operation, so every input is seen by a real frame.
+ * A tick-driven sequence: one operation completes per client tick, and only after the suite screen rendered a frame
+ * since the previous operation, so every input is seen by a real frame.
  */
 internal class SuiteScript(private val session: SuiteSession) {
-    private class Operation(val description: String, val minimumNanos: Long, val timeoutNanos: Long, val poll: () -> Boolean)
+    private class Operation(
+        val description: String,
+        val minimumNanos: Long,
+        val timeoutNanos: Long,
+        val poll: () -> Boolean,
+    )
+
     private val operations = ArrayDeque<Operation>()
     private var startedAt = 0L
     private var screenAtLastOperation: Screen? = null
     private var framesAtLastOperation = 0
-    val done get() = operations.isEmpty()
+    val done
+        get() = operations.isEmpty()
 
     fun act(description: String, block: () -> Unit) {
-        operations += Operation(description, 0L, FRAME_TIMEOUT) { block(); true }
+        operations +=
+            Operation(description, 0L, FRAME_TIMEOUT) {
+                block()
+                true
+            }
     }
 
     fun until(description: String, timeoutMillis: Long = 10_000L, condition: () -> Boolean) {
@@ -179,5 +221,7 @@ internal class SuiteScript(private val session: SuiteSession) {
         }
     }
 
-    private companion object { const val FRAME_TIMEOUT = 30_000_000_000L }
+    private companion object {
+        const val FRAME_TIMEOUT = 30_000_000_000L
+    }
 }

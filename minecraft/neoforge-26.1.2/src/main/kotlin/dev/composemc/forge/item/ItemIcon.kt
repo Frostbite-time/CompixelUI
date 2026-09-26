@@ -2,8 +2,8 @@ package dev.composemc.forge.item
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -16,16 +16,16 @@ import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.dp
 import com.mojang.blaze3d.systems.RenderSystem
-import net.minecraft.world.item.ItemStack
-import net.minecraft.client.gui.GuiGraphicsExtractor
 import dev.composemc.bridge.NativeImageRegion
 import dev.composemc.bridge.drawNativeImageRegion
-import java.util.function.Consumer
 import java.util.concurrent.atomic.AtomicLong
-import dev.composemc.forge.ComposeScreen
+import java.util.function.Consumer
+import net.minecraft.client.gui.GuiGraphicsExtractor
+import net.minecraft.world.item.ItemStack
 
 /** An owned ItemStack copy. Create snapshots on the game thread, then pass the handle to Compose. */
-class ItemIcon private constructor(
+class ItemIcon
+private constructor(
     internal val id: Long,
     internal val stack: ItemStack,
     val description: String,
@@ -34,8 +34,10 @@ class ItemIcon private constructor(
 ) {
     companion object {
         private val nextId = AtomicLong()
+
         /** Automatically follows model/texture animation; use STATIC only for an intentional frozen image. */
-        @JvmStatic @JvmOverloads
+        @JvmStatic
+        @JvmOverloads
         fun snapshot(stack: ItemStack, refresh: IconRefresh = IconRefresh.AUTO): ItemIcon {
             RenderSystem.assertOnRenderThread()
             require(!stack.isEmpty) { "Item icons require a nonempty stack" }
@@ -44,8 +46,13 @@ class ItemIcon private constructor(
         }
 
         /** An immutable resource drawing, prepared on the render thread in a 16x16 native GUI area. */
-        @JvmStatic @JvmOverloads
-        fun drawn(description: String, drawing: Consumer<GuiGraphicsExtractor>, refresh: IconRefresh = IconRefresh.GAME_TICK): ItemIcon {
+        @JvmStatic
+        @JvmOverloads
+        fun drawn(
+            description: String,
+            drawing: Consumer<GuiGraphicsExtractor>,
+            refresh: IconRefresh = IconRefresh.GAME_TICK,
+        ): ItemIcon {
             RenderSystem.assertOnRenderThread()
             return ItemIcon(nextId.incrementAndGet(), ItemStack.EMPTY, description, refresh, drawing)
         }
@@ -73,11 +80,17 @@ fun MinecraftItemIcon(icon: ItemIcon, modifier: Modifier = Modifier) {
         images.retain(icon)
         onDispose { images.release(icon) }
     }
-    Layout(content = {}, modifier = modifier.semantics { contentDescription = icon.description }.drawBehind {
-        val region = images.request(icon)
-        if (region != null) drawNativeImageRegion(region.image, region.source, paint)
-        else drawRect(Color(0x443F4B50))
-    }) { _, constraints ->
+    Layout(
+        content = {},
+        modifier =
+            modifier
+                .semantics { contentDescription = icon.description }
+                .drawBehind {
+                    val region = images.request(icon)
+                    if (region != null) drawNativeImageRegion(region.image, region.source, paint)
+                    else drawRect(Color(0x443F4B50))
+                },
+    ) { _, constraints ->
         layout(constraints.constrainWidth(16.dp.roundToPx()), constraints.constrainHeight(16.dp.roundToPx())) {}
     }
 }
@@ -87,26 +100,42 @@ internal val LocalItemImages = staticCompositionLocalOf<ItemImageMailbox?> { nul
 /** Only the EDT accesses this mailbox. It never reads the native ItemStack. */
 internal class ItemImageMailbox(private val requestLimit: Int) {
     private data class Request(val icon: ItemIcon, var users: Int)
+
     // Atlas regions invalidate only the icons they replace.
     private val atlas = mutableStateMapOf<Long, NativeImageRegion>()
     private val requests = linkedMapOf<Long, Request>()
+
     fun retain(icon: ItemIcon) {
         val existing = requests[icon.id]
         if (existing != null) existing.users++
         else {
-            check(requests.size < requestLimit) { "Too many active native icon variants; increase nativeItemOptions.cacheCapacity" }
+            check(requests.size < requestLimit) {
+                "Too many active native icon variants; increase nativeItemOptions.cacheCapacity"
+            }
             requests[icon.id] = Request(icon, 1)
         }
     }
+
     fun release(icon: ItemIcon) {
         val request = checkNotNull(requests[icon.id])
         if (--request.users == 0) requests.remove(icon.id)
     }
+
     fun request(icon: ItemIcon): NativeImageRegion? = atlas[icon.id]
+
     // Draw callbacks can be skipped when Compose replays a cached layer. Composition lifetime
     // preserves demand across those frames and includes the bounded Lazy layout prefetch window.
     fun activeRequests(): List<ItemIcon> = requests.values.map { it.icon }
-    fun publishAtlas(regions: Map<Long, NativeImageRegion>) { atlas.putAll(regions) }
-    fun removeAtlas(ids: Collection<Long>) { ids.forEach(atlas::remove) }
-    fun clear() { atlas.clear() }
+
+    fun publishAtlas(regions: Map<Long, NativeImageRegion>) {
+        atlas.putAll(regions)
+    }
+
+    fun removeAtlas(ids: Collection<Long>) {
+        ids.forEach(atlas::remove)
+    }
+
+    fun clear() {
+        atlas.clear()
+    }
 }

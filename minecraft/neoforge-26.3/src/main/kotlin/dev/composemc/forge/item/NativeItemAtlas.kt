@@ -4,14 +4,14 @@ import com.mojang.blaze3d.systems.RenderSystem
 import dev.composemc.bridge.ComposeThread
 import dev.composemc.bridge.NativeIconAtlas
 import dev.composemc.bridge.NativeImageRegion
+import dev.composemc.forge.render.FrameRetirement
+import dev.composemc.forge.render.NativeSnapshots
+import java.util.concurrent.ConcurrentLinkedQueue
 import net.minecraft.client.Minecraft
 import org.jetbrains.skia.ColorAlphaType
 import org.jetbrains.skia.ColorType
 import org.jetbrains.skia.Image
 import org.jetbrains.skia.ImageInfo
-import java.util.concurrent.ConcurrentLinkedQueue
-import dev.composemc.forge.render.FrameRetirement
-import dev.composemc.forge.render.NativeSnapshots
 
 data class NativeItemStatistics(
     val activeVariants: Int = 0,
@@ -25,9 +25,9 @@ data class NativeItemStatistics(
 )
 
 /**
- * Draws the shared [NativeIconAtlas] schedule into native GUI pages. With [snapshots], each page is copied
- * to a Skia image on the GPU: Vulkan publishes it on the next frame, OpenGL immediately. The CPU reference
- * renderer has no snapshots; it reads each page back and publishes it once the copy arrives.
+ * Draws the shared [NativeIconAtlas] schedule into native GUI pages. With [snapshots], each page is copied to a Skia
+ * image on the GPU: Vulkan publishes it on the next frame, OpenGL immediately. The CPU reference renderer has no
+ * snapshots; it reads each page back and publishes it once the copy arrives.
  */
 internal class NativeItemAtlas(
     private val mailbox: ItemImageMailbox,
@@ -35,6 +35,7 @@ internal class NativeItemAtlas(
     private val snapshots: NativeSnapshots?,
 ) : AutoCloseable {
     private class Readback(val request: Long, val pixels: ByteArray, val width: Int, val height: Int)
+
     private val animations = NativeIconAnimation()
     private val atlas = NativeIconAtlas(options.cacheCapacity, options.preparationsPerFrame, options.imageSize, Pages())
     private var capture: NativeGuiCapture? = null
@@ -44,10 +45,20 @@ internal class NativeItemAtlas(
     private var requests = 0L
     private var requested = 0L
 
-    val statistics get() = atlas.statistics.let {
-        NativeItemStatistics(it.activeVariants, it.cachedImages, it.pendingImages, it.preparedImages, it.retiredImages,
-            generation, it.dynamicVariants, it.animationRefreshes)
-    }
+    val statistics
+        get() =
+            atlas.statistics.let {
+                NativeItemStatistics(
+                    it.activeVariants,
+                    it.cachedImages,
+                    it.pendingImages,
+                    it.preparedImages,
+                    it.retiredImages,
+                    generation,
+                    it.dynamicVariants,
+                    it.animationRefreshes,
+                )
+            }
 
     fun recorded(frameGeneration: Long) {
         atlas.recorded(ComposeThread.call { mailbox.activeRequests() })
@@ -64,7 +75,9 @@ internal class NativeItemAtlas(
         RenderSystem.assertOnRenderThread()
         requested = 0
         readbacks.clear()
-        try { capture?.close() } finally {
+        try {
+            capture?.close()
+        } finally {
             capture = null
             atlas.reset()
         }
@@ -74,16 +87,22 @@ internal class NativeItemAtlas(
         RenderSystem.assertOnRenderThread()
         requested = 0
         readbacks.clear()
-        try { capture?.close() } finally {
+        try {
+            capture?.close()
+        } finally {
             capture = null
             atlas.close()
         }
     }
 
     private inner class Pages : NativeIconAtlas.Host<ItemIcon> {
-        override val immediate get() = snapshots?.immediate ?: false
+        override val immediate
+            get() = snapshots?.immediate ?: false
+
         override fun id(icon: ItemIcon) = icon.id
+
         override fun refresh(icon: ItemIcon) = animations.resolve(icon).scheduled()
+
         override fun appearance(icon: ItemIcon) = animations.appearance(icon)
 
         override fun draw(buffer: Int, icons: List<NativeIconAtlas.Placement<ItemIcon>>) {
@@ -102,7 +121,9 @@ internal class NativeItemAtlas(
                         try {
                             graphics.pose().translate(placement.x.toFloat(), placement.y.toFloat())
                             drawing.accept(graphics)
-                        } finally { graphics.pose().popMatrix() }
+                        } finally {
+                            graphics.pose().popMatrix()
+                        }
                     }
                 }
                 true
@@ -110,25 +131,35 @@ internal class NativeItemAtlas(
             if (snapshots == null) {
                 val request = ++requests
                 requested = request
-                target.readback(buffer) { pixels, width, height -> readbacks.add(Readback(request, pixels, width, height)) }
+                target.readback(buffer) { pixels, width, height ->
+                    readbacks.add(Readback(request, pixels, width, height))
+                }
             }
         }
 
         override fun snapshot(buffer: Int): Image? {
-            if (snapshots != null) return snapshots.snapshot(checkNotNull(capture).texture(buffer), atlas.width, atlas.height)
+            if (snapshots != null)
+                return snapshots.snapshot(checkNotNull(capture).texture(buffer), atlas.width, atlas.height)
             while (true) {
                 val copy = readbacks.poll() ?: return null
-                if (copy.request == requested) return Image.makeRaster(
-                    ImageInfo(copy.width, copy.height, ColorType.RGBA_8888, ColorAlphaType.PREMUL), copy.pixels, copy.width * 4)
+                if (copy.request == requested)
+                    return Image.makeRaster(
+                        ImageInfo(copy.width, copy.height, ColorType.RGBA_8888, ColorAlphaType.PREMUL),
+                        copy.pixels,
+                        copy.width * 4,
+                    )
             }
         }
+
         override fun release(image: Image) {
             if (snapshots != null) snapshots.release(image) else FrameRetirement.afterFrame { image.close() }
         }
+
         override fun publish(regions: Map<Long, NativeImageRegion>, removed: Set<Long>) {
             mailbox.removeAtlas(removed)
             mailbox.publishAtlas(regions)
         }
+
         override fun clear() = mailbox.clear()
     }
 }

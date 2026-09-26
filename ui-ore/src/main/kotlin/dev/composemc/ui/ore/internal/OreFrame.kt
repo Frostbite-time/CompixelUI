@@ -48,13 +48,19 @@ internal fun Modifier.oreFrame(
         // Depth is carried by horizontal bands. The vertical edges are only the casing.
         if (drawTopEdge) {
             val thickness = if (style == OreSurfaceStyle.Inset) 2.dp.roundToPx().toFloat() else pixel
-            drawRect(if (style == OreSurfaceStyle.Inset) shadow else light,
-                Offset(left, top), Size(innerWidth, thickness.coerceAtMost(innerHeight)))
+            drawRect(
+                if (style == OreSurfaceStyle.Inset) shadow else light,
+                Offset(left, top),
+                Size(innerWidth, thickness.coerceAtMost(innerHeight)),
+            )
         }
         if (drawBottomEdge) {
             val thickness = (if (style == OreSurfaceStyle.Raised) ledge else pixel).coerceAtMost(innerHeight)
-            drawRect(if (style == OreSurfaceStyle.Raised) ledgeColor else light,
-                Offset(left, size.height - bottom - thickness), Size(innerWidth, thickness))
+            drawRect(
+                if (style == OreSurfaceStyle.Raised) ledgeColor else light,
+                Offset(left, size.height - bottom - thickness),
+                Size(innerWidth, thickness),
+            )
         }
         return@drawBehind
     }
@@ -73,15 +79,26 @@ internal fun Modifier.oreFrame(
     val faceTop = top + if (drawTopEdge) pixel else 0f
     val faceRight = right + if (drawRightEdge) pixel else 0f
     val faceBottom = if (drawBottomEdge) bottom + pixel + ledge else 0f
-    drawRect(fill, Offset(faceLeft, faceTop), Size(
-        (size.width - faceLeft - faceRight).coerceAtLeast(0f),
-        (size.height - faceTop - faceBottom).coerceAtLeast(0f),
-    ))
+    drawRect(
+        fill,
+        Offset(faceLeft, faceTop),
+        Size(
+            (size.width - faceLeft - faceRight).coerceAtLeast(0f),
+            (size.height - faceTop - faceBottom).coerceAtLeast(0f),
+        ),
+    )
 }
 
 /** An independent focus/error ring: never turn a recessed shadow into a white bevel. */
-internal fun Modifier.oreOutline(color: Color?): Modifier = if (color == null) this else drawBehind {
-    val pixel = 1.dp.toPx().roundToInt().coerceAtLeast(1).toFloat()
-    drawRect(color, Offset(pixel / 2, pixel / 2),
-        Size((size.width - pixel).coerceAtLeast(0f), (size.height - pixel).coerceAtLeast(0f)), style = Stroke(pixel))
-}
+internal fun Modifier.oreOutline(color: Color?): Modifier =
+    if (color == null) this
+    else
+        drawBehind {
+            val pixel = 1.dp.toPx().roundToInt().coerceAtLeast(1).toFloat()
+            drawRect(
+                color,
+                Offset(pixel / 2, pixel / 2),
+                Size((size.width - pixel).coerceAtLeast(0f), (size.height - pixel).coerceAtLeast(0f)),
+                style = Stroke(pixel),
+            )
+        }

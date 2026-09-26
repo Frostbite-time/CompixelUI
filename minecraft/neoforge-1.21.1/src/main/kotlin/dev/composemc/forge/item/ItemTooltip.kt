@@ -19,11 +19,10 @@ import androidx.compose.ui.unit.constrainWidth
 import dev.composemc.bridge.drawNativeImage
 import kotlinx.coroutines.delay
 import org.jetbrains.skia.Image
-import dev.composemc.forge.ComposeScreen
 
 /**
- * A native rich item tooltip in a Compose popup. Content keeps its own input behavior.
- * Native item/font/component access stays on the game thread; Compose owns hover and placement.
+ * A native rich item tooltip in a Compose popup. Content keeps its own input behavior. Native item/font/component
+ * access stays on the game thread; Compose owns hover and placement.
  */
 @Composable
 fun MinecraftItemTooltip(
@@ -66,10 +65,12 @@ private fun NativeTooltipImage(icon: ItemIcon, mailbox: ItemTooltipMailbox) {
         mailbox.show(request)
         onDispose { mailbox.hide(request) }
     }
-    Layout(content = {}, modifier = Modifier
-        .semantics { contentDescription = icon.description }
-        .onGloballyPositioned { mailbox.position(request, it.boundsInWindow()) }
-        .drawBehind { mailbox.imageFor(request)?.let { drawNativeImage(it, paint) } }
+    Layout(
+        content = {},
+        modifier =
+            Modifier.semantics { contentDescription = icon.description }
+                .onGloballyPositioned { mailbox.position(request, it.boundsInWindow()) }
+                .drawBehind { mailbox.imageFor(request)?.let { drawNativeImage(it, paint) } },
     ) { _, constraints ->
         val info = mailbox.imageFor(request)?.imageInfo
         layout(constraints.constrainWidth(info?.width ?: 0), constraints.constrainHeight(info?.height ?: 0)) {}
@@ -77,15 +78,19 @@ private fun NativeTooltipImage(icon: ItemIcon, mailbox: ItemTooltipMailbox) {
 }
 
 internal class ItemTooltipRequest(val icon: ItemIcon)
+
 internal val LocalItemTooltips = staticCompositionLocalOf<ItemTooltipMailbox?> { null }
 
 /** A single request/result slot, confined to the Compose EDT. */
 internal class ItemTooltipMailbox {
     private data class Result(val request: ItemTooltipRequest, val image: Image)
+
     var interactionEpoch by mutableLongStateOf(0)
         private set
+
     var request: ItemTooltipRequest? = null
         private set
+
     private var result by mutableStateOf<Result?>(null)
     var bounds: Rect? = null
         private set
@@ -96,11 +101,17 @@ internal class ItemTooltipMailbox {
         result = null
         bounds = null
     }
+
     fun hide(value: ItemTooltipRequest) {
         checkThread()
-        if (request === value) { request = null; clearImage() }
+        if (request === value) {
+            request = null
+            clearImage()
+        }
     }
+
     fun imageFor(value: ItemTooltipRequest): Image? = result?.takeIf { it.request === value }?.image
+
     fun publish(value: ItemTooltipRequest, image: Image?): Boolean {
         checkThread()
         if (request !== value) return false
@@ -108,15 +119,23 @@ internal class ItemTooltipMailbox {
         if (image == null) bounds = null
         return true
     }
+
     fun position(value: ItemTooltipRequest, bounds: Rect) {
         if (request === value && result?.request === value) this.bounds = bounds
     }
-    fun clearImage() { checkThread(); result = null; bounds = null }
+
+    fun clearImage() {
+        checkThread()
+        result = null
+        bounds = null
+    }
+
     fun dismiss() {
         checkThread()
         interactionEpoch++
         request = null
         clearImage()
     }
+
     private fun checkThread() = check(java.awt.EventQueue.isDispatchThread()) { "Tooltip mailbox accessed outside EDT" }
 }

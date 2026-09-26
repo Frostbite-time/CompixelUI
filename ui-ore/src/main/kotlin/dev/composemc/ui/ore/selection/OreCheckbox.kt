@@ -30,14 +30,30 @@ import dev.composemc.ui.ore.theme.LocalOreFeedback
 import dev.composemc.ui.ore.theme.OreTheme
 
 @Composable
-fun OreCheckbox(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier,
-    enabled: Boolean = true, label: String? = null) =
-    OreCheckbox(if (checked) ToggleableState.On else ToggleableState.Off, { onCheckedChange(!checked) }, modifier, enabled, label)
+fun OreCheckbox(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    label: String? = null,
+) =
+    OreCheckbox(
+        if (checked) ToggleableState.On else ToggleableState.Off,
+        { onCheckedChange(!checked) },
+        modifier,
+        enabled,
+        label,
+    )
 
 /** Indeterminate represents a mixed group. The caller chooses the next state on activation. */
 @Composable
-fun OreCheckbox(state: ToggleableState, onClick: () -> Unit, modifier: Modifier = Modifier,
-    enabled: Boolean = true, label: String? = null) {
+fun OreCheckbox(
+    state: ToggleableState,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    label: String? = null,
+) {
     val checked = state != ToggleableState.Off
     val interactions = remember { MutableInteractionSource() }
     val focused by interactions.collectIsFocusedAsState()
@@ -45,15 +61,37 @@ fun OreCheckbox(state: ToggleableState, onClick: () -> Unit, modifier: Modifier 
     val pressed by interactions.collectIsPressedAsState()
     val colors = OreTheme.colors
     val feedback = LocalOreFeedback.current
-    Row(modifier.heightIn(min = 18.dp).triStateToggleable(state, interactions, indication = null, enabled = enabled, role = Role.Checkbox) {
-        onClick(); feedback.activate()
-    }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-        val fill = if (!enabled) colors.raised else if (checked) { if (pressed) colors.primaryPressed else colors.primary }
-            else if (pressed) colors.secondaryPressed else if (hovered) colors.secondaryHover else colors.secondary
-        Box(Modifier.size(13.dp).oreFrame(fill,
-            if (enabled) colors.edge else colors.disabledEdge, lerp(fill, Color.White, .28f))
-            .oreOutline(if (focused && enabled) colors.focus else null), contentAlignment = Alignment.Center) {
-            if (state == ToggleableState.On) OreIcon(OreGlyph.Checkmark, color = if (enabled) colors.text else colors.mutedText)
+    Row(
+        modifier.heightIn(min = 18.dp).triStateToggleable(
+            state,
+            interactions,
+            indication = null,
+            enabled = enabled,
+            role = Role.Checkbox,
+        ) {
+            onClick()
+            feedback.activate()
+        },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        val fill =
+            if (!enabled) colors.raised
+            else if (checked) {
+                if (pressed) colors.primaryPressed else colors.primary
+            } else if (pressed) colors.secondaryPressed else if (hovered) colors.secondaryHover else colors.secondary
+        Box(
+            Modifier.size(13.dp)
+                .oreFrame(
+                    fill,
+                    if (enabled) colors.edge else colors.disabledEdge,
+                    lerp(fill, Color.White, .28f),
+                )
+                .oreOutline(if (focused && enabled) colors.focus else null),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (state == ToggleableState.On)
+                OreIcon(OreGlyph.Checkmark, color = if (enabled) colors.text else colors.mutedText)
             else if (state == ToggleableState.Indeterminate)
                 Box(Modifier.size(7.dp, 1.dp).background(if (enabled) colors.text else colors.mutedText))
         }

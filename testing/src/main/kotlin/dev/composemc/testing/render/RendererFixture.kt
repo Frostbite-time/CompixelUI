@@ -31,7 +31,10 @@ fun RendererFixture() {
             drawCircle(Color(0xC080CBC4), 34f, Offset(272f, 62f))
             drawRect(Color(0xFFAB47BC), Offset(280f, 181f), Size(32f, 24f))
         }
-        BasicText("Skia / Compose 012345", Modifier.align(Alignment.BottomStart).padding(12.dp),
-            style = TextStyle(color = Color.White, fontSize = 18.sp, fontFamily = FontFamily.Monospace))
+        BasicText(
+            "Skia / Compose 012345",
+            Modifier.align(Alignment.BottomStart).padding(12.dp),
+            style = TextStyle(color = Color.White, fontSize = 18.sp, fontFamily = FontFamily.Monospace),
+        )
     }
 }

@@ -8,11 +8,16 @@ import net.neoforged.neoforge.client.event.lifecycle.ClientStoppingEvent
 internal object FrameRetirement {
     private val pending = ArrayDeque<() -> Unit>()
     private var stopping = false
+
     fun afterFrame(release: () -> Unit) {
         RenderSystem.assertOnRenderThread()
-        if (stopping) { release(); return }
+        if (stopping) {
+            release()
+            return
+        }
         pending.addLast(release)
     }
+
     fun finish(event: RenderFrameEvent.Post) {
         RenderSystem.assertOnRenderThread()
         if (pending.isEmpty()) return

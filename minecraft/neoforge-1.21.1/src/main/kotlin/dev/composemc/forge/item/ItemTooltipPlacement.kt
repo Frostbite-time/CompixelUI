@@ -23,9 +23,19 @@ internal object ItemTooltipPlacement : TooltipPlacement {
         val margin = with(density) { 2.dp.roundToPx() }
         return remember(cursorPosition, gap, margin) {
             object : PopupPositionProvider {
-                override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize,
-                                               layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset =
-                    placeItemTooltip(anchorBounds.topLeft + cursorPosition.round(), windowSize, popupContentSize, gap, margin)
+                override fun calculatePosition(
+                    anchorBounds: IntRect,
+                    windowSize: IntSize,
+                    layoutDirection: LayoutDirection,
+                    popupContentSize: IntSize,
+                ): IntOffset =
+                    placeItemTooltip(
+                        anchorBounds.topLeft + cursorPosition.round(),
+                        windowSize,
+                        popupContentSize,
+                        gap,
+                        margin,
+                    )
             }
         }
     }

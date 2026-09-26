@@ -2,10 +2,10 @@ package dev.composemc.development.render
 
 import androidx.compose.ui.geometry.Rect
 import dev.composemc.bridge.ComposeThread
+import dev.composemc.forge.ComposeScreen
 import dev.composemc.forge.item.IconRefresh
 import dev.composemc.forge.item.ItemIcon
 import dev.composemc.forge.item.MinecraftItemIcon
-import dev.composemc.forge.ComposeScreen
 import dev.composemc.testing.suite.ScreenPixels
 import dev.composemc.testing.ui.NATIVE_VISUAL_RED
 import dev.composemc.testing.ui.NativeItemVisualModel
@@ -15,11 +15,19 @@ import net.minecraft.network.chat.Component
 
 internal class NativeItemVisualScreen(
     val model: NativeItemVisualModel = ComposeThread.call { NativeItemVisualModel() },
-    private val icon: ItemIcon = ItemIcon.drawn("native visual acceptance",
-        { graphics -> graphics.fill(0, 0, 16, 16, NATIVE_VISUAL_RED) }, IconRefresh.STATIC),
-) : ComposeScreen(Component.literal("Native item visual acceptance"), content = {
-    NativeItemVisualScene(model) { modifier -> MinecraftItemIcon(icon, modifier) }
-}) {
+    private val icon: ItemIcon =
+        ItemIcon.drawn(
+            "native visual acceptance",
+            { graphics -> graphics.fill(0, 0, 16, 16, NATIVE_VISUAL_RED) },
+            IconRefresh.STATIC,
+        ),
+) :
+    ComposeScreen(
+        Component.literal("Native item visual acceptance"),
+        content = {
+            NativeItemVisualScene(model) { modifier -> MinecraftItemIcon(icon, modifier) }
+        },
+    ) {
     override fun isUiWindowFocused() = dev.composemc.development.SuiteEnvironment.uiFocused(super.isUiWindowFocused())
 
     fun bounds(): Map<String, Rect> = ComposeThread.call { model.bounds() }

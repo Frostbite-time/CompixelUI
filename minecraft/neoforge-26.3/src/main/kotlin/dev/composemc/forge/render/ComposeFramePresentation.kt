@@ -1,8 +1,8 @@
 package dev.composemc.forge.render
 
+import com.mojang.renderpearl.api.pipeline.BlendFactor
 import com.mojang.renderpearl.api.pipeline.BlendFunction
 import com.mojang.renderpearl.api.pipeline.ColorTargetState
-import com.mojang.renderpearl.api.pipeline.BlendFactor
 import com.mojang.renderpearl.api.textures.GpuSampler
 import com.mojang.renderpearl.api.textures.GpuTextureView
 import net.minecraft.client.gui.render.TextureSetup
@@ -21,12 +21,27 @@ private val composePipeline by lazy {
 }
 
 internal fun presentPremultiplied(
-    destination: ScreenRenderDestination, view: GpuTextureView, sampler: GpuSampler, flipY: Boolean,
+    destination: ScreenRenderDestination,
+    view: GpuTextureView,
+    sampler: GpuSampler,
+    flipY: Boolean,
 ) {
     val graphics = destination.graphics
-    graphics.submitGuiElementRenderState(BlitRenderState(
-        composePipeline, TextureSetup.singleTexture(view, sampler), Matrix3x2f(graphics.pose()),
-        0, 0, destination.metrics.guiWidth, destination.metrics.guiHeight,
-        0f, 1f, if (flipY) 1f else 0f, if (flipY) 0f else 1f, -1, graphics.peekScissorStack(),
-    ))
+    graphics.submitGuiElementRenderState(
+        BlitRenderState(
+            composePipeline,
+            TextureSetup.singleTexture(view, sampler),
+            Matrix3x2f(graphics.pose()),
+            0,
+            0,
+            destination.metrics.guiWidth,
+            destination.metrics.guiHeight,
+            0f,
+            1f,
+            if (flipY) 1f else 0f,
+            if (flipY) 0f else 1f,
+            -1,
+            graphics.peekScissorStack(),
+        )
+    )
 }

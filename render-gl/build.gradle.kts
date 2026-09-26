@@ -2,7 +2,9 @@ plugins {
     kotlin("jvm")
     `java-test-fixtures`
 }
+
 val lwjglVersion = libs.versions.lwjgl.gl.get()
+
 dependencies {
     api(project(":render"))
     // Minecraft owns LWJGL and its natives; do not bundle a second copy into the runtime.

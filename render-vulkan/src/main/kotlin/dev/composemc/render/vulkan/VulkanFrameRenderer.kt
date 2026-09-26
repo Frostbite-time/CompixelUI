@@ -14,18 +14,24 @@ import org.jetbrains.skiko.ExperimentalSkikoApi
 import org.lwjgl.vulkan.VK12
 
 /**
- * Draws into borrowed Vulkan images on the host's graphics queue. The adapter
- * supplies the target and surrounds render with its queue/layout handoff.
- * Context and temporary Skia wrappers are owned here; native host handles are not.
+ * Draws into borrowed Vulkan images on the host's graphics queue. The adapter supplies the target and surrounds render
+ * with its queue/layout handoff. Context and temporary Skia wrappers are owned here; native host handles are not.
  */
 @OptIn(ExperimentalSkikoApi::class)
 class VulkanFrameRenderer(handles: VulkanDeviceHandles) : AutoCloseable {
     private val owner = Thread.currentThread()
-    private val context = DirectContext.makeVulkan(
-        handles.instance, handles.physicalDevice, handles.device, handles.graphicsQueue,
-        handles.graphicsQueueFamily, handles.getInstanceProcAddress, handles.getDeviceProcAddress,
-        handles.apiVersion, null,
-    )
+    private val context =
+        DirectContext.makeVulkan(
+            handles.instance,
+            handles.physicalDevice,
+            handles.device,
+            handles.graphicsQueue,
+            handles.graphicsQueueFamily,
+            handles.getInstanceProcAddress,
+            handles.getDeviceProcAddress,
+            handles.apiVersion,
+            null,
+        )
     private var closed = false
     private var frames = 0L
     private var generation = 0L
@@ -34,7 +40,8 @@ class VulkanFrameRenderer(handles: VulkanDeviceHandles) : AutoCloseable {
         private set
 
     // The adapter adds its retained target's allocation/liveness counters.
-    val statistics get() = RendererStatistics(RenderBackend.VULKAN, frames, 0, 0, generation, nativeImageCopies = snapshots)
+    val statistics
+        get() = RendererStatistics(RenderBackend.VULKAN, frames, 0, 0, generation, nativeImageCopies = snapshots)
 
     private fun checkOpen() {
         check(Thread.currentThread() === owner) { "Vulkan renderer accessed outside its owning thread" }
@@ -44,41 +51,81 @@ class VulkanFrameRenderer(handles: VulkanDeviceHandles) : AutoCloseable {
     fun render(frame: RecordedFrame, target: VulkanImageTarget) {
         checkOpen()
         require(frame.viewport.width == target.width && frame.viewport.height == target.height)
-        BackendRenderTarget.makeVulkan(target.width, target.height, target.image,
-            VK12.VK_IMAGE_TILING_OPTIMAL, VK12.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            target.format, target.usage, VK12.VK_SAMPLE_COUNT_1_BIT, 1).use { backend ->
-            checkNotNull(Surface.makeFromBackendRenderTarget(context, backend, SurfaceOrigin.TOP_LEFT,
-                SurfaceColorFormat.RGBA_8888, null)) { "Skia rejected the borrowed Vulkan UI image" }.use { surface ->
-                surface.canvas.clear(0)
-                frame.draw(surface.canvas)
-                context.flushAndSubmit(surface, false)
+        BackendRenderTarget.makeVulkan(
+                target.width,
+                target.height,
+                target.image,
+                VK12.VK_IMAGE_TILING_OPTIMAL,
+                VK12.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                target.format,
+                target.usage,
+                VK12.VK_SAMPLE_COUNT_1_BIT,
+                1,
+            )
+            .use { backend ->
+                checkNotNull(
+                        Surface.makeFromBackendRenderTarget(
+                            context,
+                            backend,
+                            SurfaceOrigin.TOP_LEFT,
+                            SurfaceColorFormat.RGBA_8888,
+                            null,
+                        )
+                    ) {
+                        "Skia rejected the borrowed Vulkan UI image"
+                    }
+                    .use { surface ->
+                        surface.canvas.clear(0)
+                        frame.draw(surface.canvas)
+                        context.flushAndSubmit(surface, false)
+                    }
             }
-        }
         frames++
         generation = frame.generation
         needsFrame = false
     }
 
     /**
-     * Copies the top-left [width]x[height] region of a host color image into a Skia-owned image on
-     * the GPU. The host image is wrapped only for the copy, which is submitted before this returns.
-     * [layout] is its layout on entry; afterwards the host must re-establish its own layout before
-     * writing again (see [VulkanImageBarriers.releaseAfterSnapshot]). [bottomUp] marks images whose
-     * first memory row is the bottom of the picture.
+     * Copies the top-left [width]x[height] region of a host color image into a Skia-owned image on the GPU. The host
+     * image is wrapped only for the copy, which is submitted before this returns. [layout] is its layout on entry;
+     * afterwards the host must re-establish its own layout before writing again (see
+     * [VulkanImageBarriers.releaseAfterSnapshot]). [bottomUp] marks images whose first memory row is the bottom of the
+     * picture.
      */
     fun snapshotImage(source: VulkanImageTarget, layout: Int, width: Int, height: Int, bottomUp: Boolean): Image {
         checkOpen()
         require(width in 1..source.width && height in 1..source.height)
-        val image = BackendRenderTarget.makeVulkan(source.width, source.height, source.image,
-            VK12.VK_IMAGE_TILING_OPTIMAL, layout, source.format, source.usage, VK12.VK_SAMPLE_COUNT_1_BIT, 1).use { backend ->
-            checkNotNull(Surface.makeFromBackendRenderTarget(context, backend,
-                if (bottomUp) SurfaceOrigin.BOTTOM_LEFT else SurfaceOrigin.TOP_LEFT, SurfaceColorFormat.RGBA_8888, null)) {
-                "Skia rejected the borrowed Vulkan image"
-            }.use { surface ->
-                // A wrapped render target is not a texture, so the snapshot is a GPU copy.
-                checkNotNull(surface.makeImageSnapshot(IRect.makeWH(width, height))) { "Skia could not copy the Vulkan image" }
-            }
-        }
+        val image =
+            BackendRenderTarget.makeVulkan(
+                    source.width,
+                    source.height,
+                    source.image,
+                    VK12.VK_IMAGE_TILING_OPTIMAL,
+                    layout,
+                    source.format,
+                    source.usage,
+                    VK12.VK_SAMPLE_COUNT_1_BIT,
+                    1,
+                )
+                .use { backend ->
+                    checkNotNull(
+                            Surface.makeFromBackendRenderTarget(
+                                context,
+                                backend,
+                                if (bottomUp) SurfaceOrigin.BOTTOM_LEFT else SurfaceOrigin.TOP_LEFT,
+                                SurfaceColorFormat.RGBA_8888,
+                                null,
+                            )
+                        ) {
+                            "Skia rejected the borrowed Vulkan image"
+                        }
+                        .use { surface ->
+                            // A wrapped render target is not a texture, so the snapshot is a GPU copy.
+                            checkNotNull(surface.makeImageSnapshot(IRect.makeWH(width, height))) {
+                                "Skia could not copy the Vulkan image"
+                            }
+                        }
+                }
         context.flush()
         context.submit(false)
         image.imageInfo
@@ -86,7 +133,10 @@ class VulkanFrameRenderer(handles: VulkanDeviceHandles) : AutoCloseable {
         return image
     }
 
-    fun reset() { checkOpen(); needsFrame = true }
+    fun reset() {
+        checkOpen()
+        needsFrame = true
+    }
 
     /** The host must retire this context after all queued work referencing it has finished. */
     override fun close() {

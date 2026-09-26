@@ -2,8 +2,13 @@ package dev.composemc.forge.item
 
 import com.mojang.blaze3d.systems.RenderSystem
 import dev.composemc.bridge.ComposeThread
-import net.minecraft.client.gui.GuiGraphicsExtractor
+import dev.composemc.forge.render.FrameRetirement
+import dev.composemc.forge.render.NativeSnapshots
+import dev.composemc.forge.render.ScreenMetrics
+import java.util.concurrent.ConcurrentLinkedQueue
+import kotlin.math.ceil
 import net.minecraft.client.Minecraft
+import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.gui.screens.Screen
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTextTooltip
 import net.minecraft.client.gui.screens.inventory.tooltip.TooltipRenderUtil
@@ -13,11 +18,6 @@ import org.jetbrains.skia.ColorAlphaType
 import org.jetbrains.skia.ColorType
 import org.jetbrains.skia.Image
 import org.jetbrains.skia.ImageInfo
-import java.util.concurrent.ConcurrentLinkedQueue
-import kotlin.math.ceil
-import dev.composemc.forge.render.FrameRetirement
-import dev.composemc.forge.render.NativeSnapshots
-import dev.composemc.forge.render.ScreenMetrics
 
 data class NativeTooltipStatistics(
     val visible: Boolean = false,
@@ -36,10 +36,22 @@ internal class NativeTooltipRenderer(
     private val snapshots: NativeSnapshots?,
 ) : AutoCloseable {
     private data class Layout(val width: Int, val height: Int, val components: Int, val richComponents: Int)
-    private data class Completion(val epoch: Long, val request: ItemTooltipRequest,
-                                  val metrics: ScreenMetrics, val layout: Layout, val pixels: ByteArray)
-    private data class Pending(val capture: NativeGuiCapture, val epoch: Long, val request: ItemTooltipRequest,
-                               val metrics: ScreenMetrics, val layout: Layout)
+
+    private data class Completion(
+        val epoch: Long,
+        val request: ItemTooltipRequest,
+        val metrics: ScreenMetrics,
+        val layout: Layout,
+        val pixels: ByteArray,
+    )
+
+    private data class Pending(
+        val capture: NativeGuiCapture,
+        val epoch: Long,
+        val request: ItemTooltipRequest,
+        val metrics: ScreenMetrics,
+        val layout: Layout,
+    )
 
     private val completions = ConcurrentLinkedQueue<Completion>()
     private var capture: NativeGuiCapture? = null
@@ -59,9 +71,18 @@ internal class NativeTooltipRenderer(
     private var retired = 0L
     private var closed = false
 
-    val statistics get() = NativeTooltipStatistics(image != null && imageRequest === request,
-        layout?.width ?: 0, layout?.height ?: 0, layout?.components ?: 0, layout?.richComponents ?: 0,
-        prepared, retired, generation)
+    val statistics
+        get() =
+            NativeTooltipStatistics(
+                image != null && imageRequest === request,
+                layout?.width ?: 0,
+                layout?.height ?: 0,
+                layout?.components ?: 0,
+                layout?.richComponents ?: 0,
+                prepared,
+                retired,
+                generation,
+            )
 
     fun recorded(frameGeneration: Long) {
         request = ComposeThread.call { mailbox.request }
@@ -91,8 +112,10 @@ internal class NativeTooltipRenderer(
 
         val maxGuiWidth = (current.guiWidth - 8).coerceIn(1, 320)
         val maxGuiHeight = (current.guiHeight - 8).coerceAtLeast(1)
-        val targetWidth = ceil(maxGuiWidth.toDouble() * current.framebufferWidth / current.guiWidth).toInt().coerceAtLeast(1)
-        val targetHeight = ceil(maxGuiHeight.toDouble() * current.framebufferHeight / current.guiHeight).toInt().coerceAtLeast(1)
+        val targetWidth =
+            ceil(maxGuiWidth.toDouble() * current.framebufferWidth / current.guiWidth).toInt().coerceAtLeast(1)
+        val targetHeight =
+            ceil(maxGuiHeight.toDouble() * current.framebufferHeight / current.guiHeight).toInt().coerceAtLeast(1)
         if (captureMetrics != current) {
             capture?.close()
             capture = NativeGuiCapture(targetWidth, targetHeight)
@@ -102,12 +125,18 @@ internal class NativeTooltipRenderer(
         if (snapshots == null) {
             var measured: Layout? = null
             val capturedEpoch = epoch
-            val submitted = target.capture(maxGuiWidth, maxGuiHeight, { graphics ->
-                drawTooltip(graphics, active, current, maxGuiWidth, maxGuiHeight, targetWidth, targetHeight)
-                    .also { measured = it }?.let { it.width to it.height }
-            }) { pixels, _, _ ->
-                completions.add(Completion(capturedEpoch, active, current, checkNotNull(measured), pixels))
-            }
+            val submitted =
+                target.capture(
+                    maxGuiWidth,
+                    maxGuiHeight,
+                    { graphics ->
+                        drawTooltip(graphics, active, current, maxGuiWidth, maxGuiHeight, targetWidth, targetHeight)
+                            .also { measured = it }
+                            ?.let { it.width to it.height }
+                    },
+                ) { pixels, _, _ ->
+                    completions.add(Completion(capturedEpoch, active, current, checkNotNull(measured), pixels))
+                }
             inFlight = submitted
             if (!submitted && image != null) {
                 retireImage()
@@ -117,9 +146,10 @@ internal class NativeTooltipRenderer(
             return changed
         }
 
-        val measured = target.renderSized(0, maxGuiWidth, maxGuiHeight, { it.width to it.height }) { graphics ->
-            drawTooltip(graphics, active, current, maxGuiWidth, maxGuiHeight, targetWidth, targetHeight)
-        }
+        val measured =
+            target.renderSized(0, maxGuiWidth, maxGuiHeight, { it.width to it.height }) { graphics ->
+                drawTooltip(graphics, active, current, maxGuiWidth, maxGuiHeight, targetWidth, targetHeight)
+            }
         if (measured == null) {
             if (image != null) {
                 retireImage()
@@ -133,17 +163,43 @@ internal class NativeTooltipRenderer(
         return changed
     }
 
-    private fun drawTooltip(graphics: GuiGraphicsExtractor, active: ItemTooltipRequest, current: ScreenMetrics,
-                            maxGuiWidth: Int, maxGuiHeight: Int, targetWidth: Int, targetHeight: Int): Layout? {
+    private fun drawTooltip(
+        graphics: GuiGraphicsExtractor,
+        active: ItemTooltipRequest,
+        current: ScreenMetrics,
+        maxGuiWidth: Int,
+        maxGuiHeight: Int,
+        targetWidth: Int,
+        targetHeight: Int,
+    ): Layout? {
         val minecraft = Minecraft.getInstance()
         val stack = active.icon.stack
         // NeoForge wraps text 16 units inside screenWidth; the sprite background adds 24.
-        val components = ClientHooks.gatherTooltipComponents(stack, Screen.getTooltipFromItem(minecraft, stack),
-            stack.tooltipImage, 0, maxGuiWidth - 8, maxGuiHeight, minecraft.font)
+        val components =
+            ClientHooks.gatherTooltipComponents(
+                stack,
+                Screen.getTooltipFromItem(minecraft, stack),
+                stack.tooltipImage,
+                0,
+                maxGuiWidth - 8,
+                maxGuiHeight,
+                minecraft.font,
+            )
         if (components.isEmpty()) return null
         // NeoForge may change the font or cancel; Compose positions the finished image.
-        val pre = ClientHooks.onRenderTooltipPre(stack, graphics, 12, 12, current.guiWidth, current.guiHeight,
-            components, minecraft.font) { _, _, _, _, _, _ -> org.joml.Vector2i(12, 12) }
+        val pre =
+            ClientHooks.onRenderTooltipPre(
+                stack,
+                graphics,
+                12,
+                12,
+                current.guiWidth,
+                current.guiHeight,
+                components,
+                minecraft.font,
+            ) { _, _, _, _, _, _ ->
+                org.joml.Vector2i(12, 12)
+            }
         if (pre.isCanceled) return null
         val font = pre.font
         val width = components.maxOf { it.getWidth(font) }
@@ -156,8 +212,17 @@ internal class NativeTooltipRenderer(
             // The renderer now projects into the measured target, so compensate for its smaller viewport.
             graphics.pose().scale(targetWidth / pixelWidth.toFloat(), targetHeight / pixelHeight.toFloat())
             graphics.pose().scale(scale, scale)
-            val style = ClientHooks.onRenderTooltipTexture(stack, graphics, 12, 12, font, components,
-                stack.get(DataComponents.TOOLTIP_STYLE)).texture
+            val style =
+                ClientHooks.onRenderTooltipTexture(
+                        stack,
+                        graphics,
+                        12,
+                        12,
+                        font,
+                        components,
+                        stack.get(DataComponents.TOOLTIP_STYLE),
+                    )
+                    .texture
             TooltipRenderUtil.extractTooltipBackground(graphics, 12, 12, width, height, style)
             var y = 12
             components.forEachIndexed { index, component ->
@@ -169,7 +234,9 @@ internal class NativeTooltipRenderer(
                 component.extractImage(font, 12, y, width, height, graphics)
                 y += component.getHeight(font) + if (index == 0 && components.size > 1) 2 else 0
             }
-        } finally { graphics.pose().popMatrix() }
+        } finally {
+            graphics.pose().popMatrix()
+        }
         return Layout(pixelWidth, pixelHeight, components.size, components.count { it !is ClientTextTooltip })
     }
 
@@ -203,8 +270,17 @@ internal class NativeTooltipRenderer(
             if (completion.epoch != epoch) continue
             inFlight = false
             if (completion.request !== request || completion.metrics != attemptedMetrics) continue
-            val value = Image.makeRaster(ImageInfo(completion.layout.width, completion.layout.height,
-                ColorType.RGBA_8888, ColorAlphaType.PREMUL), completion.pixels, completion.layout.width * 4)
+            val value =
+                Image.makeRaster(
+                    ImageInfo(
+                        completion.layout.width,
+                        completion.layout.height,
+                        ColorType.RGBA_8888,
+                        ColorAlphaType.PREMUL,
+                    ),
+                    completion.pixels,
+                    completion.layout.width * 4,
+                )
             val published = ComposeThread.call { mailbox.publish(completion.request, value) }
             if (published) {
                 prepared++
@@ -223,8 +299,7 @@ internal class NativeTooltipRenderer(
 
     private fun retireImage() {
         image?.let { old ->
-            if (snapshots == null) FrameRetirement.afterFrame { old.close() }
-            else snapshots.release(old)
+            if (snapshots == null) FrameRetirement.afterFrame { old.close() } else snapshots.release(old)
             retired++
         }
         image = null

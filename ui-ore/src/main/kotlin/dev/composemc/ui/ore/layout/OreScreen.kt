@@ -28,8 +28,17 @@ fun OreScreen(
     panelModifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    BoxWithConstraints(modifier.fillMaxSize().background(OreTheme.colors.backdrop).padding(8.dp), contentAlignment = Alignment.Center) {
-        OrePanel(title, Modifier.width(minOf(this.maxWidth, maxWidth)).height(minOf(this.maxHeight, maxHeight)).then(panelModifier),
-            onClose, closeLabel, footer, content = content)
+    BoxWithConstraints(
+        modifier.fillMaxSize().background(OreTheme.colors.backdrop).padding(8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        OrePanel(
+            title,
+            Modifier.width(minOf(this.maxWidth, maxWidth)).height(minOf(this.maxHeight, maxHeight)).then(panelModifier),
+            onClose,
+            closeLabel,
+            footer,
+            content = content,
+        )
     }
 }

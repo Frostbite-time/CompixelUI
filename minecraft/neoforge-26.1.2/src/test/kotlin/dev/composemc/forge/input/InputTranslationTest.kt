@@ -1,18 +1,20 @@
 package dev.composemc.forge.input
 
 import dev.composemc.platform.UiKey
+import kotlin.test.*
 import org.junit.jupiter.api.Test
 import org.lwjgl.glfw.GLFW
-import kotlin.test.*
 
 class InputTranslationTest {
     private val notAsked: () -> String? = { fail("Only letter and punctuation positions consult the layout") }
 
-    @Test fun `every key has a GLFW position`() {
+    @Test
+    fun `every key has a GLFW position`() {
         assertEquals(UiKey.entries.toSet(), (0..GLFW.GLFW_KEY_LAST).map(::positionKey).toSet())
     }
 
-    @Test fun `letters and punctuation follow the active layout`() {
+    @Test
+    fun `letters and punctuation follow the active layout`() {
         assertEquals(UiKey.A, uiKey(GLFW.GLFW_KEY_Q) { "a" }) // AZERTY
         assertEquals(UiKey.M, uiKey(GLFW.GLFW_KEY_SEMICOLON) { "m" })
         assertEquals(UiKey.COMMA, uiKey(GLFW.GLFW_KEY_M) { "," })
@@ -20,7 +22,8 @@ class InputTranslationTest {
         assertEquals(UiKey.S, uiKey(GLFW.GLFW_KEY_S) { "S" })
     }
 
-    @Test fun `other characters and keys keep their US position`() {
+    @Test
+    fun `other characters and keys keep their US position`() {
         assertEquals(UiKey.A, uiKey(GLFW.GLFW_KEY_A) { "ф" }) // Cyrillic keeps the Latin position
         assertEquals(UiKey.SEMICOLON, uiKey(GLFW.GLFW_KEY_SEMICOLON) { "é" })
         assertEquals(UiKey.S, uiKey(GLFW.GLFW_KEY_S) { null })

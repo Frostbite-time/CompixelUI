@@ -53,14 +53,26 @@ import dev.composemc.ui.ore.theme.OreTheme
 import kotlinx.coroutines.launch
 
 /** Stable id and presentation belong to the caller; activation never implies a server-side operation. */
-data class OreMenuItem(val id: String, val label: String, val enabled: Boolean = true,
-    val checked: Boolean? = null, val shortcut: String? = null, val destructive: Boolean = false,
-    val onClick: () -> Unit)
+data class OreMenuItem(
+    val id: String,
+    val label: String,
+    val enabled: Boolean = true,
+    val checked: Boolean? = null,
+    val shortcut: String? = null,
+    val destructive: Boolean = false,
+    val onClick: () -> Unit,
+)
 
 /** Place inside the anchor's Box. A non-null offset opens at an anchor-local pointer position. */
 @Composable
-fun OreMenu(expanded: Boolean, onDismissRequest: () -> Unit, items: List<OreMenuItem>,
-    modifier: Modifier = Modifier, offset: DpOffset? = null, initialIndex: Int = 0) {
+fun OreMenu(
+    expanded: Boolean,
+    onDismissRequest: () -> Unit,
+    items: List<OreMenuItem>,
+    modifier: Modifier = Modifier,
+    offset: DpOffset? = null,
+    initialIndex: Int = 0,
+) {
     require(items.map { it.id }.toSet().size == items.size) { "Menu item ids must be unique" }
     if (!expanded) return
     val density = LocalDensity.current
@@ -74,7 +86,9 @@ fun OreMenu(expanded: Boolean, onDismissRequest: () -> Unit, items: List<OreMenu
     val focus = remember { FocusRequester() }
     val list = rememberLazyListState()
     val scope = rememberCoroutineScope()
-    var activeId by remember { mutableStateOf(items.getOrNull(initialIndex)?.takeIf { it.enabled }?.id ?: items.firstOrNull { it.enabled }?.id) }
+    var activeId by remember {
+        mutableStateOf(items.getOrNull(initialIndex)?.takeIf { it.enabled }?.id ?: items.firstOrNull { it.enabled }?.id)
+    }
     val active = items.indexOfFirst { it.id == activeId && it.enabled }
     LaunchedEffect(items.map { it.id to it.enabled }) {
         if (active < 0) activeId = items.firstOrNull { it.enabled }?.id
@@ -88,37 +102,81 @@ fun OreMenu(expanded: Boolean, onDismissRequest: () -> Unit, items: List<OreMenu
         if (keyboard) feedback.activate()
     }
     Popup(position, onDismissRequest, properties = PopupProperties(focusable = true)) {
-        OreSurface(modifier.widthIn(max = width).width(minOf(180.dp, width))
-            .heightIn(max = minOf(200.dp, height)).focusRequester(focus)
-            .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) false else {
-                    val enabledIndices = items.indices.filter { items[it].enabled }
-                    val next = when (event.key) {
-                        Key.DirectionDown -> enabledIndices.firstOrNull { it > active } ?: enabledIndices.firstOrNull()
-                        Key.DirectionUp -> enabledIndices.lastOrNull { it < active } ?: enabledIndices.lastOrNull()
-                        Key.MoveHome -> enabledIndices.firstOrNull()
-                        Key.MoveEnd -> enabledIndices.lastOrNull()
-                        else -> null
-                    }
-                    when {
-                        next != null -> { activeId = items[next].id; scope.launch { list.scrollToItem(next) }; true }
-                        event.key == Key.Enter || event.key == Key.NumPadEnter || event.key == Key.Spacebar -> { activate(active, keyboard = true); true }
-                        event.key == Key.Escape || event.key == Key.Tab -> { onDismissRequest(); true }
-                        else -> false
+        OreSurface(
+            modifier
+                .widthIn(max = width)
+                .width(minOf(180.dp, width))
+                .heightIn(max = minOf(200.dp, height))
+                .focusRequester(focus)
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) false
+                    else {
+                        val enabledIndices = items.indices.filter { items[it].enabled }
+                        val next =
+                            when (event.key) {
+                                Key.DirectionDown ->
+                                    enabledIndices.firstOrNull { it > active } ?: enabledIndices.firstOrNull()
+                                Key.DirectionUp ->
+                                    enabledIndices.lastOrNull { it < active } ?: enabledIndices.lastOrNull()
+                                Key.MoveHome -> enabledIndices.firstOrNull()
+                                Key.MoveEnd -> enabledIndices.lastOrNull()
+                                else -> null
+                            }
+                        when {
+                            next != null -> {
+                                activeId = items[next].id
+                                scope.launch { list.scrollToItem(next) }
+                                true
+                            }
+                            event.key == Key.Enter || event.key == Key.NumPadEnter || event.key == Key.Spacebar -> {
+                                activate(active, keyboard = true)
+                                true
+                            }
+                            event.key == Key.Escape || event.key == Key.Tab -> {
+                                onDismissRequest()
+                                true
+                            }
+                            else -> false
+                        }
                     }
                 }
-            }.focusable()) {
+                .focusable()
+        ) {
             Box {
-                LazyColumn(Modifier.padding(3.dp).padding(end = 7.dp), state = list, verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                LazyColumn(
+                    Modifier.padding(3.dp).padding(end = 7.dp),
+                    state = list,
+                    verticalArrangement = Arrangement.spacedBy(1.dp),
+                ) {
                     itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
-                        OreListItem(index == active, { activate(index) }, Modifier.fillMaxWidth()
-                            .onPointerEvent(PointerEventType.Enter) { if (item.enabled) activeId = item.id }, enabled = item.enabled) {
-                            if (item.checked != null) Box(Modifier.size(8.dp), contentAlignment = Alignment.Center) {
-                                if (item.checked) OreIcon(OreGlyph.Checkmark)
-                            }
-                            OreText(item.label, Modifier.weight(1f), color = if (!item.enabled) OreTheme.colors.mutedText else if (item.destructive) lerp(OreTheme.colors.danger, OreTheme.colors.text, .65f) else OreTheme.colors.text,
-                                maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            if (item.shortcut != null) OreText(item.shortcut, style = OreTheme.typography.caption, color = OreTheme.colors.mutedText)
+                        OreListItem(
+                            index == active,
+                            { activate(index) },
+                            Modifier.fillMaxWidth().onPointerEvent(PointerEventType.Enter) {
+                                if (item.enabled) activeId = item.id
+                            },
+                            enabled = item.enabled,
+                        ) {
+                            if (item.checked != null)
+                                Box(Modifier.size(8.dp), contentAlignment = Alignment.Center) {
+                                    if (item.checked) OreIcon(OreGlyph.Checkmark)
+                                }
+                            OreText(
+                                item.label,
+                                Modifier.weight(1f),
+                                color =
+                                    if (!item.enabled) OreTheme.colors.mutedText
+                                    else if (item.destructive) lerp(OreTheme.colors.danger, OreTheme.colors.text, .65f)
+                                    else OreTheme.colors.text,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            if (item.shortcut != null)
+                                OreText(
+                                    item.shortcut,
+                                    style = OreTheme.typography.caption,
+                                    color = OreTheme.colors.mutedText,
+                                )
                         }
                     }
                 }

@@ -24,7 +24,19 @@ fun OreText(
     overflow: TextOverflow = TextOverflow.Clip,
     style: TextStyle = OreTheme.typography.body,
 ) {
-    BasicText(text, modifier, style = style.merge(TextStyle(color = color, fontSize = fontSize,
-        fontWeight = fontWeight, textAlign = textAlign ?: TextAlign.Unspecified)),
-        maxLines = maxLines, overflow = overflow)
+    BasicText(
+        text,
+        modifier,
+        style =
+            style.merge(
+                TextStyle(
+                    color = color,
+                    fontSize = fontSize,
+                    fontWeight = fontWeight,
+                    textAlign = textAlign ?: TextAlign.Unspecified,
+                )
+            ),
+        maxLines = maxLines,
+        overflow = overflow,
+    )
 }

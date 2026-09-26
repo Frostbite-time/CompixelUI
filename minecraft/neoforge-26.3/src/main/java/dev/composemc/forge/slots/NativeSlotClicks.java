@@ -3,16 +3,18 @@ package dev.composemc.forge.slots;
 import dev.composemc.slots.SlotBehavior;
 import dev.composemc.slots.SlotGesture;
 import dev.composemc.slots.SlotIntent;
-import net.minecraft.world.inventory.ContainerInput;
 import java.util.Objects;
 import java.util.function.Consumer;
+import net.minecraft.world.inventory.ContainerInput;
 
 /** Public translation between platform-neutral gestures and the 26.3 menu input protocol. */
 public final class NativeSlotClicks {
     private NativeSlotClicks() {}
 
     @FunctionalInterface
-    public interface InventoryExecutor { void execute(int slotId, int button, ContainerInput type); }
+    public interface InventoryExecutor {
+        void execute(int slotId, int button, ContainerInput type);
+    }
 
     public record Click(int button, ContainerInput type) {}
 
@@ -58,8 +60,13 @@ public final class NativeSlotClicks {
      * Call on the game thread. InventoryExecutor owns prediction/networking; Local is never sent.
      * Pass the stable menu slot ID (including the outside sentinel), not a sorted/display index.
      */
-    public static void dispatch(int slotId, int button, ContainerInput type, SlotBehavior behavior,
-                                InventoryExecutor inventory, Consumer<SlotIntent.Local> local) {
+    public static void dispatch(
+            int slotId,
+            int button,
+            ContainerInput type,
+            SlotBehavior behavior,
+            InventoryExecutor inventory,
+            Consumer<SlotIntent.Local> local) {
         SlotIntent intent = behavior.resolve(gesture(button, type));
         if (intent instanceof SlotIntent.Inventory operation) {
             var click = click(operation.gesture());

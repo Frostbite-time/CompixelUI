@@ -17,9 +17,10 @@ fun readFramebufferImage(source: OpenGlDestination, width: Int = source.width, h
         glBindFramebuffer(GL_READ_FRAMEBUFFER, source.framebuffer)
         glReadPixels(0, source.height - height, width, height, GL_RGBA, GL_UNSIGNED_BYTE, bytes)
         val stride = width * 4
-        val rgba = ByteArray(bytes.capacity()) { index ->
-            bytes.get((height - 1 - index / stride) * stride + index % stride)
-        }
+        val rgba =
+            ByteArray(bytes.capacity()) { index ->
+                bytes.get((height - 1 - index / stride) * stride + index % stride)
+            }
         return Image.makeRaster(ImageInfo(width, height, ColorType.RGBA_8888, ColorAlphaType.PREMUL), rgba, stride)
     } finally {
         MemoryUtil.memFree(bytes)

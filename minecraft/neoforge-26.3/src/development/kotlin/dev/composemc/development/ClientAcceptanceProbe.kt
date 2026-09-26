@@ -8,19 +8,21 @@ import dev.composemc.testing.suite.AcceptanceLog
 import dev.composemc.testing.suite.AcceptanceStep
 import dev.composemc.testing.suite.ClientSuite
 import dev.composemc.testing.suite.SuitePixels
+import java.util.concurrent.CompletableFuture
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.screens.Screen
 import net.minecraft.locale.Language
-import java.util.concurrent.CompletableFuture
 
 // Identical in every adapter; version differences belong in SuitePlatform.kt.
 
 /**
- * Correctness suite: every [AcceptanceStep], in order, in a fresh flat creative world. Input goes
- * through real Screen callbacks and focus is logical, so it never needs, or steals, OS focus.
+ * Correctness suite: every [AcceptanceStep], in order, in a fresh flat creative world. Input goes through real Screen
+ * callbacks and focus is logical, so it never needs, or steals, OS focus.
  */
 internal class ClientAcceptanceProbe {
-    private val minecraft get() = Minecraft.getInstance()
+    private val minecraft
+        get() = Minecraft.getInstance()
+
     private val log = AcceptanceLog()
     private val session = SuiteSession(ClientSuite.ACCEPTANCE, frameLimit = 260)
     private val script = SuiteScript(session)
@@ -63,8 +65,12 @@ internal class ClientAcceptanceProbe {
         started = true
         val language = Language.getInstance()
         val previewCategory = SuitePlatform.keyCategory("key.composemc.open_preview")
-        check(language.has("composemc.config.title") && language.has("key.composemc.open_preview") &&
-            previewCategory != null && language.has(previewCategory)) {
+        check(
+            language.has("composemc.config.title") &&
+                language.has("key.composemc.open_preview") &&
+                previewCategory != null &&
+                language.has(previewCategory)
+        ) {
             "Library/development translations did not load"
         }
         check(SuitePlatform.loaderProduction == SuiteEnvironment.production) {
@@ -111,7 +117,10 @@ internal class ClientAcceptanceProbe {
             script.act("capture $name") { session.capture(name) { port.verifyPixels(it, scale, clicked) } }
             script.until("the $name capture") { session.capturesIdle }
         }
-        script.act("open the port fixture") { port = PortValidationScreen(); session.open(port) }
+        script.act("open the port fixture") {
+            port = PortValidationScreen()
+            session.open(port)
+        }
         script.until("the port fixture rendered") { port.rendererStatistics.renderedFrames > 0 }
         capture("port-orientation-alpha", 2, clicked = false)
         script.act("click the top-left target") { click(32.0, 32.0) }
@@ -120,15 +129,25 @@ internal class ClientAcceptanceProbe {
         script.pause(100)
         script.act("type Unicode text") { PORT_TEXT.forEach { port.charTyped(it, 0) } }
         script.until("Unicode text entry") { ComposeThread.call { port.model.text } == PORT_TEXT }
-        script.act("select all and delete") { key(SuitePlatform.KEY_A, SuitePlatform.MOD_CONTROL); key(SuitePlatform.KEY_BACKSPACE) }
+        script.act("select all and delete") {
+            key(SuitePlatform.KEY_A, SuitePlatform.MOD_CONTROL)
+            key(SuitePlatform.KEY_BACKSPACE)
+        }
         script.until("the select-all/backspace shortcut") { ComposeThread.call { port.model.text }.isEmpty() }
         script.act("record ${AcceptanceStep.PORT_INPUT}") { log.pass(AcceptanceStep.PORT_INPUT) }
         script.act("switch to GUI scale 3") { SuitePlatform.setGuiScale(3) }
-        script.until("GUI scale 3 applied") { SuitePlatform.guiScale == 3 && port.width == minecraft.window.guiScaledWidth }
+        script.until("GUI scale 3 applied") {
+            SuitePlatform.guiScale == 3 && port.width == minecraft.window.guiScaledWidth
+        }
         capture("port-gui-scale-3", 3, clicked = true)
-        script.act("resize to 1000x700 at GUI scale 2") { SuitePlatform.setGuiScale(2); SuitePlatform.setWindowSize(1000, 700) }
+        script.act("resize to 1000x700 at GUI scale 2") {
+            SuitePlatform.setGuiScale(2)
+            SuitePlatform.setWindowSize(1000, 700)
+        }
         script.until("the framebuffer resized") {
-            minecraft.window.width == 1000 && minecraft.window.height == 700 && SuitePlatform.guiScale == 2 &&
+            minecraft.window.width == 1000 &&
+                minecraft.window.height == 700 &&
+                SuitePlatform.guiScale == 2 &&
                 port.width == minecraft.window.guiScaledWidth
         }
         capture("port-resize", 2, clicked = true)
@@ -144,9 +163,13 @@ internal class ClientAcceptanceProbe {
 
     private fun nativeVisual() {
         lateinit var visual: NativeItemVisualScreen
-        script.act("open the native visual fixture") { visual = NativeItemVisualScreen(); session.open(visual) }
+        script.act("open the native visual fixture") {
+            visual = NativeItemVisualScreen()
+            session.open(visual)
+        }
         script.until("native visual images prepared", 20_000) {
-            visual.rendererStatistics.renderedFrames > 0 && visual.nativeItemStatistics.let { it.cachedImages > 0 && it.pendingImages == 0 }
+            visual.rendererStatistics.renderedFrames > 0 &&
+                visual.nativeItemStatistics.let { it.cachedImages > 0 && it.pendingImages == 0 }
         }
         script.pause(200)
         script.act("capture the native visual fixture") {

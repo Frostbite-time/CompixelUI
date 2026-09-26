@@ -7,11 +7,13 @@ import dev.composemc.forge.render.RendererResources
 import dev.composemc.forge.render.configuredRenderBackend
 import dev.composemc.render.RenderBackend
 import dev.composemc.testing.suite.ScreenPixels
+import java.io.File
+import java.util.function.Consumer
 import net.minecraft.client.InactivityFpsLimit
+import net.minecraft.client.KeyboardHandler
 import net.minecraft.client.Minecraft
 import net.minecraft.client.Screenshot
 import net.minecraft.client.gui.screens.Screen
-import net.minecraft.client.KeyboardHandler
 import net.minecraft.client.input.KeyEvent
 import net.minecraft.client.input.PreeditEvent
 import net.minecraft.core.registries.Registries
@@ -30,8 +32,6 @@ import net.neoforged.neoforge.common.NeoForge
 import org.lwjgl.sdl.SDLEvents
 import org.lwjgl.sdl.SDLKeyboard
 import org.lwjgl.sdl.SDLVideo
-import java.io.File
-import java.util.function.Consumer
 
 internal typealias SuiteComposeScreen = ComposeScreen
 
@@ -47,31 +47,61 @@ internal object SuitePlatform {
     const val KEY_ESCAPE = InputConstants.KEY_ESCAPE
     const val MOD_CONTROL = InputConstants.MOD_CONTROL
 
-    private val minecraft get() = Minecraft.getInstance()
-    private val window get() = minecraft.window.handle()
+    private val minecraft
+        get() = Minecraft.getInstance()
 
-    val loaderProduction: Boolean get() = FMLEnvironment.isProduction()
-    val backend: RenderBackend get() = configuredRenderBackend()
-    val overlayActive: Boolean get() = minecraft.gui.overlay() != null
-    val screen: Screen? get() = minecraft.gui.screen()
-    val guiScale: Int get() = minecraft.window.guiScale
-    val resourceEpoch: Long get() = RendererResources.epoch
-    val windowHidden: Boolean get() = SDLVideo.SDL_GetWindowFlags(window) and SDLVideo.SDL_WINDOW_HIDDEN != 0L
-    val windowFocused: Boolean get() = minecraft.window.isFocused
+    private val window
+        get() = minecraft.window.handle()
+
+    val loaderProduction: Boolean
+        get() = FMLEnvironment.isProduction()
+
+    val backend: RenderBackend
+        get() = configuredRenderBackend()
+
+    val overlayActive: Boolean
+        get() = minecraft.gui.overlay() != null
+
+    val screen: Screen?
+        get() = minecraft.gui.screen()
+
+    val guiScale: Int
+        get() = minecraft.window.guiScale
+
+    val resourceEpoch: Long
+        get() = RendererResources.epoch
+
+    val windowHidden: Boolean
+        get() = SDLVideo.SDL_GetWindowFlags(window) and SDLVideo.SDL_WINDOW_HIDDEN != 0L
+
+    val windowFocused: Boolean
+        get() = minecraft.window.isFocused
+
     /** Whether the Compose host opened SDL text input, without which typed text never arrives. */
     fun textInputOpen(screen: Screen): Boolean =
         (screen as? SuiteComposeScreen)?.textInputOpen == true && SDLKeyboard.SDL_TextInputActive(window)
+
     /** Input method composition arrives as preedit events; [preedit] submits one as KeyboardHandler does. */
-    val preeditSupported: Boolean get() = true
+    val preeditSupported: Boolean
+        get() = true
+
     fun preedit(screen: Screen, text: String?) =
         KeyboardHandler.submitPreeditEvent(screen, text?.let { PreeditEvent(it, it.length, listOf(it), 0) })
 
     fun setScreen(screen: Screen?) = minecraft.gui.setScreen(screen)
+
     fun defer(task: () -> Unit) = minecraft.schedule(Runnable(task))
+
     fun clearToasts() = minecraft.gui.toastManager().clear()
+
     /** The translation key of the category that holds the key mapping [name]. */
-    fun keyCategory(name: String): String? = minecraft.options.keyMappings.firstOrNull { it.name == name }
-        ?.category?.label()?.contents?.let { (it as? TranslatableContents)?.key }
+    fun keyCategory(name: String): String? =
+        minecraft.options.keyMappings
+            .firstOrNull { it.name == name }
+            ?.category
+            ?.label()
+            ?.contents
+            ?.let { (it as? TranslatableContents)?.key }
 
     fun setGuiScale(scale: Int) {
         minecraft.options.guiScale().set(scale)
@@ -92,7 +122,8 @@ internal object SuitePlatform {
     /** Posts the same Screen key event a real F8 press produces; returns whether a handler consumed it. */
     fun pressPreviewKey(parent: Screen): Boolean {
         val key = InputConstants.KEY_F8
-        val event = ScreenEvent.KeyPressed.Pre(parent, KeyEvent(key, SDLKeyboard.SDL_GetKeyFromScancode(key, 0, false), 0))
+        val event =
+            ScreenEvent.KeyPressed.Pre(parent, KeyEvent(key, SDLKeyboard.SDL_GetKeyFromScancode(key, 0, false), 0))
         return NeoForge.EVENT_BUS.post(event).isCanceled
     }
 
@@ -107,7 +138,13 @@ internal object SuitePlatform {
         Screenshot.takeScreenshot(minecraft.gameRenderer.mainRenderTarget()) { image ->
             image.use {
                 it.writeToFile(file)
-                done(ScreenPixels(it.width, it.height, IntArray(it.width * it.height) { index -> it.getPixel(index % it.width, index / it.width) }))
+                done(
+                    ScreenPixels(
+                        it.width,
+                        it.height,
+                        IntArray(it.width * it.height) { index -> it.getPixel(index % it.width, index / it.width) },
+                    )
+                )
             }
         }
     }
@@ -142,19 +179,45 @@ internal object SuitePlatform {
         }
     }
 
-    fun device(): Map<String, Any?> = RenderSystem.getDevice().getDeviceInfo().let {
-        linkedMapOf("gpu" to it.name(), "vendor" to it.vendorName(), "driver" to it.driverInfo(), "api" to it.backendName())
-    }
+    fun device(): Map<String, Any?> =
+        RenderSystem.getDevice().getDeviceInfo().let {
+            linkedMapOf(
+                "gpu" to it.name(),
+                "vendor" to it.vendorName(),
+                "driver" to it.driverInfo(),
+                "api" to it.backendName(),
+            )
+        }
 
     fun resourcePacks(): List<String> = minecraft.resourcePackRepository.selectedPacks.map { it.id }
 
     fun createFlatWorld(name: String, parent: Screen) {
         val directory = minecraft.levelSource.baseDir.resolve(name).toFile()
-        check(!directory.exists() || directory.deleteRecursively()) { "Cannot delete the previous test world $directory" }
-        val settings = LevelSettings(name, GameType.CREATIVE, LevelSettings.DifficultySettings(Difficulty.PEACEFUL, false, false),
-            true, WorldDataConfiguration.DEFAULT)
-        minecraft.createWorldOpenFlows().createFreshLevel(name, settings, WorldOptions(42L, false, false), { registries ->
-            registries.lookupOrThrow(Registries.WORLD_PRESET).getOrThrow(WorldPresets.FLAT).value().createWorldDimensions()
-        }, parent)
+        check(!directory.exists() || directory.deleteRecursively()) {
+            "Cannot delete the previous test world $directory"
+        }
+        val settings =
+            LevelSettings(
+                name,
+                GameType.CREATIVE,
+                LevelSettings.DifficultySettings(Difficulty.PEACEFUL, false, false),
+                true,
+                WorldDataConfiguration.DEFAULT,
+            )
+        minecraft
+            .createWorldOpenFlows()
+            .createFreshLevel(
+                name,
+                settings,
+                WorldOptions(42L, false, false),
+                { registries ->
+                    registries
+                        .lookupOrThrow(Registries.WORLD_PRESET)
+                        .getOrThrow(WorldPresets.FLAT)
+                        .value()
+                        .createWorldDimensions()
+                },
+                parent,
+            )
     }
 }

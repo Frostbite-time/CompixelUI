@@ -7,7 +7,9 @@ import org.lwjgl.opengl.GL33C.*
 
 /** These handles belong solely to the GL backend/version adapter, never to Compose or the SPI. */
 data class OpenGlDestination(val framebuffer: Int, val width: Int, val height: Int) {
-    init { require(framebuffer >= 0 && width > 0 && height > 0) }
+    init {
+        require(framebuffer >= 0 && width > 0 && height > 0)
+    }
 }
 
 /** Same-context RGBA8/premultiplied rendering. No pixel readback, PNG or full-frame upload. */
@@ -44,23 +46,41 @@ class OpenGlFrameRenderer(
     private val nativeTimers = mutableMapOf<GpuPhase, GlGpuTimer>()
     private val importedImages = mutableSetOf<Image>()
     private var imageCopies = 0L
-    override val statistics get() = RendererStatistics(RenderBackend.OPENGL, frames, allocations, 0,
-        generation, if (surface == null) 0 else 1, renderTimer?.timings?.summary(), presentTimer?.timings?.summary(),
-        nativeImageCopies = imageCopies, liveNativeImages = importedImages.size)
-    override val needsFrame get() = !hasFrame
+    override val statistics
+        get() =
+            RendererStatistics(
+                RenderBackend.OPENGL,
+                frames,
+                allocations,
+                0,
+                generation,
+                if (surface == null) 0 else 1,
+                renderTimer?.timings?.summary(),
+                presentTimer?.timings?.summary(),
+                nativeImageCopies = imageCopies,
+                liveNativeImages = importedImages.size,
+            )
 
-    init { check(capabilities.OpenGL32) { "OpenGL 3.2 is required by this backend" } }
+    override val needsFrame
+        get() = !hasFrame
+
+    init {
+        check(capabilities.OpenGL32) { "OpenGL 3.2 is required by this backend" }
+    }
 
     private fun checkContext() {
         check(Thread.currentThread() === owner) { "Renderer accessed outside its owning thread" }
         check(!closed) { "Renderer is closed" }
-        check(contextIdentity() == glContext) { "GL context changed; recreate the renderer through the version adapter" }
+        check(contextIdentity() == glContext) {
+            "GL context changed; recreate the renderer through the version adapter"
+        }
     }
 
     private fun <T> isolated(textureUnitCount: Int = textureUnits, action: () -> T): T {
         checkContext()
         // A diagnostic comparison still covers every unit when the production scope is narrower.
-        val verification = if (verifyState && textureUnitCount != textureUnits) GlStateSnapshot.capture(textureUnits) else null
+        val verification =
+            if (verifyState && textureUnitCount != textureUnits) GlStateSnapshot.capture(textureUnits) else null
         val state = profiler.measureDetail(CpuDetail.GL_CAPTURE) { GlStateSnapshot.capture(textureUnitCount) }
         try {
             if (privateVao == 0) privateVao = glGenVertexArrays()
@@ -74,15 +94,16 @@ class OpenGlFrameRenderer(
     }
 
     override fun render(frame: RecordedFrame) = isolated {
-        if (timestampQueries && (measureGpu || profiler != null) && renderTimer == null) renderTimer = GlGpuTimer(profiler, GpuPhase.RENDER)
+        if (timestampQueries && (measureGpu || profiler != null) && renderTimer == null)
+            renderTimer = GlGpuTimer(profiler, GpuPhase.RENDER)
         val timer = renderTimer
         if (timer == null) drawFrame(frame) else timer.measure { drawFrame(frame) }
     }
 
     /**
-     * Copies the retained frame into an adapter-owned RGBA8 texture without a
-     * readback or alpha conversion. The destination must have matching dimensions.
-     * Its row origin remains OpenGL's bottom-left; the adapter selects its UVs.
+     * Copies the retained frame into an adapter-owned RGBA8 texture without a readback or alpha conversion. The
+     * destination must have matching dimensions. Its row origin remains OpenGL's bottom-left; the adapter selects its
+     * UVs.
      */
     fun copyToTexture(destinationTexture: Int, destinationWidth: Int, destinationHeight: Int) = isolated {
         require(destinationTexture > 0 && destinationTexture != texture)
@@ -95,30 +116,43 @@ class OpenGlFrameRenderer(
     }
 
     /** Copies the top-left region on the GPU. Only the new texture is adopted by Skia. */
-    fun copyFramebuffer(source: OpenGlDestination, width: Int = source.width, height: Int = source.height): Image = isolated { profileGpu(GpuPhase.IMAGE_IMPORT) {
-        require(width in 1..source.width && height in 1..source.height)
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, source.framebuffer)
-        adoptCopy(source.height, width, height)
-    } }
+    fun copyFramebuffer(source: OpenGlDestination, width: Int = source.width, height: Int = source.height): Image =
+        isolated {
+            profileGpu(GpuPhase.IMAGE_IMPORT) {
+                require(width in 1..source.width && height in 1..source.height)
+                glBindFramebuffer(GL_READ_FRAMEBUFFER, source.framebuffer)
+                adoptCopy(source.height, width, height)
+            }
+        }
 
     /**
-     * Copies the top-left region of a host-owned RGBA8 texture on the GPU, like [copyFramebuffer].
-     * The host texture is attached to a private read framebuffer only for the copy.
+     * Copies the top-left region of a host-owned RGBA8 texture on the GPU, like [copyFramebuffer]. The host texture is
+     * attached to a private read framebuffer only for the copy.
      */
-    fun copyTexture(sourceTexture: Int, sourceWidth: Int, sourceHeight: Int, width: Int = sourceWidth, height: Int = sourceHeight): Image = isolated { profileGpu(GpuPhase.IMAGE_IMPORT) {
-        require(sourceTexture > 0 && sourceTexture != texture)
-        require(width in 1..sourceWidth && height in 1..sourceHeight)
-        if (readFramebuffer == 0) readFramebuffer = glGenFramebuffers()
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, readFramebuffer)
-        glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, sourceTexture, 0)
-        try {
-            check(glCheckFramebufferStatus(GL_READ_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE) { "Native texture cannot be copied" }
-            glReadBuffer(GL_COLOR_ATTACHMENT0)
-            adoptCopy(sourceHeight, width, height)
-        } finally {
-            glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0)
+    fun copyTexture(
+        sourceTexture: Int,
+        sourceWidth: Int,
+        sourceHeight: Int,
+        width: Int = sourceWidth,
+        height: Int = sourceHeight,
+    ): Image = isolated {
+        profileGpu(GpuPhase.IMAGE_IMPORT) {
+            require(sourceTexture > 0 && sourceTexture != texture)
+            require(width in 1..sourceWidth && height in 1..sourceHeight)
+            if (readFramebuffer == 0) readFramebuffer = glGenFramebuffers()
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, readFramebuffer)
+            glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, sourceTexture, 0)
+            try {
+                check(glCheckFramebufferStatus(GL_READ_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE) {
+                    "Native texture cannot be copied"
+                }
+                glReadBuffer(GL_COLOR_ATTACHMENT0)
+                adoptCopy(sourceHeight, width, height)
+            } finally {
+                glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0)
+            }
         }
-    } }
+    }
 
     /** Copies from the bound read framebuffer; OpenGL rows start at the bottom. */
     private fun adoptCopy(sourceHeight: Int, width: Int, height: Int): Image {
@@ -142,11 +176,14 @@ class OpenGlFrameRenderer(
                 imageCopies++
                 image
             }
-        } finally { if (copy != 0) glDeleteTextures(copy) }
+        } finally {
+            if (copy != 0) glDeleteTextures(copy)
+        }
     }
 
     /** GPU timestamps describe command-stream intervals, not a hardware busy-time percentage. */
-    fun <T> profileGpu(phase: GpuPhase, action: () -> T): T = if (profiler == null || !timestampQueries) action()
+    fun <T> profileGpu(phase: GpuPhase, action: () -> T): T =
+        if (profiler == null || !timestampQueries) action()
         else nativeTimers.getOrPut(phase) { GlGpuTimer(profiler, phase, poolSize = 32) }.measure(action)
 
     fun releaseImage(image: Image) = releaseImages(listOf(image))
@@ -156,10 +193,12 @@ class OpenGlFrameRenderer(
         images.forEach { image -> if (importedImages.remove(image)) image.close() }
     }
 
-    private fun directContext(): DirectContext = context ?: DirectContext.makeGL().also {
-        it.resourceCacheLimit = 64L * 1024 * 1024
-        context = it
-    }
+    private fun directContext(): DirectContext =
+        context
+            ?: DirectContext.makeGL().also {
+                it.resourceCacheLimit = 64L * 1024 * 1024
+                context = it
+            }
 
     private fun drawFrame(frame: RecordedFrame) {
         val skia = directContext()
@@ -185,9 +224,9 @@ class OpenGlFrameRenderer(
     }
 
     /**
-     * Hands finished GPU timestamps to the profiler without waiting. [present] does this every frame.
-     * A host that composites the frame through its own pipeline must call this once per frame instead;
-     * otherwise a phase's latest samples stay pending until that phase runs again, which may be never.
+     * Hands finished GPU timestamps to the profiler without waiting. [present] does this every frame. A host that
+     * composites the frame through its own pipeline must call this once per frame instead; otherwise a phase's latest
+     * samples stay pending until that phase runs again, which may be never.
      */
     fun collectGpuTimings() {
         if (profiler == null) return
@@ -204,7 +243,8 @@ class OpenGlFrameRenderer(
         // This compositor is our own GL code and binds only texture/sampler unit zero.
         // Skia render/import/retirement scopes continue to capture every available unit.
         isolated(textureUnitCount = 1) {
-            if (timestampQueries && (measureGpu || profiler != null) && presentTimer == null) presentTimer = GlGpuTimer(profiler, GpuPhase.PRESENT)
+            if (timestampQueries && (measureGpu || profiler != null) && presentTimer == null)
+                presentTimer = GlGpuTimer(profiler, GpuPhase.PRESENT)
             val timer = presentTimer
             if (timer == null) composite(destination) else timer.measure { composite(destination) }
         }
@@ -259,40 +299,67 @@ class OpenGlFrameRenderer(
             glBindRenderbuffer(GL_RENDERBUFFER, stencil)
             glRenderbufferStorage(GL_RENDERBUFFER, GL_STENCIL_INDEX8, newWidth, newHeight)
             glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, stencil)
-            check(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE) { "Compose GL framebuffer is incomplete" }
+            check(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE) {
+                "Compose GL framebuffer is incomplete"
+            }
             val target = BackendRenderTarget.makeGL(newWidth, newHeight, 0, 8, framebuffer, GL_RGBA8)
             backendTarget = target
             // Unmanaged RGBA8 matches 1.21.1's GUI color path; do not add a second sRGB conversion.
-            surface = checkNotNull(Surface.makeFromBackendRenderTarget(skia, target, SurfaceOrigin.BOTTOM_LEFT,
-                SurfaceColorFormat.RGBA_8888, null)) { "Skia could not wrap the Compose framebuffer" }
+            surface =
+                checkNotNull(
+                    Surface.makeFromBackendRenderTarget(
+                        skia,
+                        target,
+                        SurfaceOrigin.BOTTOM_LEFT,
+                        SurfaceColorFormat.RGBA_8888,
+                        null,
+                    )
+                ) {
+                    "Skia could not wrap the Compose framebuffer"
+                }
             width = newWidth
             height = newHeight
             allocations++
-        } catch (error: Throwable) { releaseSurface(); throw error }
+        } catch (error: Throwable) {
+            releaseSurface()
+            throw error
+        }
     }
 
     private fun releaseSurface() {
-        surface?.close(); surface = null
-        backendTarget?.close(); backendTarget = null
+        surface?.close()
+        surface = null
+        backendTarget?.close()
+        backendTarget = null
         if (framebuffer != 0) glDeleteFramebuffers(framebuffer)
         if (stencil != 0) glDeleteRenderbuffers(stencil)
         if (texture != 0) glDeleteTextures(texture)
-        framebuffer = 0; stencil = 0; texture = 0
-        width = 0; height = 0; hasFrame = false
+        framebuffer = 0
+        stencil = 0
+        texture = 0
+        width = 0
+        height = 0
+        hasFrame = false
     }
 
     override fun close() {
-        if (closed) { check(Thread.currentThread() === owner); return }
+        if (closed) {
+            check(Thread.currentThread() === owner)
+            return
+        }
         val deleted = intArrayOf(texture, framebuffer, stencil, compositor, privateVao, readFramebuffer)
         isolated {
             releaseSurface()
             importedImages.forEach(Image::close)
             importedImages.clear()
-            context?.close(); context = null
+            context?.close()
+            context = null
             if (compositor != 0) glDeleteProgram(compositor)
             if (privateVao != 0) glDeleteVertexArrays(privateVao)
             if (readFramebuffer != 0) glDeleteFramebuffers(readFramebuffer)
-            compositor = 0; privateVao = 0; readFramebuffer = 0
+            compositor = 0
+            privateVao = 0
+            readFramebuffer = 0
             renderTimer?.close()
             presentTimer?.close()
             nativeTimers.values.forEach { it.close() }
@@ -321,25 +388,35 @@ class OpenGlFrameRenderer(
             }
             return shader
         }
-        val vertex = shader(GL_VERTEX_SHADER, """
-            #version 150 core
-            out vec2 uv;
-            void main() {
-                vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
-                uv = p;
-                gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
-            }
-        """.trimIndent())
+        val vertex =
+            shader(
+                GL_VERTEX_SHADER,
+                """
+                #version 150 core
+                out vec2 uv;
+                void main() {
+                    vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+                    uv = p;
+                    gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+                }
+                """
+                    .trimIndent(),
+            )
         var fragment = 0
         var program = 0
         try {
-            fragment = shader(GL_FRAGMENT_SHADER, """
-                #version 150 core
-                uniform sampler2D image;
-                in vec2 uv;
-                out vec4 color;
-                void main() { color = texture(image, uv); }
-            """.trimIndent())
+            fragment =
+                shader(
+                    GL_FRAGMENT_SHADER,
+                    """
+                    #version 150 core
+                    uniform sampler2D image;
+                    in vec2 uv;
+                    out vec4 color;
+                    void main() { color = texture(image, uv); }
+                    """
+                        .trimIndent(),
+                )
             program = glCreateProgram()
             glAttachShader(program, vertex)
             glAttachShader(program, fragment)
@@ -349,7 +426,12 @@ class OpenGlFrameRenderer(
             glUseProgram(program)
             glUniform1i(glGetUniformLocation(program, "image"), 0)
             return program
-        } catch (error: Throwable) { if (program != 0) glDeleteProgram(program); throw error }
-        finally { glDeleteShader(vertex); if (fragment != 0) glDeleteShader(fragment) }
+        } catch (error: Throwable) {
+            if (program != 0) glDeleteProgram(program)
+            throw error
+        } finally {
+            glDeleteShader(vertex)
+            if (fragment != 0) glDeleteShader(fragment)
+        }
     }
 }

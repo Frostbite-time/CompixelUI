@@ -7,8 +7,16 @@ import java.util.concurrent.atomic.AtomicReference
 internal class ClipboardMailbox : ClipboardPort {
     private val snapshot = AtomicReference("")
     private val pendingWrite = AtomicReference<String?>()
+
     override fun readText(): String = pendingWrite.get() ?: snapshot.get()
-    override fun writeText(text: String) { pendingWrite.set(text) }
-    fun refresh(text: String) { snapshot.set(text) }
+
+    override fun writeText(text: String) {
+        pendingWrite.set(text)
+    }
+
+    fun refresh(text: String) {
+        snapshot.set(text)
+    }
+
     fun takeWrite(): String? = pendingWrite.getAndSet(null)?.also(snapshot::set)
 }

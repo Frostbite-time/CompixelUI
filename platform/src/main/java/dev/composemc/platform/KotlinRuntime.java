@@ -18,9 +18,11 @@ public final class KotlinRuntime {
                     .getMethod("limitedParallelism", int.class, String.class);
             Class.forName("kotlinx.serialization.KSerializer", false, loader).getMethod("getDescriptor");
         } catch (ReflectiveOperationException | LinkageError | IllegalStateException failure) {
-            throw new IllegalStateException("Compose MC requires compatible Kotlin stdlib, Coroutines and "
-                    + "Serialization libraries. Install Kotlin for Forge for this Minecraft version, or replace "
-                    + "the standard Compose MC JAR with its with-kotlin variant. Install only one variant.", failure);
+            throw new IllegalStateException(
+                    "Compose MC requires compatible Kotlin stdlib, Coroutines and "
+                            + "Serialization libraries. Install Kotlin for Forge for this Minecraft version, or replace "
+                            + "the standard Compose MC JAR with its with-kotlin variant. Install only one variant.",
+                    failure);
         }
     }
 }

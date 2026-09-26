@@ -1,14 +1,14 @@
 package dev.composemc.development.render
 
 import dev.composemc.forge.*
+import dev.composemc.forge.render.configuredRenderBackend
+import dev.composemc.forge.render.minecraftVulkanDevice
+import dev.composemc.forge.render.minecraftVulkanHandles
 import dev.composemc.render.RenderBackend
 import dev.composemc.render.gl.testing.OpenGlRendererProbe
 import dev.composemc.render.vulkan.testing.VulkanRendererProbe
 import dev.composemc.testing.render.RendererAcceptance
 import net.minecraft.client.Minecraft
-import dev.composemc.forge.render.configuredRenderBackend
-import dev.composemc.forge.render.minecraftVulkanDevice
-import dev.composemc.forge.render.minecraftVulkanHandles
 
 /** Only device discovery and host submission are version-specific. */
 internal fun verifyRenderer(): String {

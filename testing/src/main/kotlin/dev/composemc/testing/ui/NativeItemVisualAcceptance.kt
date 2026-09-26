@@ -23,7 +23,9 @@ import kotlin.math.abs
 /** A renderer-independent acceptance scene; adapters supply one native drawing handle. */
 class NativeItemVisualModel {
     private val positions = mutableMapOf<String, Rect>()
+
     fun bounds(): Map<String, Rect> = positions.toMap()
+
     internal fun record(name: String): Modifier = Modifier.onGloballyPositioned { positions[name] = it.boundsInRoot() }
 }
 
@@ -33,11 +35,14 @@ private val blue = Color(0xFF286CD0)
 
 @Composable
 fun NativeItemVisualScene(model: NativeItemVisualModel, item: @Composable (Modifier) -> Unit) {
-    @Composable fun cell(name: String, content: @Composable () -> Unit) {
+    @Composable
+    fun cell(name: String, content: @Composable () -> Unit) {
         Box(Modifier.size(64.dp).background(background).then(model.record(name))) { content() }
     }
-    Column(Modifier.fillMaxSize().background(Color(0xFF172023)).padding(30.dp),
-        verticalArrangement = Arrangement.spacedBy(28.dp)) {
+    Column(
+        Modifier.fillMaxSize().background(Color(0xFF172023)).padding(30.dp),
+        verticalArrangement = Arrangement.spacedBy(28.dp),
+    ) {
         Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
             cell("base") {}
             cell("opaque") { item(Modifier.fillMaxSize()) }
@@ -71,9 +76,10 @@ fun verifyNativeItemVisualPixels(bounds: Map<String, Rect>, width: Int, height: 
         check(px in 0 until width && py in 0 until height) { "Native visual sample outside frame: $name" }
         return pixel(px, py)
     }
-    fun delta(a: Int, b: Int): Int = (0..2).maxOf { channel ->
-        abs((a ushr (channel * 8) and 255) - (b ushr (channel * 8) and 255))
-    }
+    fun delta(a: Int, b: Int): Int =
+        (0..2).maxOf { channel ->
+            abs((a ushr (channel * 8) and 255) - (b ushr (channel * 8) and 255))
+        }
     val base = sample("base")
     val opaque = sample("opaque")
     val half = sample("half")

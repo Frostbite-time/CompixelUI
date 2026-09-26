@@ -1,11 +1,10 @@
 package dev.composemc.bridge
 
-import org.jetbrains.skia.Image
-import org.jetbrains.skia.Rect
-import org.jetbrains.skia.Surface
-import org.junit.jupiter.api.Test
 import java.awt.EventQueue
 import kotlin.test.*
+import org.jetbrains.skia.Image
+import org.jetbrains.skia.Surface
+import org.junit.jupiter.api.Test
 
 class NativeIconAtlasTest {
     private class Icon(val id: Long, val refresh: NativeIconRefresh = NativeIconRefresh.STATIC)
@@ -19,36 +18,57 @@ class NativeIconAtlasTest {
         val appearances = HashMap<Long, Any>()
         val appearanceCalls = HashMap<Long, Int>()
         var copyReady = true
+
         override fun id(icon: Icon) = icon.id
+
         override fun refresh(icon: Icon) = icon.refresh
+
         override fun appearance(icon: Icon): Any? {
             appearanceCalls.merge(icon.id, 1, Int::plus)
             return appearances[icon.id]
         }
-        override fun draw(buffer: Int, icons: List<NativeIconAtlas.Placement<Icon>>) { draws += buffer to icons }
+
+        override fun draw(buffer: Int, icons: List<NativeIconAtlas.Placement<Icon>>) {
+            draws += buffer to icons
+        }
+
         override fun snapshot(buffer: Int): Image? {
             if (!copyReady) return null
             val surface = Surface.makeRasterN32Premul(4, 4)
-            return try { surface.makeImageSnapshot().also { snapshots += it } } finally { surface.close() }
+            return try {
+                surface.makeImageSnapshot().also { snapshots += it }
+            } finally {
+                surface.close()
+            }
         }
+
         override fun release(image: Image) {
             val index = snapshots.indexOfFirst { it === image }
             check(index >= 0 && index !in released) { "Unknown or repeated release" }
             released += index
         }
+
         override fun publish(regions: Map<Long, NativeImageRegion>, removed: Set<Long>) {
             check(EventQueue.isDispatchThread())
             removed.forEach(published::remove)
             published.putAll(regions)
         }
-        override fun clear() { check(EventQueue.isDispatchThread()); published.clear() }
+
+        override fun clear() {
+            check(EventQueue.isDispatchThread())
+            published.clear()
+        }
+
         fun drawnIds(draw: Int) = draws[draw].second.map { it.icon.id }
+
         fun region(id: Long) = published.getValue(id).source.let { listOf(it.left, it.top, it.right, it.bottom) }
     }
 
-    private fun icons(count: Int, refresh: NativeIconRefresh = NativeIconRefresh.STATIC) = List(count) { Icon(it.toLong(), refresh) }
+    private fun icons(count: Int, refresh: NativeIconRefresh = NativeIconRefresh.STATIC) =
+        List(count) { Icon(it.toLong(), refresh) }
 
-    @Test fun layoutFitsTheBudgetAndScalesRegionsToPagePixels() {
+    @Test
+    fun layoutFitsTheBudgetAndScalesRegionsToPagePixels() {
         val atlas = NativeIconAtlas(128, 64, 64, Host())
         assertEquals(64, atlas.pageCapacity)
         assertEquals(144 to 144, atlas.guiWidth to atlas.guiHeight)
@@ -61,7 +81,8 @@ class NativeIconAtlasTest {
         assertEquals(2, small.buffers)
     }
 
-    @Test fun everyVisibleIconGetsItsRegionAndStaticPagesAreDrawnOnce() {
+    @Test
+    fun everyVisibleIconGetsItsRegionAndStaticPagesAreDrawnOnce() {
         val host = Host()
         val atlas = NativeIconAtlas(8, 4, 64, host)
         atlas.recorded(icons(6))
@@ -81,20 +102,25 @@ class NativeIconAtlasTest {
         atlas.close()
     }
 
-    @Test fun animatedPagesRotateSoNoIconStarves() {
+    @Test
+    fun animatedPagesRotateSoNoIconStarves() {
         val host = Host()
         val atlas = NativeIconAtlas(16, 4, 16, host)
         atlas.recorded(icons(16, NativeIconRefresh.FRAME))
         repeat(12) { atlas.prepare(0, 0, 1.0) }
         val drawn = host.draws.flatMap { (_, icons) -> icons.map { it.icon.id } }.groupingBy { it }.eachCount()
         assertEquals((0L until 16).associateWith { 3 }, drawn)
-        assertEquals(listOf(0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3), host.draws.map { it.second.first().icon.id.toInt() / 4 })
+        assertEquals(
+            listOf(0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3),
+            host.draws.map { it.second.first().icon.id.toInt() / 4 },
+        )
         assertEquals(32, atlas.statistics.animationRefreshes)
         assertEquals(16, atlas.statistics.dynamicVariants)
         atlas.close()
     }
 
-    @Test fun onlyHiddenIconsAreEvictedAndUnpublished() {
+    @Test
+    fun onlyHiddenIconsAreEvictedAndUnpublished() {
         val host = Host()
         val atlas = NativeIconAtlas(4, 4, 16, host)
         val (a, b, c, d) = icons(4)
@@ -114,7 +140,8 @@ class NativeIconAtlasTest {
         pinned.close()
     }
 
-    @Test fun deferredHostsPublishOnTheNextFrameAndAlternateBuffers() {
+    @Test
+    fun deferredHostsPublishOnTheNextFrameAndAlternateBuffers() {
         val host = Host(immediate = false)
         val atlas = NativeIconAtlas(4, 2, 16, host)
         atlas.recorded(icons(4, NativeIconRefresh.FRAME))
@@ -128,7 +155,8 @@ class NativeIconAtlasTest {
         atlas.close()
     }
 
-    @Test fun deferredCopiesHoldTheirBufferUntilComplete() {
+    @Test
+    fun deferredCopiesHoldTheirBufferUntilComplete() {
         val host = Host(immediate = false)
         val atlas = NativeIconAtlas(4, 2, 16, host)
         atlas.recorded(icons(4))
@@ -146,7 +174,8 @@ class NativeIconAtlasTest {
         atlas.close()
     }
 
-    @Test fun changedAppearancesRedrawTheirPageAndAreComparedOncePerTick() {
+    @Test
+    fun changedAppearancesRedrawTheirPageAndAreComparedOncePerTick() {
         val host = Host()
         val atlas = NativeIconAtlas(8, 4, 16, host)
         val changing = icons(8, NativeIconRefresh.ON_CHANGE)
@@ -165,7 +194,8 @@ class NativeIconAtlasTest {
         atlas.close()
     }
 
-    @Test fun dueRulesFollowTicksIntervalsAndGuiScale() {
+    @Test
+    fun dueRulesFollowTicksIntervalsAndGuiScale() {
         val host = Host()
         val atlas = NativeIconAtlas(3, 1, 16, host)
         val ticking = Icon(0, NativeIconRefresh.GAME_TICK)
@@ -186,7 +216,8 @@ class NativeIconAtlasTest {
         atlas.close()
     }
 
-    @Test fun resetAndCloseReleaseEveryPageImage() {
+    @Test
+    fun resetAndCloseReleaseEveryPageImage() {
         val host = Host()
         val atlas = NativeIconAtlas(8, 4, 16, host)
         atlas.recorded(icons(8, NativeIconRefresh.FRAME))

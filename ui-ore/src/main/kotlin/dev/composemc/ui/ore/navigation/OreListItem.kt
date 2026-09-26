@@ -42,13 +42,33 @@ fun OreListItem(
     val pressed by interactions.collectIsPressedAsState()
     val colors = OreTheme.colors
     val feedback = LocalOreFeedback.current
-    Row(modifier.heightIn(min = 28.dp).oreFrame(
-        if (enabled && pressed) colors.panel else if (enabled && hovered) colors.hovered else if (selected) lerp(colors.raised, colors.primary, .18f) else colors.raised,
-        colors.edge, colors.highlight)
-        .oreOutline(if (focused && enabled) colors.focus else null)
-        .drawBehind { if (selected) drawRect(colors.primaryHover, Offset(1.dp.roundToPx().toFloat(), 1.dp.roundToPx().toFloat()), Size(1.5.dp.roundToPx().toFloat(), (size.height - 2.dp.roundToPx()).coerceAtLeast(0f))) }
-        .semantics { this.selected = selected }
-        .clickable(interactions, indication = null, enabled = enabled, role = Role.Button) { onClick(); feedback.activate() }
-        .padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp), content = content)
+    Row(
+        modifier
+            .heightIn(min = 28.dp)
+            .oreFrame(
+                if (enabled && pressed) colors.panel
+                else if (enabled && hovered) colors.hovered
+                else if (selected) lerp(colors.raised, colors.primary, .18f) else colors.raised,
+                colors.edge,
+                colors.highlight,
+            )
+            .oreOutline(if (focused && enabled) colors.focus else null)
+            .drawBehind {
+                if (selected)
+                    drawRect(
+                        colors.primaryHover,
+                        Offset(1.dp.roundToPx().toFloat(), 1.dp.roundToPx().toFloat()),
+                        Size(1.5.dp.roundToPx().toFloat(), (size.height - 2.dp.roundToPx()).coerceAtLeast(0f)),
+                    )
+            }
+            .semantics { this.selected = selected }
+            .clickable(interactions, indication = null, enabled = enabled, role = Role.Button) {
+                onClick()
+                feedback.activate()
+            }
+            .padding(horizontal = 6.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        content = content,
+    )
 }

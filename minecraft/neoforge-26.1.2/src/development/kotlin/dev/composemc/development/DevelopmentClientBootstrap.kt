@@ -17,16 +17,21 @@ import net.neoforged.neoforge.common.NeoForge
 import org.lwjgl.glfw.GLFW
 
 internal object DevelopmentClientBootstrap {
-    private val acceptance by lazy { if (SuiteEnvironment.suite == ClientSuite.ACCEPTANCE) ClientAcceptanceProbe() else null }
-    private val benchmark by lazy { if (SuiteEnvironment.suite == ClientSuite.BENCHMARK) ClientBenchmarkProbe() else null }
+    private val acceptance by lazy {
+        if (SuiteEnvironment.suite == ClientSuite.ACCEPTANCE) ClientAcceptanceProbe() else null
+    }
+    private val benchmark by lazy {
+        if (SuiteEnvironment.suite == ClientSuite.BENCHMARK) ClientBenchmarkProbe() else null
+    }
     private val category = KeyMapping.Category(Identifier.fromNamespaceAndPath("composemc", "development"))
-    private val openPreview = KeyMapping(
-        "key.composemc.open_preview",
-        KeyConflictContext.IN_GAME,
-        InputConstants.Type.KEYSYM,
-        GLFW.GLFW_KEY_F8,
-        category,
-    )
+    private val openPreview =
+        KeyMapping(
+            "key.composemc.open_preview",
+            KeyConflictContext.IN_GAME,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_F8,
+            category,
+        )
 
     fun register(modEventBus: IEventBus, container: ModContainer) {
         SyncAcceptanceMenu.register(modEventBus)
@@ -70,4 +75,8 @@ internal object DevelopmentClientBootstrap {
 }
 
 @net.neoforged.fml.common.Mod(value = "composemc_development", dist = [net.neoforged.api.distmarker.Dist.CLIENT])
-class ComposeMcDevelopment(bus: IEventBus, container: ModContainer) { init { DevelopmentClientBootstrap.register(bus, container) } }
+class ComposeMcDevelopment(bus: IEventBus, container: ModContainer) {
+    init {
+        DevelopmentClientBootstrap.register(bus, container)
+    }
+}

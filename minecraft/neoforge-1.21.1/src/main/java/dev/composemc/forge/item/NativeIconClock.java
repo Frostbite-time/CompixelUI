@@ -11,7 +11,11 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 @EventBusSubscriber(modid = "composemc", value = Dist.CLIENT)
 public final class NativeIconClock {
     private static long tick;
-    static long tick() { return tick; }
+
+    static long tick() {
+        return tick;
+    }
+
     @SubscribeEvent(priority = EventPriority.HIGH)
     public static void afterTick(ClientTickEvent.Post event) {
         var level = Minecraft.getInstance().level;

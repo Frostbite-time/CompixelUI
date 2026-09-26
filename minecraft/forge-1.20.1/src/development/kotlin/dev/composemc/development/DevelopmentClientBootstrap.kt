@@ -16,15 +16,20 @@ import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent
 import org.lwjgl.glfw.GLFW
 
 internal object DevelopmentClientBootstrap {
-    private val acceptance by lazy { if (SuiteEnvironment.suite == ClientSuite.ACCEPTANCE) ClientAcceptanceProbe() else null }
-    private val benchmark by lazy { if (SuiteEnvironment.suite == ClientSuite.BENCHMARK) ClientBenchmarkProbe() else null }
-    private val openPreview = KeyMapping(
-        "key.composemc.open_preview",
-        KeyConflictContext.IN_GAME,
-        InputConstants.Type.KEYSYM,
-        GLFW.GLFW_KEY_F8,
-        "key.categories.composemc",
-    )
+    private val acceptance by lazy {
+        if (SuiteEnvironment.suite == ClientSuite.ACCEPTANCE) ClientAcceptanceProbe() else null
+    }
+    private val benchmark by lazy {
+        if (SuiteEnvironment.suite == ClientSuite.BENCHMARK) ClientBenchmarkProbe() else null
+    }
+    private val openPreview =
+        KeyMapping(
+            "key.composemc.open_preview",
+            KeyConflictContext.IN_GAME,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_F8,
+            "key.categories.composemc",
+        )
 
     fun register(modEventBus: IEventBus) {
         SyncAcceptanceMenu.register(modEventBus)
@@ -74,6 +79,8 @@ internal object DevelopmentClientBootstrap {
 class ComposeMcDevelopment {
     init {
         if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT)
-            DevelopmentClientBootstrap.register(net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().modEventBus)
+            DevelopmentClientBootstrap.register(
+                net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().modEventBus
+            )
     }
 }

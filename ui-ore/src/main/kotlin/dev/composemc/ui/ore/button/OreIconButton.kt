@@ -30,18 +30,23 @@ import dev.composemc.ui.ore.theme.OreTheme
 
 /** Convenience overload for the bundled pixel glyphs. */
 @Composable
-fun OreIconButton(glyph: OreGlyph, contentDescription: String, onClick: () -> Unit,
-    modifier: Modifier = Modifier, enabled: Boolean = true, style: OreButtonStyle = OreButtonStyle.Secondary) =
+fun OreIconButton(
+    glyph: OreGlyph,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    style: OreButtonStyle = OreButtonStyle.Secondary,
+) =
     OreIconButton(contentDescription, onClick, modifier, enabled, style) { contentColor ->
         OreIcon(glyph, color = contentColor)
     }
 
 /**
- * An icon-only action with caller-provided, non-interactive visual content.
- * [icon] receives the foreground color for the current style and enabled state.
- * It may draw a Canvas, Image, painter or prepared native image; no glyph registration is needed.
- * [contentDescription] labels the action and supplies its tooltip. Keep child images decorative.
- * Size the visual inside [icon]; [modifier] controls the button bounds.
+ * An icon-only action with caller-provided, non-interactive visual content. [icon] receives the foreground color for
+ * the current style and enabled state. It may draw a Canvas, Image, painter or prepared native image; no glyph
+ * registration is needed. [contentDescription] labels the action and supplies its tooltip. Keep child images
+ * decorative. Size the visual inside [icon]; [modifier] controls the button bounds.
  */
 @Composable
 fun OreIconButton(
@@ -60,18 +65,34 @@ fun OreIconButton(
             val focused by interactions.collectIsFocusedAsState()
             val colors = OreTheme.colors
             val feedback = LocalOreFeedback.current
-            Box(modifier.size(18.dp).semantics { this.contentDescription = contentDescription }
-                .background(if (enabled && pressed) colors.panel else if (enabled && hovered) colors.hovered else Color.Transparent)
-                .oreOutline(if (focused && enabled) colors.focus else null)
-                .clickable(interactions, indication = null, enabled = enabled, role = Role.Button) { onClick(); feedback.activate() },
-                contentAlignment = Alignment.Center) {
+            Box(
+                modifier
+                    .size(18.dp)
+                    .semantics { this.contentDescription = contentDescription }
+                    .background(
+                        if (enabled && pressed) colors.panel
+                        else if (enabled && hovered) colors.hovered else Color.Transparent
+                    )
+                    .oreOutline(if (focused && enabled) colors.focus else null)
+                    .clickable(interactions, indication = null, enabled = enabled, role = Role.Button) {
+                        onClick()
+                        feedback.activate()
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
                 val contentColor = if (enabled) colors.text else colors.mutedText
                 CompositionLocalProvider(LocalOreContentColor provides contentColor) {
                     icon(contentColor)
                 }
             }
         } else {
-            OreButton(onClick, modifier.size(18.dp).semantics { this.contentDescription = contentDescription }, enabled, style, contentPadding = PaddingValues(4.dp)) {
+            OreButton(
+                onClick,
+                modifier.size(18.dp).semantics { this.contentDescription = contentDescription },
+                enabled,
+                style,
+                contentPadding = PaddingValues(4.dp),
+            ) {
                 icon(LocalOreContentColor.current)
             }
         }

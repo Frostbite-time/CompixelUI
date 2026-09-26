@@ -1,14 +1,13 @@
 package dev.composemc.render.gl.testing
 
-import dev.composemc.render.gl.*
-
 import dev.composemc.render.RecordedFrame
 import dev.composemc.render.UiFrameProfiler
+import dev.composemc.render.gl.*
 import dev.composemc.testing.render.RendererPixels
 import dev.composemc.testing.render.RendererProbeResult
-import org.jetbrains.skia.PictureRecorder
-import org.jetbrains.skia.Paint
 import org.jetbrains.skia.BlendMode
+import org.jetbrains.skia.Paint
+import org.jetbrains.skia.PictureRecorder
 import org.jetbrains.skia.Rect
 import org.lwjgl.opengl.GL33C.*
 import org.lwjgl.system.MemoryUtil
@@ -84,27 +83,46 @@ object OpenGlRendererProbe {
                                 "Host blend enable changed for draw buffer $index"
                             }
                             val mask = IntArray(4).also { glGetIntegeri_v(GL_COLOR_WRITEMASK, index, it) }
-                            check(mask.contentEquals(intArrayOf(if (index % 2 == 0) 1 else 0, 1, 0, if (index % 2 != 0) 1 else 0))) {
+                            check(
+                                mask.contentEquals(
+                                    intArrayOf(if (index % 2 == 0) 1 else 0, 1, 0, if (index % 2 != 0) 1 else 0)
+                                )
+                            ) {
                                 "Host color mask changed for draw buffer $index"
                             }
                         }
                         if (iteration != 1) {
                             // A recorded image must survive overwriting its source and retiring the cache reference.
                             val copied = renderer.copyFramebuffer(OpenGlDestination(targetFbo, width, height))
-                            val cropped = if (iteration == 0) renderer.copyFramebuffer(OpenGlDestination(targetFbo, width, height), width / 2, height / 2)
-                                else readFramebufferImage(OpenGlDestination(targetFbo, width, height), width / 2, height / 2)
-                            val picture = PictureRecorder().use { recorder ->
-                                val canvas = recorder.beginRecording(Rect.makeWH(width.toFloat(), height.toFloat()))
-                                canvas.drawImageRect(copied, Rect.makeWH(width.toFloat(), height.toFloat()))
-                                // Replacing the top-left region must preserve its pixels in both import paths.
-                                Paint().use { paint ->
-                                    paint.blendMode = BlendMode.SRC
-                                    canvas.drawImageRect(cropped, Rect.makeWH(width / 2f, height / 2f), paint)
+                            val cropped =
+                                if (iteration == 0)
+                                    renderer.copyFramebuffer(
+                                        OpenGlDestination(targetFbo, width, height),
+                                        width / 2,
+                                        height / 2,
+                                    )
+                                else
+                                    readFramebufferImage(
+                                        OpenGlDestination(targetFbo, width, height),
+                                        width / 2,
+                                        height / 2,
+                                    )
+                            val picture =
+                                PictureRecorder().use { recorder ->
+                                    val canvas = recorder.beginRecording(Rect.makeWH(width.toFloat(), height.toFloat()))
+                                    canvas.drawImageRect(copied, Rect.makeWH(width.toFloat(), height.toFloat()))
+                                    // Replacing the top-left region must preserve its pixels in both import paths.
+                                    Paint().use { paint ->
+                                        paint.blendMode = BlendMode.SRC
+                                        canvas.drawImageRect(cropped, Rect.makeWH(width / 2f, height / 2f), paint)
+                                    }
+                                    recorder.finishRecordingAsPicture()
                                 }
-                                recorder.finishRecordingAsPicture()
-                            }
                             if (iteration == 0) renderer.releaseImages(listOf(copied, cropped))
-                            else { renderer.releaseImage(copied); cropped.close() }
+                            else {
+                                renderer.releaseImage(copied)
+                                cropped.close()
+                            }
                             check(renderer.statistics.liveNativeImages == 0)
                             glColorMask(true, true, true, true)
                             glDisable(GL_SCISSOR_TEST)
@@ -119,7 +137,8 @@ object OpenGlRendererProbe {
                         check(glIsTexture(targetTexture)) { "Borrowed destination texture was deleted" }
                         check(glGetError() == GL_NO_ERROR) { "GL error during renderer probe" }
                         pixels = readRgba(targetFbo, width, height)
-                        val difference = RendererPixels.verify(expectedRgba, pixels, "CPU/GL cycle $cycle, iteration $iteration")
+                        val difference =
+                            RendererPixels.verify(expectedRgba, pixels, "CPU/GL cycle $cycle, iteration $iteration")
                         worstPixels = maxOf(worstPixels, difference.differentPixels)
                         worstMean = maxOf(worstMean, difference.meanChannelError)
                         check(renderer.statistics.fullFrameUploads == 0L)
@@ -131,7 +150,8 @@ object OpenGlRendererProbe {
                     check(renderer.statistics.surfaceAllocations == 2L) { "Retained surface was not reused" }
                 }
             }
-            // A host that composites through its own pipeline never calls present(); polling alone must deliver timings.
+            // A host that composites through its own pipeline never calls present(); polling alone must deliver
+            // timings.
             val profiler = UiFrameProfiler()
             OpenGlFrameRenderer(verifyState = true, profiler = profiler).use { renderer ->
                 profiler.beginFrame()
@@ -166,6 +186,8 @@ object OpenGlRendererProbe {
                 val row = index / (width * 4)
                 buffer.get((height - 1 - row) * width * 4 + index % (width * 4))
             }
-        } finally { MemoryUtil.memFree(buffer) }
+        } finally {
+            MemoryUtil.memFree(buffer)
+        }
     }
 }

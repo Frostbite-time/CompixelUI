@@ -4,11 +4,10 @@ import dev.composemc.platform.ComposingText
 import dev.composemc.platform.TextInputArea
 
 /**
- * Connects a [UiSession] to its host's text input when the session shares a window with native
- * widgets. The host's text input is open while a Compose text field has focus; a focused native
- * widget manages it instead. While it is open, the input method's composition shows inside the
- * field and its candidate window follows the caret. A pointer press or native focus discards an
- * unconfirmed composition instead of typing it, as losing window focus does in [UiSession].
+ * Connects a [UiSession] to its host's text input when the session shares a window with native widgets. The host's text
+ * input is open while a Compose text field has focus; a focused native widget manages it instead. While it is open, the
+ * input method's composition shows inside the field and its candidate window follows the caret. A pointer press or
+ * native focus discards an unconfirmed composition instead of typing it, as losing window focus does in [UiSession].
  * Call every member on the session's thread.
  */
 class HostTextInput(private val target: Target) {
@@ -16,8 +15,10 @@ class HostTextInput(private val target: Target) {
     interface Target {
         /** Opens or closes the host's text input, which enables or disables its input method. */
         fun setOpen(open: Boolean)
+
         /** Places the input method's candidate window next to [area], given in viewport pixels. */
         fun setArea(area: TextInputArea)
+
         /** Makes the input method drop the text it is composing. */
         fun cancelComposing()
     }
@@ -25,6 +26,7 @@ class HostTextInput(private val target: Target) {
     /** Whether the session holds the host's text input. */
     var open = false
         private set
+
     private var nativeFocus = false
     private var composing = false
     private var area: TextInputArea? = null
@@ -40,9 +42,9 @@ class HostTextInput(private val target: Target) {
     }
 
     /**
-     * Call after the host's native focus changes. A focused native widget receives keys and manages
-     * the text input, and the session's composition ends. The widget may close the text input when it
-     * lets go, so a Compose text field that still has focus opens it again.
+     * Call after the host's native focus changes. A focused native widget receives keys and manages the text input, and
+     * the session's composition ends. The widget may close the text input when it lets go, so a Compose text field that
+     * still has focus opens it again.
      */
     fun nativeFocusChanged(session: UiSession?, focused: Boolean) {
         if (focused == nativeFocus) return

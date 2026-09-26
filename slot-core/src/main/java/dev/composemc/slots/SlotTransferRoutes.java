@@ -10,14 +10,18 @@ import java.util.*;
 public final class SlotTransferRoutes {
     private final List<Integer>[] bySource;
 
-    private SlotTransferRoutes(List<Integer>[] bySource) { this.bySource = bySource; }
+    private SlotTransferRoutes(List<Integer>[] bySource) {
+        this.bySource = bySource;
+    }
 
     /** Immutable cached list, no per-click expansion/allocation. Invalid or unrouted IDs yield empty. */
     public List<Integer> targets(int sourceSlot) {
         return sourceSlot >= 0 && sourceSlot < bySource.length ? bySource[sourceSlot] : List.of();
     }
 
-    public static Builder builder(int slotCount) { return new Builder(slotCount); }
+    public static Builder builder(int slotCount) {
+        return new Builder(slotCount);
+    }
 
     public static final class Builder {
         private final int slotCount;
@@ -36,11 +40,13 @@ public final class SlotTransferRoutes {
         /** Reverse controls destination iteration order; it never changes protocol slot IDs. */
         public Builder group(String name, int startInclusive, int endExclusive, boolean reverse) {
             Objects.requireNonNull(name);
-            if (name.isBlank() || groups.containsKey(name)) throw new IllegalArgumentException("Duplicate/empty group: " + name);
+            if (name.isBlank() || groups.containsKey(name))
+                throw new IllegalArgumentException("Duplicate/empty group: " + name);
             if (startInclusive < 0 || startInclusive >= endExclusive || endExclusive > slotCount)
                 throw new IllegalArgumentException("Invalid group range: " + name);
             var ids = new ArrayList<Integer>(endExclusive - startInclusive);
-            for (int i = startInclusive; i < endExclusive; i++) ids.add(reverse ? endExclusive - 1 - (i - startInclusive) : i);
+            for (int i = startInclusive; i < endExclusive; i++)
+                ids.add(reverse ? endExclusive - 1 - (i - startInclusive) : i);
             groups.put(name, List.copyOf(ids));
             return this;
         }
@@ -51,7 +57,8 @@ public final class SlotTransferRoutes {
             var names = List.of(destinations);
             if (names.isEmpty() || new HashSet<>(names).size() != names.size() || names.contains(source))
                 throw new IllegalArgumentException("Empty, repeated or self destination");
-            if (routes.putIfAbsent(source, names) != null) throw new IllegalArgumentException("Duplicate route: " + source);
+            if (routes.putIfAbsent(source, names) != null)
+                throw new IllegalArgumentException("Duplicate route: " + source);
             return this;
         }
 

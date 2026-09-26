@@ -5,9 +5,9 @@ import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL33C.*
 
 /**
- * Raw GL only inside the isolation scope. Restoring actual state also preserves Minecraft's
- * cached state, because no Minecraft/RenderSystem state setter is called inside that scope.
- * This boundary supports the single-color-target, GL 3.2+ GUI pass, not arbitrary MRT passes.
+ * Raw GL only inside the isolation scope. Restoring actual state also preserves Minecraft's cached state, because no
+ * Minecraft/RenderSystem state setter is called inside that scope. This boundary supports the single-color-target, GL
+ * 3.2+ GUI pass, not arbitrary MRT passes.
  */
 internal class GlStateSnapshot private constructor(private val textureUnits: Int) {
     private val samplerObjects = GL.getCapabilities().let { it.OpenGL33 || it.GL_ARB_sampler_objects }
@@ -32,9 +32,10 @@ internal class GlStateSnapshot private constructor(private val textureUnits: Int
     // Preserve indexed state too: RenderPearl caches blend enables and write masks per buffer.
     private val drawBuffers = glGetInteger(GL_MAX_DRAW_BUFFERS)
     private val blendEnabled = BooleanArray(drawBuffers) { glIsEnabledi(GL_BLEND, it) }
-    private val colorMasks = Array(drawBuffers) { index ->
-        IntArray(4).also { glGetIntegeri_v(GL_COLOR_WRITEMASK, index, it) }
-    }
+    private val colorMasks =
+        Array(drawBuffers) { index ->
+            IntArray(4).also { glGetIntegeri_v(GL_COLOR_WRITEMASK, index, it) }
+        }
     private val depthMask = glGetBoolean(GL_DEPTH_WRITEMASK)
     private val depthFunc = glGetInteger(GL_DEPTH_FUNC)
     private val depthRange = DoubleArray(2).also { glGetDoublev(GL_DEPTH_RANGE, it) }
@@ -118,23 +119,47 @@ internal class GlStateSnapshot private constructor(private val textureUnits: Int
         check(changed.isEmpty()) { "OpenGL state was not restored: " + changed.joinToString() }
     }
 
-    private fun values(): Map<String, Any> = linkedMapOf(
-        "program" to program, "vao" to vao, "arrayBuffer" to arrayBuffer,
-        "drawFbo" to drawFbo, "readFbo" to readFbo, "renderbuffer" to renderbuffer,
-        "packBuffer" to packBuffer, "unpackBuffer" to unpackBuffer,
-        "viewport" to viewport.toList(), "scissor" to scissor.toList(),
-        "activeTexture" to activeTexture, "textures" to textures.toList(), "samplers" to samplers.toList(),
-        "enabled" to enabled, "blend" to blend.toList(), "blendColor" to blendColor.toList(),
-        "colorMask" to colorMask.toList(), "depthMask" to depthMask, "depthFunc" to depthFunc,
-        "blendEnabled" to blendEnabled.toList(), "colorMasks" to colorMasks.map { it.toList() },
-        "depthRange" to depthRange.toList(), "frontFace" to frontFace, "cullFace" to cullFace,
-        "polygonMode" to polygonMode.toList(), "polygonOffset" to polygonOffset.toList(),
-        "lineWidth" to lineWidth, "logicOp" to logicOp, "stencil" to stencil.toList(),
-        "stencilBack" to stencilBack.toList(), "pixelStore" to pixelStore.toList(),
-        "clearColor" to clearColor.toList(), "clearDepth" to clearDepth, "clearStencil" to clearStencil,
-        "sampleCoverage" to sampleCoverage, "sampleInvert" to sampleInvert, "sampleMask" to sampleMask,
-        "restartIndex" to restartIndex,
-    )
+    private fun values(): Map<String, Any> =
+        linkedMapOf(
+            "program" to program,
+            "vao" to vao,
+            "arrayBuffer" to arrayBuffer,
+            "drawFbo" to drawFbo,
+            "readFbo" to readFbo,
+            "renderbuffer" to renderbuffer,
+            "packBuffer" to packBuffer,
+            "unpackBuffer" to unpackBuffer,
+            "viewport" to viewport.toList(),
+            "scissor" to scissor.toList(),
+            "activeTexture" to activeTexture,
+            "textures" to textures.toList(),
+            "samplers" to samplers.toList(),
+            "enabled" to enabled,
+            "blend" to blend.toList(),
+            "blendColor" to blendColor.toList(),
+            "colorMask" to colorMask.toList(),
+            "depthMask" to depthMask,
+            "depthFunc" to depthFunc,
+            "blendEnabled" to blendEnabled.toList(),
+            "colorMasks" to colorMasks.map { it.toList() },
+            "depthRange" to depthRange.toList(),
+            "frontFace" to frontFace,
+            "cullFace" to cullFace,
+            "polygonMode" to polygonMode.toList(),
+            "polygonOffset" to polygonOffset.toList(),
+            "lineWidth" to lineWidth,
+            "logicOp" to logicOp,
+            "stencil" to stencil.toList(),
+            "stencilBack" to stencilBack.toList(),
+            "pixelStore" to pixelStore.toList(),
+            "clearColor" to clearColor.toList(),
+            "clearDepth" to clearDepth,
+            "clearStencil" to clearStencil,
+            "sampleCoverage" to sampleCoverage,
+            "sampleInvert" to sampleInvert,
+            "sampleMask" to sampleMask,
+            "restartIndex" to restartIndex,
+        )
 
     private fun restoreStencil(face: Int, values: IntArray) {
         glStencilFuncSeparate(face, values[0], values[1], values[2])
@@ -144,28 +169,90 @@ internal class GlStateSnapshot private constructor(private val textureUnits: Int
 
     companion object {
         fun capture(textureUnits: Int): GlStateSnapshot = GlStateSnapshot(textureUnits)
+
         fun preparePixelTransfers() {
             glBindBuffer(GL_PIXEL_PACK_BUFFER, 0)
             glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0)
             pixelParameters.forEach { parameter ->
-                glPixelStorei(parameter, if (parameter == GL_PACK_ALIGNMENT || parameter == GL_UNPACK_ALIGNMENT) 4 else 0)
+                glPixelStorei(
+                    parameter,
+                    if (parameter == GL_PACK_ALIGNMENT || parameter == GL_UNPACK_ALIGNMENT) 4 else 0,
+                )
             }
         }
+
         private fun ints(parameter: Int, count: Int) = IntArray(count).also { glGetIntegerv(parameter, it) }
+
         private fun floats(parameter: Int, count: Int) = FloatArray(count).also { glGetFloatv(parameter, it) }
-        private val toggles = intArrayOf(GL_BLEND, GL_DEPTH_TEST, GL_STENCIL_TEST, GL_CULL_FACE, GL_SCISSOR_TEST,
-            GL_FRAMEBUFFER_SRGB, GL_DITHER, GL_MULTISAMPLE, GL_SAMPLE_ALPHA_TO_COVERAGE, GL_SAMPLE_ALPHA_TO_ONE,
-            GL_SAMPLE_COVERAGE, GL_SAMPLE_MASK, GL_RASTERIZER_DISCARD, GL_POLYGON_OFFSET_FILL,
-            GL_POLYGON_OFFSET_LINE, GL_POLYGON_OFFSET_POINT, GL_COLOR_LOGIC_OP, GL_PRIMITIVE_RESTART)
-        private val blendParameters = intArrayOf(GL_BLEND_SRC_RGB, GL_BLEND_DST_RGB, GL_BLEND_SRC_ALPHA,
-            GL_BLEND_DST_ALPHA, GL_BLEND_EQUATION_RGB, GL_BLEND_EQUATION_ALPHA)
-        private val stencilParameters = intArrayOf(GL_STENCIL_FUNC, GL_STENCIL_REF, GL_STENCIL_VALUE_MASK,
-            GL_STENCIL_WRITEMASK, GL_STENCIL_FAIL, GL_STENCIL_PASS_DEPTH_FAIL, GL_STENCIL_PASS_DEPTH_PASS)
-        private val stencilBackParameters = intArrayOf(GL_STENCIL_BACK_FUNC, GL_STENCIL_BACK_REF, GL_STENCIL_BACK_VALUE_MASK,
-            GL_STENCIL_BACK_WRITEMASK, GL_STENCIL_BACK_FAIL, GL_STENCIL_BACK_PASS_DEPTH_FAIL, GL_STENCIL_BACK_PASS_DEPTH_PASS)
-        private val pixelParameters = intArrayOf(GL_PACK_ALIGNMENT, GL_PACK_ROW_LENGTH, GL_PACK_SKIP_PIXELS, GL_PACK_SKIP_ROWS,
-            GL_PACK_SWAP_BYTES, GL_PACK_LSB_FIRST, GL_PACK_IMAGE_HEIGHT, GL_PACK_SKIP_IMAGES,
-            GL_UNPACK_ALIGNMENT, GL_UNPACK_ROW_LENGTH, GL_UNPACK_SKIP_PIXELS, GL_UNPACK_SKIP_ROWS,
-            GL_UNPACK_SWAP_BYTES, GL_UNPACK_LSB_FIRST, GL_UNPACK_IMAGE_HEIGHT, GL_UNPACK_SKIP_IMAGES)
+
+        private val toggles =
+            intArrayOf(
+                GL_BLEND,
+                GL_DEPTH_TEST,
+                GL_STENCIL_TEST,
+                GL_CULL_FACE,
+                GL_SCISSOR_TEST,
+                GL_FRAMEBUFFER_SRGB,
+                GL_DITHER,
+                GL_MULTISAMPLE,
+                GL_SAMPLE_ALPHA_TO_COVERAGE,
+                GL_SAMPLE_ALPHA_TO_ONE,
+                GL_SAMPLE_COVERAGE,
+                GL_SAMPLE_MASK,
+                GL_RASTERIZER_DISCARD,
+                GL_POLYGON_OFFSET_FILL,
+                GL_POLYGON_OFFSET_LINE,
+                GL_POLYGON_OFFSET_POINT,
+                GL_COLOR_LOGIC_OP,
+                GL_PRIMITIVE_RESTART,
+            )
+        private val blendParameters =
+            intArrayOf(
+                GL_BLEND_SRC_RGB,
+                GL_BLEND_DST_RGB,
+                GL_BLEND_SRC_ALPHA,
+                GL_BLEND_DST_ALPHA,
+                GL_BLEND_EQUATION_RGB,
+                GL_BLEND_EQUATION_ALPHA,
+            )
+        private val stencilParameters =
+            intArrayOf(
+                GL_STENCIL_FUNC,
+                GL_STENCIL_REF,
+                GL_STENCIL_VALUE_MASK,
+                GL_STENCIL_WRITEMASK,
+                GL_STENCIL_FAIL,
+                GL_STENCIL_PASS_DEPTH_FAIL,
+                GL_STENCIL_PASS_DEPTH_PASS,
+            )
+        private val stencilBackParameters =
+            intArrayOf(
+                GL_STENCIL_BACK_FUNC,
+                GL_STENCIL_BACK_REF,
+                GL_STENCIL_BACK_VALUE_MASK,
+                GL_STENCIL_BACK_WRITEMASK,
+                GL_STENCIL_BACK_FAIL,
+                GL_STENCIL_BACK_PASS_DEPTH_FAIL,
+                GL_STENCIL_BACK_PASS_DEPTH_PASS,
+            )
+        private val pixelParameters =
+            intArrayOf(
+                GL_PACK_ALIGNMENT,
+                GL_PACK_ROW_LENGTH,
+                GL_PACK_SKIP_PIXELS,
+                GL_PACK_SKIP_ROWS,
+                GL_PACK_SWAP_BYTES,
+                GL_PACK_LSB_FIRST,
+                GL_PACK_IMAGE_HEIGHT,
+                GL_PACK_SKIP_IMAGES,
+                GL_UNPACK_ALIGNMENT,
+                GL_UNPACK_ROW_LENGTH,
+                GL_UNPACK_SKIP_PIXELS,
+                GL_UNPACK_SKIP_ROWS,
+                GL_UNPACK_SWAP_BYTES,
+                GL_UNPACK_LSB_FIRST,
+                GL_UNPACK_IMAGE_HEIGHT,
+                GL_UNPACK_SKIP_IMAGES,
+            )
     }
 }

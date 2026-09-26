@@ -1,10 +1,11 @@
 package dev.composemc.render
 
-import org.junit.jupiter.api.Test
 import kotlin.test.*
+import org.junit.jupiter.api.Test
 
 class FrameTimingsTest {
-    @Test fun oldOutliersLeaveTheBoundedWindow() {
+    @Test
+    fun oldOutliersLeaveTheBoundedWindow() {
         val timings = FrameTimings(4)
         assertEquals(0, timings.summary().samples)
         listOf(999L, 4L, 1L, 2L, 3L).forEach(timings::record)

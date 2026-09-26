@@ -2,26 +2,29 @@ package dev.composemc.forge.input
 
 import com.mojang.blaze3d.platform.InputConstants
 import dev.composemc.platform.UiKey
+import kotlin.test.*
 import net.minecraft.client.input.KeyEvent
 import org.junit.jupiter.api.Test
-import kotlin.test.*
 
 class InputTranslationTest {
     /** A keycode that types no character, as SDL reports for keys such as F5. */
     private val noCharacter = 1 shl 30
 
-    @Test fun `every key has an SDL position`() {
+    @Test
+    fun `every key has an SDL position`() {
         assertEquals(UiKey.entries.toSet(), (0..512).map(::positionKey).toSet())
     }
 
-    @Test fun `letters and punctuation follow the active layout`() {
+    @Test
+    fun `letters and punctuation follow the active layout`() {
         assertEquals(UiKey.A, KeyEvent(InputConstants.KEY_Q, 'a'.code, 0).toUiKey()) // AZERTY
         assertEquals(UiKey.M, uiKey(InputConstants.KEY_SEMICOLON, 'm'.code))
         assertEquals(UiKey.COMMA, uiKey(InputConstants.KEY_M, ','.code))
         assertEquals(UiKey.Z, uiKey(InputConstants.KEY_Y, 'z'.code)) // QWERTZ
     }
 
-    @Test fun `other characters and keys keep their scancode position`() {
+    @Test
+    fun `other characters and keys keep their scancode position`() {
         assertEquals(UiKey.A, uiKey(InputConstants.KEY_A, 'ф'.code)) // Cyrillic keeps the Latin position
         assertEquals(UiKey.SEMICOLON, uiKey(InputConstants.KEY_SEMICOLON, 'é'.code))
         assertEquals(UiKey.DIGIT_1, uiKey(InputConstants.KEY_1, '&'.code)) // AZERTY number row

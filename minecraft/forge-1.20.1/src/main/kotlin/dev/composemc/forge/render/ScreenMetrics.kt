@@ -18,7 +18,10 @@ internal data class ScreenMetrics(
         require(guiScale.isFinite() && guiScale > 0f)
         require(minimumUiDensity.isFinite() && minimumUiDensity >= 0f)
     }
+
     val viewport = Viewport(framebufferWidth, framebufferHeight, maxOf(guiScale * guiUnitsPerDp, minimumUiDensity))
+
     fun pixelX(guiX: Double): Float = (guiX * framebufferWidth / guiWidth).toFloat()
+
     fun pixelY(guiY: Double): Float = (guiY * framebufferHeight / guiHeight).toFloat()
 }

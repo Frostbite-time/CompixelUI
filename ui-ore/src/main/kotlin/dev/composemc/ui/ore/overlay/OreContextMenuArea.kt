@@ -20,18 +20,24 @@ import androidx.compose.ui.unit.DpOffset
 
 /** Consumes the secondary press, so ordinary Compose actions beneath it do not also run. */
 @Composable
-fun OreContextMenuArea(items: List<OreMenuItem>, modifier: Modifier = Modifier, enabled: Boolean = true,
-    content: @Composable BoxScope.() -> Unit) {
+fun OreContextMenuArea(
+    items: List<OreMenuItem>,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable BoxScope.() -> Unit,
+) {
     var position by remember { mutableStateOf<DpOffset?>(null) }
     val density = LocalDensity.current
     LaunchedEffect(enabled) { if (!enabled) position = null }
-    Box(modifier.onPointerEvent(PointerEventType.Press, PointerEventPass.Initial) { event ->
-        if (enabled && event.buttons.isSecondaryPressed && event.changes.none { it.isConsumed }) {
-            val p = event.changes.first().position
-            position = with(density) { DpOffset(p.x.toDp(), p.y.toDp()) }
-            event.changes.forEach { it.consume() }
+    Box(
+        modifier.onPointerEvent(PointerEventType.Press, PointerEventPass.Initial) { event ->
+            if (enabled && event.buttons.isSecondaryPressed && event.changes.none { it.isConsumed }) {
+                val p = event.changes.first().position
+                position = with(density) { DpOffset(p.x.toDp(), p.y.toDp()) }
+                event.changes.forEach { it.consume() }
+            }
         }
-    }) {
+    ) {
         content()
         OreMenu(position != null && enabled, { position = null }, items, offset = position)
     }

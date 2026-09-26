@@ -36,8 +36,14 @@ import dev.composemc.ui.ore.theme.OreTheme
 
 /** Joined Ore choice buttons. The caller owns exactly one selected option; this is not page navigation. */
 @Composable
-fun OreTabButton(options: List<String>, selectedIndex: Int, onSelectionChange: (Int) -> Unit,
-    modifier: Modifier = Modifier, enabled: Boolean = true, optionEnabled: (Int) -> Boolean = { true }) {
+fun OreTabButton(
+    options: List<String>,
+    selectedIndex: Int,
+    onSelectionChange: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    optionEnabled: (Int) -> Boolean = { true },
+) {
     require(options.isNotEmpty() && selectedIndex in options.indices)
     val requesters = remember(options.size) { List(options.size) { FocusRequester() } }
     val feedback = LocalOreFeedback.current
@@ -53,29 +59,58 @@ fun OreTabButton(options: List<String>, selectedIndex: Int, onSelectionChange: (
             val depressed = selected || pressed && active
             fun choose(next: Int) {
                 requesters[next].requestFocus()
-                if (next != selectedIndex) { onSelectionChange(next); feedback.activate() }
+                if (next != selectedIndex) {
+                    onSelectionChange(next)
+                    feedback.activate()
+                }
             }
-            Box(Modifier.weight(1f).heightIn(min = 25.dp).focusRequester(requesters[index])
-                .onPreviewKeyEvent { event ->
-                    if (!enabled || event.type != KeyEventType.KeyDown) false
-                    else {
-                        val candidates = options.indices.filter(optionEnabled)
-                        val next = when (event.key) {
-                            Key.DirectionLeft -> candidates.lastOrNull { it < index } ?: candidates.lastOrNull()
-                            Key.DirectionRight -> candidates.firstOrNull { it > index } ?: candidates.firstOrNull()
-                            Key.MoveHome -> candidates.firstOrNull()
-                            Key.MoveEnd -> candidates.lastOrNull()
-                            else -> null
+            Box(
+                Modifier.weight(1f)
+                    .heightIn(min = 25.dp)
+                    .focusRequester(requesters[index])
+                    .onPreviewKeyEvent { event ->
+                        if (!enabled || event.type != KeyEventType.KeyDown) false
+                        else {
+                            val candidates = options.indices.filter(optionEnabled)
+                            val next =
+                                when (event.key) {
+                                    Key.DirectionLeft -> candidates.lastOrNull { it < index } ?: candidates.lastOrNull()
+                                    Key.DirectionRight ->
+                                        candidates.firstOrNull { it > index } ?: candidates.firstOrNull()
+                                    Key.MoveHome -> candidates.firstOrNull()
+                                    Key.MoveEnd -> candidates.lastOrNull()
+                                    else -> null
+                                }
+                            if (next != null) {
+                                choose(next)
+                                true
+                            } else false
                         }
-                        if (next != null) { choose(next); true } else false
                     }
-                }.oreButtonFrame(colors, if (selected) OreButtonStyle.Primary else OreButtonStyle.Secondary,
-                    active, hovered, pressed && active, depressed = depressed, focused = focused, selectedMark = selected)
-                .selectable(selected, interactions, indication = null, enabled = active, role = Role.RadioButton) { choose(index) }
-                .padding(start = 6.dp, end = 6.dp, top = 5.dp, bottom = 4.dp)
-                .oreButtonContentOffset(depressed), contentAlignment = Alignment.Center) {
-                OreText(label, color = if (!active) colors.disabledText else if (selected) colors.text else colors.ink,
-                    textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    .oreButtonFrame(
+                        colors,
+                        if (selected) OreButtonStyle.Primary else OreButtonStyle.Secondary,
+                        active,
+                        hovered,
+                        pressed && active,
+                        depressed = depressed,
+                        focused = focused,
+                        selectedMark = selected,
+                    )
+                    .selectable(selected, interactions, indication = null, enabled = active, role = Role.RadioButton) {
+                        choose(index)
+                    }
+                    .padding(start = 6.dp, end = 6.dp, top = 5.dp, bottom = 4.dp)
+                    .oreButtonContentOffset(depressed),
+                contentAlignment = Alignment.Center,
+            ) {
+                OreText(
+                    label,
+                    color = if (!active) colors.disabledText else if (selected) colors.text else colors.ink,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }

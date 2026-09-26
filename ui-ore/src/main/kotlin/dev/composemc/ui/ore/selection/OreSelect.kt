@@ -29,26 +29,57 @@ import dev.composemc.ui.ore.overlay.OreMenuItem
 
 /** Controlled, select-only dropdown. Option values and labels are supplied without Minecraft types. */
 @Composable
-fun <T> OreSelect(options: List<T>, selected: T?, onSelectionChange: (T) -> Unit,
-    modifier: Modifier = Modifier, enabled: Boolean = true, placeholder: String = "Select…",
-    optionLabel: (T) -> String = { it.toString() }, optionEnabled: (T) -> Boolean = { true }) {
+fun <T> OreSelect(
+    options: List<T>,
+    selected: T?,
+    onSelectionChange: (T) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    placeholder: String = "Select…",
+    optionLabel: (T) -> String = { it.toString() },
+    optionEnabled: (T) -> Boolean = { true },
+) {
     var expanded by remember { mutableStateOf(false) }
     var anchorWidth by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
     LaunchedEffect(enabled, options.isEmpty()) { if (!enabled || options.isEmpty()) expanded = false }
     Box(modifier.onSizeChanged { anchorWidth = it.width }) {
-        OreButton({ expanded = !expanded }, Modifier.fillMaxWidth()
-            .semantics { contentDescription = selected?.let(optionLabel) ?: placeholder }
-            .onPreviewKeyEvent { event ->
-                if (enabled && options.isNotEmpty() && event.type == KeyEventType.KeyDown && event.key in listOf(Key.DirectionDown, Key.DirectionUp)) {
-                    expanded = true; true
-                } else false
-            }, enabled = enabled && options.isNotEmpty(), style = OreButtonStyle.Secondary) {
-            OreText(selected?.let(optionLabel) ?: placeholder, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        OreButton(
+            { expanded = !expanded },
+            Modifier.fillMaxWidth()
+                .semantics { contentDescription = selected?.let(optionLabel) ?: placeholder }
+                .onPreviewKeyEvent { event ->
+                    if (
+                        enabled &&
+                            options.isNotEmpty() &&
+                            event.type == KeyEventType.KeyDown &&
+                            event.key in listOf(Key.DirectionDown, Key.DirectionUp)
+                    ) {
+                        expanded = true
+                        true
+                    } else false
+                },
+            enabled = enabled && options.isNotEmpty(),
+            style = OreButtonStyle.Secondary,
+        ) {
+            OreText(
+                selected?.let(optionLabel) ?: placeholder,
+                Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             OreText("▾")
         }
-        OreMenu(expanded && enabled, { expanded = false }, options.mapIndexed { index, option ->
-            OreMenuItem(index.toString(), optionLabel(option), optionEnabled(option), option == selected) { onSelectionChange(option) }
-        }, modifier = Modifier.width(with(density) { anchorWidth.toDp() }), initialIndex = options.indexOf(selected).coerceAtLeast(0))
+        OreMenu(
+            expanded && enabled,
+            { expanded = false },
+            options.mapIndexed { index, option ->
+                OreMenuItem(index.toString(), optionLabel(option), optionEnabled(option), option == selected) {
+                    onSelectionChange(option)
+                }
+            },
+            modifier = Modifier.width(with(density) { anchorWidth.toDp() }),
+            initialIndex = options.indexOf(selected).coerceAtLeast(0),
+        )
     }
 }

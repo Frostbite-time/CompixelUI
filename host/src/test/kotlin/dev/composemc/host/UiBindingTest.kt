@@ -3,32 +3,38 @@ package dev.composemc.host
 import androidx.compose.runtime.SideEffect
 import dev.composemc.bridge.ComposeThread
 import dev.composemc.platform.Viewport
-import org.junit.jupiter.api.Test
 import kotlin.test.*
+import org.junit.jupiter.api.Test
 
 class UiBindingTest {
-    @Test fun `snapshots recompose only when changed`() {
+    @Test
+    fun `snapshots recompose only when changed`() {
         val binding = UiBinding<String, Int>("initial")
         var observed = ""
         var compositions = 0
         UiSession(Viewport(20, 20)) {
-            val value = binding.value
-            SideEffect { observed = value; compositions++ }
-        }.use { session ->
-            session.frame(1)?.close()
-            assertEquals("initial", observed)
-            val initialCount = compositions
-            binding.update("initial")
-            session.frame(2)?.close()
-            assertEquals(initialCount, compositions)
-            binding.update("changed")
-            session.frame(3)?.close()
-            assertEquals("changed", observed)
-        }
+                val value = binding.value
+                SideEffect {
+                    observed = value
+                    compositions++
+                }
+            }
+            .use { session ->
+                session.frame(1)?.close()
+                assertEquals("initial", observed)
+                val initialCount = compositions
+                binding.update("initial")
+                session.frame(2)?.close()
+                assertEquals(initialCount, compositions)
+                binding.update("changed")
+                session.frame(3)?.close()
+                assertEquals("changed", observed)
+            }
         binding.close()
     }
 
-    @Test fun `UI actions run in order on the owner and queue stays bounded`() {
+    @Test
+    fun `UI actions run in order on the owner and queue stays bounded`() {
         val owner = Thread.currentThread()
         val binding = UiBinding<Unit, Int>(Unit, 2)
         ComposeThread.call {
@@ -48,7 +54,8 @@ class UiBindingTest {
         binding.close()
     }
 
-    @Test fun `close discards pending and late actions`() {
+    @Test
+    fun `close discards pending and late actions`() {
         val binding = UiBinding<Unit, Int>(Unit)
         binding.send(1)
         binding.close()
@@ -58,7 +65,8 @@ class UiBindingTest {
         assertFailsWith<IllegalStateException> { binding.update(Unit) }
     }
 
-    @Test fun `owner operations cannot execute from the UI thread`() {
+    @Test
+    fun `owner operations cannot execute from the UI thread`() {
         val binding = UiBinding<Int, Int>(0)
         ComposeThread.call {
             assertFailsWith<IllegalStateException> { binding.update(1) }

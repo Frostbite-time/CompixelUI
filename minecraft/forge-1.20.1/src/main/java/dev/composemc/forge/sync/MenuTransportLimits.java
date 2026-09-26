@@ -4,5 +4,6 @@ package dev.composemc.forge.sync;
 public final class MenuTransportLimits {
     public static final int MAX_STATE_BATCH_BYTES = 1024 * 1024 - 256;
     public static final int MAX_ACTION_FRAGMENT_BYTES = 32767 - 256;
+
     private MenuTransportLimits() {}
 }

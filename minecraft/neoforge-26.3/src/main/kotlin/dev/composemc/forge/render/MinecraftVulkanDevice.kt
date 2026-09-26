@@ -17,9 +17,16 @@ internal fun minecraftVulkanHandles(): VulkanDeviceHandles {
     val queue = backend.graphicsQueue()
     val device = backend.vkDevice()
     val functions = VK.getFunctionProvider()
-    return VulkanDeviceHandles(backend.instance().vkInstance().address(), device.physicalDevice.address(),
-        device.address(), queue.vkQueue().address(), queue.queueFamilyIndex(),
-        functions.getFunctionAddress("vkGetInstanceProcAddr"), functions.getFunctionAddress("vkGetDeviceProcAddr"))
+    return VulkanDeviceHandles(
+        backend.instance().vkInstance().address(),
+        device.physicalDevice.address(),
+        device.address(),
+        queue.vkQueue().address(),
+        queue.queueFamilyIndex(),
+        functions.getFunctionAddress("vkGetInstanceProcAddr"),
+        functions.getFunctionAddress("vkGetDeviceProcAddr"),
+    )
 }
 
-internal fun minecraftUsesVulkan(): Boolean = (RenderSystem.getDevice() as com.mojang.renderpearl.frontend.FrontendGpuDevice).backend is VulkanDevice
+internal fun minecraftUsesVulkan(): Boolean =
+    (RenderSystem.getDevice() as com.mojang.renderpearl.frontend.FrontendGpuDevice).backend is VulkanDevice

@@ -4,6 +4,7 @@ plugins {
 }
 
 java.toolchain.languageVersion.set(JavaLanguageVersion.of(17))
+
 tasks.withType<JavaCompile>().configureEach { options.release.set(17) }
 
 val verifyServerCore by tasks.registering {
@@ -14,5 +15,7 @@ val verifyServerCore by tasks.registering {
         logger.lifecycle("Slot core PASS: Java 17 bytecode, no production dependencies")
     }
 }
+
 tasks.check { dependsOn(verifyServerCore) }
+
 rootProject.tasks.named("verifyCoreBoundary") { dependsOn(verifyServerCore) }

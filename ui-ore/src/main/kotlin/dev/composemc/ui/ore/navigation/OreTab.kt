@@ -10,7 +10,20 @@ import dev.composemc.ui.ore.button.OreButtonStyle
 import dev.composemc.ui.ore.display.OreText
 
 @Composable
-fun OreTab(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
-    OreButton(onClick, modifier.semantics { this.selected = selected }, enabled,
-        if (selected) OreButtonStyle.Primary else OreButtonStyle.Quiet, role = Role.Tab) { OreText(text) }
+fun OreTab(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    OreButton(
+        onClick,
+        modifier.semantics { this.selected = selected },
+        enabled,
+        if (selected) OreButtonStyle.Primary else OreButtonStyle.Quiet,
+        role = Role.Tab,
+    ) {
+        OreText(text)
+    }
 }

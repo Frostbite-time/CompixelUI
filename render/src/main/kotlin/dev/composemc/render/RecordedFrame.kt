@@ -12,6 +12,7 @@ class RecordedFrame(
     private val picture: Picture,
 ) : AutoCloseable {
     private var closed = false
+
     fun draw(canvas: Canvas) {
         check(!closed) { "Frame $generation has been released" }
         canvas.drawPicture(picture)
@@ -28,6 +29,7 @@ class RecordedFrame(
             }
         }
     }
+
     override fun close() {
         if (closed) return
         closed = true

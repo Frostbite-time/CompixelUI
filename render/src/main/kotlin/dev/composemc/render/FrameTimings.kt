@@ -7,12 +7,14 @@ class FrameTimings(capacity: Int = 512) {
     private val samples = LongArray(capacity.also { require(it > 0) })
     private var count = 0
     private var cursor = 0
+
     fun record(nanos: Long) {
         require(nanos >= 0)
         samples[cursor] = nanos
         cursor = (cursor + 1) % samples.size
         count = minOf(count + 1, samples.size)
     }
+
     fun summary(): TimingSummary {
         if (count == 0) return TimingSummary(0, 0, 0, 0)
         val sorted = samples.copyOf(count).sortedArray()

@@ -6,11 +6,13 @@ import dev.composemc.forge.render.RendererResources
 import dev.composemc.forge.render.configuredRenderBackend
 import dev.composemc.render.RenderBackend
 import dev.composemc.testing.suite.ScreenPixels
+import java.io.File
+import java.util.function.Consumer
 import net.minecraft.client.InactivityFpsLimit
+import net.minecraft.client.KeyboardHandler
 import net.minecraft.client.Minecraft
 import net.minecraft.client.Screenshot
 import net.minecraft.client.gui.screens.Screen
-import net.minecraft.client.KeyboardHandler
 import net.minecraft.client.input.KeyEvent
 import net.minecraft.client.input.PreeditEvent
 import net.minecraft.core.registries.Registries
@@ -27,8 +29,6 @@ import net.neoforged.neoforge.client.event.RenderTooltipEvent
 import net.neoforged.neoforge.client.event.ScreenEvent
 import net.neoforged.neoforge.common.NeoForge
 import org.lwjgl.glfw.GLFW
-import java.io.File
-import java.util.function.Consumer
 
 internal typealias SuiteComposeScreen = ComposeScreen
 
@@ -43,30 +43,60 @@ internal object SuitePlatform {
     const val KEY_ESCAPE = GLFW.GLFW_KEY_ESCAPE
     const val MOD_CONTROL = GLFW.GLFW_MOD_CONTROL
 
-    private val minecraft get() = Minecraft.getInstance()
-    private val window get() = minecraft.window.handle()
+    private val minecraft
+        get() = Minecraft.getInstance()
 
-    val loaderProduction: Boolean get() = FMLEnvironment.isProduction()
-    val backend: RenderBackend get() = configuredRenderBackend()
-    val overlayActive: Boolean get() = minecraft.overlay != null
-    val screen: Screen? get() = minecraft.screen
-    val guiScale: Int get() = minecraft.window.guiScale
-    val resourceEpoch: Long get() = RendererResources.epoch
-    val windowHidden: Boolean get() = GLFW.glfwGetWindowAttrib(window, GLFW.GLFW_VISIBLE) == GLFW.GLFW_FALSE
-    val windowFocused: Boolean get() = minecraft.window.isFocused
+    private val window
+        get() = minecraft.window.handle()
+
+    val loaderProduction: Boolean
+        get() = FMLEnvironment.isProduction()
+
+    val backend: RenderBackend
+        get() = configuredRenderBackend()
+
+    val overlayActive: Boolean
+        get() = minecraft.overlay != null
+
+    val screen: Screen?
+        get() = minecraft.screen
+
+    val guiScale: Int
+        get() = minecraft.window.guiScale
+
+    val resourceEpoch: Long
+        get() = RendererResources.epoch
+
+    val windowHidden: Boolean
+        get() = GLFW.glfwGetWindowAttrib(window, GLFW.GLFW_VISIBLE) == GLFW.GLFW_FALSE
+
+    val windowFocused: Boolean
+        get() = minecraft.window.isFocused
+
     /** Whether the Compose host opened Minecraft's text input, which keeps the IME available. */
     fun textInputOpen(screen: Screen): Boolean = (screen as? SuiteComposeScreen)?.textInputOpen == true
+
     /** Input method composition arrives as preedit events; [preedit] submits one as KeyboardHandler does. */
-    val preeditSupported: Boolean get() = true
+    val preeditSupported: Boolean
+        get() = true
+
     fun preedit(screen: Screen, text: String?) =
         KeyboardHandler.submitPreeditEvent(screen, text?.let { PreeditEvent(it, it.length, listOf(it), 0) })
 
     fun setScreen(screen: Screen?) = minecraft.setScreen(screen)
+
     fun defer(task: () -> Unit) = minecraft.schedule(Runnable(task))
+
     fun clearToasts() = minecraft.toastManager.clear()
+
     /** The translation key of the category that holds the key mapping [name]. */
-    fun keyCategory(name: String): String? = minecraft.options.keyMappings.firstOrNull { it.name == name }
-        ?.category?.label()?.contents?.let { (it as? TranslatableContents)?.key }
+    fun keyCategory(name: String): String? =
+        minecraft.options.keyMappings
+            .firstOrNull { it.name == name }
+            ?.category
+            ?.label()
+            ?.contents
+            ?.let { (it as? TranslatableContents)?.key }
 
     fun setGuiScale(scale: Int) {
         minecraft.options.guiScale().set(scale)
@@ -97,7 +127,13 @@ internal object SuitePlatform {
         Screenshot.takeScreenshot(minecraft.mainRenderTarget) { image ->
             image.use {
                 it.writeToFile(file)
-                done(ScreenPixels(it.width, it.height, IntArray(it.width * it.height) { index -> it.getPixel(index % it.width, index / it.width) }))
+                done(
+                    ScreenPixels(
+                        it.width,
+                        it.height,
+                        IntArray(it.width * it.height) { index -> it.getPixel(index % it.width, index / it.width) },
+                    )
+                )
             }
         }
     }
@@ -132,19 +168,40 @@ internal object SuitePlatform {
         }
     }
 
-    fun device(): Map<String, Any?> = RenderSystem.getDevice().let {
-        linkedMapOf("gpu" to it.renderer, "vendor" to it.vendor, "driver" to it.version, "api" to it.backendName)
-    }
+    fun device(): Map<String, Any?> =
+        RenderSystem.getDevice().let {
+            linkedMapOf("gpu" to it.renderer, "vendor" to it.vendor, "driver" to it.version, "api" to it.backendName)
+        }
 
     fun resourcePacks(): List<String> = minecraft.resourcePackRepository.selectedPacks.map { it.id }
 
     fun createFlatWorld(name: String, parent: Screen) {
         val directory = minecraft.levelSource.baseDir.resolve(name).toFile()
-        check(!directory.exists() || directory.deleteRecursively()) { "Cannot delete the previous test world $directory" }
-        val settings = LevelSettings(name, GameType.CREATIVE, LevelSettings.DifficultySettings(Difficulty.PEACEFUL, false, false),
-            true, WorldDataConfiguration.DEFAULT)
-        minecraft.createWorldOpenFlows().createFreshLevel(name, settings, WorldOptions(42L, false, false), { registries ->
-            registries.lookupOrThrow(Registries.WORLD_PRESET).getOrThrow(WorldPresets.FLAT).value().createWorldDimensions()
-        }, parent)
+        check(!directory.exists() || directory.deleteRecursively()) {
+            "Cannot delete the previous test world $directory"
+        }
+        val settings =
+            LevelSettings(
+                name,
+                GameType.CREATIVE,
+                LevelSettings.DifficultySettings(Difficulty.PEACEFUL, false, false),
+                true,
+                WorldDataConfiguration.DEFAULT,
+            )
+        minecraft
+            .createWorldOpenFlows()
+            .createFreshLevel(
+                name,
+                settings,
+                WorldOptions(42L, false, false),
+                { registries ->
+                    registries
+                        .lookupOrThrow(Registries.WORLD_PRESET)
+                        .getOrThrow(WorldPresets.FLAT)
+                        .value()
+                        .createWorldDimensions()
+                },
+                parent,
+            )
     }
 }

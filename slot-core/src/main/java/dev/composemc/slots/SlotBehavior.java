@@ -9,9 +9,13 @@ public final class SlotBehavior {
     private static final SlotBehavior STANDARD = new SlotBehavior(Map.of());
     private final Map<SlotGesture, SlotIntent> overrides;
 
-    private SlotBehavior(Map<SlotGesture, SlotIntent> overrides) { this.overrides = Map.copyOf(overrides); }
+    private SlotBehavior(Map<SlotGesture, SlotIntent> overrides) {
+        this.overrides = Map.copyOf(overrides);
+    }
 
-    public static SlotBehavior standard() { return STANDARD; }
+    public static SlotBehavior standard() {
+        return STANDARD;
+    }
 
     public SlotIntent resolve(SlotGesture gesture) {
         Objects.requireNonNull(gesture, "gesture");
@@ -34,10 +38,12 @@ public final class SlotBehavior {
      */
     public SlotBehavior replaceClick(int button, SlotIntent intent) {
         Objects.requireNonNull(intent);
-        if (intent instanceof SlotIntent.Inventory) throw new IllegalArgumentException("Use with() for inventory remapping");
+        if (intent instanceof SlotIntent.Inventory)
+            throw new IllegalArgumentException("Use with() for inventory remapping");
         SlotBehavior result = with(new SlotGesture(SlotGesture.Kind.CLICK, button), intent);
-        for (var kind : new SlotGesture.Kind[]{SlotGesture.Kind.DRAG_START, SlotGesture.Kind.DRAG_ADD, SlotGesture.Kind.DRAG_END})
-            result = result.with(new SlotGesture(kind, button), SlotIntent.Ignore.INSTANCE);
+        for (var kind : new SlotGesture.Kind[] {
+            SlotGesture.Kind.DRAG_START, SlotGesture.Kind.DRAG_ADD, SlotGesture.Kind.DRAG_END
+        }) result = result.with(new SlotGesture(kind, button), SlotIntent.Ignore.INSTANCE);
         return result;
     }
 }

@@ -11,20 +11,27 @@ import dev.composemc.testing.suite.AcceptanceStep
 import dev.composemc.testing.suite.SuitePixels
 import dev.composemc.testing.ui.OreComponentExercise
 import dev.composemc.testing.ui.oreComponentPages
-import net.minecraft.client.Minecraft
 import java.util.concurrent.CompletableFuture
+import net.minecraft.client.Minecraft
 
 // Identical in every adapter; version differences belong in SuitePlatform.kt.
 
 /** The real F8 preview, driven through Screen callbacks in a world-backed client. */
-internal class PreviewAcceptance(private val session: SuiteSession, private val log: AcceptanceLog, private val script: SuiteScript) {
-    private val minecraft get() = Minecraft.getInstance()
+internal class PreviewAcceptance(
+    private val session: SuiteSession,
+    private val log: AcceptanceLog,
+    private val script: SuiteScript,
+) {
+    private val minecraft
+        get() = Minecraft.getInstance()
+
     private val parent by lazy { SuiteParentScreen() }
     private lateinit var screen: ComposePreviewScreen
     private lateinit var first: UiSession
     /** Minecraft draws the marker after Compose while the native item page is under test. */
     var marker = false
         private set
+
     private var tooltips: NativeTooltipProbe? = null
     private var reference: IntArray? = null
     private var reload: CompletableFuture<Void>? = null
@@ -78,7 +85,10 @@ internal class PreviewAcceptance(private val session: SuiteSession, private val 
         script.until("static UI stopped repainting for 200 ms", 6_000) {
             val generation = screen.rendererStatistics.lastFrameGeneration
             val now = System.nanoTime()
-            if (generation != idleGeneration) { idleGeneration = generation; idleSince = now }
+            if (generation != idleGeneration) {
+                idleGeneration = generation
+                idleSince = now
+            }
             now - idleSince >= 200_000_000L
         }
         pass(AcceptanceStep.RETAINED_FRAME)
@@ -118,12 +128,24 @@ internal class PreviewAcceptance(private val session: SuiteSession, private val 
     private fun resize() {
         script.act("resize the window to 1000x720") { SuitePlatform.setWindowSize(1000, 720) }
         script.until("the framebuffer resized") {
-            minecraft.window.width == 1000 && minecraft.window.height == 720 && screen.width == minecraft.window.guiScaledWidth
+            minecraft.window.width == 1000 &&
+                minecraft.window.height == 720 &&
+                screen.width == minecraft.window.guiScaledWidth
         }
-        script.act("switch to GUI scale 3") { requireSession("Window resize"); SuitePlatform.setGuiScale(3) }
-        script.until("GUI scale 3 applied") { SuitePlatform.guiScale == 3 && screen.width == minecraft.window.guiScaledWidth }
-        script.act("switch back to GUI scale 2") { requireSession("GUI scale 3"); SuitePlatform.setGuiScale(2) }
-        script.until("GUI scale 2 applied") { SuitePlatform.guiScale == 2 && screen.width == minecraft.window.guiScaledWidth }
+        script.act("switch to GUI scale 3") {
+            requireSession("Window resize")
+            SuitePlatform.setGuiScale(3)
+        }
+        script.until("GUI scale 3 applied") {
+            SuitePlatform.guiScale == 3 && screen.width == minecraft.window.guiScaledWidth
+        }
+        script.act("switch back to GUI scale 2") {
+            requireSession("GUI scale 3")
+            SuitePlatform.setGuiScale(2)
+        }
+        script.until("GUI scale 2 applied") {
+            SuitePlatform.guiScale == 2 && screen.width == minecraft.window.guiScaledWidth
+        }
         script.act("capture the resized preview") {
             requireSession("GUI scale 2")
             session.capture("preview-resized") { SuitePixels.requireContent(it, "preview-resized") }
@@ -134,12 +156,24 @@ internal class PreviewAcceptance(private val session: SuiteSession, private val 
 
     private fun list() {
         script.act("open the 100k catalog") {
-            post { screen.model.query = ""; screen.model.page = DemoPage.Catalog; screen.model.count = 100000 }
+            post {
+                screen.model.query = ""
+                screen.model.page = DemoPage.Catalog
+                screen.model.count = 100000
+            }
         }
-        script.until("the catalog laid out") { model { page == DemoPage.Catalog && count == 100000 && "entry:1" in bounds && "list" in bounds } }
-        script.act("click entry 1") { entry = control("entry:1"); click(entry) }
+        script.until("the catalog laid out") {
+            model { page == DemoPage.Catalog && count == 100000 && "entry:1" in bounds && "list" in bounds }
+        }
+        script.act("click entry 1") {
+            entry = control("entry:1")
+            click(entry)
+        }
         script.until("list hit testing selected entry 1") { model { selected } == 1 }
-        script.act("scroll the list") { val list = control("list"); screen.mouseScrolled(list.first, list.second, 0.0, -8.0) }
+        script.act("scroll the list") {
+            val list = control("list")
+            screen.mouseScrolled(list.first, list.second, 0.0, -8.0)
+        }
         script.pause(400)
         script.act("click the same point") { click(entry) }
         script.until("wheel scrolling moved the list") { model { selected } > 1 }
@@ -148,7 +182,8 @@ internal class PreviewAcceptance(private val session: SuiteSession, private val 
             allocations = renderer.surfaceAllocations
             check(allocations <= 3) { "Texture recreated every frame: $renderer" }
             check(renderer.renderedFrames > 0 && renderer.liveSurfaces == 1) { "Unexpected renderer state: $renderer" }
-            if (screen.renderBackend == RenderBackend.OPENGL) check(renderer.fullFrameUploads == 0L) { "OpenGL uploaded full frames: $renderer" }
+            if (screen.renderBackend == RenderBackend.OPENGL)
+                check(renderer.fullFrameUploads == 0L) { "OpenGL uploaded full frames: $renderer" }
             session.capture("preview-list") { SuitePixels.requireContent(it, "preview-list") }
         }
         script.until("the list capture") { session.capturesIdle }
@@ -158,20 +193,31 @@ internal class PreviewAcceptance(private val session: SuiteSession, private val 
     private fun nativeItems() {
         script.act("open the 10k native item page") {
             marker = true
-            post { screen.model.page = DemoPage.Items; screen.itemBrowser.count = 10000 }
+            post {
+                screen.model.page = DemoPage.Items
+                screen.itemBrowser.count = 10000
+            }
         }
         script.until("native items prepared", 20_000) {
             val items = screen.nativeItemStatistics
-            model { page == DemoPage.Items } && ComposeThread.call {
-                screen.itemBrowser.previewBounds != null && screen.itemBrowser.edgeTooltipBounds != null &&
-                    screen.itemBrowser.visibleCells.keys.containsAll(listOf(1, 8))
-            } && items.activeVariants > 0 && items.pendingImages == 0 && items.cachedImages >= items.activeVariants
+            model { page == DemoPage.Items } &&
+                ComposeThread.call {
+                    screen.itemBrowser.previewBounds != null &&
+                        screen.itemBrowser.edgeTooltipBounds != null &&
+                        screen.itemBrowser.visibleCells.keys.containsAll(listOf(1, 8))
+                } &&
+                items.activeVariants > 0 &&
+                items.pendingImages == 0 &&
+                items.cachedImages >= items.activeVariants
         }
         script.pause(150)
         script.act("capture the native item page") { captureItems("preview-items") }
         script.until("the native item capture") { session.capturesIdle }
         script.act("click the first visible item") {
-            val (x, y, index) = ComposeThread.call { Triple(screen.itemBrowser.hitX, screen.itemBrowser.hitY, screen.itemBrowser.firstVisible) }
+            val (x, y, index) =
+                ComposeThread.call {
+                    Triple(screen.itemBrowser.hitX, screen.itemBrowser.hitY, screen.itemBrowser.firstVisible)
+                }
             firstVisible = index
             click(gui(x, y))
         }
@@ -181,7 +227,9 @@ internal class PreviewAcceptance(private val session: SuiteSession, private val 
 
     private fun nativeTooltips() {
         script.act("start the native tooltip sequence") {
-            check(minecraft.window.width == 1000 && minecraft.window.height == 720) { "Tooltip placement expects a 1000x720 framebuffer" }
+            check(minecraft.window.width == 1000 && minecraft.window.height == 720) {
+                "Tooltip placement expects a 1000x720 framebuffer"
+            }
             tooltips = NativeTooltipProbe(session)
         }
         script.until("the native tooltip sequence", 300_000) {
@@ -201,18 +249,23 @@ internal class PreviewAcceptance(private val session: SuiteSession, private val 
                 post { screen.itemBrowser.scrollTarget = row }
             }
             script.until("the item grid reached $row") {
-                ComposeThread.call { screen.itemBrowser.firstVisible } > firstVisible && screen.nativeItemStatistics.pendingImages == 0
+                ComposeThread.call { screen.itemBrowser.firstVisible } > firstVisible &&
+                    screen.nativeItemStatistics.pendingImages == 0
             }
         }
         script.pause(150)
         script.act("check bounded native preparation") {
             val items = screen.nativeItemStatistics
-            check(items.cachedImages <= 128 && items.preparedImages - prepared < 600) { "Native item work is not bounded: $items" }
+            check(items.cachedImages <= 128 && items.preparedImages - prepared < 600) {
+                "Native item work is not bounded: $items"
+            }
             check(items.retiredImages > 0) { "Native item scrolling never exercised retirement: $items" }
             check(items.pendingImages == 0) { "Native items are still pending: $items" }
             if (screen.renderBackend == RenderBackend.OPENGL) {
                 val renderer = screen.rendererStatistics
-                check(renderer.nativeImageReadbacks == 0L && renderer.nativeImageCopies > 0L) { "OpenGL native images left the GPU: $renderer" }
+                check(renderer.nativeImageReadbacks == 0L && renderer.nativeImageCopies > 0L) {
+                    "OpenGL native images left the GPU: $renderer"
+                }
             }
             captureItems("preview-items-scrolled")
         }
@@ -250,7 +303,9 @@ internal class PreviewAcceptance(private val session: SuiteSession, private val 
             screen.mouseMoved(-10.0, -10.0)
             post { screen.itemBrowser.scrollTarget = 0 }
         }
-        script.until("items 1 and 8 laid out") { ComposeThread.call { screen.itemBrowser.visibleCells.keys.containsAll(listOf(1, 8)) } }
+        script.until("items 1 and 8 laid out") {
+            ComposeThread.call { screen.itemBrowser.visibleCells.keys.containsAll(listOf(1, 8)) }
+        }
         script.act("hover item 1") { move(cell(1)) }
         script.until("the tooltip appeared while focused") { tooltipVisible() }
         script.act("lose logical window focus") { SuiteEnvironment.focused = false }
@@ -283,7 +338,9 @@ internal class PreviewAcceptance(private val session: SuiteSession, private val 
             session.adopt(parent)
             check(first.state == SessionState.CLOSED) { "Close did not release the Compose session" }
             check(!screen.nativeTooltipStatistics.visible) { "A tooltip survived close" }
-            check(screen.nativeItemStatistics.cachedImages == 0) { "Native item images survived close: ${screen.nativeItemStatistics}" }
+            check(screen.nativeItemStatistics.cachedImages == 0) {
+                "Native item images survived close: ${screen.nativeItemStatistics}"
+            }
             session.requireReleased(screen)
         }
         pass(AcceptanceStep.CLOSE)
@@ -292,7 +349,9 @@ internal class PreviewAcceptance(private val session: SuiteSession, private val 
     private fun reopenPreview() {
         script.act("press F8 again") { adoptPreview("F8 did not reopen the preview") }
         script.until("the reopened preview rendered") { screen.rendererStatistics.renderedFrames > 0 }
-        script.act("capture the reopened preview") { session.capture("preview-reopened") { SuitePixels.requireContent(it, "preview-reopened") } }
+        script.act("capture the reopened preview") {
+            session.capture("preview-reopened") { SuitePixels.requireContent(it, "preview-reopened") }
+        }
         script.until("the reopened capture") { session.capturesIdle }
         script.act("close with Escape") {
             key(SuitePlatform.KEY_ESCAPE)
@@ -327,7 +386,10 @@ internal class PreviewAcceptance(private val session: SuiteSession, private val 
     private fun stress() {
         repeat(12) { cycle ->
             lateinit var next: ComposePreviewScreen
-            script.act("stress cycle ${cycle + 1}: open") { next = ComposePreviewScreen(parent); session.open(next) }
+            script.act("stress cycle ${cycle + 1}: open") {
+                next = ComposePreviewScreen(parent)
+                session.open(next)
+            }
             script.until("stress cycle ${cycle + 1}: render") {
                 next.rendererStatistics.renderedFrames > 0 && next.rendererStatistics.liveSurfaces == 1
             }
@@ -343,7 +405,8 @@ internal class PreviewAcceptance(private val session: SuiteSession, private val 
         pass(AcceptanceStep.STRESS) { "12 cycles" }
     }
 
-    private fun pass(step: AcceptanceStep, detail: () -> String? = { null }) = script.act("record $step") { log.pass(step, detail()) }
+    private fun pass(step: AcceptanceStep, detail: () -> String? = { null }) =
+        script.act("record $step") { log.pass(step, detail()) }
 
     private fun adoptPreview(failure: String) {
         check(SuitePlatform.pressPreviewKey(parent)) { "F8 was not consumed by the development key mapping" }
@@ -351,39 +414,65 @@ internal class PreviewAcceptance(private val session: SuiteSession, private val 
         session.adopt(screen)
     }
 
-    private fun requireSession(change: String) = check(screen.session === first) { "$change replaced the Compose session" }
+    private fun requireSession(change: String) =
+        check(screen.session === first) { "$change replaced the Compose session" }
+
     private fun <T> model(block: DemoModel.() -> T): T = ComposeThread.call { screen.model.block() }
-    private fun post(block: () -> Unit) = checkNotNull(screen.session) { "The preview session is closed" }.post(Runnable(block))
+
+    private fun post(block: () -> Unit) =
+        checkNotNull(screen.session) { "The preview session is closed" }.post(Runnable(block))
+
     private fun selected() = ComposeThread.call { screen.itemBrowser.selected }
-    private fun tooltipVisible() = screen.nativeTooltipStatistics.visible && screen.nativeTooltipBounds?.isEmpty == false
+
+    private fun tooltipVisible() =
+        screen.nativeTooltipStatistics.visible && screen.nativeTooltipBounds?.isEmpty == false
 
     private fun gui(x: Float, y: Float) =
         x.toDouble() * screen.width / minecraft.window.width to y.toDouble() * screen.height / minecraft.window.height
+
     private fun control(id: String) =
-        ComposeThread.call { checkNotNull(screen.model.bounds[id]) { "Missing preview control $id" }.center }.let { gui(it.x, it.y) }
+        ComposeThread.call { checkNotNull(screen.model.bounds[id]) { "Missing preview control $id" }.center }
+            .let { gui(it.x, it.y) }
+
     private fun cell(index: Int) =
-        ComposeThread.call { checkNotNull(screen.itemBrowser.visibleCells[index]) { "Item cell $index is not laid out" } }
+        ComposeThread.call {
+                checkNotNull(screen.itemBrowser.visibleCells[index]) { "Item cell $index is not laid out" }
+            }
             .let { gui(it.center.x, it.top + 30f) }
 
     private fun move(point: Pair<Double, Double>) = screen.mouseMoved(point.first, point.second)
+
     private fun click(point: Pair<Double, Double>) {
         screen.mouseMoved(point.first, point.second)
         screen.mouseClicked(point.first, point.second, SuitePlatform.MOUSE_LEFT)
         screen.mouseReleased(point.first, point.second, SuitePlatform.MOUSE_LEFT)
     }
+
     private fun key(key: Int, modifiers: Int = 0) {
         screen.keyPressed(key, 0, modifiers)
         screen.keyReleased(key, 0, modifiers)
     }
 
-    /** Checks the Minecraft marker and the rotated/clipped chest, which must match across repaint, scroll and reload. */
+    /**
+     * Checks the Minecraft marker and the rotated/clipped chest, which must match across repaint, scroll and reload.
+     */
     private fun captureItems(name: String) {
-        val bounds = ComposeThread.call { checkNotNull(screen.itemBrowser.previewBounds) { "Native item preview bounds are missing" } }
+        val bounds = ComposeThread.call {
+            checkNotNull(screen.itemBrowser.previewBounds) { "Native item preview bounds are missing" }
+        }
         val guiWidth = screen.width
         session.capture(name) { pixels ->
             SuitePixels.requireContent(pixels, name, minimumColors = 20)
             SuitePixels.requireMarker(pixels, name, guiWidth)
-            val region = SuitePixels.previewRegion(pixels, name, bounds.left.toInt(), bounds.top.toInt(), bounds.width.toInt(), bounds.height.toInt())
+            val region =
+                SuitePixels.previewRegion(
+                    pixels,
+                    name,
+                    bounds.left.toInt(),
+                    bounds.top.toInt(),
+                    bounds.width.toInt(),
+                    bounds.height.toInt(),
+                )
             val previous = reference
             if (previous == null) reference = region else SuitePixels.requireSameRegion(previous, region, name)
         }

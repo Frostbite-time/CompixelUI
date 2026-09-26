@@ -4,7 +4,17 @@ import java.util.Objects;
 
 /** A recognized gesture. Drag phases carry the pointer button, never platform wire bit masks. */
 public record SlotGesture(Kind kind, int button) {
-    public enum Kind { CLICK, QUICK_MOVE, SWAP, CLONE, DROP, DRAG_START, DRAG_ADD, DRAG_END, COLLECT }
+    public enum Kind {
+        CLICK,
+        QUICK_MOVE,
+        SWAP,
+        CLONE,
+        DROP,
+        DRAG_START,
+        DRAG_ADD,
+        DRAG_END,
+        COLLECT
+    }
 
     public SlotGesture {
         Objects.requireNonNull(kind, "kind");

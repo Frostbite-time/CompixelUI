@@ -13,9 +13,8 @@ import dev.composemc.ui.ore.theme.LocalOreContentColor
 import kotlin.math.roundToInt
 
 /**
- * A single-color pixel icon on Ore's 16x16 grid. Ore's glyphs use two-cell strokes; define domain icons
- * the same way, once, and draw them with [OreIcon]. Original geometry only: no Minecraft or Bedrock
- * assets are redistributed.
+ * A single-color pixel icon on Ore's 16x16 grid. Ore's glyphs use two-cell strokes; define domain icons the same way,
+ * once, and draw them with [OreIcon]. Original geometry only: no Minecraft or Bedrock assets are redistributed.
  */
 @Immutable
 class OrePixelArt private constructor(private val cells: BooleanArray) {
@@ -44,8 +43,13 @@ class OrePixelArt private constructor(private val cells: BooleanArray) {
     }
 
     override fun equals(other: Any?) = other is OrePixelArt && cells.contentEquals(other.cells)
+
     override fun hashCode() = cells.contentHashCode()
-    override fun toString() = (0 until SIZE).joinToString("\n") { y -> String(CharArray(SIZE) { x -> if (cells[y * SIZE + x]) '#' else '.' }) }
+
+    override fun toString() =
+        (0 until SIZE).joinToString("\n") { y ->
+            String(CharArray(SIZE) { x -> if (cells[y * SIZE + x]) '#' else '.' })
+        }
 
     private companion object {
         const val SIZE = 16
@@ -70,12 +74,21 @@ class OrePixelArt private constructor(private val cells: BooleanArray) {
                 val next = ArrayList<IntArray>()
                 var x = 0
                 while (x < SIZE) {
-                    if (!cells[y * SIZE + x]) { x++; continue }
+                    if (!cells[y * SIZE + x]) {
+                        x++
+                        continue
+                    }
                     val start = x
                     while (x < SIZE && cells[y * SIZE + x]) x++
                     val above = open.firstOrNull { it[0] == start && it[2] == x - start }
-                    if (above != null) { above[3]++; next += above }
-                    else intArrayOf(start, y, x - start, 1).also { rects += it; next += it }
+                    if (above != null) {
+                        above[3]++
+                        next += above
+                    } else
+                        intArrayOf(start, y, x - start, 1).also {
+                            rects += it
+                            next += it
+                        }
                 }
                 open = next
             }

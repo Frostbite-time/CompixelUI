@@ -79,9 +79,8 @@ private fun ScrollbarAdapter.oreScrollbarMetrics(): OreScrollbarMetrics {
 }
 
 /**
- * An Ore-styled vertical scrollbar. [thumbLength] pins the thumb to an explicit length;
- * when it is null, the thumb represents the visible fraction and is at least
- * [minimumThumbLength] tall.
+ * An Ore-styled vertical scrollbar. [thumbLength] pins the thumb to an explicit length; when it is null, the thumb
+ * represents the visible fraction and is at least [minimumThumbLength] tall.
  */
 @Composable
 internal fun OreScrollbar(
@@ -107,11 +106,13 @@ internal fun OreScrollbar(
     fun resolvedThumbLength(trackHeight: Float): Float {
         // A disabled rail still needs a recognisable thumb at its fixed top position;
         // it must not turn into a thumb that fills and conceals the whole rail.
-        val requested = requestedThumbLength ?: if (scrollable) {
-            max(trackHeight * visibleFraction, minimumThumbLengthPx)
-        } else {
-            minimumThumbLengthPx
-        }
+        val requested =
+            requestedThumbLength
+                ?: if (scrollable) {
+                    max(trackHeight * visibleFraction, minimumThumbLengthPx)
+                } else {
+                    minimumThumbLengthPx
+                }
         return requested.coerceIn(0f, trackHeight.coerceAtLeast(0f))
     }
 
@@ -126,22 +127,23 @@ internal fun OreScrollbar(
             // Do not key this handler to scroll position. Moving the thumb recomposes the
             // canvas, but replacing an active pointer-input coroutine would cancel a drag.
             .pointerInput(scrollable, requestedThumbLength, minimumThumbLengthPx) {
-                if (scrollable) awaitEachGesture {
-                    val down = awaitFirstDown()
-                    fun move(y: Float) {
-                        val trackHeight = size.height.toFloat()
-                        val thumb = resolvedThumbLength(trackHeight)
-                        val fraction = ((y - thumb / 2f) / (trackHeight - thumb).coerceAtLeast(1f)).coerceIn(0f, 1f)
-                        scrollScope.launch { callback(fraction) }
+                if (scrollable)
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        fun move(y: Float) {
+                            val trackHeight = size.height.toFloat()
+                            val thumb = resolvedThumbLength(trackHeight)
+                            val fraction = ((y - thumb / 2f) / (trackHeight - thumb).coerceAtLeast(1f)).coerceIn(0f, 1f)
+                            scrollScope.launch { callback(fraction) }
+                        }
+                        move(down.position.y)
+                        down.consume()
+                        do {
+                            val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                            move(change.position.y)
+                            change.consume()
+                        } while (change.pressed)
                     }
-                    move(down.position.y)
-                    down.consume()
-                    do {
-                        val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
-                        move(change.position.y)
-                        change.consume()
-                    } while (change.pressed)
-                }
             }
             .drawBehind {
                 val pixel = 1.dp.toPx().coerceAtLeast(1f)
@@ -151,22 +153,30 @@ internal fun OreScrollbar(
                 val rail = if (scrollable) colors.trackEmptyLight else colors.highlight
                 // A plain, recessed 2dp light-grey rail inside its 1dp black frame.
                 drawRect(trackEdge, Offset(trackLeft, 0f), Size(trackWidth.coerceAtMost(size.width), size.height))
-                drawRect(rail, Offset(trackLeft + pixel, pixel), Size(
-                    (trackWidth - 2f * pixel).coerceAtLeast(0f),
-                    (size.height - 2f * pixel).coerceAtLeast(0f),
-                ))
+                drawRect(
+                    rail,
+                    Offset(trackLeft + pixel, pixel),
+                    Size(
+                        (trackWidth - 2f * pixel).coerceAtLeast(0f),
+                        (size.height - 2f * pixel).coerceAtLeast(0f),
+                    ),
+                )
 
                 val thumbHeight = resolvedThumbLength(size.height)
-                val thumbTop = if (scrollable) {
-                    (size.height - thumbHeight).coerceAtLeast(0f) * metrics.positionFraction
-                } else {
-                    0f
-                }
-                val thumbHovered = scrollable && pointerY?.let { it >= thumbTop && it <= thumbTop + thumbHeight } == true
+                val thumbTop =
+                    if (scrollable) {
+                        (size.height - thumbHeight).coerceAtLeast(0f) * metrics.positionFraction
+                    } else {
+                        0f
+                    }
+                val thumbHovered =
+                    scrollable && pointerY?.let { it >= thumbTop && it <= thumbTop + thumbHeight } == true
                 val thumbEdge = if (scrollable) colors.buttonBorder else colors.disabledEdge
-                val thumbLight = if (scrollable && thumbHovered) colors.secondaryButtonCorner
+                val thumbLight =
+                    if (scrollable && thumbHovered) colors.secondaryButtonCorner
                     else if (scrollable) colors.secondaryButtonLightEdge else colors.highlight
-                val thumbFace = if (scrollable && thumbHovered) colors.secondaryHover
+                val thumbFace =
+                    if (scrollable && thumbHovered) colors.secondaryHover
                     else if (scrollable) colors.secondary else colors.raised
                 val thumbLedge = if (scrollable) colors.secondaryEdge else colors.disabledText
                 val ledgeHeight = (2.dp.toPx()).coerceAtMost((thumbHeight - 2f * pixel).coerceAtLeast(0f))
@@ -176,15 +186,30 @@ internal fun OreScrollbar(
                 // The thumb copies the Ore secondary-control construction: 1dp black
                 // casing, 1dp bright inner edge, a 2dp inset face and a 2dp lower ledge.
                 drawRect(thumbEdge, Offset(0f, thumbTop), Size(size.width, thumbHeight))
-                drawRect(thumbLight, Offset(pixel, thumbTop + pixel), Size(
-                    (size.width - 2f * pixel).coerceAtLeast(0f), brightHeight,
-                ))
-                drawRect(thumbLedge, Offset(pixel, thumbTop + thumbHeight - pixel - ledgeHeight), Size(
-                    (size.width - 2f * pixel).coerceAtLeast(0f), ledgeHeight,
-                ))
-                drawRect(thumbFace, Offset(2f * pixel, thumbTop + 2f * pixel), Size(
-                    (size.width - 4f * pixel).coerceAtLeast(0f), faceHeight,
-                ))
-            },
+                drawRect(
+                    thumbLight,
+                    Offset(pixel, thumbTop + pixel),
+                    Size(
+                        (size.width - 2f * pixel).coerceAtLeast(0f),
+                        brightHeight,
+                    ),
+                )
+                drawRect(
+                    thumbLedge,
+                    Offset(pixel, thumbTop + thumbHeight - pixel - ledgeHeight),
+                    Size(
+                        (size.width - 2f * pixel).coerceAtLeast(0f),
+                        ledgeHeight,
+                    ),
+                )
+                drawRect(
+                    thumbFace,
+                    Offset(2f * pixel, thumbTop + 2f * pixel),
+                    Size(
+                        (size.width - 4f * pixel).coerceAtLeast(0f),
+                        faceHeight,
+                    ),
+                )
+            }
     )
 }

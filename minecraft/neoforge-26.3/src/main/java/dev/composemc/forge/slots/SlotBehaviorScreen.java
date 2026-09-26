@@ -1,11 +1,11 @@
 package dev.composemc.forge.slots;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import dev.composemc.slots.SlotBehavior;
 import dev.composemc.slots.SlotGesture;
 import dev.composemc.slots.SlotIntent;
-import com.mojang.blaze3d.platform.InputConstants;
-import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -21,10 +21,14 @@ import net.minecraft.world.inventory.Slot;
 public abstract class SlotBehaviorScreen<M extends AbstractContainerMenu> extends AbstractContainerScreen<M> {
     private int capturedButtons;
 
-    protected SlotBehaviorScreen(M menu, Inventory inventory, Component title) { super(menu, inventory, title); }
+    protected SlotBehaviorScreen(M menu, Inventory inventory, Component title) {
+        super(menu, inventory, title);
+    }
 
     /** Slot can be null for outside clicks and drag start/end. Policies should be cached values. */
-    protected SlotBehavior slotBehavior(Slot slot) { return SlotBehavior.standard(); }
+    protected SlotBehavior slotBehavior(Slot slot) {
+        return SlotBehavior.standard();
+    }
 
     /** A local UI action is consumed even if no handler is installed. */
     protected void localSlotAction(Slot slot, SlotIntent.Local action) {}
@@ -37,10 +41,14 @@ public abstract class SlotBehaviorScreen<M extends AbstractContainerMenu> extend
         Slot slot = slotAt(x, y);
         // Widgets layered above a slot keep priority. An active native drag keeps its owner.
         boolean overWidget = children().stream().anyMatch(child -> child.isMouseOver(x, y));
-        if (!overWidget && !isQuickCrafting && !event.hasShiftDown() &&
-                (button == InputConstants.MOUSE_BUTTON_LEFT || button == InputConstants.MOUSE_BUTTON_RIGHT) && slot != null) {
-            SlotIntent intent = slotBehavior(slot).resolve(new SlotGesture(SlotGesture.Kind.CLICK,
-                    button == InputConstants.MOUSE_BUTTON_LEFT ? 0 : 1));
+        if (!overWidget
+                && !isQuickCrafting
+                && !event.hasShiftDown()
+                && (button == InputConstants.MOUSE_BUTTON_LEFT || button == InputConstants.MOUSE_BUTTON_RIGHT)
+                && slot != null) {
+            SlotIntent intent = slotBehavior(slot)
+                    .resolve(new SlotGesture(
+                            SlotGesture.Kind.CLICK, button == InputConstants.MOUSE_BUTTON_LEFT ? 0 : 1));
             if (!(intent instanceof SlotIntent.Inventory)) {
                 capturedButtons |= 1 << button;
                 if (intent instanceof SlotIntent.Local local) localSlotAction(slot, local);
@@ -63,26 +71,35 @@ public abstract class SlotBehaviorScreen<M extends AbstractContainerMenu> extend
                 && (capturedButtons & (1 << button)) != 0;
     }
     /** Release a local gesture capture when the host changes layout, opens a modal or loses focus. */
-    protected final void cancelSlotClickCapture() { capturedButtons = 0; }
+    protected final void cancelSlotClickCapture() {
+        capturedButtons = 0;
+    }
 
     /** Public/protected slot geometry only; no access transformer or private vanilla hook. */
     protected Slot slotAt(double x, double y) {
-        for (Slot slot : menu.slots)
-            if (slot.isActive() && isHovering(slot.x, slot.y, 16, 16, x, y)) return slot;
+        for (Slot slot : menu.slots) if (slot.isActive() && isHovering(slot.x, slot.y, 16, 16, x, y)) return slot;
         return null;
     }
 
     @Override
     public boolean mouseReleased(MouseButtonEvent event) {
         int button = event.button();
-        if (isSlotClickCaptured(button)) { capturedButtons &= ~(1 << button); return true; }
+        if (isSlotClickCaptured(button)) {
+            capturedButtons &= ~(1 << button);
+            return true;
+        }
         return super.mouseReleased(event);
     }
 
     @Override
     protected void slotClicked(Slot slot, int slotId, int button, ContainerInput type) {
         int id = slot == null ? slotId : slot.index;
-        NativeSlotClicks.dispatch(id, button, type, slotBehavior(slot), this::executeInventoryClick,
+        NativeSlotClicks.dispatch(
+                id,
+                button,
+                type,
+                slotBehavior(slot),
+                this::executeInventoryClick,
                 action -> localSlotAction(slot, action));
     }
 
@@ -93,5 +110,8 @@ public abstract class SlotBehaviorScreen<M extends AbstractContainerMenu> extend
     }
 
     @Override
-    public void removed() { capturedButtons = 0; super.removed(); }
+    public void removed() {
+        capturedButtons = 0;
+        super.removed();
+    }
 }

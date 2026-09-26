@@ -7,9 +7,9 @@ import java.util.ArrayDeque
 import java.util.function.Consumer
 
 /**
- * Immutable business snapshots into Compose, typed actions back to the creating thread.
- * Construct, update, drain and close on the business/host thread. Compose callbacks call send().
- * Snapshots and actions must not expose mutable game objects to the composition.
+ * Immutable business snapshots into Compose, typed actions back to the creating thread. Construct, update, drain and
+ * close on the business/host thread. Compose callbacks call send(). Snapshots and actions must not expose mutable game
+ * objects to the composition.
  */
 class UiBinding<S, A>(initial: S, private val capacity: Int = 64) : AutoCloseable {
     private val owner = Thread.currentThread()
@@ -18,7 +18,9 @@ class UiBinding<S, A>(initial: S, private val capacity: Int = 64) : AutoCloseabl
     private var latest = initial
     private val state = mutableStateOf(initial)
 
-    init { require(capacity > 0) { "Action capacity must be positive" } }
+    init {
+        require(capacity > 0) { "Action capacity must be positive" }
+    }
 
     val value: S
         @Composable get() = state.value
@@ -33,9 +35,14 @@ class UiBinding<S, A>(initial: S, private val capacity: Int = 64) : AutoCloseabl
     }
 
     /** False means the screen closed or the bounded queue is full; no action is overwritten. */
-    fun send(action: A): Boolean = synchronized(actions) {
-        if (closed || actions.size >= capacity) false else { actions.addLast(action); true }
-    }
+    fun send(action: A): Boolean =
+        synchronized(actions) {
+            if (closed || actions.size >= capacity) false
+            else {
+                actions.addLast(action)
+                true
+            }
+        }
 
     /** Dispatch at most the actions pending on entry; callbacks run on the creating thread. */
     fun drainActions(handler: Consumer<A>) {
@@ -49,10 +56,14 @@ class UiBinding<S, A>(initial: S, private val capacity: Int = 64) : AutoCloseabl
 
     override fun close() {
         checkOwner()
-        synchronized(actions) { closed = true; actions.clear() }
+        synchronized(actions) {
+            closed = true
+            actions.clear()
+        }
     }
 
-    private fun checkOwner() = check(Thread.currentThread() === owner) {
-        "Update, drain and close the binding on its creating thread"
-    }
+    private fun checkOwner() =
+        check(Thread.currentThread() === owner) {
+            "Update, drain and close the binding on its creating thread"
+        }
 }

@@ -6,7 +6,9 @@ import java.util.Objects;
 public sealed interface SlotIntent {
     /** The adapter/consumer executes this through its existing, server-validated inventory protocol. */
     record Inventory(SlotGesture gesture) implements SlotIntent {
-        public Inventory { Objects.requireNonNull(gesture, "gesture"); }
+        public Inventory {
+            Objects.requireNonNull(gesture, "gesture");
+        }
     }
 
     /** A consumer-defined local action, such as opening a context menu. Never an automatic C2S call. */
@@ -17,5 +19,7 @@ public sealed interface SlotIntent {
         }
     }
 
-    enum Ignore implements SlotIntent { INSTANCE }
+    enum Ignore implements SlotIntent {
+        INSTANCE
+    }
 }

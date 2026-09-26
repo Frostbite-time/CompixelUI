@@ -2,9 +2,34 @@ package dev.composemc.demo.preview
 
 import androidx.compose.runtime.*
 
-enum class Fixture { READY, EMPTY, LOADING, ERROR }
-enum class DemoPage { Settings, Catalog, Buttons, Icons, Fields, Toggles, Sliders, Lists, Slots, Surfaces, Items,
-    Selection, Menus, Numbers, Colors, Tree, Tooltips, Windows }
+enum class Fixture {
+    READY,
+    EMPTY,
+    LOADING,
+    ERROR,
+}
+
+enum class DemoPage {
+    Settings,
+    Catalog,
+    Buttons,
+    Icons,
+    Fields,
+    Toggles,
+    Sliders,
+    Lists,
+    Slots,
+    Surfaces,
+    Items,
+    Selection,
+    Menus,
+    Numbers,
+    Colors,
+    Tree,
+    Tooltips,
+    Windows,
+}
+
 class DemoModel {
     val itemBrowser = ItemBrowserModel()
     val bounds = mutableMapOf<String, androidx.compose.ui.geometry.Rect>()

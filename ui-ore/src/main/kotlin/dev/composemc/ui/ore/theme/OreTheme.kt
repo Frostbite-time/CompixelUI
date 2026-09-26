@@ -12,8 +12,11 @@ internal val LocalOreFeedback = staticCompositionLocalOf { OreFeedback {} }
 internal val LocalOreContentColor = compositionLocalOf { Color(0xFFF2F3F4) }
 
 object OreTheme {
-    val colors: OreColors @Composable get() = LocalOreColors.current
-    val typography: OreTypography @Composable get() = LocalOreTypography.current
+    val colors: OreColors
+        @Composable get() = LocalOreColors.current
+
+    val typography: OreTypography
+        @Composable get() = LocalOreTypography.current
 }
 
 @Composable
@@ -23,6 +26,11 @@ fun OreTheme(
     feedback: OreFeedback = LocalOreFeedback.current,
     content: @Composable () -> Unit,
 ) {
-    CompositionLocalProvider(LocalOreColors provides colors, LocalOreTypography provides typography,
-        LocalOreContentColor provides colors.text, LocalOreFeedback provides feedback, content = content)
+    CompositionLocalProvider(
+        LocalOreColors provides colors,
+        LocalOreTypography provides typography,
+        LocalOreContentColor provides colors.text,
+        LocalOreFeedback provides feedback,
+        content = content,
+    )
 }

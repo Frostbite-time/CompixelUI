@@ -24,12 +24,14 @@ fun OreScrollTrack(
     val maxPosition = maximum.coerceAtLeast(0)
     val fraction = visibleFraction.coerceIn(0f, 1f)
     OreScrollbar(
-        metrics = OreScrollbarMetrics(
-            visibleFraction = fraction,
-            positionFraction = if (maxPosition > 0) position.coerceIn(0, maxPosition).toFloat() / maxPosition else 0f,
-            canScroll = maxPosition > 0 && fraction < 1f,
-            scrollToFraction = { ratio -> callback((ratio * maxPosition).toInt().coerceIn(0, maxPosition)) },
-        ),
+        metrics =
+            OreScrollbarMetrics(
+                visibleFraction = fraction,
+                positionFraction =
+                    if (maxPosition > 0) position.coerceIn(0, maxPosition).toFloat() / maxPosition else 0f,
+                canScroll = maxPosition > 0 && fraction < 1f,
+                scrollToFraction = { ratio -> callback((ratio * maxPosition).toInt().coerceIn(0, maxPosition)) },
+            ),
         modifier = modifier,
         enabled = enabled,
         thumbLength = thumbLength,

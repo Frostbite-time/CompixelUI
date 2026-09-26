@@ -20,22 +20,26 @@ import dev.composemc.ui.ore.theme.OreTheme
 import kotlin.math.roundToInt
 
 /**
- * An 18 × 18 inventory well: a 16 × 16 content area surrounded by one-pixel
- * recessed edges. Content, resource identity and interaction are supplied by the host.
+ * An 18 × 18 inventory well: a 16 × 16 content area surrounded by one-pixel recessed edges. Content, resource identity
+ * and interaction are supplied by the host.
  */
 @Composable
 fun OreSlot(
-    modifier: Modifier = Modifier, marked: Boolean = false, highlighted: Boolean = false,
+    modifier: Modifier = Modifier,
+    marked: Boolean = false,
+    highlighted: Boolean = false,
     contentModifier: Modifier = Modifier.size(16.dp),
-    content: @Composable BoxScope.() -> Unit
+    content: @Composable BoxScope.() -> Unit,
 ) {
     val colors = OreTheme.colors
     val well = if (marked) colors.markedSlot else colors.slot
     val fill = if (highlighted) lerp(well, colors.slotHover, .7f) else well
-    val outline = if (!highlighted) null else if (marked) lerp(colors.slotHoverEdge, colors.primary, .32f)
-    else colors.slotHoverEdge
+    val outline =
+        if (!highlighted) null
+        else if (marked) lerp(colors.slotHoverEdge, colors.primary, .32f) else colors.slotHoverEdge
     Box(
-        modifier.defaultMinSize(18.dp, 18.dp)
+        modifier
+            .defaultMinSize(18.dp, 18.dp)
             .oreSlotFrame(
                 fill,
                 if (marked) colors.edge else colors.slotEdge,
@@ -45,13 +49,14 @@ fun OreSlot(
             .oreSlotContentClip()
             .padding(1.dp),
         contentAlignment = Alignment.Center,
-    ) { Box(contentModifier, contentAlignment = Alignment.Center, content = content) }
+    ) {
+        Box(contentModifier, contentAlignment = Alignment.Center, content = content)
+    }
 }
 
 /**
- * Vanilla-style recessed slot geometry. The dark upper/left and light lower/right
- * edges meet through the well colour at top-right and bottom-left; the bright
- * bottom-right corner is never wrapped by an additional dark outline.
+ * Vanilla-style recessed slot geometry. The dark upper/left and light lower/right edges meet through the well colour at
+ * top-right and bottom-left; the bright bottom-right corner is never wrapped by an additional dark outline.
  */
 private fun Modifier.oreSlotFrame(fill: Color, dark: Color, light: Color, outline: Color?): Modifier = drawBehind {
     val edge = slotEdge(size)
@@ -60,10 +65,14 @@ private fun Modifier.oreSlotFrame(fill: Color, dark: Color, light: Color, outlin
     drawRect(fill)
     if (outline != null) {
         drawRect(outline)
-        drawRect(fill, Offset(edge, edge), Size(
-            (size.width - edge * 2).coerceAtLeast(0f),
-            (size.height - edge * 2).coerceAtLeast(0f),
-        ))
+        drawRect(
+            fill,
+            Offset(edge, edge),
+            Size(
+                (size.width - edge * 2).coerceAtLeast(0f),
+                (size.height - edge * 2).coerceAtLeast(0f),
+            ),
+        )
         return@drawBehind
     }
     // Leave the top-right and bottom-left cells as `fill`: each is one
@@ -85,5 +94,9 @@ private fun Modifier.oreSlotContentClip(): Modifier = drawWithContent {
 }
 
 /** One edge template pixel is one eighteenth of the rendered slot side. */
-private fun slotEdge(size: Size): Float = (minOf(size.width, size.height) / 18f)
-    .roundToInt().coerceAtLeast(1).toFloat().coerceAtMost(minOf(size.width, size.height) / 2)
+private fun slotEdge(size: Size): Float =
+    (minOf(size.width, size.height) / 18f)
+        .roundToInt()
+        .coerceAtLeast(1)
+        .toFloat()
+        .coerceAtMost(minOf(size.width, size.height) / 2)

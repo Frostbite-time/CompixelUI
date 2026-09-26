@@ -14,10 +14,24 @@ internal fun Screen.mouseReleased(x: Double, y: Double, button: Int, modifiers: 
     mouseReleased(MouseButtonEvent(x, y, MouseButtonInfo(button, modifiers)))
 
 internal fun Screen.keyPressed(key: Int, keycode: Int = 0, modifiers: Int = 0): Boolean =
-    keyPressed(KeyEvent(key, if (keycode != 0) keycode else org.lwjgl.sdl.SDLKeyboard.SDL_GetKeyFromScancode(key, modifiers.toShort(), false), modifiers))
+    keyPressed(
+        KeyEvent(
+            key,
+            if (keycode != 0) keycode
+            else org.lwjgl.sdl.SDLKeyboard.SDL_GetKeyFromScancode(key, modifiers.toShort(), false),
+            modifiers,
+        )
+    )
 
 internal fun Screen.keyReleased(key: Int, keycode: Int = 0, modifiers: Int = 0): Boolean =
-    keyReleased(KeyEvent(key, if (keycode != 0) keycode else org.lwjgl.sdl.SDLKeyboard.SDL_GetKeyFromScancode(key, modifiers.toShort(), false), modifiers))
+    keyReleased(
+        KeyEvent(
+            key,
+            if (keycode != 0) keycode
+            else org.lwjgl.sdl.SDLKeyboard.SDL_GetKeyFromScancode(key, modifiers.toShort(), false),
+            modifiers,
+        )
+    )
 
 internal fun Screen.charTyped(character: Char, @Suppress("UNUSED_PARAMETER") modifiers: Int = 0): Boolean =
     charTyped(CharacterEvent(character.code))

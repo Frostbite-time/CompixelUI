@@ -8,14 +8,11 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import dev.composemc.ui.ore.navigation.OreTab
-import dev.composemc.ui.ore.theme.OreTheme
-import dev.composemc.ui.ore.display.OreText as Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
@@ -23,7 +20,9 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import dev.composemc.ui.ore.display.OreText as Text
+import dev.composemc.ui.ore.navigation.OreTab
+import dev.composemc.ui.ore.theme.OreTheme
 
 class ItemBrowserModel {
     var count by mutableIntStateOf(1000)
@@ -56,47 +55,81 @@ fun ItemBrowserDemo(
             OreTab("10k", model.count == 10000, { model.count = 10000 })
             Text("Native items", color = OreTheme.colors.mutedText)
         }
-        Row(Modifier.fillMaxWidth().height(48.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.fillMaxWidth().height(48.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             sample(0, Modifier.size(24.dp))
             sample(1, Modifier.size(32.dp))
-            Box(Modifier.size(36.dp).onGloballyPositioned { model.previewBounds = it.boundsInRoot() }
-                .clip(RoundedCornerShape(8.dp)).background(Color(0xFF344A39))) {
-                sample(3, Modifier.requiredSize(48.dp).graphicsLayer {
-                    rotationZ = 25f; alpha = 0.75f; compositingStrategy = CompositingStrategy.ModulateAlpha
-                })
+            Box(
+                Modifier.size(36.dp)
+                    .onGloballyPositioned { model.previewBounds = it.boundsInRoot() }
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF344A39))
+            ) {
+                sample(
+                    3,
+                    Modifier.requiredSize(48.dp).graphicsLayer {
+                        rotationZ = 25f
+                        alpha = 0.75f
+                        compositingStrategy = CompositingStrategy.ModulateAlpha
+                    },
+                )
             }
             Text("Scale · clip · rotate", style = OreTheme.typography.caption)
         }
-        LazyVerticalGrid(GridCells.Adaptive(64.dp), Modifier.weight(1f).fillMaxWidth(), state = grid,
-            horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        LazyVerticalGrid(
+            GridCells.Adaptive(64.dp),
+            Modifier.weight(1f).fillMaxWidth(),
+            state = grid,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             items(model.count, key = { it }) { index ->
                 val source = index % labels.size
                 DisposableEffect(index) { onDispose { model.visibleCells.remove(index) } }
-                Column(Modifier.fillMaxWidth().height(52.dp)
-                    .background(if (model.selected == index) Color(0xFF344A39) else Color(0xFF242B2D), RoundedCornerShape(4.dp))
-                    .clickable { model.selected = index }
-                    .onGloballyPositioned { coordinates ->
-                        model.visibleCells[index] = coordinates.boundsInRoot()
-                        if (index == grid.firstVisibleItemIndex) {
-                            val center = coordinates.boundsInRoot().center
-                            model.firstVisible = index
-                            model.hitX = center.x
-                            model.hitY = center.y
+                Column(
+                    Modifier.fillMaxWidth()
+                        .height(52.dp)
+                        .background(
+                            if (model.selected == index) Color(0xFF344A39) else Color(0xFF242B2D),
+                            RoundedCornerShape(4.dp),
+                        )
+                        .clickable { model.selected = index }
+                        .onGloballyPositioned { coordinates ->
+                            model.visibleCells[index] = coordinates.boundsInRoot()
+                            if (index == grid.firstVisibleItemIndex) {
+                                val center = coordinates.boundsInRoot().center
+                                model.firstVisible = index
+                                model.hitX = center.x
+                                model.hitY = center.y
+                            }
                         }
-                    }.padding(4.dp), horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        .padding(4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
                     item(source, Modifier.size(28.dp))
                     Text(labels[source], maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Selected: " + model.selected + " · " + model.count + " rows", style = OreTheme.typography.caption, modifier = Modifier.weight(1f))
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                "Selected: " + model.selected + " · " + model.count + " rows",
+                style = OreTheme.typography.caption,
+                modifier = Modifier.weight(1f),
+            )
             Text("Hover for item details", style = OreTheme.typography.caption)
-            sample(if (labels.size > 8) 8 else 3,
-                Modifier.size(18.dp).onGloballyPositioned { model.edgeTooltipBounds = it.boundsInRoot() })
+            sample(
+                if (labels.size > 8) 8 else 3,
+                Modifier.size(18.dp).onGloballyPositioned { model.edgeTooltipBounds = it.boundsInRoot() },
+            )
         }
     }
 }

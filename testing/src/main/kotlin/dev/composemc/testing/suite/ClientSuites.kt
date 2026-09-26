@@ -1,24 +1,24 @@
 package dev.composemc.testing.suite
 
 /**
- * The two automated client suites. Each Minecraft adapter implements both, selected with
- * `-Dcomposemc.suite=<id>`. Gradle, the launch scripts and the summarizer use the same file names.
+ * The two automated client suites. Each Minecraft adapter implements both, selected with `-Dcomposemc.suite=<id>`.
+ * Gradle, the launch scripts and the summarizer use the same file names.
  */
 enum class ClientSuite(val id: String, val report: String, val results: String) {
     ACCEPTANCE("acceptance", "composemc-acceptance.txt", "acceptance-results"),
-    BENCHMARK("benchmark", "composemc-benchmark.txt", "benchmark-results"),
-    ;
+    BENCHMARK("benchmark", "composemc-benchmark.txt", "benchmark-results");
 
     companion object {
-        fun of(id: String): ClientSuite = requireNotNull(entries.firstOrNull { it.id == id }) {
-            "Unknown client suite '$id'; expected one of ${entries.map { it.id }}"
-        }
+        fun of(id: String): ClientSuite =
+            requireNotNull(entries.firstOrNull { it.id == id }) {
+                "Unknown client suite '$id'; expected one of ${entries.map { it.id }}"
+            }
     }
 }
 
 /**
- * Correctness steps in execution order. Every adapter passes each step, in this order, before its
- * report can say PASS, so no Minecraft version can silently cover less than the others.
+ * Correctness steps in execution order. Every adapter passes each step, in this order, before its report can say PASS,
+ * so no Minecraft version can silently cover less than the others.
  */
 enum class AcceptanceStep(val report: String) {
     RESOURCES("library and development translations loaded; loader environment matches the launch"),
@@ -38,14 +38,18 @@ enum class AcceptanceStep(val report: String) {
     SESSION_RESIZE("window resize and GUI scale preserve the session"),
     LIST("100k list hit testing, wheel scrolling and texture reuse"),
     NATIVE_ITEMS("native item page: preview pixels, Minecraft drawing after Compose, preparation and grid hit testing"),
-    TOOLTIPS("native tooltips: delayed hover, exclusive replacement, rich bundle image, event cancellation, " +
-        "click/scroll dismissal, pending/visible modal suppression, edge placement, GUI scales 2/3 and reload"),
+    TOOLTIPS(
+        "native tooltips: delayed hover, exclusive replacement, rich bundle image, event cancellation, " +
+            "click/scroll dismissal, pending/visible modal suppression, edge placement, GUI scales 2/3 and reload"
+    ),
     NATIVE_SCROLL("10k-row native item scrolling with bounded preparation and retirement"),
     RELOAD("resource reload rebuilds one surface and preserves the session and item pixels"),
     FOCUS("logical focus loss hides tooltips and ignores input; focus return restores both"),
     CLOSE("close releases the session, surfaces and native images"),
     REOPEN("F8 reopens the preview and Escape releases it"),
-    COMPONENTS("Ore component pages: selection, menus, numbers, colors, tree, tooltips, windows, fields, slots, surfaces and items"),
+    COMPONENTS(
+        "Ore component pages: selection, menus, numbers, colors, tree, tooltips, windows, fields, slots, surfaces and items"
+    ),
     STRESS("12 repeated screen opens/renders/closes release their sessions and surfaces"),
 }
 
@@ -53,7 +57,8 @@ enum class AcceptanceStep(val report: String) {
 class AcceptanceLog {
     private val passed = mutableListOf<AcceptanceStep>()
     private val lines = mutableListOf<String>()
-    val next: AcceptanceStep? get() = AcceptanceStep.entries.getOrNull(passed.size)
+    val next: AcceptanceStep?
+        get() = AcceptanceStep.entries.getOrNull(passed.size)
 
     fun pass(step: AcceptanceStep, detail: String? = null) {
         check(step == next) { "Acceptance step $step completed out of order; expected $next" }

@@ -25,8 +25,10 @@ data class VulkanImageTarget(val image: Long, val width: Int, val height: Int, v
     init {
         require(image != 0L && width > 0 && height > 0)
         require(format == VK12.VK_FORMAT_R8G8B8A8_UNORM) { "The UI renderer requires an RGBA8 UNORM target" }
-        val required = VK12.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT or VK12.VK_IMAGE_USAGE_TRANSFER_SRC_BIT or
-            VK12.VK_IMAGE_USAGE_TRANSFER_DST_BIT
+        val required =
+            VK12.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT or
+                VK12.VK_IMAGE_USAGE_TRANSFER_SRC_BIT or
+                VK12.VK_IMAGE_USAGE_TRANSFER_DST_BIT
         require(usage and required == required) { "Skia targets require attachment and transfer usages" }
     }
 }

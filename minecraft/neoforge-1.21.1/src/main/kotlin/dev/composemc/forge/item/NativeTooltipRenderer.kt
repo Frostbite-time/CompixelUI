@@ -4,21 +4,21 @@ package dev.composemc.forge.item
 
 import com.mojang.blaze3d.systems.RenderSystem
 import dev.composemc.bridge.ComposeThread
+import dev.composemc.forge.render.ScreenFrameRenderer
+import dev.composemc.forge.render.ScreenMetrics
 import dev.composemc.render.GpuPhase
+import kotlin.math.ceil
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.Font
 import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.client.gui.screens.Screen
-import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTextTooltip
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent
 import net.minecraft.client.gui.screens.inventory.tooltip.DefaultTooltipPositioner
 import net.minecraft.client.gui.screens.inventory.tooltip.TooltipRenderUtil
-import net.neoforged.neoforge.client.ClientHooks
 import net.minecraft.world.item.ItemStack
+import net.neoforged.neoforge.client.ClientHooks
 import org.jetbrains.skia.Image
-import kotlin.math.ceil
-import dev.composemc.forge.render.ScreenFrameRenderer
-import dev.composemc.forge.render.ScreenMetrics
 
 data class NativeTooltipStatistics(
     val visible: Boolean = false,
@@ -37,8 +37,16 @@ internal class NativeTooltipRenderer(
     private val mailbox: ItemTooltipMailbox,
 ) : AutoCloseable {
     private data class Layout(val width: Int, val height: Int, val components: Int, val richComponents: Int)
-    private data class PreparedTooltip(val components: List<ClientTooltipComponent>, val font: Font,
-                                       val width: Int, val height: Int, val scale: Float, val layout: Layout)
+
+    private data class PreparedTooltip(
+        val components: List<ClientTooltipComponent>,
+        val font: Font,
+        val width: Int,
+        val height: Int,
+        val scale: Float,
+        val layout: Layout,
+    )
+
     private val layoutTarget = NativeGuiRenderTarget(backend)
     private val target = NativeGuiRenderTarget(backend)
     private var request: ItemTooltipRequest? = null
@@ -50,8 +58,18 @@ internal class NativeTooltipRenderer(
     private var prepared = 0L
     private var retired = 0L
     private var generation = 0L
-    val statistics get() = NativeTooltipStatistics(image != null, layout?.width ?: 0, layout?.height ?: 0,
-        layout?.components ?: 0, layout?.richComponents ?: 0, prepared, retired, generation)
+    val statistics
+        get() =
+            NativeTooltipStatistics(
+                image != null,
+                layout?.width ?: 0,
+                layout?.height ?: 0,
+                layout?.components ?: 0,
+                layout?.richComponents ?: 0,
+                prepared,
+                retired,
+                generation,
+            )
 
     fun recorded(frameGeneration: Long) {
         request = ComposeThread.call { mailbox.request }
@@ -75,30 +93,65 @@ internal class NativeTooltipRenderer(
         val targetHeight = ceil(guiHeight * current.guiScale).toInt()
         // The pre hook can change the font or components. Run it once in a tiny isolated target,
         // then allocate the actual capture target from the resulting bounds.
-        val (_, preparedTooltip) = layoutTarget.draw(1, 1, guiWidth.toFloat(), guiHeight.toFloat(), GpuPhase.TOOLTIP) { graphics ->
-            val stack = active.icon.stack
-            // Use native wrapping, rich component factories, custom fonts and event hooks.
-            // Popup placement belongs to Compose; native render coordinates are target-local.
-            val components = ClientHooks.gatherTooltipComponents(stack, Screen.getTooltipFromItem(minecraft, stack),
-                stack.tooltipImage, 0, guiWidth + 8, guiHeight, minecraft.font)
-            if (components.isEmpty()) return@draw null
-            val pre = ClientHooks.onRenderTooltipPre(stack, graphics, 4, 4, current.guiWidth, current.guiHeight,
-                components, minecraft.font, DefaultTooltipPositioner.INSTANCE)
-            if (pre.isCanceled || components.isEmpty()) return@draw null
-            val font = pre.font
-            val width = components.maxOf { it.getWidth(font) }
-            val height = components.sumOf { it.height } - if (components.size == 1) 2 else 0
-            val scale = minOf(1f, guiWidth.toFloat() / (width + 8), guiHeight.toFloat() / (height + 8))
-            PreparedTooltip(components, font, width, height, scale,
-                Layout(ceil((width + 8) * scale * current.guiScale).toInt().coerceIn(1, targetWidth),
-                    ceil((height + 8) * scale * current.guiScale).toInt().coerceIn(1, targetHeight),
-                    components.size, components.count { it !is ClientTextTooltip }))
-        }
+        val (_, preparedTooltip) =
+            layoutTarget.draw(1, 1, guiWidth.toFloat(), guiHeight.toFloat(), GpuPhase.TOOLTIP) { graphics ->
+                val stack = active.icon.stack
+                // Use native wrapping, rich component factories, custom fonts and event hooks.
+                // Popup placement belongs to Compose; native render coordinates are target-local.
+                val components =
+                    ClientHooks.gatherTooltipComponents(
+                        stack,
+                        Screen.getTooltipFromItem(minecraft, stack),
+                        stack.tooltipImage,
+                        0,
+                        guiWidth + 8,
+                        guiHeight,
+                        minecraft.font,
+                    )
+                if (components.isEmpty()) return@draw null
+                val pre =
+                    ClientHooks.onRenderTooltipPre(
+                        stack,
+                        graphics,
+                        4,
+                        4,
+                        current.guiWidth,
+                        current.guiHeight,
+                        components,
+                        minecraft.font,
+                        DefaultTooltipPositioner.INSTANCE,
+                    )
+                if (pre.isCanceled || components.isEmpty()) return@draw null
+                val font = pre.font
+                val width = components.maxOf { it.getWidth(font) }
+                val height = components.sumOf { it.height } - if (components.size == 1) 2 else 0
+                val scale = minOf(1f, guiWidth.toFloat() / (width + 8), guiHeight.toFloat() / (height + 8))
+                PreparedTooltip(
+                    components,
+                    font,
+                    width,
+                    height,
+                    scale,
+                    Layout(
+                        ceil((width + 8) * scale * current.guiScale).toInt().coerceIn(1, targetWidth),
+                        ceil((height + 8) * scale * current.guiScale).toInt().coerceIn(1, targetHeight),
+                        components.size,
+                        components.count { it !is ClientTextTooltip },
+                    ),
+                )
+            }
         val measured = preparedTooltip?.layout
         val replacement = preparedTooltip?.let { plan ->
-            val (source, _) = target.draw(plan.layout.width, plan.layout.height,
-                plan.layout.width / current.guiScale, plan.layout.height / current.guiScale,
-                GpuPhase.TOOLTIP) { graphics -> drawTooltip(graphics, active.icon.stack, plan) }
+            val (source, _) =
+                target.draw(
+                    plan.layout.width,
+                    plan.layout.height,
+                    plan.layout.width / current.guiScale,
+                    plan.layout.height / current.guiScale,
+                    GpuPhase.TOOLTIP,
+                ) { graphics ->
+                    drawTooltip(graphics, active.icon.stack, plan)
+                }
             backend.copyNativeImage(source, plan.layout.width, plan.layout.height)
         }
         val published = ComposeThread.call { mailbox.publish(active, replacement) }
@@ -107,7 +160,10 @@ internal class NativeTooltipRenderer(
         if (published) {
             image = replacement
             layout = measured
-        } else if (replacement != null) { backend.releaseNativeImage(replacement); retired++ }
+        } else if (replacement != null) {
+            backend.releaseNativeImage(replacement)
+            retired++
+        }
         if (replacement != null) prepared++
         preparedRequest = active
         metrics = current
@@ -125,8 +181,18 @@ internal class NativeTooltipRenderer(
         try {
             graphics.pose().scale(plan.scale, plan.scale, 1f)
             graphics.drawManaged {
-                TooltipRenderUtil.renderTooltipBackground(graphics, 4, 4, width, height, 400,
-                    colors.backgroundStart, colors.backgroundEnd, colors.borderStart, colors.borderEnd)
+                TooltipRenderUtil.renderTooltipBackground(
+                    graphics,
+                    4,
+                    4,
+                    width,
+                    height,
+                    400,
+                    colors.backgroundStart,
+                    colors.backgroundEnd,
+                    colors.borderStart,
+                    colors.borderEnd,
+                )
             }
             graphics.pose().translate(0f, 0f, 400f)
             var y = 4
@@ -139,11 +205,16 @@ internal class NativeTooltipRenderer(
                 component.renderImage(font, 4, y, graphics)
                 y += component.height + if (index == 0) 2 else 0
             }
-        } finally { graphics.pose().popPose() }
+        } finally {
+            graphics.pose().popPose()
+        }
     }
 
     private fun retireImage() {
-        image?.let { backend.releaseNativeImage(it); retired++ }
+        image?.let {
+            backend.releaseNativeImage(it)
+            retired++
+        }
         image = null
         layout = null
     }

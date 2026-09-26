@@ -6,11 +6,13 @@ plugins {
     id("org.jetbrains.compose")
     application
 }
+
 dependencies {
     implementation(project(":demo"))
     implementation(project(":testing"))
     implementation(compose.desktop.currentOs)
 }
+
 application { mainClass.set("dev.composemc.desktop.MainKt") }
 
 // JetBrains relay artifacts and AndroidX implementations may have identical filenames.
@@ -20,11 +22,13 @@ val distributionLibraryNames = providers.provider {
         it.file to "${it.moduleVersion.id.group}.${it.file.name}"
     }
 }
-val distributionLibraries = tasks.register<Sync>("prepareDistributionLibraries") {
-    from(configurations.runtimeClasspath)
-    into(layout.buildDirectory.dir("distribution-libraries"))
-    eachFile { distributionLibraryNames.get()[file]?.let { name = it } }
-}
+val distributionLibraries =
+    tasks.register<Sync>("prepareDistributionLibraries") {
+        from(configurations.runtimeClasspath)
+        into(layout.buildDirectory.dir("distribution-libraries"))
+        eachFile { distributionLibraryNames.get()[file]?.let { name = it } }
+    }
+
 distributions.main {
     contents {
         eachFile {
@@ -32,12 +36,18 @@ distributions.main {
         }
     }
 }
+
 tasks.named<CreateStartScripts>("startScripts") {
     dependsOn(distributionLibraries)
-    classpath = files(tasks.jar, distributionLibraryNames.map { names ->
-        names.values.map { layout.buildDirectory.file("distribution-libraries/$it").get().asFile }
-    })
+    classpath =
+        files(
+            tasks.jar,
+            distributionLibraryNames.map { names ->
+                names.values.map { layout.buildDirectory.file("distribution-libraries/$it").get().asFile }
+            },
+        )
 }
+
 tasks.register<JavaExec>("smoke") {
     group = "verification"
     description = "Render real Compose fixtures offscreen and verify pixels."

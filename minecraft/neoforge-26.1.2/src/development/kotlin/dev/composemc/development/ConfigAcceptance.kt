@@ -23,12 +23,18 @@ internal object ConfigAcceptance {
         check(file.access() == ConfigEditor.Access.EDITABLE) { "Acceptance config is not editable: ${file.access()}" }
         val oldCount = count.get()
         val oldNames = names.get().toList()
-        check(editor.stage(FILE, "count", Input.scalar("101")) == Result.INVALID) { "An out-of-range value was accepted" }
+        check(editor.stage(FILE, "count", Input.scalar("101")) == Result.INVALID) {
+            "An out-of-range value was accepted"
+        }
         check(editor.stage(FILE, "count", Input.scalar("42")) == Result.OK) { "A valid value was rejected" }
         check(count.get() == oldCount) { "Staging changed the live config" }
-        check(editor.stage(FILE, "names", Input.list(listOf("alpha", "中文"))) == Result.OK) { "A valid list was rejected" }
+        check(editor.stage(FILE, "names", Input.list(listOf("alpha", "中文"))) == Result.OK) {
+            "A valid list was rejected"
+        }
         check(editor.save(FILE).result() == Result.OK) { "Saving the config failed" }
-        check(count.get() == 42 && names.get() == listOf("alpha", "中文")) { "Saved values did not reach the live config" }
+        check(count.get() == 42 && names.get() == listOf("alpha", "中文")) {
+            "Saved values did not reach the live config"
+        }
         check(editor.stage(FILE, "count", Input.scalar(oldCount.toString())) == Result.OK)
         check(editor.stage(FILE, "names", Input.list(oldNames)) == Result.OK)
         check(editor.save(FILE).result() == Result.OK) { "Restoring the config failed" }

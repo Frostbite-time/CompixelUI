@@ -25,12 +25,20 @@ import dev.composemc.ui.ore.theme.LocalOreContentColor
 import dev.composemc.ui.ore.theme.LocalOreFeedback
 import dev.composemc.ui.ore.theme.OreTheme
 
-enum class OreButtonStyle { Primary, Secondary, Destructive, Quiet }
+enum class OreButtonStyle {
+    Primary,
+    Secondary,
+    Destructive,
+    Quiet,
+}
 
 @Composable
 fun OreButton(
-    text: String, onClick: () -> Unit, modifier: Modifier = Modifier,
-    enabled: Boolean = true, style: OreButtonStyle = OreButtonStyle.Primary,
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    style: OreButtonStyle = OreButtonStyle.Primary,
 ) = OreButton(onClick, modifier, enabled, style) { OreText(text) }
 
 @Composable
@@ -48,17 +56,26 @@ fun OreButton(
     val pressed by interactions.collectIsPressedAsState()
     val colors = OreTheme.colors
     val feedback = LocalOreFeedback.current
-    val ink = when {
-        !enabled -> colors.disabledText
-        style == OreButtonStyle.Secondary -> colors.ink
-        else -> colors.text
-    }
+    val ink =
+        when {
+            !enabled -> colors.disabledText
+            style == OreButtonStyle.Secondary -> colors.ink
+            else -> colors.text
+        }
     CompositionLocalProvider(LocalOreContentColor provides ink) {
-        Row(modifier.defaultMinSize(minWidth = 20.dp, minHeight = 20.dp).oreButtonFrame(colors, style, enabled, hovered, pressed && enabled)
-        .clickable(interactionSource = interactions, indication = null, enabled = enabled, role = role) {
-            onClick()
-            feedback.activate()
-        }.padding(contentPadding).oreButtonContentOffset(pressed && enabled),
-            horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically, content = content)
+        Row(
+            modifier
+                .defaultMinSize(minWidth = 20.dp, minHeight = 20.dp)
+                .oreButtonFrame(colors, style, enabled, hovered, pressed && enabled)
+                .clickable(interactionSource = interactions, indication = null, enabled = enabled, role = role) {
+                    onClick()
+                    feedback.activate()
+                }
+                .padding(contentPadding)
+                .oreButtonContentOffset(pressed && enabled),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+            content = content,
+        )
     }
 }

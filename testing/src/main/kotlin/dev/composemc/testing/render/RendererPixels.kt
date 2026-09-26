@@ -1,14 +1,14 @@
 package dev.composemc.testing.render
 
 import dev.composemc.render.RecordedFrame
+import java.io.File
+import kotlin.math.abs
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.ColorAlphaType
 import org.jetbrains.skia.ColorType
 import org.jetbrains.skia.Image
 import org.jetbrains.skia.ImageInfo
 import org.jetbrains.skia.Surface
-import java.io.File
-import kotlin.math.abs
 
 data class PixelDifference(val differentPixels: Int, val meanChannelError: Double)
 

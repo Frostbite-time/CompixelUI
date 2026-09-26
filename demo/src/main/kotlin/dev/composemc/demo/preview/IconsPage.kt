@@ -17,42 +17,74 @@ import dev.composemc.ui.ore.layout.OreSurfaceStyle
 import dev.composemc.ui.ore.theme.OreTheme
 
 /** A domain icon kept by its consumer rather than the library, in Ore's pixel style. */
-internal val DemoNetworkArt = OrePixelArt(
-    "................",
-    "......####......",
-    "......####......",
-    "......####......",
-    "......####......",
-    ".......##.......",
-    ".......##.......",
-    ".......##.......",
-    "..############..",
-    "..############..",
-    "..##........##..",
-    ".####......####.",
-    ".####......####.",
-    ".####......####.",
-    ".####......####.",
-    "................",
-)
+internal val DemoNetworkArt =
+    OrePixelArt(
+        "................",
+        "......####......",
+        "......####......",
+        "......####......",
+        "......####......",
+        ".......##.......",
+        ".......##.......",
+        ".......##.......",
+        "..############..",
+        "..############..",
+        "..##........##..",
+        ".####......####.",
+        ".####......####.",
+        ".####......####.",
+        ".####......####.",
+        "................",
+    )
 
 private class GlyphFamily(val english: String, val chinese: String, val glyphs: List<OreGlyph>)
 
-private val glyphFamilies = listOf(
-    GlyphFamily("Arrows", "箭头", listOf(OreGlyph.ArrowUp, OreGlyph.ArrowRight, OreGlyph.ArrowDown, OreGlyph.ArrowLeft)),
-    GlyphFamily("Chevrons", "折角", listOf(OreGlyph.ChevronUp, OreGlyph.ChevronRight, OreGlyph.ChevronDown, OreGlyph.ChevronLeft)),
-    GlyphFamily("Marks", "符号", listOf(OreGlyph.Plus, OreGlyph.Minus, OreGlyph.Cross, OreGlyph.Checkmark)),
-    GlyphFamily("Menus", "菜单", listOf(OreGlyph.Bars, OreGlyph.EllipsisHorizontal, OreGlyph.EllipsisVertical)),
-    GlyphFamily("Status", "状态", listOf(OreGlyph.CheckmarkCircle, OreGlyph.InformationCircle,
-        OreGlyph.ExclamationCircle, OreGlyph.ExclamationTriangle)),
-    GlyphFamily("Tools", "工具", listOf(OreGlyph.MagnifyingGlass, OreGlyph.Pencil, OreGlyph.Trash, OreGlyph.Gear,
-        OreGlyph.Sliders, OreGlyph.Funnel, OreGlyph.CycleArrows)),
-)
+private val glyphFamilies =
+    listOf(
+        GlyphFamily(
+            "Arrows",
+            "箭头",
+            listOf(OreGlyph.ArrowUp, OreGlyph.ArrowRight, OreGlyph.ArrowDown, OreGlyph.ArrowLeft),
+        ),
+        GlyphFamily(
+            "Chevrons",
+            "折角",
+            listOf(OreGlyph.ChevronUp, OreGlyph.ChevronRight, OreGlyph.ChevronDown, OreGlyph.ChevronLeft),
+        ),
+        GlyphFamily("Marks", "符号", listOf(OreGlyph.Plus, OreGlyph.Minus, OreGlyph.Cross, OreGlyph.Checkmark)),
+        GlyphFamily("Menus", "菜单", listOf(OreGlyph.Bars, OreGlyph.EllipsisHorizontal, OreGlyph.EllipsisVertical)),
+        GlyphFamily(
+            "Status",
+            "状态",
+            listOf(
+                OreGlyph.CheckmarkCircle,
+                OreGlyph.InformationCircle,
+                OreGlyph.ExclamationCircle,
+                OreGlyph.ExclamationTriangle,
+            ),
+        ),
+        GlyphFamily(
+            "Tools",
+            "工具",
+            listOf(
+                OreGlyph.MagnifyingGlass,
+                OreGlyph.Pencil,
+                OreGlyph.Trash,
+                OreGlyph.Gear,
+                OreGlyph.Sliders,
+                OreGlyph.Funnel,
+                OreGlyph.CycleArrows,
+            ),
+        ),
+    )
 
 /** Every built-in glyph by family, at two sizes, plus colors, scaling and a consumer-defined icon. */
 @Composable
 internal fun IconsPage(label: (String, String) -> String) {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
         OreText(label("Icons", "图标"), style = OreTheme.typography.title)
         for (family in glyphFamilies) {
             OreText(label(family.english, family.chinese), color = OreTheme.colors.mutedText)
@@ -76,7 +108,11 @@ private fun IconSamples(samples: List<Pair<OrePixelArt, String>>) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             for ((art, name) in row) {
                 OreSurface(Modifier.weight(1f), style = OreSurfaceStyle.Inset) {
-                    Row(Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        Modifier.padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         OreIcon(art, Modifier.size(16.dp))
                         OreIcon(art)
                         OreText(name, maxLines = 1, overflow = TextOverflow.Ellipsis)

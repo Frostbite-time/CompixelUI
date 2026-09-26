@@ -14,8 +14,14 @@ import dev.composemc.ui.ore.theme.OreTheme
 @Composable
 fun OreDivider(modifier: Modifier = Modifier) {
     val colors = OreTheme.colors
-    Box(modifier.fillMaxWidth().height(1.dp).drawBehind {
-        drawRect(colors.edge)
-        drawRect(colors.highlight.copy(alpha = 0.4f), Offset(0f, size.height / 2), Size(size.width, size.height / 2))
-    })
+    Box(
+        modifier.fillMaxWidth().height(1.dp).drawBehind {
+            drawRect(colors.edge)
+            drawRect(
+                colors.highlight.copy(alpha = 0.4f),
+                Offset(0f, size.height / 2),
+                Size(size.width, size.height / 2),
+            )
+        }
+    )
 }

@@ -2,7 +2,9 @@ plugins {
     kotlin("jvm")
     `java-test-fixtures`
 }
+
 val lwjglVersion = libs.versions.lwjgl.vulkan.get()
+
 dependencies {
     api(project(":render"))
     compileOnly(libs.skiko.vulkan)

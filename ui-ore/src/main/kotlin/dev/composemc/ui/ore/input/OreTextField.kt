@@ -49,24 +49,39 @@ fun OreTextField(
     val outline = if (isError) colors.danger else if (focused && enabled) colors.focus else null
     Column(modifier, verticalArrangement = Arrangement.spacedBy(3.dp)) {
         if (label != null) OreText(label)
-        BasicTextField(value, onValueChange,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 21.dp)
-                .oreFrame(if (enabled) colors.panel else colors.raised, colors.edge, colors.highlight)
-                .oreOutline(outline),
-            enabled = enabled, readOnly = readOnly, singleLine = singleLine,
+        BasicTextField(
+            value,
+            onValueChange,
+            modifier =
+                Modifier.fillMaxWidth()
+                    .heightIn(min = 21.dp)
+                    .oreFrame(if (enabled) colors.panel else colors.raised, colors.edge, colors.highlight)
+                    .oreOutline(outline),
+            enabled = enabled,
+            readOnly = readOnly,
+            singleLine = singleLine,
             textStyle = textStyle.copy(color = if (enabled) colors.text else colors.mutedText),
-            keyboardOptions = keyboardOptions, keyboardActions = keyboardActions,
-            interactionSource = interactions, cursorBrush = SolidColor(colors.text),
+            keyboardOptions = keyboardOptions,
+            keyboardActions = keyboardActions,
+            interactionSource = interactions,
+            cursorBrush = SolidColor(colors.text),
             decorationBox = { inner ->
-                Row(Modifier.padding(horizontal = 6.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                Row(
+                    Modifier.padding(horizontal = 6.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
                     if (leadingIcon != null) OreIcon(leadingIcon, color = colors.mutedText)
                     // The empty editor and fallback-font placeholder can have different heights.
-                    Box(Modifier.weight(1f), contentAlignment = if (singleLine) Alignment.CenterStart else Alignment.TopStart) {
+                    Box(
+                        Modifier.weight(1f),
+                        contentAlignment = if (singleLine) Alignment.CenterStart else Alignment.TopStart,
+                    ) {
                         if (value.isEmpty()) OreText(placeholder, color = colors.mutedText, style = textStyle)
                         inner()
                     }
                 }
-            })
+            },
+        )
     }
 }
