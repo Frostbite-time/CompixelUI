@@ -1,7 +1,7 @@
 package dev.composemc.forge.sync;
 
-import dev.composemc.sync.SyncBatch;
-import dev.composemc.sync.SyncLimits;
+import dev.composemc.sync.state.SyncBatch;
+import dev.composemc.sync.state.SyncLimits;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.ByteBufOutputStream;
 import net.minecraft.network.FriendlyByteBuf;

@@ -1,8 +1,10 @@
-package dev.composemc.sync;
+package dev.composemc.sync.state;
 
 import org.junit.jupiter.api.Test;
 import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
+import dev.composemc.sync.SyncException;
+import dev.composemc.sync.transport.TransferBudget;
 
 class SyncMapTest {
     record Key(int id) { @Override public int hashCode() { return id % 7 == 0 ? Integer.MIN_VALUE : id % 11; } }
@@ -54,7 +56,7 @@ class SyncMapTest {
             .keyedMap("rows", SyncCodecs.INT, CODEC, Row::id, model -> model.rows, (model, values) -> model.rows = values).build();
 
     @Test void mapUpdatesStayAtomicAndReplaceAtCapacityWithoutResendingUnchangedValues() {
-        var limits = new SyncLimits(96, dev.composemc.sync.TransferBudget.steady(96), 2, 2048, 1024 * 1024, 1000, 100);
+        var limits = new SyncLimits(96, dev.composemc.sync.transport.TransferBudget.steady(96), 2, 2048, 1024 * 1024, 1000, 100);
         var server = new Model(); var client = new Model();
         for (int i = 0; i < 1000; i++) server.rows = server.rows.with(i, new Row(i, "initial"));
         try (var sender = new SyncPublisher<>(SCHEMA, limits); var receiver = new SyncReceiver<>(SCHEMA, limits)) {

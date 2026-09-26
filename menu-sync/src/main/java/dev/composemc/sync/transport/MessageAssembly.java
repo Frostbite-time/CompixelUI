@@ -1,6 +1,7 @@
-package dev.composemc.sync;
+package dev.composemc.sync.transport;
 
 import java.io.ByteArrayOutputStream;
+import dev.composemc.sync.SyncException;
 
 /** One bounded message over a reliable, ordered transport. Allocation grows with received data. */
 public final class MessageAssembly implements AutoCloseable {

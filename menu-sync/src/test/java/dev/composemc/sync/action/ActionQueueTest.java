@@ -1,8 +1,10 @@
-package dev.composemc.sync;
+package dev.composemc.sync.action;
 
 import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import static org.junit.jupiter.api.Assertions.*;
+import dev.composemc.sync.transport.TokenBucket;
+import dev.composemc.sync.transport.TransferBudget;
 
 class ActionQueueTest {
     private static ActionLimits limits(long bytes, int pending, int admissions) {

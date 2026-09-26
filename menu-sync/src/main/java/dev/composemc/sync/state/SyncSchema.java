@@ -1,9 +1,11 @@
-package dev.composemc.sync;
+package dev.composemc.sync.state;
 
 import java.io.*;
 import java.security.MessageDigest;
 import java.util.*;
 import java.util.function.*;
+import dev.composemc.sync.SizeLimitException;
+import dev.composemc.sync.SyncException;
 
 /**
  * Declarative server-to-client state. Getters return immutable values/collections. Setters perform

@@ -1,4 +1,4 @@
-package dev.composemc.sync;
+package dev.composemc.sync.state;
 
 import java.io.*;
 import java.nio.ByteBuffer;

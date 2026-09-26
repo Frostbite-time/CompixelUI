@@ -1,4 +1,4 @@
-package dev.composemc.sync;
+package dev.composemc.sync.action;
 
 /** Immediate request outcome. A queued submission is not yet a successful server operation. */
 public record ActionSubmission(long sequence, ActionFailure failure, long actual, long limit) {

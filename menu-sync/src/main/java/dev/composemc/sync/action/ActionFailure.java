@@ -1,4 +1,4 @@
-package dev.composemc.sync;
+package dev.composemc.sync.action;
 
 /** Stable diagnostics for local submissions and remote action results. */
 public enum ActionFailure {

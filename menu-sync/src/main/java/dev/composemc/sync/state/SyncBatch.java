@@ -1,8 +1,9 @@
-package dev.composemc.sync;
+package dev.composemc.sync.state;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import dev.composemc.sync.SyncException;
 
 /** Framing over a reliable, ordered transport. Adapters additionally bind this to a menu and request nonce. */
 public record SyncBatch(long revision, boolean snapshot, int index, int operations, boolean last, byte[] data) {

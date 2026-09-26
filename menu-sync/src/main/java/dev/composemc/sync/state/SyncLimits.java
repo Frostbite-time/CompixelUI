@@ -1,9 +1,10 @@
-package dev.composemc.sync;
+package dev.composemc.sync.state;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Objects;
+import dev.composemc.sync.transport.TransferBudget;
 
 /** Consumer-owned S2C limits. A transport separately validates its physical packet envelope. */
 public record SyncLimits(int batchBytes, TransferBudget bandwidth, int inFlightBatches,

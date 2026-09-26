@@ -1,4 +1,4 @@
-package dev.composemc.sync;
+package dev.composemc.sync.action;
 
 import java.util.ArrayDeque;
 import java.util.Arrays;
@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import dev.composemc.sync.transport.TokenBucket;
 
 /** Owner-thread FIFO with connection-scoped credit and distinct queue/send/reply deadlines. */
 public final class ActionQueue {

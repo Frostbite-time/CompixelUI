@@ -17,6 +17,10 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.network.Connection;
 import java.util.function.BiConsumer;
 import java.util.*;
+import dev.composemc.sync.action.ActionFailure;
+import dev.composemc.sync.action.RequestWindow;
+import dev.composemc.sync.transport.MessageAssembly;
+import dev.composemc.sync.transport.TokenBucket;
 
 /** Loader-facing implementation. All session/model work belongs to the server thread. */
 public final class MenuSyncNetworking {

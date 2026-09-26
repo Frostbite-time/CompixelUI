@@ -3,6 +3,8 @@ package dev.composemc.sync;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Objects;
+import dev.composemc.sync.action.ActionLimits;
+import dev.composemc.sync.state.SyncLimits;
 
 /** Immutable consumer configuration. Wire policy must match; logging policy is local. */
 public record MenuSyncOptions(SyncLimits state, ActionLimits actions, long rejectionLogIntervalTicks) {

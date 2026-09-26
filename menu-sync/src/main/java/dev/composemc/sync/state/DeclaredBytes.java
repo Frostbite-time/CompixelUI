@@ -1,4 +1,4 @@
-package dev.composemc.sync;
+package dev.composemc.sync.state;
 
 import java.io.DataInput;
 import java.io.EOFException;

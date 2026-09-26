@@ -109,7 +109,7 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
             def api = artifacts.apiDocs
             new java.util.zip.ZipFile(api.sources.get().archiveFile.get().asFile).withCloseable { zip ->
                 ['dev/composemc/host/UiBinding.kt', 'dev/composemc/ui/ore/button/OreButton.kt',
-                 'dev/composemc/sync/SyncSchema.java', 'dev/composemc/slots/SlotBehavior.java',
+                 'dev/composemc/sync/state/SyncSchema.java', 'dev/composemc/slots/SlotBehavior.java',
                  'dev/composemc/forge/ComposeScreen.kt', 'META-INF/composemc/LICENSE'].each {
                     if (zip.getEntry(it) == null) throw new GradleException("Missing library source: $it")
                 }
@@ -139,7 +139,7 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
                 verifyLicenseGroups(zip, 'third-party', ['common', 'javadoc'])
                 ['index.html', 'scripts/pages.json', 'META-INF/composemc/LICENSE',
                  "${api.moduleName}/dev.composemc.host/-ui-binding/index.html",
-                 "${api.moduleName}/dev.composemc.sync/-sync-schema/index.html",
+                 "${api.moduleName}/dev.composemc.sync.state/-sync-schema/index.html",
                  "${api.moduleName}/dev.composemc.forge/-compose-screen/index.html",
                  "${api.moduleName}/dev.composemc.ui.ore.button/-ore-button.html"].each {
                     if (zip.getEntry(it.toString()) == null) throw new GradleException("Missing generated API page: $it")

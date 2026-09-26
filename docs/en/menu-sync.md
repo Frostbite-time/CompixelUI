@@ -11,8 +11,8 @@ Install matching Compose MC versions on **both client and server**, and declare 
 Implement `SyncedMenu` on your existing `AbstractContainerMenu` and keep one binding. This abstract example leaves native slot behavior and business operations to the concrete menu:
 
 ```java
-import dev.composemc.sync.SyncCodecs;
-import dev.composemc.sync.SyncSchema;
+import dev.composemc.sync.state.SyncCodecs;
+import dev.composemc.sync.state.SyncSchema;
 import dev.composemc.forge.sync.MenuAction;
 import dev.composemc.forge.sync.MenuSync;
 import dev.composemc.forge.sync.SyncedMenu;
@@ -61,7 +61,7 @@ Getters must return non-null immutable values, including valid client defaults. 
 For large collections with frequent small changes, use `SyncMap` and `keyedMap`:
 
 ```java
-import dev.composemc.sync.*;
+import dev.composemc.sync.state.*;
 
 final class CatalogState {
     record Entry(int id, String name) {}
@@ -112,7 +112,7 @@ Handle refusal at the call site instead of assuming a click succeeded. This help
 ```java
 import dev.composemc.forge.sync.MenuAction;
 import dev.composemc.forge.sync.MenuSync;
-import dev.composemc.sync.ActionSubmission;
+import dev.composemc.sync.action.ActionSubmission;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import java.util.function.Consumer;
 
@@ -144,7 +144,10 @@ Native inventory executors must honor `isSendingAction()` while outbound fragmen
 Pass `MenuSyncOptions` as the third argument of `MenuSync.bind`. All application budgets below are consumer-configurable. `SyncLimits` controls S2C state; `ActionLimits` controls C2S actions; `TransferBudget` controls sustained and burst transmission in either direction.
 
 ```java
-import dev.composemc.sync.*;
+import dev.composemc.sync.MenuSyncOptions;
+import dev.composemc.sync.action.ActionLimits;
+import dev.composemc.sync.state.SyncLimits;
+import dev.composemc.sync.transport.TransferBudget;
 
 final class MenuBudgets {
     static final SyncLimits STATE = new SyncLimits(

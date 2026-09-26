@@ -1,4 +1,4 @@
-package dev.composemc.sync;
+package dev.composemc.sync.action;
 
 import java.util.UUID;
 import org.junit.jupiter.api.Test;

@@ -1,4 +1,4 @@
-package dev.composemc.sync;
+package dev.composemc.sync.state;
 
 import java.lang.management.ManagementFactory;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;

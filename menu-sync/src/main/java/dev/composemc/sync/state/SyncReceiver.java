@@ -1,6 +1,7 @@
-package dev.composemc.sync;
+package dev.composemc.sync.state;
 
 import java.util.*;
+import dev.composemc.sync.SyncException;
 
 /** Incremental bounded decoding with atomic publication at the last validated batch. */
 public final class SyncReceiver<M> implements AutoCloseable {

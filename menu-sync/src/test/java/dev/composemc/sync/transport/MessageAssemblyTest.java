@@ -1,8 +1,9 @@
-package dev.composemc.sync;
+package dev.composemc.sync.transport;
 
 import org.junit.jupiter.api.Test;
 import java.util.Arrays;
 import static org.junit.jupiter.api.Assertions.*;
+import dev.composemc.sync.SyncException;
 
 class MessageAssemblyTest {
     @Test void fragmentsDoNotExposePartialMessagesAndTimeoutReleasesState(){

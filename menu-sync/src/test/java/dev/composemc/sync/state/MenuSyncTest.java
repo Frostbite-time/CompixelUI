@@ -1,4 +1,4 @@
-package dev.composemc.sync;
+package dev.composemc.sync.state;
 
 import org.junit.jupiter.api.Test;
 import java.io.*;
@@ -9,6 +9,8 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import static org.junit.jupiter.api.Assertions.*;
+import dev.composemc.sync.SyncException;
+import dev.composemc.sync.transport.TransferBudget;
 
 class MenuSyncTest {
     record Row(int id, String name) {}
@@ -64,7 +66,7 @@ class MenuSyncTest {
 
     @Test void flowControlCapsInFlightAndTickBudgetAndCoalescesChanges() {
         Model server = new Model(), client = new Model(); server.rows = rows(2000);
-        SyncLimits limits = new SyncLimits(256, dev.composemc.sync.TransferBudget.steady(512), 3, 1024, 1_000_000, 3000, 20);
+        SyncLimits limits = new SyncLimits(256, dev.composemc.sync.transport.TransferBudget.steady(512), 3, 1024, 1_000_000, 3000, 20);
         List<SyncBatch> pending = new ArrayList<>();
         try (var tx = new SyncPublisher<>(SCHEMA, limits); var rx = new SyncReceiver<>(SCHEMA, limits)) {
             tx.pump(server, 0, pending::add); assertEquals(2, pending.size());
@@ -85,7 +87,7 @@ class MenuSyncTest {
 
     @Test void duplicateTruncatedAndReorderedBatchesNeverPublishPartialData() {
         Model server = new Model(), client = new Model(); server.rows = rows(100);
-        SyncLimits limits = new SyncLimits(128, dev.composemc.sync.TransferBudget.steady(512), 4, 1024, 100_000, 1000, 20);
+        SyncLimits limits = new SyncLimits(128, dev.composemc.sync.transport.TransferBudget.steady(512), 4, 1024, 100_000, 1000, 20);
         List<SyncBatch> packets = new ArrayList<>();
         try (var tx = new SyncPublisher<>(SCHEMA, limits); var rx = new SyncReceiver<>(SCHEMA, limits)) {
             tx.pump(server, 0, packets::add);
@@ -144,7 +146,7 @@ class MenuSyncTest {
 
     @Test void limitsAndTimeoutFailBoundedly() {
         Model model = new Model(); model.rows = rows(10);
-        var small = new SyncLimits(64, dev.composemc.sync.TransferBudget.steady(64), 1, 64, 100, 20, 2);
+        var small = new SyncLimits(64, dev.composemc.sync.transport.TransferBudget.steady(64), 1, 64, 100, 20, 2);
         try (var tx = new SyncPublisher<>(SCHEMA, small)) {
             tx.pump(model, 0, b -> {});
             assertThrows(SyncException.class, () -> tx.pump(model, 3, b -> {}));

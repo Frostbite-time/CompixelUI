@@ -1,4 +1,4 @@
-package dev.composemc.sync;
+package dev.composemc.sync.action;
 
 import java.util.Objects;
 import java.util.UUID;

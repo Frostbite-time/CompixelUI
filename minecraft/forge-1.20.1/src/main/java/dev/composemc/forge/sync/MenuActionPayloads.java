@@ -3,7 +3,7 @@ package dev.composemc.forge.sync;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import java.util.UUID;
-import dev.composemc.sync.ActionFailure;
+import dev.composemc.sync.action.ActionFailure;
 
 final class MenuActionPayloads {
     record Fragment(int menu,UUID nonce,long request,UUID session,long sequence,String action,int total,int offset,byte[] data) {

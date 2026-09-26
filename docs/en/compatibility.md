@@ -48,6 +48,7 @@ This release uses menu protocol **5**. Rebuild the consumer against the matching
 | Custom hosts | `UiKey` covers the standard keyboard. A host that maps its own native keys translates every entry and resolves letters and punctuation through the active layout. A host that shares its window with native widgets can drive its text input and input method with `HostTextInput`. |
 | Config screen | Construct it with the mod container and parent screen only; `ConfigScreenInspection` and the `inspection` parameter were removed. Drive automated checks through the screen's `editor`. |
 | Adapter package | Every target uses `dev.composemc.forge`. Replace `dev.composemc.neoforge` imports and drop the `Forge`/`NeoForge` prefix: `ComposeScreen`, `ComposeInventoryScreen`, `ComposeMenuScreen`, `ComposeConfigScreen`, `config.ConfigEditor`, `slots.SlotBehaviorScreen`. |
+| Menu sync packages | `dev.composemc.sync` keeps `MenuSyncOptions` and its exceptions; schemas, snapshots and codecs moved to `.state`, actions to `.action`, fragments and transfer budgets to `.transport`. |
 
 State/action policies and action declarations must match on both sides. The client confirms its menu attachment and policy before state bodies are sent, adding one opening confirmation round trip. See [menu synchronization](menu-sync.md) for all defaults, refusal handling and burst behavior.
 

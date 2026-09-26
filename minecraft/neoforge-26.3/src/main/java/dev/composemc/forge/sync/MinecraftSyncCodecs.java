@@ -1,6 +1,6 @@
 package dev.composemc.forge.sync;
 
-import dev.composemc.sync.SyncCodec;
+import dev.composemc.sync.state.SyncCodec;
 import io.netty.buffer.Unpooled;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.RegistryFriendlyByteBuf;

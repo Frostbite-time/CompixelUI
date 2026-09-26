@@ -1,8 +1,13 @@
-package dev.composemc.sync;
+package dev.composemc.sync.transport;
 
 import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import static org.junit.jupiter.api.Assertions.*;
+import dev.composemc.sync.state.SyncBatch;
+import dev.composemc.sync.state.SyncCodecs;
+import dev.composemc.sync.state.SyncLimits;
+import dev.composemc.sync.state.SyncPublisher;
+import dev.composemc.sync.state.SyncSchema;
 
 class TransferBudgetTest {
     @Test void burstDrainsToSustainedRateAndIdleCreditCapsWithoutOverflow() {

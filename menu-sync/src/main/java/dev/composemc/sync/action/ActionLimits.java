@@ -1,8 +1,9 @@
-package dev.composemc.sync;
+package dev.composemc.sync.action;
 
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Objects;
+import dev.composemc.sync.transport.TransferBudget;
 
 /** C2S queue, bandwidth, admission and separate waiting/progress/reply deadlines. */
 public record ActionLimits(int fragmentBytes, TransferBudget bandwidth, long maxQueuedBytes,

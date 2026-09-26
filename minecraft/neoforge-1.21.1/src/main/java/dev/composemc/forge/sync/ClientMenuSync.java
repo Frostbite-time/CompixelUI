@@ -5,6 +5,10 @@ import net.minecraft.client.Minecraft;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import java.util.UUID;
+import dev.composemc.sync.action.ActionFailure;
+import dev.composemc.sync.action.ActionQueue;
+import dev.composemc.sync.action.ActionSubmission;
+import dev.composemc.sync.transport.TokenBucket;
 
 /** Client adapter only. Common registration does not initialize this class on a server. */
 public final class ClientMenuSync {

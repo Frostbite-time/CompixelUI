@@ -10,7 +10,7 @@ This reference contains the public Kotlin and Java declarations for the Minecraf
 
 - `dev.composemc.ui.ore`: Ore controls, theme and interaction state / Ore 控件、主题与交互状态。
 - `dev.composemc.host`: screen sessions and immutable state/action bindings / 屏幕会话及不可变状态与动作绑定。
-- `dev.composemc.sync`: server-safe menu synchronization / 可在服务端使用的菜单同步。
+- `dev.composemc.sync`: server-safe menu synchronization, with schemas, snapshots and codecs in `state`, client actions in `action` and fragments and transfer budgets in `transport` / 可在服务端使用的菜单同步：`state` 为状态结构、快照与编解码，`action` 为客户端动作，`transport` 为分片与传输预算。
 - `dev.composemc.slots`: loader-independent slot policies and transfer routes / 与加载器无关的槽位策略与转移路径。
 - `dev.composemc.forge`: the selected target's adapter, with the same names on Forge and NeoForge / 当前版本的适配器，Forge 与 NeoForge 使用相同名称。
 

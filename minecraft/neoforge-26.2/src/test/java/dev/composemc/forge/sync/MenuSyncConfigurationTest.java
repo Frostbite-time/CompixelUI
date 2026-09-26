@@ -4,6 +4,11 @@ import dev.composemc.sync.*;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
+import dev.composemc.sync.action.ActionLimits;
+import dev.composemc.sync.state.SyncCodecs;
+import dev.composemc.sync.state.SyncLimits;
+import dev.composemc.sync.state.SyncSchema;
+import dev.composemc.sync.transport.TransferBudget;
 
 class MenuSyncConfigurationTest {
     private static final SyncSchema<AbstractContainerMenu> SCHEMA = SyncSchema.<AbstractContainerMenu>builder("test:options", 1)

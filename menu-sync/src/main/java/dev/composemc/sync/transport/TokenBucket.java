@@ -1,4 +1,4 @@
-package dev.composemc.sync;
+package dev.composemc.sync.transport;
 
 import java.util.Objects;
 

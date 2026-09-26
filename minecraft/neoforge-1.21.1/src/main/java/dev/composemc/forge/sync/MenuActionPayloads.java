@@ -5,7 +5,7 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import java.util.UUID;
-import dev.composemc.sync.ActionFailure;
+import dev.composemc.sync.action.ActionFailure;
 
 final class MenuActionPayloads {
     record Fragment(int menu,UUID nonce,long request,UUID session,long sequence,String action,int total,int offset,byte[] data) implements CustomPacketPayload {

@@ -1,11 +1,12 @@
 package dev.composemc.forge.sync;
 
-import dev.composemc.sync.SyncCodecs;
+import dev.composemc.sync.state.SyncCodecs;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
+import dev.composemc.sync.SizeLimitException;
 
 class MenuActionTest {
     @Test void invalidOrTrailingWireDataNeverInvokesTheHandler() throws Exception {

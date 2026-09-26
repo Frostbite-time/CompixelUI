@@ -1,6 +1,6 @@
 package dev.composemc.forge.sync;
 
-import dev.composemc.sync.SyncCodec;
+import dev.composemc.sync.state.SyncCodec;
 import dev.composemc.sync.SizeLimitException;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.AbstractContainerMenu;

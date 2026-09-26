@@ -11,8 +11,8 @@
 在现有 `AbstractContainerMenu` 上实现 `SyncedMenu` 并持有一个绑定。下面的抽象示例将原生槽位行为与业务操作留给具体菜单：
 
 ```java
-import dev.composemc.sync.SyncCodecs;
-import dev.composemc.sync.SyncSchema;
+import dev.composemc.sync.state.SyncCodecs;
+import dev.composemc.sync.state.SyncSchema;
 import dev.composemc.forge.sync.MenuAction;
 import dev.composemc.forge.sync.MenuSync;
 import dev.composemc.forge.sync.SyncedMenu;
@@ -61,7 +61,7 @@ Getter 必须返回非空不可变值，客户端初始值也必须有效。替�
 对于频繁发生小变化的大集合，使用 `SyncMap` 和 `keyedMap`：
 
 ```java
-import dev.composemc.sync.*;
+import dev.composemc.sync.state.*;
 
 final class CatalogState {
     record Entry(int id, String name) {}
@@ -112,7 +112,7 @@ final class CatalogState {
 ```java
 import dev.composemc.forge.sync.MenuAction;
 import dev.composemc.forge.sync.MenuSync;
-import dev.composemc.sync.ActionSubmission;
+import dev.composemc.sync.action.ActionSubmission;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import java.util.function.Consumer;
 
@@ -144,7 +144,10 @@ final class ActionRequests {
 将 `MenuSyncOptions` 作为第三个参数传入 `MenuSync.bind`。下列应用层预算均可由消费者调整：`SyncLimits` 管理 S2C 状态，`ActionLimits` 管理 C2S 动作，两个方向均通过 `TransferBudget` 设置持续与突发传输。
 
 ```java
-import dev.composemc.sync.*;
+import dev.composemc.sync.MenuSyncOptions;
+import dev.composemc.sync.action.ActionLimits;
+import dev.composemc.sync.state.SyncLimits;
+import dev.composemc.sync.transport.TransferBudget;
 
 final class MenuBudgets {
     static final SyncLimits STATE = new SyncLimits(
