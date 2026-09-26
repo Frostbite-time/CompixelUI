@@ -1,0 +1,5 @@
+# Formatting-only commits. GitHub skips these in blame views; for local blame run
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# Apply Spotless formatting
+7ab7e4d72d349a10c17a2b3d2d8bbe7a19ead90c

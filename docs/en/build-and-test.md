@@ -181,7 +181,7 @@ Profile outputs are in `menu-sync/build/profiles`. They measure JVM snapshot/pro
 
 [CI](../../.github/workflows/verify.yml) checks the shared core on Windows/Linux and builds all five adapters on Linux. Real GPU validation runs separately on a suitable host.
 
-Spotless enforces formatting: ktfmt in the Kotlin coding-conventions style (120 columns) for Kotlin sources and Kotlin build scripts, palantir-java-format for Java, and whitespace rules for Groovy build scripts. Run `.\gradlew.bat spotlessApply` before committing; `check` and the CI task `checkCore` run `spotlessCheck`. `.editorconfig` gives editors the same indentation and line length, and the ktfmt and palantir-java-format IntelliJ plugins reproduce the formatter exactly.
+Spotless enforces formatting: ktfmt in the Kotlin coding-conventions style (120 columns) for Kotlin sources and Kotlin build scripts, palantir-java-format for Java, and whitespace rules for Groovy build scripts. Run `.\gradlew.bat spotlessApply` before committing; `check` and the CI task `checkCore` run `spotlessCheck`. `.editorconfig` gives editors the same indentation and line length, and the ktfmt and palantir-java-format IntelliJ plugins reproduce the formatter exactly. `.git-blame-ignore-revs` lists formatting-only commits; run `git config blame.ignoreRevsFile .git-blame-ignore-revs` so local blame skips them.
 
 For dependency/module-boundary changes, run `verifyCoreBoundary` and the affected tests/builds. For shared public API changes, compile all affected adapters and a separate consumer. Rendering or native-lifecycle changes also require both client suites for affected versions/backends. A change to a suite driver goes into all five copies at once; `verifySuiteParity` fails otherwise.
 
