@@ -7,6 +7,7 @@ import dev.composemc.sync.action.ActionSubmission;
 import dev.composemc.sync.transport.TokenBucket;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
@@ -26,6 +27,13 @@ public final class ClientMenuSync {
 
     static long clock() {
         return tick;
+    }
+
+    /** The client's registries, which native codecs use for menu values and actions. */
+    static RegistryAccess registries() {
+        var player = Minecraft.getInstance().player;
+        if (player == null) throw new IllegalStateException("Menu synchronization needs a client player");
+        return player.registryAccess();
     }
 
     private static void clearActions() {
@@ -263,7 +271,7 @@ public final class ClientMenuSync {
         }
         lastData = tick;
         try {
-            active.receive(message.batch(), tick);
+            active.receive(registries(), message.batch(), tick);
             send(new SyncPayloads.Control(
                     SyncPayloads.ACK,
                     message.menu(),

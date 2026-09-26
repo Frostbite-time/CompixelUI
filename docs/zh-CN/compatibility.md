@@ -49,6 +49,7 @@ Ore UI 现按职责划分子包。请依据[组件与包对照表](ore-ui.md#选
 | 配置屏幕 | 只用模组容器和父屏幕构造；`ConfigScreenInspection` 和 `inspection` 参数已移除。自动化检查请通过屏幕的 `editor` 进行。 |
 | 适配器包名 | 所有目标统一使用 `dev.composemc.forge`。将 `dev.composemc.neoforge` 导入改为该包，并去掉 `Forge`/`NeoForge` 前缀：`ComposeScreen`、`ComposeInventoryScreen`、`ComposeMenuScreen`、`ComposeConfigScreen`、`config.ConfigEditor`、`slots.SlotBehaviorScreen`。 |
 | 包结构 | `dev.composemc.sync` 保留 `MenuSyncOptions` 和异常类型；状态结构、快照与编解码移到 `.state`，动作移到 `.action`，分片与传输预算移到 `.transport`。适配器 API 按功能分包：`ComposeConfigScreen` 移到 `.config`，`ComposeMenuSlots` 及其槽位类型移到 `.slots`，物品图标、提示及其选项与统计移到 `.item`。 |
+| 原生同步编解码器 | `MinecraftSyncCodecs.registry(id, maxBytes, streamCodec)` 不再接收注册表供应者，也不再绑定创建线程，可以像内置编解码器一样声明为共享常量。它只能用于同步菜单的值和动作。Forge 1.20.1 的 `buffer` 同样不再绑定线程。 |
 
 两端的状态/动作策略和动作声明必须一致。客户端确认菜单挂接与策略后才开始发送状态正文，打开时增加一次确认往返。完整默认值、拒绝处理及突发行为见[菜单同步](menu-sync.md)。
 

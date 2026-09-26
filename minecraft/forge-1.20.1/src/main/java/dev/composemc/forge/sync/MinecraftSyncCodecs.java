@@ -6,17 +6,17 @@ import java.io.IOException;
 import java.util.Objects;
 import net.minecraft.network.FriendlyByteBuf;
 
-/** Bridges native FriendlyByteBuf codecs into portable schema framing. Construct/use on the owning game thread. */
+/**
+ * Bridges native FriendlyByteBuf codecs into portable schema framing. The buffers carry no registries, so a stateless
+ * codec may be a shared constant that the server and the client both use.
+ */
 public final class MinecraftSyncCodecs {
     public static <T> SyncCodec<T> buffer(String id, int maximumBytes, PacketCodec<T> codec) {
         if (maximumBytes < 1) throw new IllegalArgumentException("Invalid native codec limit");
         Objects.requireNonNull(codec);
-        Thread owner = Thread.currentThread();
         return SyncCodec.of(
                 "buffer:" + id + ":" + maximumBytes,
                 (out, value) -> {
-                    if (Thread.currentThread() != owner)
-                        throw new IllegalStateException("Registry codec used from another thread");
                     var bytes = Unpooled.buffer(Math.min(256, maximumBytes), maximumBytes);
                     try {
                         var buffer = new FriendlyByteBuf(bytes);
@@ -38,8 +38,6 @@ public final class MinecraftSyncCodecs {
                     }
                 },
                 in -> {
-                    if (Thread.currentThread() != owner)
-                        throw new IllegalStateException("Registry codec used from another thread");
                     int size = in.readInt();
                     if (size < 0 || size > maximumBytes) throw new IOException("Invalid native value size");
                     var bytes = Unpooled.buffer(Math.min(4096, size), Math.max(1, size));

@@ -91,7 +91,14 @@ final class CatalogState {
 
 内置类型包括 `INT`、`LONG`、`BOOLEAN`、`UUID`、`string(maxUtf8Bytes)` 和 `enumeration(EnumClass.class)`。自定义 `SyncCodec.of(id, writer, reader)` 使用 `DataInput` / `DataOutput`，分配前应校验长度和值。字符串限制按 UTF-8 字节计数，协议含义变化时需修改 codec 身份或 schema 版本。
 
-现代适配器通过 `MinecraftSyncCodecs.registry(id, maxBytes, registrySupplier, streamCodec)` 处理需要注册表的原生值。应在所属游戏线程使用，并让记录/动作预算覆盖封装开销。Forge 1.20.1 则提供基于 `FriendlyByteBuf` 的 `MinecraftSyncCodecs.buffer(id, maxBytes, PacketCodec<T>)`。这些辅助 API 限制序列化大小，不会取消原生 codec 自身的约束。
+现代适配器通过 `MinecraftSyncCodecs.registry(id, maxBytes, streamCodec)` 处理需要注册表的原生值。它和内置 codec 一样可以声明为共享常量：
+
+```java
+private static final SyncCodec<ItemStack> ITEM =
+    MinecraftSyncCodecs.registry("example:item/1", 64 * 1024, ItemStack.OPTIONAL_STREAM_CODEC);
+```
+
+每次使用都取正在编码或解码的那一端的注册表，因此集成服务器和客户端可以共用同一个 codec。它只能用于同步菜单的值和动作；在其他地方请直接用原生值的 `StreamCodec` 编码。Forge 1.20.1 则提供基于 `FriendlyByteBuf` 的 `MinecraftSyncCodecs.buffer(id, maxBytes, PacketCodec<T>)`，这种缓冲区不携带注册表，请保持其 codec 无状态。记录/动作预算应覆盖封装开销。这些辅助 API 限制序列化大小，不会取消原生 codec 自身的约束。
 
 ## 动作与权限
 

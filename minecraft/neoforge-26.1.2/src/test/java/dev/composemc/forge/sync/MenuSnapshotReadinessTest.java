@@ -8,6 +8,7 @@ import dev.composemc.sync.state.SyncLimits;
 import dev.composemc.sync.state.SyncPublisher;
 import dev.composemc.sync.state.SyncSchema;
 import java.util.concurrent.atomic.AtomicReference;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import org.junit.jupiter.api.Test;
 
@@ -31,7 +32,7 @@ class MenuSnapshotReadinessTest {
             binding.clientStart();
             assertFalse(binding.hasSnapshot());
             publisher.pump(null, 0, batch -> {
-                binding.receive(batch, 0);
+                binding.receive(RegistryAccess.EMPTY, batch, 0);
                 publisher.acknowledge(batch.revision(), batch.index(), 0);
             });
             assertTrue(binding.hasSnapshot());
@@ -39,7 +40,7 @@ class MenuSnapshotReadinessTest {
             assertEquals(1, publications.get());
             server.set("x".repeat(300));
             publisher.pump(null, 1, batch -> {
-                binding.receive(batch, 1);
+                binding.receive(RegistryAccess.EMPTY, batch, 1);
                 publisher.acknowledge(batch.revision(), batch.index(), 1);
             });
             assertEquals(MenuSync.Status.SYNCING, binding.status());
@@ -49,7 +50,7 @@ class MenuSnapshotReadinessTest {
             for (int tick = 2; tick < 20 && publisher.busy(); tick++) {
                 int now = tick;
                 publisher.pump(null, now, batch -> {
-                    binding.receive(batch, now);
+                    binding.receive(RegistryAccess.EMPTY, batch, now);
                     publisher.acknowledge(batch.revision(), batch.index(), now);
                 });
             }

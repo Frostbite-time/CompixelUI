@@ -416,6 +416,7 @@ public final class MenuSyncNetworking {
                 return;
             }
             session.binding.serverPump(
+                    session.player.registryAccess(),
                     tick,
                     () -> session.player.connection.getConnection().channel().isWritable(),
                     batch -> PacketDistributor.sendToPlayer(

@@ -4,31 +4,26 @@ import dev.composemc.sync.state.SyncCodec;
 import io.netty.buffer.Unpooled;
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.Supplier;
-import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.neoforged.neoforge.network.connection.ConnectionType;
 
-/** Bridges registry-aware native codecs into portable schema framing. Construct/use on the owning game thread. */
+/**
+ * Bridges registry-aware native codecs into portable schema framing. A codec may be a shared constant: each use takes
+ * the registries of the side that is synchronizing the menu, so it works only inside menu values and actions.
+ */
 public final class MinecraftSyncCodecs {
     public static <T> SyncCodec<T> registry(
-            String id,
-            int maximumBytes,
-            Supplier<? extends RegistryAccess> registries,
-            StreamCodec<RegistryFriendlyByteBuf, T> codec) {
+            String id, int maximumBytes, StreamCodec<RegistryFriendlyByteBuf, T> codec) {
         if (maximumBytes < 1) throw new IllegalArgumentException("Invalid native codec limit");
-        Objects.requireNonNull(registries);
         Objects.requireNonNull(codec);
-        Thread owner = Thread.currentThread();
         return SyncCodec.of(
                 "registry:" + id + ":" + maximumBytes,
                 (out, value) -> {
-                    if (Thread.currentThread() != owner)
-                        throw new IllegalStateException("Registry codec used from another thread");
+                    var registries = SyncRegistries.current();
                     var bytes = Unpooled.buffer(Math.min(256, maximumBytes), maximumBytes);
                     try {
-                        var buffer = new RegistryFriendlyByteBuf(bytes, registries.get(), ConnectionType.NEOFORGE);
+                        var buffer = new RegistryFriendlyByteBuf(bytes, registries, ConnectionType.NEOFORGE);
                         codec.encode(buffer, value);
                         out.writeInt(bytes.readableBytes());
                         byte[] scratch = new byte[Math.min(4096, Math.max(1, bytes.readableBytes()))];
@@ -47,8 +42,7 @@ public final class MinecraftSyncCodecs {
                     }
                 },
                 in -> {
-                    if (Thread.currentThread() != owner)
-                        throw new IllegalStateException("Registry codec used from another thread");
+                    var registries = SyncRegistries.current();
                     int size = in.readInt();
                     if (size < 0 || size > maximumBytes) throw new IOException("Invalid native value size");
                     var bytes = Unpooled.buffer(Math.min(4096, size), Math.max(1, size));
@@ -62,8 +56,8 @@ public final class MinecraftSyncCodecs {
                             bytes.writeBytes(scratch, 0, count);
                             remaining -= count;
                         }
-                        T decoded = codec.decode(
-                                new RegistryFriendlyByteBuf(bytes, registries.get(), ConnectionType.NEOFORGE));
+                        T decoded =
+                                codec.decode(new RegistryFriendlyByteBuf(bytes, registries, ConnectionType.NEOFORGE));
                         if (bytes.isReadable()) throw new IOException("Trailing native value data");
                         return decoded;
                     } catch (IndexOutOfBoundsException invalid) {

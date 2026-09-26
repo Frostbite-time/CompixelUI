@@ -15,6 +15,7 @@ import java.security.MessageDigest;
 import java.util.*;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 
@@ -137,7 +138,7 @@ public final class MenuSync<M extends AbstractContainerMenu> implements AutoClos
                     "Action admission refused");
         int available = (int) Math.min(Integer.MAX_VALUE, ClientMenuSync.remainingBytes(this));
         try {
-            byte[] data = action.encode(value, available);
+            byte[] data = SyncRegistries.with(ClientMenuSync.registries(), () -> action.encode(value, available));
             var result = ClientMenuSync.sendAction(this, action.id(), data);
             if (!result.queued())
                 return refuse(action.id(), result.failure(), result.actual(), result.limit(), "Action queue refused");
@@ -234,7 +235,7 @@ public final class MenuSync<M extends AbstractContainerMenu> implements AutoClos
                     action.maximumBytes(),
                     "Action body exceeds declaration");
         try {
-            boolean applied = action.apply(model, player, data);
+            boolean applied = SyncRegistries.with(player.registryAccess(), () -> action.apply(model, player, data));
             return new ActionResult(
                     0,
                     id,
@@ -301,13 +302,16 @@ public final class MenuSync<M extends AbstractContainerMenu> implements AutoClos
         revision = 0;
     }
 
-    void serverPump(long tick, BooleanSupplier writable, Consumer<SyncBatch> send) {
+    /** Native codecs encode with {@code registries}, the server's. */
+    void serverPump(RegistryAccess registries, long tick, BooleanSupplier writable, Consumer<SyncBatch> send) {
         if (publisher == null || status == Status.FAILED) return;
-        publisher.pump(model, tick, writable, batch -> {
-            count(batch);
-            status = Status.SYNCING;
-            send.accept(batch);
-        });
+        SyncRegistries.run(
+                registries,
+                () -> publisher.pump(model, tick, writable, batch -> {
+                    count(batch);
+                    status = Status.SYNCING;
+                    send.accept(batch);
+                }));
         revision = publisher.revision();
         if (revision > 0 && !publisher.busy()) status = Status.READY;
     }
@@ -335,9 +339,10 @@ public final class MenuSync<M extends AbstractContainerMenu> implements AutoClos
         lastActionResult = null;
     }
 
-    SyncReceiver.Result receive(SyncBatch batch, long tick) {
+    /** Native codecs decode with {@code registries}, the client's. */
+    SyncReceiver.Result receive(RegistryAccess registries, SyncBatch batch, long tick) {
         if (receiver == null) throw new SyncException("No active receiver");
-        var result = receiver.accept(model, batch, tick);
+        var result = SyncRegistries.with(registries, () -> receiver.accept(model, batch, tick));
         if (result == SyncReceiver.Result.STAGED || result == SyncReceiver.Result.COMMITTED) count(batch);
         revision = receiver.revision();
         status = receiver.receiving() ? Status.SYNCING : Status.READY;

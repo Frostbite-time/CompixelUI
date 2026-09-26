@@ -2,16 +2,21 @@ package dev.composemc.development;
 
 import dev.composemc.forge.sync.MenuAction;
 import dev.composemc.forge.sync.MenuSync;
+import dev.composemc.forge.sync.MinecraftSyncCodecs;
+import dev.composemc.forge.sync.PacketCodec;
 import dev.composemc.forge.sync.SyncedMenu;
+import dev.composemc.sync.state.SyncCodec;
 import dev.composemc.sync.state.SyncCodecs;
 import dev.composemc.sync.state.SyncSchema;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.flag.FeatureFlags;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.RegistryObject;
@@ -23,6 +28,15 @@ public final class SyncAcceptanceMenu extends AbstractContainerMenu implements S
             "sync_acceptance", () -> new MenuType<>(SyncAcceptanceMenu::new, FeatureFlags.DEFAULT_FLAGS));
     public static final String INITIAL = "initial-汉字-".repeat(5000);
     public static final String REPLACEMENT = "replacement-界面-".repeat(6000);
+    // One shared native codec: the integrated server and the client both encode and decode with it.
+    private static final SyncCodec<ItemStack> ITEM = MinecraftSyncCodecs.buffer(
+            "composemc:item/1", 64 * 1024, PacketCodec.of(FriendlyByteBuf::writeItem, FriendlyByteBuf::readItem));
+    public static final MenuAction<SyncAcceptanceMenu, ItemStack> GIVE =
+            MenuAction.of("give", ITEM, (menu, player, value) -> {
+                if (value.getItem() != Items.EMERALD || value.getCount() != 5) return false;
+                menu.item = value;
+                return true;
+            });
     public static final MenuAction<SyncAcceptanceMenu, String> REPLACE =
             MenuAction.of("replace", SyncCodecs.string(256 * 1024), 256 * 1024, (menu, player, value) -> {
                 if (!value.equals(REPLACEMENT)) return false;
@@ -34,16 +48,20 @@ public final class SyncAcceptanceMenu extends AbstractContainerMenu implements S
                     "composemc:port_test", 1)
             .field("counter", SyncCodecs.INT, m -> m.counter, (m, v) -> m.counter = v)
             .field("text", SyncCodecs.string(256 * 1024), m -> m.text, (m, v) -> m.text = v)
+            .field("item", ITEM, m -> m.item, (m, v) -> m.item = v)
             .build();
     public int counter;
     public String text = "";
-    public final MenuSync<SyncAcceptanceMenu> sync = MenuSync.bind(this, SCHEMA).action(REPLACE);
+    public ItemStack item = ItemStack.EMPTY;
+    public final MenuSync<SyncAcceptanceMenu> sync =
+            MenuSync.bind(this, SCHEMA).action(REPLACE).action(GIVE);
 
     public SyncAcceptanceMenu(int id, Inventory inventory) {
         super(TYPE.get(), id);
         if (!inventory.player.level().isClientSide) {
             counter = 7;
             text = INITIAL;
+            item = new ItemStack(Items.DIAMOND, 3);
         }
     }
 

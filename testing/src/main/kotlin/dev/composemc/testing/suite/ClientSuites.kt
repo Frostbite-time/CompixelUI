@@ -25,7 +25,9 @@ enum class AcceptanceStep(val report: String) {
     RENDERER("renderer backend matches CPU reference pixels"),
     WORLD("fresh flat creative test world loaded"),
     INVENTORY("native left/right container input, per-slot render hooks, server acknowledgement and screen release"),
-    MENU_SYNC("bounded multi-batch snapshot and fragmented action round trip"),
+    MENU_SYNC(
+        "bounded multi-batch snapshot, fragmented action round trip and a native value both ways through one shared codec"
+    ),
     CONFIG("config staging, scalar/list validation, save and restore"),
     PORT_INPUT("top-left pointer coordinates, premultiplied alpha, Unicode text entry and key translation"),
     PORT_SCALE("GUI scaling and framebuffer resize keep pixels in place"),

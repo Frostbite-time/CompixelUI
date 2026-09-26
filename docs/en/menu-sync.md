@@ -91,7 +91,14 @@ Field indexes use 32-bit framing; there is no fixed 64-field schema cap. Identif
 
 Built-ins include `INT`, `LONG`, `BOOLEAN`, `UUID`, `string(maxUtf8Bytes)` and `enumeration(EnumClass.class)`. Custom `SyncCodec.of(id, writer, reader)` codecs use `DataInput`/`DataOutput`; validate lengths and values before allocation. String limits count UTF-8 bytes. Change codec identity/schema version when wire meaning changes.
 
-Modern adapters expose `MinecraftSyncCodecs.registry(id, maxBytes, registrySupplier, streamCodec)` for native registry-aware values. Use it on the owning game thread and choose record/action limits that cover framing overhead. Forge 1.20.1 instead provides `MinecraftSyncCodecs.buffer(id, maxBytes, PacketCodec<T>)` over `FriendlyByteBuf`. These helpers bound serialization; they do not remove restrictions inside a native codec.
+Modern adapters expose `MinecraftSyncCodecs.registry(id, maxBytes, streamCodec)` for native registry-aware values. Like the built-ins, it can be a shared constant:
+
+```java
+private static final SyncCodec<ItemStack> ITEM =
+    MinecraftSyncCodecs.registry("example:item/1", 64 * 1024, ItemStack.OPTIONAL_STREAM_CODEC);
+```
+
+Each use takes the registries of the side that encodes or decodes, so the integrated server and the client share one codec. It works only inside synchronized menu values and actions; elsewhere, encode native values with their `StreamCodec`. Forge 1.20.1 instead provides `MinecraftSyncCodecs.buffer(id, maxBytes, PacketCodec<T>)` over `FriendlyByteBuf`, which carries no registries; keep its codec stateless. Choose record/action limits that cover framing overhead. These helpers bound serialization; they do not remove restrictions inside a native codec.
 
 ## Actions and authority
 

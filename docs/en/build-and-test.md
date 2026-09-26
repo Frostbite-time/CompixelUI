@@ -137,7 +137,7 @@ Every target passes these steps, in this order, as listed in [ClientSuites.kt](.
 2. The selected renderer backend against CPU reference pixels at two viewport sizes, over repeated render/reset/close cycles.
 3. The fresh test world.
 4. A native container: left and right clicks, the per-slot render hook, server acknowledgement and screen release.
-5. Menu synchronization on a server-opened menu: a bounded multi-batch snapshot and a fragmented action round trip.
+5. Menu synchronization on a server-opened menu: a bounded multi-batch snapshot, a fragmented action round trip and a native item sent both ways through one shared codec.
 6. Config editing: staging, scalar and list validation, save and restore.
 7. A pixel fixture: top-left pointer coordinates, premultiplied alpha, Unicode text and shortcut keys; then GUI scale 3, a framebuffer resize and a resource reload.
 8. The native-item visual scene: opacity, rotation, shape clipping, occlusion and repeated placement.

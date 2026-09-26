@@ -6,6 +6,8 @@ import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.Component
 import net.minecraft.world.SimpleMenuProvider
 import net.minecraft.world.entity.player.Inventory
+import net.minecraft.world.item.ItemStack
+import net.minecraft.world.item.Items
 
 internal class SyncAcceptanceScreen(
     menu: SyncAcceptanceMenu,
@@ -15,7 +17,10 @@ internal class SyncAcceptanceScreen(
     override fun isUiWindowFocused() = SuiteEnvironment.uiFocused(super.isUiWindowFocused())
 }
 
-/** A real server-opened menu: bounded multi-batch snapshot, fragmented action round trip and screen release. */
+/**
+ * A real server-opened menu: bounded multi-batch snapshot, fragmented action round trip, a native value through one
+ * shared codec in both directions, and screen release.
+ */
 internal class MenuSyncAcceptanceProbe(private val done: () -> Unit) {
     private val mc
         get() = Minecraft.getInstance()
@@ -55,6 +60,9 @@ internal class MenuSyncAcceptanceProbe(private val done: () -> Unit) {
                         check(menu.counter == 7 && menu.text == SyncAcceptanceMenu.INITIAL) {
                             "The initial snapshot is wrong"
                         }
+                        check(menu.item.item == Items.DIAMOND && menu.item.count == 3) {
+                            "The native value in the initial snapshot is wrong: ${menu.item}"
+                        }
                         check(menu.sync.statistics().largestBatch() <= menu.sync.options().state().batchBytes()) {
                             "A state batch exceeded its bound"
                         }
@@ -75,11 +83,31 @@ internal class MenuSyncAcceptanceProbe(private val done: () -> Unit) {
                     check(menu.sync.statistics().largestBatch() <= menu.sync.options().state().batchBytes()) {
                         "A state batch exceeded its bound"
                     }
+                    // The client encodes this native value and the server decodes it with the same shared codec.
+                    check(menu.sync.request(SyncAcceptanceMenu.GIVE, ItemStack(Items.EMERALD, 5)).queued()) {
+                        "The native-value action was not queued"
+                    }
+                    stage++
+                }
+            }
+            3 -> {
+                val menu = mc.player!!.containerMenu as SyncAcceptanceMenu
+                check(menu.sync.status() != MenuSync.Status.FAILED) { "Menu sync failed: ${menu.sync.statistics()}" }
+                val result = menu.sync.lastActionResult()
+                if (
+                    result != null &&
+                        result.action() == "give" &&
+                        menu.item.item == Items.EMERALD &&
+                        menu.item.count == 5
+                ) {
+                    check(result.status() == MenuSync.ActionStatus.APPLIED) {
+                        "The native-value action was not applied: ${result.status()}"
+                    }
                     mc.player!!.closeContainer()
                     stage++
                 }
             }
-            3 ->
+            4 ->
                 if (mc.player?.containerMenu === mc.player?.inventoryMenu) {
                     val closed = checkNotNull(screen)
                     check(closed.session == null && closed.rendererStatistics.liveSurfaces == 0) {
