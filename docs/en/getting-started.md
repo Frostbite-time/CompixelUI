@@ -124,4 +124,4 @@ Installable artifacts are under the adapter's `build/libs/`. Install exactly one
 
 Source and documentation JARs are published by the same Maven task. They are IDE attachments, not runtime dependencies or mods. Enable source/documentation downloading in IDEA and refresh Gradle to browse Compose MC's own sources from `dev` and read its generated API reference. Third-party libraries retain their upstream sources and documentation.
 
-Continue with [Ore UI](ore-ui.md), [native items](native-content.md), [inventory](inventory.md) or [server menu synchronization](menu-sync.md).
+Continue with [Ore UI](ore-ui.md), [native items](native-content.md), [HUD layers](hud.md), [inventory](inventory.md) or [server menu synchronization](menu-sync.md).

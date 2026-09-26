@@ -74,7 +74,7 @@ data class NativeItemOptions(
 /** Native pixels participate in Compose's transform, clip, alpha and draw order. */
 @Composable
 fun MinecraftItemIcon(icon: ItemIcon, modifier: Modifier = Modifier) {
-    val images = checkNotNull(LocalItemImages.current) { "MinecraftItemIcon requires a ComposeScreen" }
+    val images = checkNotNull(LocalItemImages.current) { "MinecraftItemIcon requires a Compose MC screen or HUD layer" }
     val paint = remember { Paint() }
     DisposableEffect(images, icon) {
         images.retain(icon)

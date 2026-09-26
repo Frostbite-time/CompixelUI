@@ -15,6 +15,7 @@ Compose MC brings declarative layouts, state-driven interaction and Ore-style co
 - **A consistent Ore style.** Pixel typography, stepped buttons, inset fields, menus, trees, color pickers and draggable, resizable windows.
 - **Minecraft content in Compose.** Native item images, animated icons and rich item tooltips alongside ordinary composables.
 - **Real inventory interaction.** Arrange native slots with Compose while retaining container clicks, dragging and integration hooks.
+- **HUD layers.** Draw Compose over the game view as an ordinary HUD layer, beneath open screens and hidden with the vanilla HUD.
 - **State and actions.** Publish immutable UI snapshots; synchronize server menus through bounded updates and typed requests.
 - **GPU rendering.** OpenGL across all supported targets, plus Vulkan on Minecraft 26.2 and 26.3.
 
@@ -67,7 +68,7 @@ Current version: **0.1.0-alpha.34**. APIs may change during alpha. Each target h
 Compose MC is installed as a **separate library mod**. Choose the standard JAR with an external Kotlin provider such as Kotlin for Forge, or the `with-kotlin` JAR with Kotlin included. Both include Compose and Skiko; install only one variant. Every Minecraft target offers both choices.
 
 1. Follow the [quick start](docs/en/getting-started.md) to build the local Maven artifacts and connect a consumer.
-2. Choose [Ore controls](docs/en/ore-ui.md), [native content](docs/en/native-content.md) or [inventory screens](docs/en/inventory.md).
+2. Choose [Ore controls](docs/en/ore-ui.md), [native content](docs/en/native-content.md), [HUD layers](docs/en/hud.md) or [inventory screens](docs/en/inventory.md).
 3. Use the [build guide](docs/en/build-and-test.md) to launch a specific Minecraft version from IntelliJ IDEA and open the F8 preview.
 
 [All documentation](docs/README.md) · [Menu synchronization](docs/en/menu-sync.md) · [Configuration screens](docs/en/configuration.md) · [Architecture](docs/en/architecture.md)

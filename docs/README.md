@@ -11,6 +11,7 @@ Choose a guide below. Every guide has a complete English and Simplified Chinese 
 | Install and open a screen / 安装与创建屏幕 | [Quick start](en/getting-started.md) | [快速开始](zh-CN/getting-started.md) |
 | Controls, themes and popups / 控件、主题与弹层 | [Ore UI](en/ore-ui.md) | [Ore UI](zh-CN/ore-ui.md) |
 | Items and native tooltips / 物品与原生提示 | [Native content](en/native-content.md) | [原生内容](zh-CN/native-content.md) |
+| Compose over the game view / 游戏画面上的 Compose | [HUD layers](en/hud.md) | [HUD 层](zh-CN/hud.md) |
 | Containers and slot policies / 容器与槽位策略 | [Inventory](en/inventory.md) | [容器与槽位](zh-CN/inventory.md) |
 | Server state and client requests / 服务端状态与客户端请求 | [Menu synchronization](en/menu-sync.md) | [菜单同步](zh-CN/menu-sync.md) |
 | Mod configuration editors / 模组配置编辑器 | [Configuration](en/configuration.md) | [配置界面](zh-CN/configuration.md) |

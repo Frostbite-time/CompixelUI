@@ -18,7 +18,7 @@ Compose MC 在同一个 Gradle 构建中维护共享 UI/运行时和各版本 Mi
 | `menu-sync` | 无依赖 Java 17 数据声明、codec、快照和有界协议 |
 | `slot-core` | 无依赖 Java 17 槽位策略和转移路线 |
 | `demo` / `desktop` | F8 预览页面及桌面预览/截图 |
-| `minecraft/forge-*` / `minecraft/neoforge-*` | 各版本独立构建、原生屏幕、输入、资源、物品、菜单和 GPU 生命周期 |
+| `minecraft/forge-*` / `minecraft/neoforge-*` | 各版本独立构建、原生屏幕与 HUD 层、输入、资源、物品、菜单和 GPU 生命周期 |
 | `runtimes/standard` / `runtimes/vulkan` | 装配匹配的共享代码、JVM 依赖及六种原生库 |
 | `build-logic` / `gradle` / `tools` | 构建约定、目标/版本元数据、检查与启动工具 |
 

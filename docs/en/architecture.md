@@ -18,7 +18,7 @@ Compose MC maintains shared UI/runtime code and per-version Minecraft adapters i
 | `menu-sync` | Dependency-free Java 17 schemas, codecs, snapshots and bounded protocol |
 | `slot-core` | Dependency-free Java 17 slot policies and transfer routes |
 | `demo` / `desktop` | F8 preview pages and desktop preview/capture |
-| `minecraft/forge-*` / `minecraft/neoforge-*` | Version-owned builds, native screens, input, resources, items, menus and GPU lifecycle |
+| `minecraft/forge-*` / `minecraft/neoforge-*` | Version-owned builds, native screens and HUD layers, input, resources, items, menus and GPU lifecycle |
 | `runtimes/standard` / `runtimes/vulkan` | Assemble the matching shared code, JVM dependencies and six native variants |
 | `build-logic` / `gradle` / `tools` | Build conventions, target/version metadata, checks and launch helpers |
 

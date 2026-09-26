@@ -32,7 +32,8 @@ fun MinecraftItemTooltip(
     content: @Composable () -> Unit,
 ) {
     require(delayMillis >= 0)
-    val mailbox = checkNotNull(LocalItemTooltips.current) { "MinecraftItemTooltip requires a ComposeScreen" }
+    val mailbox =
+        checkNotNull(LocalItemTooltips.current) { "MinecraftItemTooltip requires a Compose MC screen or HUD layer" }
     TooltipArea(
         modifier = modifier,
         // Attach the popup at hover entry. A modal opened during the delay must stay above it.

@@ -124,4 +124,4 @@ fun openCounterScreen() {
 
 源码和文档 JAR 由同一个 Maven 发布任务提供，属于 IDE 附件，不是运行依赖或模组。在 IDEA 开启源码/文档下载并刷新 Gradle，即可从 `dev` 浏览 Compose MC 自有源码和生成的 API 参考。第三方库仍使用各自上游源码及文档。
 
-接下来可以阅读 [Ore UI](ore-ui.md)、[原生物品](native-content.md)、[容器界面](inventory.md)或[服务端菜单同步](menu-sync.md)。
+接下来可以阅读 [Ore UI](ore-ui.md)、[原生物品](native-content.md)、[HUD 层](hud.md)、[容器界面](inventory.md)或[服务端菜单同步](menu-sync.md)。
