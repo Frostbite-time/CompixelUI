@@ -83,7 +83,8 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
                     stage++
                 }
             2 ->
-                if (screen!!.inventory.bounds(36) != null) {
+                // Layout already ran during init; the hooks run in the same pass as the first rendered frame.
+                if (screen!!.inventory.bounds(36) != null && screen!!.rendererStatistics.renderedFrames > 0) {
                     check(slotHooks > 0) { "The native per-slot render hook was not dispatched" }
                     click(36, SuitePlatform.MOUSE_LEFT)
                     check(player.containerMenu.carried.count == 8) { "Left-click did not pick up the stack" }
