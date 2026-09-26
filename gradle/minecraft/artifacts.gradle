@@ -2,9 +2,18 @@
 apply plugin: 'maven-publish'
 apply from: rootProject.file('gradle/minecraft/api-docs.gradle')
 
+/*
+ * Maven consumers get a mod JAR with every Compose MC module and resolve the third-party runtime
+ * bundles through its POM; `-with-kotlin` is a POM that adds the Kotlin bundle. Players install a
+ * release JAR from build/release that embeds those bundles instead.
+ */
 ext.configureMinecraftArtifacts = { Map spec ->
     def runtime = spec.runtime
+    def kotlinRuntime = project(':runtime-kotlin')
+    def profile = runtime.runtime_profile
     def apiDocs = configureMinecraftApiDocs(runtime)
+    // The runtime project's own dependencies name the shared modules the mod JAR must carry.
+    def libraryModules = apiDocs.sourceProjects.findAll { it != project && it != runtime }
     base { archivesName = "composemc-${spec.loader}-${minecraft_version}" }
     def development = tasks.findByName('developmentJar') != null
         ? tasks.named('developmentJar', Jar) : tasks.register('developmentJar', Jar)
@@ -32,62 +41,106 @@ ext.configureMinecraftArtifacts = { Map spec ->
             mod_authors: mod_authors, mod_url: mod_url, mod_issues_url: mod_issues_url,
             loader_version_range: loader_version_range, minecraft_version: minecraft_version,
             minecraft_version_range: "[$minecraft_version]"] + spec.metadataValues
-        inputs.properties values
+        // ComposeRuntime compares the installed runtime bundle with this record.
+        def runtimeRecord = [runtime_profile: profile, runtime_version: runtime.version.toString()]
+        inputs.properties values + runtimeRecord
         expand values
         from 'src/main/templates'
         into 'build/generated/sources/modMetadata'
+        doLast {
+            def record = new File(destinationDir, 'META-INF/composemc/runtime.properties')
+            record.parentFile.mkdirs()
+            record.setText("profile=${runtimeRecord.runtime_profile}\nversion=${runtimeRecord.runtime_version}\n", 'ISO-8859-1')
+        }
     }
     sourceSets.main.resources.srcDir metadata
     tasks.named('jar') {
-        from project(':menu-sync').sourceSets.main.output
-        from project(':slot-core').sourceSets.main.output
+        libraryModules.each { from it.sourceSets.main.output }
     }
-    def bundledDependencies = spec.withKotlinDependencies
-    dependencies.add('withKotlinJarJar', dependencies.project(path: runtime.path)) {
-        capabilities { requireCapability("dev.composemc:composemc-runtime-${runtime.runtime_profile}-with-kotlin") }
-    }
-    def withKotlin = tasks.register('withKotlinJar', Jar) {
-        archiveClassifier = 'with-kotlin'
-        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-        dependsOn tasks.named('jar')
-        from({ zipTree(tasks.named('jar').get().archiveFile.get().asFile) }) {
-            exclude 'META-INF/jarjar/**', 'META-INF/MANIFEST.MF'
+
+    def runtimeCapability = "dev.composemc:composemc-runtime-${profile}"
+    def kotlinCapability = 'dev.composemc:composemc-kotlin'
+    def embed = { jarJar, owner, String capability ->
+        dependencies.add(jarJar.name, dependencies.project(path: owner.path)) {
+            capabilities { requireCapability(capability) }
         }
-        from bundledDependencies
     }
+    embed(spec.playerJarJar, runtime, runtimeCapability)
+    embed(spec.playerWithKotlinJarJar, runtime, runtimeCapability)
+    embed(spec.playerWithKotlinJarJar, kotlinRuntime, kotlinCapability)
+    def releaseDirectory = layout.buildDirectory.dir('release')
+    def player = { String name, String classifier, jarJar ->
+        def archive = tasks.register(name, Jar) {
+            // Forge keeps this named JAR in build/devlibs beside the named mod JAR, so it needs its own name there.
+            archiveClassifier = spec.remapArchive ? (['player', classifier] - '').join('-') : classifier
+            destinationDirectory = releaseDirectory
+            duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+            dependsOn tasks.named('jar')
+            from({ zipTree(tasks.named('jar').get().archiveFile.get().asFile) }) { exclude 'META-INF/MANIFEST.MF' }
+            from jarJar
+        }
+        if (!spec.remapArchive) return [named: archive, release: archive]
+        // Forge moves the named JAR to build/devlibs for Gradle runs; players get the SRG JAR.
+        def remapped = spec.remapArchive(archive, sourceSets.main)
+        remapped.configure {
+            archiveClassifier = classifier
+            destinationDirectory = releaseDirectory
+        }
+        [named: archive, release: remapped]
+    }
+    def standard = player('playerJar', '', spec.playerJarJar)
+    def withKotlin = player('playerWithKotlinJar', 'with-kotlin', spec.playerWithKotlinJarJar)
     def developmentRelease = spec.remapArchive ? spec.remapArchive(development, sourceSets.development) : development
-    def withKotlinRelease = spec.remapArchive ? spec.remapArchive(withKotlin, sourceSets.main) : withKotlin
-    def consumerApi = tasks.register('consumerDevJar', Jar) {
-        dependsOn tasks.named('classes'), "${runtime.path}:withKotlinJar"
-        archiveClassifier = 'dev'
-        from sourceSets.main.output
-        from project(':menu-sync').sourceSets.main.output
-        from project(':slot-core').sourceSets.main.output
-        from({ zipTree(runtime.tasks.named('withKotlinJar').get().archiveFile.get().asFile) }) {
-            exclude '**/*.dll', '**/*.so', '**/*.dylib', '**/*.sha256', 'META-INF/MANIFEST.MF'
+
+    def artifactName = "composemc-${spec.loader}-${minecraft_version}"
+    def dependOn = { pom, List<List<String>> coordinates ->
+        pom.withXml { xml ->
+            def list = xml.asNode().appendNode('dependencies')
+            coordinates.each { group, artifact, version ->
+                def dependency = list.appendNode('dependency')
+                dependency.appendNode('groupId', group)
+                dependency.appendNode('artifactId', artifact)
+                dependency.appendNode('version', version)
+                dependency.appendNode('scope', 'compile')
+            }
         }
-        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    }
+    def mitLicense = { pom ->
+        pom.licenses {
+            license {
+                name = 'MIT License'
+                url = 'https://opensource.org/license/mit'
+                distribution = 'repo'
+            }
+        }
     }
     publishing {
         publications {
             library(MavenPublication) {
-                artifactId = "composemc-${spec.loader}-${minecraft_version}"
+                artifactId = artifactName
                 artifact spec.release
-                artifact withKotlinRelease
-                artifact consumerApi
                 artifact developmentRelease
                 artifact apiDocs.sources
                 artifact apiDocs.documentation
                 pom {
                     name = "Compose MC for ${spec.loader} ${minecraft_version}"
-                    description = 'Library mod: standard requires an external Kotlin provider; with-kotlin includes it. dev is compileOnly; development is the optional preview mod.'
-                    licenses {
-                        license {
-                            name = 'MIT License'
-                            url = 'https://opensource.org/license/mit'
-                            distribution = 'repo'
-                        }
-                    }
+                    description = "Library mod for development and compilation; resolves composemc-runtime-${profile} for Compose " +
+                        'and Skiko and uses an external Kotlin provider. Players install the release JAR, which embeds the runtime. ' +
+                        'development is the optional preview mod.'
+                    mitLicense(delegate)
+                    dependOn(delegate, [['dev.composemc', "composemc-runtime-${profile}".toString(), runtime.version.toString()]])
+                }
+            }
+            libraryWithKotlin(MavenPublication) {
+                artifactId = "${artifactName}-with-kotlin"
+                pom {
+                    packaging = 'pom'
+                    name = "Compose MC for ${spec.loader} ${minecraft_version} with Kotlin"
+                    description = "Selects ${artifactName} together with composemc-kotlin, the Kotlin libraries of the " +
+                        'with-kotlin installation. Use it instead of an external Kotlin provider, not with one.'
+                    mitLicense(delegate)
+                    dependOn(delegate, [['dev.composemc', artifactName, project.version.toString()],
+                        ['dev.composemc', 'composemc-kotlin', kotlinRuntime.version.toString()]])
                 }
             }
         }
@@ -98,7 +151,15 @@ ext.configureMinecraftArtifacts = { Map spec ->
             }
         }
     }
-    tasks.named('assemble') { dependsOn consumerApi, development, withKotlinRelease, apiDocs.sources, apiDocs.documentation }
-    [release: spec.release, withKotlin: withKotlinRelease, development: developmentRelease, metadata: metadata, runtime: runtime,
+    // A consumer of the local repository also needs the bundles these POMs name.
+    tasks.matching { it.name == 'publishAllPublicationsToConsumerRepository' }.configureEach {
+        dependsOn "${runtime.path}:publishAllPublicationsToConsumerRepository", ':runtime-kotlin:publishAllPublicationsToConsumerRepository'
+    }
+    tasks.named('assemble') {
+        dependsOn spec.release, standard.release, withKotlin.release, development, developmentRelease,
+            apiDocs.sources, apiDocs.documentation
+    }
+    [release: spec.release, player: standard, playerWithKotlin: withKotlin, development: developmentRelease,
+        metadata: metadata, runtime: runtime, kotlinRuntime: kotlinRuntime, libraryModules: libraryModules,
         loader: spec.loader, metadataPath: spec.metadataPath, apiDocs: apiDocs]
 }

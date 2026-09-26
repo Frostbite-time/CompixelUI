@@ -59,5 +59,7 @@ jobs:
             desktop/build/screenshots/
             minecraft/neoforge-*/build/libs/*.jar
             minecraft/forge-*/build/libs/*.jar
+            minecraft/*/build/release/*.jar
+            runtimes/*/build/libs/composemc-*.jar
           retention-days: 7
 # Real GPU acceptance uses the Windows isolated-desktop launcher on a GPU host.

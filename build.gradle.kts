@@ -39,10 +39,13 @@ subprojects {
     }
 }
 
+// Runtime bundles carry third-party code only and keep their own versions. The Kotlin bundle resolves
+// the standard graph; verifyRuntimeArchive checks that both profiles expect the same Kotlin libraries.
 val runtimeProfiles =
     mapOf(
         "standard" to mapOf("project" to ":runtime-standard", "skiko" to libs.versions.skiko.standard.get()),
         "vulkan" to mapOf("project" to ":runtime-vulkan", "skiko" to libs.versions.skiko.vulkan.get()),
+        "kotlin" to mapOf("project" to ":runtime-kotlin", "skiko" to libs.versions.skiko.standard.get()),
     )
 val targetSettings =
     java.util.Properties().apply {
@@ -56,7 +59,9 @@ val targetVersions = targetSettings.getProperty("targets").split(",").filter { f
 extra["runtimeProfiles"] = runtimeProfiles
 
 runtimeProfiles.forEach { (name, profile) ->
-    project(profile.getValue("project")).extensions.extraProperties.apply {
+    val runtime = project(profile.getValue("project"))
+    runtime.version = providers.gradleProperty("runtime_${name}_version").get()
+    runtime.extensions.extraProperties.apply {
         set("runtime_profile", name)
         set("skiko_version", profile.getValue("skiko"))
     }
@@ -133,5 +138,4 @@ tasks.register("buildAllMods") {
     description = "Build and verify all enabled Minecraft targets and their API artifacts."
     doFirst { check(targetVersions.isNotEmpty()) { "Enable Minecraft targets with -PcomposemcTargets=all" } }
     dependsOn(targetVersions.map { "${targetProject(it)}:build" })
-    dependsOn(targetVersions.map { "${targetProject(it)}:consumerDevJar" })
 }

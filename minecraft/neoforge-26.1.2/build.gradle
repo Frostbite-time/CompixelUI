@@ -27,7 +27,8 @@ apply from: rootProject.file('gradle/minecraft/runs.gradle')
 
 def rendererFixtures = configureMinecraftSources()
 def artifacts = configureMinecraftArtifacts(
-    withKotlinDependencies: JarJar.registerWithConfiguration(project, 'withKotlinJarJar'),
+    playerJarJar: JarJar.registerWithConfiguration(project, 'playerJarJar'),
+    playerWithKotlinJarJar: JarJar.registerWithConfiguration(project, 'playerWithKotlinJarJar'),
     loader: 'neoforge', runtime: runtimeBundle, rendererFixtures: rendererFixtures,
     metadataPath: 'META-INF/neoforge.mods.toml',
     metadataValues: [neo_version: neo_version],
@@ -57,8 +58,8 @@ neoForge {
     mods {
         composemc {
             sourceSet sourceSets.main
-            sourceSet project(':menu-sync').sourceSets.main
-            sourceSet project(':slot-core').sourceSets.main
+            // The Compose MC modules of the mod JAR; the runtime bundles stay separate libraries.
+            artifacts.libraryModules.each { sourceSet it.sourceSets.main }
         }
         composemc_development {
             sourceSet sourceSets.development
@@ -80,11 +81,12 @@ dependencies {
     developmentCompileOnly(testFixtures(project(':render-gl')))
     testImplementation project(':host')
     testImplementation project(':menu-sync')
+    // Development launches load both bundles as FML libraries, as the with-kotlin player JAR does.
     runtimeOnly(runtimeBundle) {
-        capabilities { requireCapability('dev.composemc:composemc-runtime-standard-with-kotlin') }
-    }
-    jarJar(runtimeBundle) {
         capabilities { requireCapability('dev.composemc:composemc-runtime-standard') }
+    }
+    runtimeOnly(project(':runtime-kotlin')) {
+        capabilities { requireCapability('dev.composemc:composemc-kotlin') }
     }
 }
 

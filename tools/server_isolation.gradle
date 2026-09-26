@@ -1,5 +1,5 @@
-// Opt-in headless SERVER-side initialization check. It loads only the library
-// JAR in the loader's GameTest harness, then checks the JVM initialization log.
+// Opt-in headless SERVER-side initialization check. It loads only the standard
+// player JAR in the loader's GameTest harness, then checks the JVM initialization log.
 // Forge uses named development mappings here; its production SRG mappings are
 // separately covered by run_forge_production.ps1.
 gradle.beforeProject { p ->
@@ -8,7 +8,7 @@ gradle.beforeProject { p ->
             def forge = p.name.startsWith('forge-')
             def loader = p.extensions.getByName(forge ? 'legacyForge' : 'neoForge')
             def stage = p.tasks.register('stageServerInitialization', Sync) {
-                from p.tasks.named('jar')
+                from p.tasks.named('playerJar')
                 into p.layout.buildDirectory.dir('server-initialization/mods')
             }
             loader.runs.create('serverInitialization') {

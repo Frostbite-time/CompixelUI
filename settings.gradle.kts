@@ -29,7 +29,7 @@ rootProject.name = "compose-mc"
 
 include("platform", "render", "render-gl", "render-vulkan", "compose-bridge", "host", "demo", "desktop", "testing")
 
-include("ui-ore", "menu-sync", "slot-core", "runtime-standard", "runtime-vulkan")
+include("ui-ore", "menu-sync", "slot-core", "runtime-standard", "runtime-vulkan", "runtime-kotlin")
 
 val targets = Properties().apply { file("gradle/minecraft-targets.properties").reader().use { load(it) } }
 val supported = targets.getProperty("targets").split(",")
@@ -54,3 +54,5 @@ enabled.forEach { mc ->
 project(":runtime-standard").projectDir = file("runtimes/standard")
 
 project(":runtime-vulkan").projectDir = file("runtimes/vulkan")
+
+project(":runtime-kotlin").projectDir = file("runtimes/kotlin")

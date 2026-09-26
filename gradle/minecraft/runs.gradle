@@ -21,11 +21,11 @@ ext.minecraftRunSettings = { String backend ->
     if (!(kotlinMode in ['bundled', 'external'])) throw new GradleException('composemcKotlinMode must be bundled or external')
     def providerJar = providers.gradleProperty('composemcKotlinProviderJar').orNull
     if (kotlinMode == 'bundled' && providerJar) throw new GradleException('A Kotlin provider is only used with composemcKotlinMode=external')
-    // Both suites load the packaged mod archive plus the separate development archive. On NeoForge that is the
+    // Both suites load the player archive plus the separate development archive. On NeoForge that is the
     // release archive itself; Forge 1.20.1 releases it after SRG remapping, which tools/run_forge_production.ps1 covers.
     settings.directories.each { suite, directory ->
         tasks.register("stage${suite.capitalize()}", Sync) {
-            from tasks.named(kotlinMode == 'bundled' ? 'withKotlinJar' : 'jar')
+            from tasks.named(kotlinMode == 'bundled' ? 'playerWithKotlinJar' : 'playerJar')
             from tasks.named('developmentJar')
             if (providerJar) from file(providerJar)
             into layout.buildDirectory.dir("$directory/mods")

@@ -129,9 +129,10 @@ New-Item -ItemType Directory -Force $mods,(Join-Path $game 'config') | Out-Null
 # This generated test directory is staged from scratch, like Gradle's Sync task.
 foreach ($old in Get-ChildItem -LiteralPath $mods -File -Filter '*.jar') { Remove-Item -LiteralPath $old.FullName }
 $librarySuffix = if ($KotlinMode -eq 'bundled') { '-with-kotlin' } else { '' }
-foreach ($suffix in @($librarySuffix,'-development')) {
-    $jar = Join-Path $repo "$adapterDirectory/build/libs/composemc-forge-1.20.1-$($properties.mod_version)$suffix.jar"
-    Copy-Item -LiteralPath $jar -Destination $mods
+# Player JARs are in build/release; the development mod is published with the Maven artifacts in build/libs.
+foreach ($archive in @("release/composemc-forge-1.20.1-$($properties.mod_version)$librarySuffix.jar",
+        "libs/composemc-forge-1.20.1-$($properties.mod_version)-development.jar")) {
+    Copy-Item -LiteralPath (Join-Path $repo "$adapterDirectory/build/$archive") -Destination $mods
 }
 if ($KotlinProviderJar) { Copy-Item -LiteralPath (Resolve-Path -LiteralPath $KotlinProviderJar).Path -Destination $mods -Force }
 [IO.File]::WriteAllText((Join-Path $game 'config/fml.toml'), "earlyWindowControl=false`n")

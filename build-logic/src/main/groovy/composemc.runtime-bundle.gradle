@@ -2,22 +2,30 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import groovy.xml.XmlSlurper
-import org.gradle.api.artifacts.component.ProjectComponentIdentifier
 import org.gradle.maven.MavenModule
 import org.gradle.maven.MavenPomArtifact
 
-plugins { id 'java-library' }
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
 pluginManager.apply('com.gradleup.shadow')
 
 def skikoPlatforms = ['windows-x64', 'windows-arm64', 'linux-x64', 'linux-arm64', 'macos-x64', 'macos-arm64']
 def skikoVersion = project.skiko_version.toString()
 def profile = project.runtime_profile.toString()
-// KFF supplies these libraries. Swing integration and atomicfu remain ours.
+// The Kotlin bundle carries what an external provider such as KFF supplies; the Compose runtimes carry the rest.
+def kotlinBundle = profile == 'kotlin'
+def bundleName = kotlinBundle ? 'composemc-kotlin' : "composemc-runtime-$profile"
+def versionProperty = "runtime_${profile}_version"
 def suppliedByKotlinProvider = { id ->
     id.group == 'org.jetbrains.kotlin' || (id.group == 'org.jetbrains.kotlinx' &&
         (id.name.startsWith('kotlinx-serialization-') ||
             id.name in ['kotlinx-coroutines-core', 'kotlinx-coroutines-core-jvm', 'kotlinx-coroutines-jdk8']))
 }
+// Compose MC's own modules ship inside each adapter JAR, so bundles carry third-party code only.
+def bundled = { id -> id.group != project.group.toString() && suppliedByKotlinProvider(id) == kotlinBundle }
+def catalog = rootProject.extensions.getByType(org.gradle.api.artifacts.VersionCatalogsExtension).named('libs')
 repositories {
     // PREFER_PROJECT requires the runtime module to declare the Polyfrost
     // repository itself; these artifacts include the Vulkan-capable natives.
@@ -27,211 +35,332 @@ repositories {
 }
 
 dependencies {
+    // The shared modules define which libraries the bundles must supply.
     implementation project(':host')
     implementation project(':render-gl')
-    if (runtime_profile == 'vulkan') implementation project(':render-vulkan')
+    if (profile == 'vulkan') implementation project(':render-vulkan')
     implementation project(':ui-ore')
-    skikoPlatforms.each { skikoPlatform ->
-        runtimeOnly "org.jetbrains.skiko:skiko-awt-runtime-${skikoPlatform}:${skiko_version}"
+    if (!kotlinBundle) skikoPlatforms.each { skikoPlatform ->
+        runtimeOnly "org.jetbrains.skiko:skiko-awt-runtime-${skikoPlatform}:${skikoVersion}"
     }
 }
 
-def registerNotices = { boolean withKotlin ->
-    tasks.register(withKotlin ? 'thirdPartyNoticesWithKotlin' : 'thirdPartyNotices') {
-        def output = layout.buildDirectory.dir("third-party/${withKotlin ? 'with-kotlin' : 'external-kotlin'}")
-        inputs.files(configurations.runtimeClasspath)
-        inputs.files(rootProject.file('LICENSE'), rootProject.file('THIRD-PARTY-NOTICES.md'))
-        inputs.dir(rootProject.file('licenses/common'))
-        inputs.dir(rootProject.file('licenses/runtime'))
-        outputs.dir(output)
+// Adapters compare this class with the runtime profile and version they were built for.
+if (!kotlinBundle) {
+    def info = tasks.register('generateRuntimeInfo') {
+        def output = layout.buildDirectory.dir('generated/runtime-info')
+        def values = [profile: profile, version: project.version.toString()]
+        inputs.properties values
+        outputs.dir output
         doLast {
-            def artifacts = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts.findAll {
-                withKotlin || !suppliedByKotlinProvider(it.moduleVersion.id)
-            }.sort {
-                it.moduleVersion.id.toString()
+            def source = output.get().file('dev/composemc/runtime/RuntimeInfo.java').asFile
+            source.parentFile.mkdirs()
+            source.setText("""package dev.composemc.runtime;
+
+/** Identifies this Compose MC runtime bundle. */
+public final class RuntimeInfo {
+    public static final String PROFILE = "${values.profile}";
+    public static final String VERSION = "${values.version}";
+
+    private RuntimeInfo() {}
+}
+""", 'UTF-8')
+        }
+    }
+    sourceSets.main.java.srcDir(info)
+}
+
+def noticesDirectory = layout.buildDirectory.dir('third-party')
+def licenseGroups = kotlinBundle ? ['common'] : ['common', 'runtime']
+def notices = tasks.register('thirdPartyNotices') {
+    inputs.files(configurations.runtimeClasspath)
+    inputs.file(rootProject.file('THIRD-PARTY-NOTICES.md'))
+    licenseGroups.each { inputs.dir(rootProject.file("licenses/$it")) }
+    outputs.dir(noticesDirectory)
+    doLast {
+        def artifacts = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts.findAll {
+            bundled(it.moduleVersion.id)
+        }.sort {
+            it.moduleVersion.id.toString()
+        }
+        def noticesRoot = noticesDirectory.get().asFile
+        // Remove notices for dependencies/versions no longer in this bundle.
+        project.delete(noticesRoot)
+        noticesRoot.mkdirs()
+        licenseGroups.each { group ->
+            copy {
+                from rootProject.file("licenses/$group")
+                into new File(noticesRoot, "licenses/$group")
             }
-            def noticesRoot = output.get().asFile
-            // Remove notices for dependencies/versions no longer in this runtime.
-            project.delete(noticesRoot)
-            noticesRoot.mkdirs()
-            ['common', 'runtime'].each { group ->
-                copy {
-                    from rootProject.file("licenses/$group")
-                    into new File(noticesRoot, "licenses/$group")
-                }
+        }
+        copy {
+            from rootProject.file('THIRD-PARTY-NOTICES.md')
+            into noticesRoot
+        }
+        def pomResult = dependencies.createArtifactResolutionQuery()
+            .forComponents(artifacts.collect { it.id.componentIdentifier }.unique())
+            .withArtifacts(MavenModule, MavenPomArtifact).execute()
+        if (pomResult.components.any { it instanceof org.gradle.api.artifacts.result.UnresolvedComponentResult })
+            throw new GradleException('Cannot resolve third-party license metadata')
+        def poms = [:]
+        pomResult.resolvedComponents.each { component ->
+            def resolved = component.getArtifacts(MavenPomArtifact).find { it instanceof org.gradle.api.artifacts.result.ResolvedArtifactResult }
+            if (resolved == null) throw new GradleException("Missing license POM for ${component.id}")
+            poms[component.id] = resolved.file
+        }
+        def licenseIndex = []
+        new File(noticesRoot, 'dependencies.txt').setText(
+            artifacts.collect { it.moduleVersion.id.toString() }.unique().join('\n') + '\n', 'UTF-8')
+        artifacts.each { artifact ->
+            def id = artifact.moduleVersion.id
+            def prefix = "${id.group}/${id.name}/${id.version}"
+            def pomFile = poms[artifact.id.componentIdentifier]
+            def pom = new XmlSlurper(false, false).parse(pomFile)
+            def licenseNames = pom.licenses.license.collect { it.name.text() }
+            def licenseUrls = pom.licenses.license.collect { it.url.text() }
+            // All current JVM dependencies declare Apache-2.0. A new license
+            // needs its own reviewed text instead of inheriting this fallback.
+            if (licenseNames.empty || !licenseNames.every { it.toLowerCase(Locale.ROOT).contains('apache') && it.contains('2.0') })
+                throw new GradleException("Review license declaration for $id: $licenseNames")
+            copy { from pomFile; into new File(noticesRoot, prefix); rename { 'pom.xml' } }
+            def entry = [coordinate: id.toString(), declaredLicense: 'Apache-2.0',
+                declaredNames: licenseNames, licenseUrls: licenseUrls, directory: prefix]
+            if (id.group == 'org.jetbrains.skiko')
+                entry.supplementalNotices = ['licenses/runtime/skiko/NOTICE.txt', 'licenses/runtime/skia/']
+            licenseIndex.add(entry)
+            copy {
+                from rootProject.file('licenses/common/Apache-2.0.txt')
+                into new File(noticesRoot, prefix)
+                rename { 'LICENSE.txt' }
             }
             copy {
-                from rootProject.file('THIRD-PARTY-NOTICES.md')
-                into noticesRoot
-            }
-            def external = artifacts.findAll { !(it.id.componentIdentifier instanceof ProjectComponentIdentifier) }
-            def pomResult = dependencies.createArtifactResolutionQuery()
-                .forComponents(external.collect { it.id.componentIdentifier }.unique())
-                .withArtifacts(MavenModule, MavenPomArtifact).execute()
-            if (pomResult.components.any { it instanceof org.gradle.api.artifacts.result.UnresolvedComponentResult })
-                throw new GradleException('Cannot resolve third-party license metadata')
-            def poms = [:]
-            pomResult.resolvedComponents.each { component ->
-                def resolved = component.getArtifacts(MavenPomArtifact).find { it instanceof org.gradle.api.artifacts.result.ResolvedArtifactResult }
-                if (resolved == null) throw new GradleException("Missing license POM for ${component.id}")
-                poms[component.id] = resolved.file
-            }
-            def licenseIndex = []
-            new File(noticesRoot, 'dependencies.txt').setText(
-                artifacts.collect { it.moduleVersion.id.toString() }.unique().join('\n') + '\n', 'UTF-8')
-            artifacts.each { artifact ->
-                def id = artifact.moduleVersion.id
-                def prefix = "${id.group}/${id.name}/${id.version}"
-                def ownCode = artifact.id.componentIdentifier instanceof ProjectComponentIdentifier
-                def licenseNames = ['MIT License']
-                def licenseUrls = ['https://opensource.org/license/mit']
-                if (!ownCode) {
-                    def pomFile = poms[artifact.id.componentIdentifier]
-                    def pom = new XmlSlurper(false, false).parse(pomFile)
-                    licenseNames = pom.licenses.license.collect { it.name.text() }
-                    licenseUrls = pom.licenses.license.collect { it.url.text() }
-                    // All current JVM dependencies declare Apache-2.0. A new license
-                    // needs its own reviewed text instead of inheriting this fallback.
-                    if (licenseNames.empty || !licenseNames.every { it.toLowerCase(Locale.ROOT).contains('apache') && it.contains('2.0') })
-                        throw new GradleException("Review license declaration for $id: $licenseNames")
-                    copy { from pomFile; into new File(noticesRoot, prefix); rename { 'pom.xml' } }
+                from zipTree(artifact.file)
+                include { details ->
+                    def name = details.name.toLowerCase(Locale.ROOT)
+                    name.contains('license') || name.contains('notice') || name.startsWith('copying')
                 }
-                def entry = [coordinate: id.toString(), declaredLicense: ownCode ? 'MIT' : 'Apache-2.0',
-                    declaredNames: licenseNames, licenseUrls: licenseUrls, directory: prefix]
-                if (id.group == 'org.jetbrains.skiko')
-                    entry.supplementalNotices = ['licenses/runtime/skiko/NOTICE.txt', 'licenses/runtime/skia/']
-                if (ownCode && id.name == 'ui-ore')
-                    entry.supplementalNotices = ['dev/composemc/ui/ore/Monocraft-LICENSE.txt']
-                licenseIndex.add(entry)
-                copy {
-                    from ownCode ? rootProject.file('LICENSE') : rootProject.file('licenses/common/Apache-2.0.txt')
-                    into new File(noticesRoot, prefix)
-                    rename { 'LICENSE.txt' }
-                }
-                copy {
-                    from zipTree(artifact.file)
-                    include { details ->
-                        def name = details.name.toLowerCase(Locale.ROOT)
-                        name.contains('license') || name.contains('notice') || name.startsWith('copying')
-                    }
-                    into new File(noticesRoot, prefix)
-                    includeEmptyDirs = false
-                }
+                into new File(noticesRoot, prefix)
+                includeEmptyDirs = false
             }
-            new File(noticesRoot, 'dependencies.json').setText(JsonOutput.prettyPrint(JsonOutput.toJson(licenseIndex)) + '\n', 'UTF-8')
         }
+        new File(noticesRoot, 'dependencies.json').setText(JsonOutput.prettyPrint(JsonOutput.toJson(licenseIndex)) + '\n', 'UTF-8')
     }
 }
 
-def fullRuntime = tasks.register('withKotlinJar', ShadowJar) {
-    from sourceSets.main.output
-    configurations = [project.configurations.runtimeClasspath]
-}
-def noticesByVariant = [registerNotices(false), registerNotices(true)]
-[tasks.named('shadowJar'), fullRuntime].eachWithIndex { archive, index ->
-    archive.configure {
-        def withKotlin = index == 1
-        archiveBaseName = "composemc-runtime-${runtime_profile}"
-        archiveClassifier = withKotlin ? 'with-kotlin' : 'universal'
-        from(noticesByVariant[index]) { into 'META-INF/composemc-third-party' }
-        if (!withKotlin) dependencies {
-            exclude { dependency -> suppliedByKotlinProvider(dependency.module.id) }
-        }
-        // Compose splits packages across artifacts; NeoForge 1.21.1 needs one module for them.
-        // Do not relocate or minimize: compiler ABI, service providers and JNI require their names.
-        mergeServiceFiles()
-        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-        filesMatching('META-INF/services/**') { duplicatesStrategy = DuplicatesStrategy.INCLUDE }
-        exclude 'module-info.class', 'META-INF/versions/**/module-info.class'
-        exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA'
-        manifest {
-            attributes 'FMLModType': 'LIBRARY', 'Automatic-Module-Name': 'dev.composemc.runtime'
-        }
+def bundle = tasks.named('shadowJar', ShadowJar) {
+    archiveBaseName = bundleName
+    archiveClassifier = ''
+    from(notices) { into 'META-INF/composemc-third-party' }
+    dependencies {
+        exclude { dependency -> !bundled(dependency.module.id) }
+    }
+    // Compose splits packages across artifacts; NeoForge 1.21.1 needs one module for them.
+    // Do not relocate or minimize: compiler ABI, service providers and JNI require their names.
+    mergeServiceFiles()
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    filesMatching('META-INF/services/**') { duplicatesStrategy = DuplicatesStrategy.INCLUDE }
+    exclude 'module-info.class', 'META-INF/versions/**/module-info.class'
+    exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA'
+    // The Kotlin libraries version only module-info.class, and Forge 1.20.1 rejects a multi-release
+    // JAR without META-INF/versions.
+    addMultiReleaseAttribute = !kotlinBundle
+    manifest {
+        attributes 'FMLModType': 'LIBRARY', 'Automatic-Module-Name': kotlinBundle ? 'dev.composemc.kotlin' : 'dev.composemc.runtime'
     }
 }
 
-[false, true].each { withKotlin ->
-    configurations.create(withKotlin ? 'bundledRuntimeWithKotlin' : 'bundledRuntime') {
-        canBeConsumed = true
-        canBeResolved = false
-        attributes {
-            attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
-            attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
-            attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
-            attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.SHADOWED))
-        }
-        outgoing.capability("${project.group}:composemc-runtime-${profile}${withKotlin ? '-with-kotlin' : ''}:${project.version}")
+configurations.create('bundledRuntime') {
+    canBeConsumed = true
+    canBeResolved = false
+    attributes {
+        attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+        attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+        attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
+        attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.SHADOWED))
     }
-    artifacts.add(withKotlin ? 'bundledRuntimeWithKotlin' : 'bundledRuntime', withKotlin ? fullRuntime : tasks.named('shadowJar'))
+    outgoing.capability("${project.group}:${bundleName}:${project.version}")
+}
+artifacts.add('bundledRuntime', bundle)
+
+// One version always means the same dependencies: Maven Central releases are immutable.
+def bundleLock = file('bundle.lock')
+def lockText = { List<String> coordinates ->
+    "# Dependencies of ${bundleName} ${project.version}. Raise ${versionProperty} when they change.\n" +
+        "version=${project.version}\n" + coordinates.join('\n') + '\n'
+}
+def lockState = { File file ->
+    if (!file.exists()) return null
+    def lines = file.readLines('UTF-8').findAll { it && !it.startsWith('#') }
+    [version: lines.find { it.startsWith('version=') }?.substring(8), coordinates: lines.findAll { !it.startsWith('version=') }]
+}
+def bundledCoordinates = { new File(noticesDirectory.get().asFile, 'dependencies.txt').readLines('UTF-8').findAll { it } }
+tasks.register('writeBundleLock') {
+    group = 'build'
+    description = "Record the dependencies of ${bundleName} ${project.version} in bundle.lock."
+    dependsOn notices
+    doLast {
+        def coordinates = bundledCoordinates()
+        def locked = lockState(bundleLock)
+        if (locked && locked.version == project.version.toString() && locked.coordinates != coordinates)
+            throw new GradleException("The dependencies of ${bundleName} changed; raise ${versionProperty} before recording them")
+        bundleLock.setText(lockText(coordinates), 'UTF-8')
+    }
 }
 
 tasks.register('verifyRuntimeArchive') {
-    dependsOn tasks.named('shadowJar'), fullRuntime
+    dependsOn bundle, notices
+    if (!kotlinBundle) dependsOn ':runtime-kotlin:thirdPartyNotices'
+    def kotlinCoordinatesFile = kotlinBundle ? null :
+        project(':runtime-kotlin').layout.buildDirectory.file('third-party/dependencies.txt')
     doLast {
-        def versions = configurations.runtimeClasspath.incoming.resolutionResult.allComponents
-            .findAll { it.moduleVersion?.group == 'org.jetbrains.skiko' }
-            .collect { it.moduleVersion.version }.toSet()
-        if (versions != [skikoVersion].toSet()) throw new GradleException("Mixed Skiko ABI/native versions: $versions; expected $skikoVersion")
-        [tasks.named('shadowJar'), fullRuntime].eachWithIndex { archive, index ->
-            def withKotlin = index == 1
-            def file = archive.get().archiveFile.get().asFile
-            new java.util.zip.ZipFile(file).withCloseable { zip ->
-                def required = [
-                    'dev/composemc/host/UiSession.class',
-                    'dev/composemc/render/FrameRenderer.class',
-                    'dev/composemc/render/gl/OpenGlFrameRenderer.class',
-                    'androidx/compose/runtime/SnapshotStateKt.class',
+        def coordinates = bundledCoordinates()
+        def locked = lockState(bundleLock)
+        if (!locked || locked.version != project.version.toString() || locked.coordinates != coordinates) {
+            def hint = locked && locked.version == project.version.toString() ?
+                "raise ${versionProperty} in gradle.properties, then run :${project.name}:writeBundleLock" :
+                "run :${project.name}:writeBundleLock"
+            throw new GradleException("${bundleLock} does not describe ${bundleName} ${project.version}; $hint")
+        }
+        def resolvedArtifacts = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts
+        if (!kotlinBundle) {
+            def versions = configurations.runtimeClasspath.incoming.resolutionResult.allComponents
+                .findAll { it.moduleVersion?.group == 'org.jetbrains.skiko' }
+                .collect { it.moduleVersion.version }.toSet()
+            if (versions != [skikoVersion].toSet()) throw new GradleException("Mixed Skiko ABI/native versions: $versions; expected $skikoVersion")
+            // A with-kotlin installation pairs this runtime with the shared Kotlin bundle.
+            def expected = resolvedArtifacts.findAll { suppliedByKotlinProvider(it.moduleVersion.id) }
+                .collect { it.moduleVersion.id.toString() }.toSet()
+            def supplied = kotlinCoordinatesFile.get().asFile.readLines('UTF-8').findAll { it }.toSet()
+            if (expected != supplied)
+                throw new GradleException("composemc-kotlin supplies $supplied, but ${bundleName} expects $expected")
+        }
+        def file = bundle.get().archiveFile.get().asFile
+        new java.util.zip.ZipFile(file).withCloseable { zip ->
+            def entries = zip.entries().toList().findAll { !it.directory }*.name
+            def required = [
+                'META-INF/composemc/LICENSE',
+                'META-INF/composemc-third-party/dependencies.txt',
+                'META-INF/composemc-third-party/dependencies.json',
+                'META-INF/composemc-third-party/THIRD-PARTY-NOTICES.md',
+                'META-INF/composemc-third-party/licenses/common/Apache-2.0.txt',
+            ]
+            def forbidden
+            if (kotlinBundle) {
+                required.addAll(['kotlin/jvm/internal/Intrinsics.class', 'kotlinx/coroutines/Job.class',
+                    'kotlinx/serialization/KSerializer.class'])
+                forbidden = entries.findAll {
+                    it.startsWith('androidx/') || it.startsWith('org/') || it.startsWith('dev/composemc/') ||
+                        it.startsWith('kotlinx/atomicfu/') || it.startsWith('kotlinx/coroutines/swing/') ||
+                        it.startsWith('META-INF/composemc-third-party/licenses/runtime/') ||
+                        it.endsWith('.dll') || it.endsWith('.so') || it.endsWith('.dylib')
+                }
+            } else {
+                required.addAll(['dev/composemc/runtime/RuntimeInfo.class', 'androidx/compose/runtime/SnapshotStateKt.class',
                     'META-INF/services/kotlinx.coroutines.internal.MainDispatcherFactory',
-                    'META-INF/composemc-third-party/dependencies.txt',
-                    'META-INF/composemc-third-party/dependencies.json',
-                    'META-INF/composemc/LICENSE',
-                    'META-INF/composemc-third-party/THIRD-PARTY-NOTICES.md',
-                    'META-INF/composemc-third-party/licenses/common/Apache-2.0.txt',
                     'META-INF/composemc-third-party/licenses/runtime/skiko/NOTICE.txt',
-                    'META-INF/composemc-third-party/licenses/runtime/skia/LICENSE.txt',
-                    'dev/composemc/ui/ore/Monocraft-LICENSE.txt',
-                ]
-                if (withKotlin) required.addAll(['kotlin/jvm/internal/Intrinsics.class',
-                    'kotlinx/coroutines/Job.class', 'kotlinx/serialization/KSerializer.class'])
-                else if (zip.entries().toList().any {
-                    !it.directory && (it.name.startsWith('kotlin/') || it.name.startsWith('kotlinx/serialization/') ||
-                        (it.name.startsWith('kotlinx/coroutines/') && !it.name.startsWith('kotlinx/coroutines/swing/')))
-                }) throw new GradleException('External-Kotlin runtime embedded provider classes')
-                def hasVulkan = zip.getEntry('dev/composemc/render/vulkan/VulkanFrameRenderer.class') != null
-                if (hasVulkan != (profile == 'vulkan')) throw new GradleException("Incorrect backend contents for runtime $profile")
-                required.each { if (zip.getEntry(it) == null) throw new GradleException("Missing runtime entry: $it") }
-                if (zip.entries().any { it.name.startsWith('META-INF/composemc-third-party/licenses/javadoc/') })
-                    throw new GradleException('Documentation licenses leaked into runtime')
-                def licenseIndex = new JsonSlurper().parseText(zip.getInputStream(zip.getEntry('META-INF/composemc-third-party/dependencies.json')).getText('UTF-8'))
-                licenseIndex.each { entry ->
-                    if (zip.getEntry("META-INF/composemc-third-party/${entry.directory}/LICENSE.txt") == null)
-                        throw new GradleException("Missing license for ${entry.coordinate}")
+                    'META-INF/composemc-third-party/licenses/runtime/skia/LICENSE.txt'])
+                forbidden = entries.findAll {
+                    it.startsWith('kotlin/') || it.startsWith('kotlinx/serialization/') ||
+                        (it.startsWith('kotlinx/coroutines/') && !it.startsWith('kotlinx/coroutines/swing/')) ||
+                        (it.startsWith('dev/composemc/') && it != 'dev/composemc/runtime/RuntimeInfo.class') ||
+                        // The runtime must use Minecraft's LWJGL, not bundle another copy.
+                        it.startsWith('org/lwjgl/') || it.startsWith('androidx/compose/material3/') ||
+                        it.toLowerCase(Locale.ROOT).contains('mixin')
                 }
-                if (zip.entries().toList().any { it.name.startsWith('org/lwjgl/') }) {
-                    throw new GradleException('The runtime must use Minecraft LWJGL, not bundle another copy')
-                }
-                if (zip.entries().toList().any {
-                    it.name.toLowerCase(Locale.ROOT).contains('mixin') ||
-                        it.name.startsWith('dev/composemc/demo/') || it.name.startsWith('dev/composemc/development/') ||
-                        it.name.startsWith('dev/composemc/render/gl/testing/') ||
-                        it.name.startsWith('dev/composemc/render/vulkan/testing/') || it.name.startsWith('dev/composemc/testing/') ||
-                        it.name.contains('OpenGlRendererProbe') || it.name.contains('OpenGlProbeResult') ||
-                        it.name.startsWith('androidx/compose/material3/')
-                }) {
-                    throw new GradleException('Test tooling or injection files leaked into the shared runtime')
-                }
-                if (zip.entries().toList().count { it.name.endsWith('.sha256') && it.name.contains('skiko') } < skikoPlatforms.size()) {
+                if (entries.count { it.endsWith('.sha256') && it.contains('skiko') } < skikoPlatforms.size())
                     throw new GradleException("Missing Skiko native library checksum for ${skikoPlatforms}")
-                }
                 skikoPlatforms.each { skikoPlatform ->
-                    if (zip.getEntry("skiko-${skikoPlatform}.dll") == null
-                        && zip.getEntry("libskiko-${skikoPlatform}.so") == null
-                        && zip.getEntry("libskiko-${skikoPlatform}.dylib") == null) {
+                    if (!(["skiko-${skikoPlatform}.dll", "libskiko-${skikoPlatform}.so", "libskiko-${skikoPlatform}.dylib"]
+                        .any { it.toString() in entries }))
                         throw new GradleException("Missing Skiko native library for ${skikoPlatform}")
-                    }
                 }
             }
+            required.each { if (!(it in entries)) throw new GradleException("Missing ${bundleName} entry: $it") }
+            def multiRelease = new java.util.jar.JarFile(file).withCloseable { it.manifest.mainAttributes.getValue('Multi-Release') }
+            if (multiRelease == 'true' && !entries.any { it.startsWith('META-INF/versions/') })
+                throw new GradleException("${bundleName} declares Multi-Release without META-INF/versions, which Forge 1.20.1 rejects")
+            if (!forbidden.empty) throw new GradleException("Unexpected ${bundleName} entries: ${forbidden.take(10)}")
+            def licenseIndex = new JsonSlurper().parseText(zip.getInputStream(zip.getEntry('META-INF/composemc-third-party/dependencies.json')).getText('UTF-8'))
+            licenseIndex.each { entry ->
+                if (zip.getEntry("META-INF/composemc-third-party/${entry.directory}/LICENSE.txt") == null)
+                    throw new GradleException("Missing license for ${entry.coordinate}")
+            }
+            if (entries.any { it.startsWith('META-INF/composemc-third-party/licenses/javadoc/') })
+                throw new GradleException('Documentation licenses leaked into the bundle')
         }
     }
 }
 tasks.named('check') { dependsOn tasks.named('verifyRuntimeArchive') }
+
+// Central requires sources and javadoc for every JAR. A bundle has none of its own, so these point to upstream.
+def readme = tasks.register('bundleReadme') {
+    def output = layout.buildDirectory.file('bundle-readme/README.md')
+    inputs.files(notices)
+    outputs.file(output)
+    doLast {
+        output.get().asFile.setText("""# ${bundleName} ${project.version}
+
+This JAR packages third-party libraries as one FML library for Compose MC. It contains no sources or API
+documentation of its own; use those published by the upstream projects:
+
+${bundledCoordinates().collect { "- $it" }.join('\n')}
+
+Licenses and notices are in the binary JAR under META-INF/composemc-third-party.
+""", 'UTF-8')
+    }
+}
+def placeholders = ['sources', 'javadoc'].collect { classifier ->
+    tasks.register("${classifier}PlaceholderJar", Jar) {
+        archiveBaseName = bundleName
+        archiveClassifier = classifier
+        from readme
+    }
+}
+tasks.named('assemble') { dependsOn bundle }
+
+publishing {
+    publications {
+        runtime(MavenPublication) {
+            artifactId = bundleName
+            artifact bundle
+            placeholders.each { artifact it }
+            pom {
+                if (kotlinBundle) {
+                    name = 'Compose MC Kotlin libraries'
+                    description = 'Kotlin stdlib, kotlinx.coroutines and kotlinx.serialization as one FML library for the with-kotlin installation of Compose MC.'
+                } else {
+                    name = "Compose MC ${profile} runtime"
+                    description = "Compose ${catalog.findVersion('compose').get().requiredVersion} and Skiko ${skikoVersion} " +
+                        'for Windows, Linux and macOS (x64 and arm64) as one FML library for Compose MC.'
+                }
+                licenses {
+                    license {
+                        name = 'Apache License, Version 2.0'
+                        url = 'https://www.apache.org/licenses/LICENSE-2.0.txt'
+                        distribution = 'repo'
+                    }
+                    if (!kotlinBundle) {
+                        license {
+                            name = 'BSD 3-Clause License'
+                            url = 'https://opensource.org/license/bsd-3-clause'
+                            distribution = 'repo'
+                            comments = 'Skia in the Skiko native libraries. META-INF/composemc-third-party lists every native component license.'
+                        }
+                        license {
+                            name = 'MIT License'
+                            url = 'https://opensource.org/license/mit'
+                            distribution = 'repo'
+                            comments = 'The Compose MC runtime identification class.'
+                        }
+                    }
+                }
+            }
+        }
+    }
+    repositories {
+        maven {
+            name = 'consumer'
+            url = rootProject.layout.buildDirectory.dir('consumer-maven')
+        }
+    }
+}
