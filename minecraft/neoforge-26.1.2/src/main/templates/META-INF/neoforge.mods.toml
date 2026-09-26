@@ -1,6 +1,7 @@
 modLoader="javafml"
 loaderVersion="${loader_version_range}"
 license="${mod_license}"
+issueTrackerURL="${mod_issues_url}"
 showAsResourcePack=false
 
 [[mixins]]
@@ -10,6 +11,8 @@ config="composemc.mixins.json"
 modId="${mod_id}"
 version="${mod_version}"
 displayName="${mod_name}"
+displayURL="${mod_url}"
+authors="${mod_authors}"
 description='''Standalone Compose Multiplatform library for NeoForge 26.1.2, with OpenGL rendering.'''
 
 [[dependencies.${mod_id}]]

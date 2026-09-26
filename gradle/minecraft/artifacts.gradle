@@ -22,12 +22,14 @@ ext.configureMinecraftArtifacts = { Map spec ->
         }
     } }
     tasks.named('processDevelopmentResources') {
-        inputs.property 'mod_version', project.mod_version
-        inputs.property 'mod_license', project.mod_license
-        filesMatching(spec.metadataPath) { expand(mod_version: project.mod_version, mod_license: project.mod_license) }
+        def values = [mod_version: project.mod_version, mod_license: project.mod_license, mod_authors: project.mod_authors,
+            mod_url: project.mod_url, mod_issues_url: project.mod_issues_url]
+        inputs.properties values
+        filesMatching(spec.metadataPath) { expand values }
     }
     def metadata = tasks.register('generateModMetadata', ProcessResources) {
         def values = [mod_id: mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: mod_version,
+            mod_authors: mod_authors, mod_url: mod_url, mod_issues_url: mod_issues_url,
             loader_version_range: loader_version_range, minecraft_version: minecraft_version,
             minecraft_version_range: "[$minecraft_version]"] + spec.metadataValues
         inputs.properties values

@@ -1,11 +1,14 @@
 modLoader="javafml"
 loaderVersion="[47,)"
 license="${mod_license}"
+issueTrackerURL="${mod_issues_url}"
 
 [[mods]]
 modId="composemc_development"
 version="${mod_version}"
 displayName="Compose MC Development Tools"
+displayURL="${mod_url}"
+authors="${mod_authors}"
 description="Optional preview and validation tools. Requires the separately installed composemc runtime."
 
 [[dependencies.composemc_development]]
