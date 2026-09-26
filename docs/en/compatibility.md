@@ -14,7 +14,7 @@ This page describes the **0.1.0-alpha.34** build baseline. Each adapter under [m
 | 26.2 | NeoForge 26.2.0.88 | 25 | Polyfrost Skiko 0.999.6 | OpenGL / Vulkan |
 | 26.3 | NeoForge 26.3.0.6-beta | 25 | Polyfrost Skiko 0.999.6 | OpenGL / Vulkan |
 
-Shared modules target Java 17. Each adapter is compiled for its own Minecraft/loader APIs; one target's mod JAR cannot be installed on another target. Consumer Maven coordinates are `dev.composemc:composemc-<loader>-<minecraft>:<version>`.
+Shared modules target Java 17. Each adapter is compiled for its own Minecraft/loader APIs; one target's mod JAR cannot be installed on another target. Consumer Maven coordinates are `dev.composemc:composemc-<loader>-<minecraft>:<version>` and `…-with-kotlin`; Gradle resolves the runtime bundles they depend on.
 
 Kotlin and the Compose compiler are 2.4.10; Compose is 1.12.0. Every target offers two installation variants with the same mod ID and API. Do not mix standard and Vulkan graphics profiles or embed Compose MC into a consumer.
 
@@ -29,13 +29,13 @@ Install exactly one variant. Both include Compose, Skiko, atomicfu and the Swing
 
 Provider baselines: KFF 4.12.0 for Forge 1.20.1, KFF 5.12.0 for NeoForge 1.21.1, KFF 6.3.0 for 26.1.2/26.2. They supply Coroutines 1.10.2 or 1.11.0 with matched Serialization libraries. KFF 6.3.0 excludes 26.3: use `with-kotlin` or a compatible independent provider. Both variants are built for 26.3 without special packaging logic; recognizing a future provider does not itself require a new Compose MC release.
 
-The `dev` JAR is the full compile-only API bundle for either variant. The library's Java-only server menu/slot entry path does not require or initialize Kotlin/UI; consumers may impose additional requirements.
+Maven consumers see the same split. `composemc-<loader>-<minecraft>` is the library JAR, which depends on `composemc-runtime-standard` or `composemc-runtime-vulkan`. The `…-with-kotlin` coordinate adds `composemc-kotlin`, so compiling against it supplies the Kotlin API for either variant. The library's Java-only server menu/slot entry path does not require or initialize Kotlin/UI; consumers may impose additional requirements.
 
 ## Upgrade an existing consumer
 
 Ore UI now uses responsibility-based subpackages. Replace root-package imports using the [component/package table](ore-ui.md#choose-a-component), then rebuild the consumer and install the matching library. This changes JVM names as well as source imports; an already compiled consumer needs recompilation.
 
-This release uses menu protocol **5**. Rebuild the consumer against the matching `dev` artifact and upgrade the installed library on both sides together. Protocol 4 peers and the previous state-record framing are incompatible.
+This release uses menu protocol **5**. Rebuild the consumer against the matching Maven artifact and upgrade the installed library on both sides together. Protocol 4 peers and the previous state-record framing are incompatible.
 
 | Integration point | Current API |
 | --- | --- |
@@ -50,6 +50,7 @@ This release uses menu protocol **5**. Rebuild the consumer against the matching
 | Adapter package | Every target uses `dev.composemc.forge`. Replace `dev.composemc.neoforge` imports and drop the `Forge`/`NeoForge` prefix: `ComposeScreen`, `ComposeInventoryScreen`, `ComposeMenuScreen`, `ComposeConfigScreen`, `config.ConfigEditor`, `slots.SlotBehaviorScreen`. |
 | Package layout | `dev.composemc.sync` keeps `MenuSyncOptions` and its exceptions; schemas, snapshots and codecs moved to `.state`, actions to `.action`, fragments and transfer budgets to `.transport`. Adapter APIs moved by feature: `ComposeConfigScreen` to `.config`, `ComposeMenuSlots` and its slot types to `.slots`, item icons and tooltips with their options and statistics to `.item`. |
 | Native sync codecs | `MinecraftSyncCodecs.registry(id, maxBytes, streamCodec)` no longer takes a registry supplier or binds to the creating thread; declare it as a shared constant like the built-in codecs. It works only inside synchronized menu values and actions. Forge 1.20.1's `buffer` no longer binds to a thread either. |
+| Maven coordinates | The `dev` and `with-kotlin` classifiers were removed. With the bundled Kotlin, use `composemc-<loader>-<minecraft>-with-kotlin` for `compileOnly` and `localRuntime`; a mod that depends on KFF uses the plain coordinate for both. The [quick start](getting-started.md#2-add-consumer-dependencies) covers a development launch that only adds KFF. Gradle adds the runtime bundles. Forge 1.20.1 publishes SRG names; remap it like other Forge mod dependencies. Player JARs are in each adapter's `build/release`. |
 
 State/action policies and action declarations must match on both sides. The client confirms its menu attachment and policy before state bodies are sent, adding one opening confirmation round trip. See [menu synchronization](menu-sync.md) for all defaults, refusal handling and burst behavior.
 
@@ -74,7 +75,7 @@ Every target publishes its adapter API in `dev.composemc.forge` under the same t
 | Native codec bridge | `FriendlyByteBuf` / `PacketCodec` | Registry-aware `StreamCodec` bridge |
 | Config spec | `ForgeConfigSpec`, legacy list/restart metadata | `ModConfigSpec`, target-specific modern metadata |
 
-Shared Ore, snapshot, sync and slot-policy code has one source. Source compatibility of game-facing signatures still depends on Minecraft: tooltip extraction, input events and graphics APIs change across versions. Use the matching target's `dev` artifact instead of compiling against one target and assuming cross-version binary compatibility.
+Shared Ore, snapshot, sync and slot-policy code has one source. Source compatibility of game-facing signatures still depends on Minecraft: tooltip extraction, input events and graphics APIs change across versions. Use the matching target's Maven artifact instead of compiling against one target and assuming cross-version binary compatibility.
 
 ## Vulkan stencil-pipeline cleanup
 

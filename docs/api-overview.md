@@ -2,9 +2,9 @@
 
 ## API reference / API 参考
 
-This reference contains the public Kotlin and Java declarations for the Minecraft adapter named above and the shared Compose MC modules it distributes. The standard, `with-kotlin` and compile-only `dev` artifacts share this source and documentation set. Third-party Kotlin, Compose and Minecraft sources are provided by their respective upstream projects.
+This reference contains the public Kotlin and Java declarations for the Minecraft adapter named above and the shared Compose MC modules it distributes. The Maven library, its `-with-kotlin` coordinate and both release JARs share this source and documentation set. Third-party Kotlin, Compose and Minecraft sources are provided by their respective upstream projects.
 
-本参考包含上方 Minecraft 适配器及随它分发的共享 Compose MC 模块的公开 Kotlin/Java 声明。标准版、`with-kotlin` 和仅编译用 `dev` 共用这套源码与文档。第三方 Kotlin、Compose 和 Minecraft 源码由各自上游提供。
+本参考包含上方 Minecraft 适配器及随它分发的共享 Compose MC 模块的公开 Kotlin/Java 声明。Maven 库、它的 `-with-kotlin` 坐标以及两种发布 JAR 共用这套源码与文档。第三方 Kotlin、Compose 和 Minecraft 源码由各自上游提供。
 
 ### Where to start / 从哪里开始
 

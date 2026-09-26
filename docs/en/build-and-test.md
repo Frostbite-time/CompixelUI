@@ -46,18 +46,20 @@ Common renderer scenes, CPU reference pixels and preview exercises live in `test
 .\gradlew.bat '-PcomposemcTargets=26.3' :minecraft:neoforge-26.3:build
 ```
 
-Look in `minecraft/<loader>-<mc>/build/libs/`:
+Players install a JAR from `minecraft/<loader>-<mc>/build/release/`; Maven consumers get the artifacts in `build/libs/`:
 
 | Filename | Destination |
 | --- | --- |
-| `composemc-<loader>-<mc>-0.1.0-alpha.34.jar` | Standard installation; requires an external Kotlin provider |
-| `…-with-kotlin.jar` | Alternative installation including Kotlin; install only one variant |
-| `…-dev.jar` | Consumer compile classpath only |
-| `…-development.jar` | Optional F8 preview/probe mod alongside the player JAR |
-| `…-sources.jar` | Common project sources for standard, `with-kotlin` and `dev`; not an installable mod |
-| `…-javadoc.jar` | Common Dokka HTML API reference; not an installable mod |
+| `release/composemc-<loader>-<mc>-0.1.0-alpha.34.jar` | Standard installation; requires an external Kotlin provider |
+| `release/…-with-kotlin.jar` | Alternative installation including Kotlin; install only one variant |
+| `libs/composemc-<loader>-<mc>-0.1.0-alpha.34.jar` | Maven library JAR without the runtime; not an installable mod |
+| `libs/…-development.jar` | Optional F8 preview/probe mod alongside the player JAR |
+| `libs/…-sources.jar` | Project sources of the library JAR; not an installable mod |
+| `libs/…-javadoc.jar` | Dokka HTML API reference; not an installable mod |
 
-Use loader `forge` for 1.20.1 and `neoforge` otherwise. Both Forge installation variants are reobfuscated; named JARs under `build/devlibs` are development-launch artifacts. `build` produces all six artifacts in the table. Runtime bundles under `runtimes/` are internal outputs, not a second installable mod.
+Use loader `forge` for 1.20.1 and `neoforge` otherwise. On Forge the JARs in `build/release` and `build/libs` are reobfuscated; named JARs under `build/devlibs` are development-launch artifacts. `build` produces all six artifacts in the table.
+
+The release JARs embed runtime bundles that `runtimes/` builds with their own versions, set as `runtime_<name>_version` in the root `gradle.properties`: `composemc-runtime-standard` or `composemc-runtime-vulkan` with Compose and Skiko, plus `composemc-kotlin` in the `with-kotlin` JAR. The Maven library JAR contains the same Compose MC classes and declares its runtime bundle as a dependency; its `-with-kotlin` coordinate is a POM that adds `composemc-kotlin`. `verifyReleaseIsolation` checks that each release JAR equals the library JAR apart from its embedded bundles. Each bundle's `bundle.lock` records the dependencies of its version. Published versions cannot change, so when they change, raise the version and run `:runtime-<name>:writeBundleLock`.
 
 `sourcesJar` packages the selected adapter's production sources and its bundled shared modules, using readable development mappings even on Forge 1.20.1. It excludes other adapters, development probes and third-party sources. `javadocJar` packages Dokka 2.2.0 HTML with a bilingual overview and public declarations from the same source set. Member descriptions use existing KDoc/Javadoc comments; the bilingual guides remain the tutorial and usage reference.
 
@@ -66,12 +68,12 @@ For example, run `:minecraft:neoforge-1.21.1:sourcesJar` or `:minecraft:neoforge
 Publish locally for a consumer with:
 
 ```powershell
-.\gradlew.bat '-PcomposemcTargets=1.21.1' :minecraft:neoforge-1.21.1:publishLibraryPublicationToConsumerRepository
+.\gradlew.bat '-PcomposemcTargets=1.21.1' :minecraft:neoforge-1.21.1:publishAllPublicationsToConsumerRepository
 ```
 
-The repository is `build/consumer-maven`. This task does not publish to an external Maven service. See [quick start](getting-started.md) for consumer dependencies.
+The repository is `build/consumer-maven`. The task also publishes the runtime bundles that the POMs name. It does not publish to an external Maven service. See [quick start](getting-started.md) for consumer dependencies.
 
-Attachments use the ordinary `sources` and `javadoc` classifiers. A `:dev` consumer resolves both through Gradle's standard JVM artifact queries; the generated IDEA model associates them with the dev binary. No duplicate `dev-sources` or `dev-javadoc` artifacts are published. Enable source/documentation downloading in your IDE and refresh Gradle if attachments are not downloaded automatically.
+The library JAR's attachments use the ordinary `sources` and `javadoc` classifiers. Maven Central requires both for every JAR, so each runtime bundle attaches two that contain only a README naming its upstream libraries. Enable source/documentation downloading in your IDE and refresh Gradle if attachments are not downloaded automatically.
 
 ## Desktop previews and documentation images
 

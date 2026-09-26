@@ -14,7 +14,7 @@
 | 26.2 | NeoForge 26.2.0.88 | 25 | Polyfrost Skiko 0.999.6 | OpenGL / Vulkan |
 | 26.3 | NeoForge 26.3.0.6-beta | 25 | Polyfrost Skiko 0.999.6 | OpenGL / Vulkan |
 
-共享模块以 Java 17 为目标。每个适配器针对自己的 Minecraft/加载器 API 编译，不能将一个目标的 mod JAR 安装到另一个目标。消费者 Maven 坐标为 `dev.composemc:composemc-<loader>-<minecraft>:<version>`。
+共享模块以 Java 17 为目标。每个适配器针对自己的 Minecraft/加载器 API 编译，不能将一个目标的 mod JAR 安装到另一个目标。消费者 Maven 坐标为 `dev.composemc:composemc-<loader>-<minecraft>:<version>` 和 `…-with-kotlin`，它们依赖的运行时包由 Gradle 解析。
 
 Kotlin 与 Compose 编译器为 2.4.10，Compose 为 1.12.0。每个目标提供具有相同 Mod ID 和 API 的两种安装包。不要混合 standard 与 Vulkan 图形配置，也不要将 Compose MC 内嵌进消费者。
 
@@ -29,13 +29,13 @@ Kotlin 与 Compose 编译器为 2.4.10，Compose 为 1.12.0。每个目标提供
 
 提供者基线：Forge 1.20.1 使用 KFF 4.12.0，NeoForge 1.21.1 使用 KFF 5.12.0，26.1.2/26.2 使用 KFF 6.3.0。它们提供协程 1.10.2 或 1.11.0 及匹配的 Serialization 库。KFF 6.3.0 排除了 26.3，该版本可使用 `with-kotlin` 或兼容的独立提供者。26.3 同样生成两种产物，没有特殊打包逻辑，无需仅为识别未来提供者而重发 Compose MC。
 
-`dev` JAR 为两种安装方式提供完整的编译 API。本库纯 Java 的服务器菜单/槽位入口不依赖或初始化 Kotlin/UI；消费者可能有额外要求。
+Maven 消费者看到的也是这种划分。`composemc-<loader>-<minecraft>` 是库 JAR，依赖 `composemc-runtime-standard` 或 `composemc-runtime-vulkan`。`…-with-kotlin` 坐标额外加入 `composemc-kotlin`，因此针对它编译可以为两种安装方式提供 Kotlin API。本库纯 Java 的服务器菜单/槽位入口不依赖或初始化 Kotlin/UI；消费者可能有额外要求。
 
 ## 升级已有消费者
 
 Ore UI 现按职责划分子包。请依据[组件与包对照表](ore-ui.md#选择组件)替换根包导入，重新构建消费者并安装匹配的库。该调整同时改变源码导入和 JVM 名称，已经编译的消费者也需要重新编译。
 
-本版本使用菜单协议 **5**。请针对匹配的 `dev` 产物重新构建消费者，并同时升级客户端和服务端安装的库。协议 4 对端及旧的状态记录帧格式均不兼容。
+本版本使用菜单协议 **5**。请针对匹配的 Maven 产物重新构建消费者，并同时升级客户端和服务端安装的库。协议 4 对端及旧的状态记录帧格式均不兼容。
 
 | 接入位置 | 当前 API |
 | --- | --- |
@@ -50,6 +50,7 @@ Ore UI 现按职责划分子包。请依据[组件与包对照表](ore-ui.md#选
 | 适配器包名 | 所有目标统一使用 `dev.composemc.forge`。将 `dev.composemc.neoforge` 导入改为该包，并去掉 `Forge`/`NeoForge` 前缀：`ComposeScreen`、`ComposeInventoryScreen`、`ComposeMenuScreen`、`ComposeConfigScreen`、`config.ConfigEditor`、`slots.SlotBehaviorScreen`。 |
 | 包结构 | `dev.composemc.sync` 保留 `MenuSyncOptions` 和异常类型；状态结构、快照与编解码移到 `.state`，动作移到 `.action`，分片与传输预算移到 `.transport`。适配器 API 按功能分包：`ComposeConfigScreen` 移到 `.config`，`ComposeMenuSlots` 及其槽位类型移到 `.slots`，物品图标、提示及其选项与统计移到 `.item`。 |
 | 原生同步编解码器 | `MinecraftSyncCodecs.registry(id, maxBytes, streamCodec)` 不再接收注册表供应者，也不再绑定创建线程，可以像内置编解码器一样声明为共享常量。它只能用于同步菜单的值和动作。Forge 1.20.1 的 `buffer` 同样不再绑定线程。 |
+| Maven 坐标 | 已移除 `dev` 和 `with-kotlin` 分类包。使用自带的 Kotlin 时，`compileOnly` 和 `localRuntime` 都用 `composemc-<loader>-<minecraft>-with-kotlin`；本身依赖 KFF 的模组两处都用不带后缀的坐标。只在开发启动中加入 KFF 的写法见[快速开始](getting-started.md#2-配置消费者依赖)。运行时包由 Gradle 自动加入。Forge 1.20.1 发布 SRG 名称，请像其他 Forge 模组依赖一样重映射。玩家用的 JAR 位于各适配器的 `build/release`。 |
 
 两端的状态/动作策略和动作声明必须一致。客户端确认菜单挂接与策略后才开始发送状态正文，打开时增加一次确认往返。完整默认值、拒绝处理及突发行为见[菜单同步](menu-sync.md)。
 
@@ -74,7 +75,7 @@ Ore UI 现按职责划分子包。请依据[组件与包对照表](ore-ui.md#选
 | 原生 codec 桥接 | `FriendlyByteBuf` / `PacketCodec` | 支持注册表的 `StreamCodec` 桥接 |
 | 配置规范 | `ForgeConfigSpec`，旧版列表/重启元数据 | `ModConfigSpec`，各目标的现代元数据 |
 
-Ore、快照、同步和槽位策略共享同一份源码。游戏侧签名是否源码兼容仍取决于 Minecraft：提示提取、输入事件和图形 API 会随版本变化。应使用对应目标的 `dev` 产物，不能针对一个目标编译后假定二进制跨版本兼容。
+Ore、快照、同步和槽位策略共享同一份源码。游戏侧签名是否源码兼容仍取决于 Minecraft：提示提取、输入事件和图形 API 会随版本变化。应使用对应目标的 Maven 产物，不能针对一个目标编译后假定二进制跨版本兼容。
 
 ## Vulkan 模板管线清理
 

@@ -19,7 +19,7 @@ Compose MC maintains shared UI/runtime code and per-version Minecraft adapters i
 | `slot-core` | Dependency-free Java 17 slot policies and transfer routes |
 | `demo` / `desktop` | F8 preview pages and desktop preview/capture |
 | `minecraft/forge-*` / `minecraft/neoforge-*` | Version-owned builds, native screens and HUD layers, input, resources, items, menus and GPU lifecycle |
-| `runtimes/standard` / `runtimes/vulkan` | Assemble the matching shared code, JVM dependencies and six native variants |
+| `runtimes/standard` / `runtimes/vulkan` / `runtimes/kotlin` | Package the third-party runtime bundles: Compose and Skiko with six native variants per graphics profile, and the Kotlin libraries |
 | `build-logic` / `gradle` / `tools` | Build conventions, target/version metadata, checks and launch helpers |
 
 The `demo` module contains only preview pages and their state; desktop captures reuse those pages. Shared test code is collected in `testing`: `dev.composemc.testing.render` owns the renderer scene, CPU reference and pixel comparison, and `dev.composemc.testing.ui` owns automated interaction exercises. Component regression tests live in `testing/src/test`; the desktop module provides the preview and capture entry points.
@@ -63,11 +63,13 @@ Resize updates viewport-dependent resources while retaining the session where su
 
 The standard profile uses Skiko 0.150.1. The Vulkan profile uses the matched Polyfrost Skiko 0.999.6 JVM/native distribution and adds the shared Vulkan renderer. Each adapter selects its runtime dependency and matching Skiko constraint in its own build file.
 
-Runtime assembly merges service registrations and third-party notices, includes Windows/Linux/macOS x64 and arm64 natives, and avoids relocation/minimization that would break compiler ABI or JNI. It does not bundle another LWJGL. Archive checks reject development tools, unexpected Mixins and mismatched native/runtime contents.
+Runtime bundles carry third-party code only. Assembly merges service registrations and third-party notices, includes Windows/Linux/macOS x64 and arm64 natives, and avoids relocation/minimization that would break compiler ABI or JNI. It does not bundle another LWJGL. Archive checks reject development tools, unexpected Mixins and mismatched native/runtime contents.
 
-Each runtime project emits both an external-Kotlin bundle and a `with-kotlin` bundle. The external bundle excludes Kotlin stdlib, Coroutines Core and Serialization while retaining Compose's Swing dispatcher integration and atomicfu. The adapter embeds exactly one matching bundle; it never embeds KFF. Client entry points are Java so missing external libraries can be reported before entering Kotlin code. A shared Java check verifies stdlib >= 2.2.21 and representative Coroutines/Serialization APIs without touching the dedicated-server entry path. This is a dependency check, not certification of arbitrary library combinations.
+The profile bundles exclude Kotlin stdlib, Coroutines Core and Serialization while retaining Compose's Swing dispatcher integration and atomicfu. `runtimes/kotlin` packages exactly those Kotlin libraries as `composemc-kotlin`; its archive check confirms that both profiles expect the same versions. Each bundle has its own version, and its `bundle.lock` records the dependencies of that version.
 
-The `dev` classifier supplies the complete compile-time JVM API for both variants, without native binaries; the `development` classifier supplies preview/probe code. One `sources` JAR and one Dokka HTML `javadoc` JAR describe the adapter and its shared production modules for all binary variants. They contain the project's own sources/API, not dependency sources or another Minecraft target. [Quick start](getting-started.md) explains how consumers depend on these artifacts.
+The mod JAR carries every Compose MC module, from `platform` to `slot-core`, and no third-party classes. Release JARs embed the profile bundle through Jar-in-Jar, plus the Kotlin bundle in `with-kotlin`; they never embed KFF. Maven consumers resolve the bundles as dependencies instead, and development launches load them as FML libraries. Client entry points are Java so missing libraries can be reported before entering Kotlin code. Shared Java checks confirm the runtime bundle the adapter was built for, then stdlib >= 2.2.21 and representative Coroutines/Serialization APIs, without touching the dedicated-server entry path. This is a dependency check, not certification of arbitrary library combinations.
+
+The `development` classifier supplies preview/probe code. One `sources` JAR and one Dokka HTML `javadoc` JAR describe the adapter and its shared production modules. They contain the project's own sources/API, not dependency sources or another Minecraft target. [Quick start](getting-started.md) explains how consumers depend on these artifacts.
 
 ## Build conventions
 
@@ -78,7 +80,7 @@ The `dev` classifier supplies the complete compile-time JVM API for both variant
 | `composemc.testing` | JUnit, test settings and dependency locking |
 | `composemc.jvm-library` | Kotlin/JVM and target toolchains |
 | `composemc.skiko-profile` | Matching Skiko version constraints |
-| `composemc.runtime-bundle` | Runtime assembly, notices and archive checks |
+| `composemc.runtime-bundle` | Runtime bundle assembly, notices, version locks, archive checks and publication |
 
 The pure Java [menu-sync](../../menu-sync/build.gradle.kts) and [slot-core](../../slot-core/build.gradle.kts) modules declare their Java 17 toolchain and release target in their own build files and apply `composemc.testing` directly. Their checks enforce empty production dependency classpaths.
 

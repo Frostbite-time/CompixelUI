@@ -46,18 +46,24 @@ Gradle 需要 JDK 17 或更新版本，推荐 JDK 25。各适配器所需 Java �
 .\gradlew.bat '-PcomposemcTargets=26.3' :minecraft:neoforge-26.3:build
 ```
 
-在 `minecraft/<loader>-<mc>/build/libs/` 获取：
+玩家安装 `minecraft/<loader>-<mc>/build/release/` 中的 JAR；Maven 消费者使用 `build/libs/` 中的产物：
 
 | 文件名 | 用途 |
 | --- | --- |
-| `composemc-<loader>-<mc>-0.1.0-alpha.34.jar` | 标准安装包，需要外部 Kotlin 提供者 |
-| `…-with-kotlin.jar` | 自带 Kotlin 的另一种安装选择，只能选装一个版本 |
-| `…-dev.jar` | 仅消费者编译类路径 |
-| `…-development.jar` | 可选 F8 预览/探针模组，与正式 JAR 同时安装 |
-| `…-sources.jar` | 标准版、自带版与 `dev` 共用的项目源码，不是可安装模组 |
-| `…-javadoc.jar` | 共用的 Dokka HTML API 参考，不是可安装模组 |
+| `release/composemc-<loader>-<mc>-0.1.0-alpha.34.jar` | 标准安装包，需要外部 Kotlin 提供者 |
+| `release/…-with-kotlin.jar` | 自带 Kotlin 的另一种安装选择，只能选装一个版本 |
+| `libs/composemc-<loader>-<mc>-0.1.0-alpha.34.jar` | 不含运行时的 Maven 库 JAR，不是可安装模组 |
+| `libs/…-development.jar` | 可选 F8 预览/探针模组，与正式 JAR 同时安装 |
+| `libs/…-sources.jar` | 库 JAR 的项目源码，不是可安装模组 |
+| `libs/…-javadoc.jar` | Dokka HTML API 参考，不是可安装模组 |
 
-1.20.1 的加载器名为 `forge`，其他目标为 `neoforge`。Forge 的两种安装包均已重混淆；`build/devlibs` 下的命名 JAR 用于开发启动。`build` 生成表中的全部六种产物。`runtimes/` 下是内部装配产物，不要作为第二个模组安装。
+1.20.1 的加载器名为 `forge`，其他目标为 `neoforge`。Forge 下 `build/release` 和 `build/libs` 中的 JAR 均已重混淆；`build/devlibs` 下的命名 JAR 用于开发启动。`build` 生成表中的全部六种产物。
+
+发布 JAR 内嵌的运行时包由 `runtimes/` 单独构建，版本号各自独立，写在根目录 `gradle.properties` 的 `runtime_<name>_version` 中：
+- `composemc-runtime-standard` 或 `composemc-runtime-vulkan`，装有 Compose 和 Skiko；
+- `composemc-kotlin`，只嵌入 `with-kotlin` JAR。
+
+Maven 库 JAR 含有相同的 Compose MC 类，并把对应的运行时包声明为依赖；它的 `-with-kotlin` 坐标只有一个 POM，额外加入 `composemc-kotlin`。`verifyReleaseIsolation` 检查每个发布 JAR 除内嵌运行时包外都与库 JAR 一致。每个运行时包的 `bundle.lock` 记录该版本包含的依赖。已发布的版本不能再改，所以依赖变化时要先提高版本号，再运行 `:runtime-<name>:writeBundleLock`。
 
 `sourcesJar` 收集当前适配器的正式源码和随包分发的共享模块，Forge 1.20.1 也采用可读开发映射。它不包含其他适配器、开发探针或第三方源码。`javadocJar` 将 Dokka 2.2.0 生成的 HTML 打包，包含双语概览及同一套源码的公开声明。成员说明来自现有 KDoc/Javadoc 注释，中英文指南继续承担教程和用法说明。
 
@@ -66,12 +72,12 @@ Gradle 需要 JDK 17 或更新版本，推荐 JDK 25。各适配器所需 Java �
 为消费者发布至本地仓库：
 
 ```powershell
-.\gradlew.bat '-PcomposemcTargets=1.21.1' :minecraft:neoforge-1.21.1:publishLibraryPublicationToConsumerRepository
+.\gradlew.bat '-PcomposemcTargets=1.21.1' :minecraft:neoforge-1.21.1:publishAllPublicationsToConsumerRepository
 ```
 
-仓库位于 `build/consumer-maven`，该任务不会发布到外部 Maven 服务。消费者依赖见[快速开始](getting-started.md)。
+仓库位于 `build/consumer-maven`。该任务会一并发布 POM 所引用的运行时包，不会发布到外部 Maven 服务。消费者依赖见[快速开始](getting-started.md)。
 
-附件使用常规 `sources`、`javadoc` classifier。`:dev` 消费者可通过 Gradle 标准 JVM 产物查询解析两者，生成的 IDEA 模型会将其关联到 dev 二进制。不另发重复的 `dev-sources` 或 `dev-javadoc`。若 IDE 未自动下载，请开启源码/文档下载并刷新 Gradle 项目。
+库 JAR 的附件使用常规 `sources`、`javadoc` classifier。Maven Central 要求每个 JAR 都带这两种附件，因此每个运行时包也附带两个，里面只有一份列出上游库的 README。若 IDE 未自动下载，请开启源码/文档下载并刷新 Gradle 项目。
 
 ## 桌面预览与文档图片
 

@@ -19,7 +19,7 @@ Compose MC 在同一个 Gradle 构建中维护共享 UI/运行时和各版本 Mi
 | `slot-core` | 无依赖 Java 17 槽位策略和转移路线 |
 | `demo` / `desktop` | F8 预览页面及桌面预览/截图 |
 | `minecraft/forge-*` / `minecraft/neoforge-*` | 各版本独立构建、原生屏幕与 HUD 层、输入、资源、物品、菜单和 GPU 生命周期 |
-| `runtimes/standard` / `runtimes/vulkan` | 装配匹配的共享代码、JVM 依赖及六种原生库 |
+| `runtimes/standard` / `runtimes/vulkan` / `runtimes/kotlin` | 打包第三方运行时包：每种图形配置的 Compose、Skiko 及六种原生库，以及 Kotlin 库 |
 | `build-logic` / `gradle` / `tools` | 构建约定、目标/版本元数据、检查与启动工具 |
 
 `demo` 只包含预览页面及其状态，桌面截图复用同一套页面。公共测试代码集中在 `testing`：`dev.composemc.testing.render` 管理渲染场景、CPU 参考图和像素比较，`dev.composemc.testing.ui` 管理自动交互脚本。组件回归测试集中在 `testing/src/test`，桌面模块提供预览和截图入口。
@@ -63,11 +63,13 @@ OpenGL 借用 Minecraft 当前上下文，管理自身 Skia 上下文和离屏�
 
 standard 配置使用 Skiko 0.150.1；Vulkan 配置使用匹配的 Polyfrost Skiko 0.999.6 JVM/原生库，并加入共享 Vulkan 渲染器。每个适配器在自己的构建文件中选择运行时依赖及匹配的 Skiko 约束。
 
-装配时合并服务注册和第三方许可，包含 Windows/Linux/macOS 的 x64 与 arm64 原生库，不进行会破坏编译器 ABI 或 JNI 的重定位/裁剪，也不打包另一份 LWJGL。归档检查会拒绝开发工具、未声明的 Mixin 和不匹配的原生库/运行时内容。
+运行时包只含第三方代码。装配时合并服务注册和第三方许可，包含 Windows/Linux/macOS 的 x64 与 arm64 原生库，不进行会破坏编译器 ABI 或 JNI 的重定位/裁剪，也不打包另一份 LWJGL。归档检查会拒绝开发工具、未声明的 Mixin 和不匹配的原生库/运行时内容。
 
-每个运行时项目都生成外部 Kotlin 版和 `with-kotlin` 版。外部版排除 Kotlin 标准库、协程 Core 和 Serialization，保留 Compose 使用的 Swing 调度器集成和 atomicfu。适配器只嵌入一份匹配的运行时，绝不嵌入 KFF。客户端入口使用 Java，在进入 Kotlin 代码前报告缺失的外部依赖。共享 Java 检查验证 stdlib >= 2.2.21 及协程、Serialization 的代表性 API，不触及专用服务器入口。这属于依赖检查，不保证任意库组合都兼容。
+图形配置对应的运行时包排除 Kotlin 标准库、协程 Core 和 Serialization，保留 Compose 使用的 Swing 调度器集成和 atomicfu。`runtimes/kotlin` 把这几个 Kotlin 库单独打成 `composemc-kotlin`，归档检查会确认两种图形配置需要的版本与它一致。每个运行时包有独立的版本号，`bundle.lock` 记录该版本包含的依赖。
 
-`dev` 分类产物为两种安装方式提供完整的编译用 JVM API，不带原生二进制；`development` 分类产物提供预览/探针代码。一份 `sources` JAR 和一份 Dokka HTML `javadoc` JAR 描述当前适配器与其共享正式模块，由所有二进制版本共用。它们只包含项目自有源码/API，不包含依赖源码或其他 MC 版本。消费者依赖方式见[快速开始](getting-started.md)。
+模组 JAR 包含从 `platform` 到 `slot-core` 的全部 Compose MC 模块，不含任何第三方类。发布 JAR 通过 Jar-in-Jar 嵌入对应图形配置的运行时包，`with-kotlin` 版再嵌入 Kotlin 包，绝不嵌入 KFF。Maven 消费者则把这些运行时包作为依赖解析，开发启动时它们作为 FML 库加载。客户端入口使用 Java，在进入 Kotlin 代码前报告缺失的依赖：共享 Java 检查先确认适配器构建时对应的运行时包，再验证 stdlib >= 2.2.21 及协程、Serialization 的代表性 API，不触及专用服务器入口。这属于依赖检查，不保证任意库组合都兼容。
+
+`development` 分类产物提供预览/探针代码。一份 `sources` JAR 和一份 Dokka HTML `javadoc` JAR 描述当前适配器与其共享正式模块。它们只包含项目自有源码/API，不包含依赖源码或其他 MC 版本。消费者依赖方式见[快速开始](getting-started.md)。
 
 ## 构建约定
 
@@ -78,7 +80,7 @@ standard 配置使用 Skiko 0.150.1；Vulkan 配置使用匹配的 Polyfrost Ski
 | `composemc.testing` | JUnit、测试设置和依赖锁定 |
 | `composemc.jvm-library` | Kotlin/JVM 与目标工具链 |
 | `composemc.skiko-profile` | 匹配的 Skiko 版本约束 |
-| `composemc.runtime-bundle` | 运行时装配、许可和归档检查 |
+| `composemc.runtime-bundle` | 运行时包装配、许可、版本锁、归档检查和发布 |
 
 纯 Java 模块 [menu-sync](../../menu-sync/build.gradle.kts) 和 [slot-core](../../slot-core/build.gradle.kts) 在各自构建文件中直接声明 Java 17 工具链及编译目标，并直接应用 `composemc.testing`。各自的检查任务确保生产依赖类路径为空。
 

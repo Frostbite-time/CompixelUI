@@ -11,10 +11,10 @@ Already integrated an earlier alpha? Follow [consumer upgrade notes](compatibili
 From the Compose MC repository, run:
 
 ```powershell
-.\gradlew.bat '-PcomposemcTargets=1.21.1' :minecraft:neoforge-1.21.1:build :minecraft:neoforge-1.21.1:publishLibraryPublicationToConsumerRepository
+.\gradlew.bat '-PcomposemcTargets=1.21.1' :minecraft:neoforge-1.21.1:build :minecraft:neoforge-1.21.1:publishAllPublicationsToConsumerRepository
 ```
 
-This creates a local Maven repository at `build/consumer-maven`. The setup below uses that repository; it does not assume that this version is available on Maven Central. [Build and test](build-and-test.md) covers toolchain setup and other operating systems.
+This creates a local Maven repository at `build/consumer-maven` with the library, its `-with-kotlin` coordinate and the runtime bundles they depend on. The setup below uses that repository; it does not assume that this version is available on Maven Central. [Build and test](build-and-test.md) covers toolchain setup and other operating systems.
 
 ## 2. Add consumer dependencies
 
@@ -32,8 +32,8 @@ repositories {
     }
 }
 dependencies {
-    compileOnly "dev.composemc:composemc-neoforge-1.21.1:${composemc_version}:dev"
-    localRuntime "dev.composemc:composemc-neoforge-1.21.1:${composemc_version}:with-kotlin"
+    compileOnly "dev.composemc:composemc-neoforge-1.21.1-with-kotlin:${composemc_version}"
+    localRuntime "dev.composemc:composemc-neoforge-1.21.1-with-kotlin:${composemc_version}"
 }
 kotlin { jvmToolchain(21) }
 ```
@@ -45,7 +45,7 @@ composemc_version=0.1.0-alpha.34
 kotlin.stdlib.default.dependency=false
 ```
 
-The compile bundle supplies the Kotlin/Compose APIs for either installation variant. The example selects `with-kotlin`, which needs no external Kotlin provider. For a modpack using Kotlin for Forge, omit the `with-kotlin` classifier and install a compatible KFF separately. Do not install both variants or combine `with-kotlin` with KFF. Keep the Kotlin and Compose compiler plugins on the same version; do not embed these runtimes into the consumer.
+The `-with-kotlin` coordinate resolves the library mod, `composemc-runtime-standard` with Compose and Skiko, and `composemc-kotlin` with the Kotlin libraries. A development launch loads both bundles as libraries beside the mod, so no external Kotlin provider is needed. If your mod already depends on Kotlin for Forge, use `composemc-neoforge-1.21.1` without `-with-kotlin` on both lines: KFF's dependency supplies Kotlin for compilation and the development launch. If KFF only joins the development launch, as described below, keep the `-with-kotlin` coordinate for `compileOnly`, which supplies the Kotlin API, and use the plain coordinate for `localRuntime`. Do not install both variants or combine `with-kotlin` with KFF. Keep the Kotlin and Compose compiler plugins on the same version; do not embed these runtimes into the consumer.
 
 To include KFF in a NeoForge 1.21.1 development launch, add `maven { url = 'https://api.modrinth.com/maven' }` to repositories and `localRuntime 'maven.modrinth:kotlin-for-forge:5.12.0'` to dependencies. This is a development runtime dependency, not a JarJar dependency. See [compatibility](compatibility.md#kotlin-runtime-providers) for tested providers and runtime requirements.
 
@@ -114,14 +114,13 @@ Do not read live menus, `ItemStack` or `Minecraft` from a composable. Do not syn
 
 | Artifact | Use |
 | --- | --- |
-| `composemc-neoforge-1.21.1-0.1.0-alpha.34.jar` | Standard: install beside the consumer and a compatible external Kotlin provider |
-| `…-with-kotlin.jar` | Alternative installation: includes Kotlin; no external provider needed |
-| `…-dev.jar` | Compile-only API bundle; do not install |
-| `…-development.jar` | Optional F8 preview/probe mod; requires the normal library |
-| `…-sources.jar` / `…-javadoc.jar` | Shared source/API documentation attachments, including for `dev` |
+| `build/release/composemc-neoforge-1.21.1-0.1.0-alpha.34.jar` | Standard: install beside the consumer and a compatible external Kotlin provider |
+| `build/release/…-with-kotlin.jar` | Alternative installation: includes Kotlin; no external provider needed |
+| `build/libs/…-development.jar` | Optional F8 preview/probe mod; requires the normal library |
+| `build/libs/…-sources.jar` / `…-javadoc.jar` | Source/API documentation attachments of the Maven library |
 
-Installable artifacts are under the adapter's `build/libs/`. Install exactly one library variant beside the consumer; add the external provider when using the standard JAR. Both variants have the same mod ID and API. The development artifact is useful when inspecting controls; it is not a second runtime.
+Install exactly one release variant from the adapter's `build/release/` beside the consumer; add the external provider when using the standard JAR. Both variants have the same mod ID and API and embed the Compose/Skiko runtime. `build/libs/` holds the Maven artifacts: its library JAR leaves the runtime to Gradle and does not start on its own. The development artifact is useful when inspecting controls; it is not a second runtime.
 
-Source and documentation JARs are published by the same Maven task. They are IDE attachments, not runtime dependencies or mods. Enable source/documentation downloading in IDEA and refresh Gradle to browse Compose MC's own sources from `dev` and read its generated API reference. Third-party libraries retain their upstream sources and documentation.
+Source and documentation JARs are published by the same Maven task. They are IDE attachments, not runtime dependencies or mods. Enable source/documentation downloading in IDEA and refresh Gradle to browse Compose MC's own sources and read its generated API reference. The runtime bundles attach only a README listing their upstream libraries, which keep their own sources and documentation.
 
 Continue with [Ore UI](ore-ui.md), [native items](native-content.md), [HUD layers](hud.md), [inventory](inventory.md) or [server menu synchronization](menu-sync.md).

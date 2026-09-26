@@ -11,10 +11,10 @@
 在 Compose MC 仓库中运行：
 
 ```powershell
-.\gradlew.bat '-PcomposemcTargets=1.21.1' :minecraft:neoforge-1.21.1:build :minecraft:neoforge-1.21.1:publishLibraryPublicationToConsumerRepository
+.\gradlew.bat '-PcomposemcTargets=1.21.1' :minecraft:neoforge-1.21.1:build :minecraft:neoforge-1.21.1:publishAllPublicationsToConsumerRepository
 ```
 
-这会在 `build/consumer-maven` 生成本地 Maven 仓库。以下配置使用该仓库，不假定当前版本已在 Maven Central 发布。工具链和其他操作系统的命令写法见[构建与测试](build-and-test.md)。
+这会在 `build/consumer-maven` 生成本地 Maven 仓库，包含本库、对应的 `-with-kotlin` 坐标以及它们依赖的运行时包。以下配置使用该仓库，不假定当前版本已在 Maven Central 发布。工具链和其他操作系统的命令写法见[构建与测试](build-and-test.md)。
 
 ## 2. 配置消费者依赖
 
@@ -32,8 +32,8 @@ repositories {
     }
 }
 dependencies {
-    compileOnly "dev.composemc:composemc-neoforge-1.21.1:${composemc_version}:dev"
-    localRuntime "dev.composemc:composemc-neoforge-1.21.1:${composemc_version}:with-kotlin"
+    compileOnly "dev.composemc:composemc-neoforge-1.21.1-with-kotlin:${composemc_version}"
+    localRuntime "dev.composemc:composemc-neoforge-1.21.1-with-kotlin:${composemc_version}"
 }
 kotlin { jvmToolchain(21) }
 ```
@@ -45,7 +45,7 @@ composemc_version=0.1.0-alpha.34
 kotlin.stdlib.default.dependency=false
 ```
 
-编译包为两种安装方式提供相同的 Kotlin/Compose API。示例选择 `with-kotlin`，无需外部 Kotlin 提供者。如果整合包使用 Kotlin for Forge，去掉 `with-kotlin` 分类并单独安装兼容的 KFF。不要同时安装两个版本，也不要将 `with-kotlin` 与 KFF 混装。Kotlin 和 Compose 编译器插件应保持相同版本；消费者不要再内嵌这些运行时。
+`-with-kotlin` 坐标会解析出三部分：库模组、装有 Compose 和 Skiko 的 `composemc-runtime-standard`，以及装有 Kotlin 库的 `composemc-kotlin`。开发启动时这两个运行时包会作为库与模组一起加载，因此无需外部 Kotlin 提供者。如果你的模组本身依赖 Kotlin for Forge，两行都改用不带 `-with-kotlin` 的 `composemc-neoforge-1.21.1`：KFF 的依赖会为编译和开发启动提供 Kotlin。如果 KFF 只加入开发启动（见下文），`compileOnly` 保留 `-with-kotlin` 坐标以获得 Kotlin API，`localRuntime` 改用不带后缀的坐标。不要同时安装两个版本，也不要将 `with-kotlin` 与 KFF 混装。Kotlin 和 Compose 编译器插件应保持相同版本；消费者不要再内嵌这些运行时。
 
 在 NeoForge 1.21.1 开发启动中加载 KFF，可在仓库配置加入 `maven { url = 'https://api.modrinth.com/maven' }`，在依赖中加入 `localRuntime 'maven.modrinth:kotlin-for-forge:5.12.0'`。这是开发运行依赖，不是 JarJar 依赖。已验证提供者和运行时要求见[兼容性](compatibility.md#kotlin-运行时提供者)。
 
@@ -114,14 +114,13 @@ fun openCounterScreen() {
 
 | 产物 | 用途 |
 | --- | --- |
-| `composemc-neoforge-1.21.1-0.1.0-alpha.34.jar` | 标准版：与消费者和兼容的外部 Kotlin 提供者一起安装 |
-| `…-with-kotlin.jar` | 另一种安装选择：自带 Kotlin，无需外部提供者 |
-| `…-dev.jar` | 仅用于编译的 API 包；不要安装 |
-| `…-development.jar` | 可选 F8 预览/探针模组；需要正式库 |
-| `…-sources.jar` / `…-javadoc.jar` | 共用的源码/API 文档附件，也用于 `dev` |
+| `build/release/composemc-neoforge-1.21.1-0.1.0-alpha.34.jar` | 标准版：与消费者和兼容的外部 Kotlin 提供者一起安装 |
+| `build/release/…-with-kotlin.jar` | 另一种安装选择：自带 Kotlin，无需外部提供者 |
+| `build/libs/…-development.jar` | 可选 F8 预览/探针模组；需要正式库 |
+| `build/libs/…-sources.jar` / `…-javadoc.jar` | Maven 库的源码/API 文档附件 |
 
-可安装产物位于适配器的 `build/libs/`。在消费者旁边只安装一个库版本；标准版还需要外部运行时提供者。两种安装包具有相同的 Mod ID 和 API。查看组件时可额外安装开发包，它不包含第二份运行时。
+从适配器的 `build/release/` 中选一个发布版本，与消费者一起安装；标准版还需要外部运行时提供者。两种安装包具有相同的 Mod ID 和 API，都内嵌 Compose/Skiko 运行时。`build/libs/` 存放 Maven 产物：其中的库 JAR 把运行时留给 Gradle 解析，不能单独启动。查看组件时可额外安装开发包，它不包含第二份运行时。
 
-源码和文档 JAR 由同一个 Maven 发布任务提供，属于 IDE 附件，不是运行依赖或模组。在 IDEA 开启源码/文档下载并刷新 Gradle，即可从 `dev` 浏览 Compose MC 自有源码和生成的 API 参考。第三方库仍使用各自上游源码及文档。
+源码和文档 JAR 由同一个 Maven 发布任务提供，属于 IDE 附件，不是运行依赖或模组。在 IDEA 开启源码/文档下载并刷新 Gradle，即可浏览 Compose MC 自有源码和生成的 API 参考。运行时包只附带一份列出上游库的 README，这些库仍使用各自上游的源码及文档。
 
 接下来可以阅读 [Ore UI](ore-ui.md)、[原生物品](native-content.md)、[HUD 层](hud.md)、[容器界面](inventory.md)或[服务端菜单同步](menu-sync.md)。
