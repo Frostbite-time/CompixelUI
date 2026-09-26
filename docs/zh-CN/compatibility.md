@@ -46,6 +46,7 @@ Ore UI 现按职责划分子包。请依据[组件与包对照表](ore-ui.md#选
 | 自定义核心传输 | 调用 `SyncBatch.read(input, maximumBatchBytes)` 时传入传输上限；状态字段索引使用 32 位帧格式。 |
 | Ore 图标 | `OreGlyph` 改为按形状命名：`Close` → `Cross`、`Check` → `Checkmark`、`Search` → `MagnifyingGlass`、`Edit` → `Pencil`、`Back` → `ArrowLeft`、`Settings` → `Sliders`。`Network` 已移出库，领域图标请定义为 `OrePixelArt`。 |
 | 自定义宿主 | `UiKey` 覆盖标准键盘。自行映射原生按键的宿主需要转换全部条目，并按当前键盘布局解析字母与标点。与原生控件共用窗口的宿主可以用 `HostTextInput` 管理文本输入和输入法。 |
+| 配置屏幕 | 只用模组容器和父屏幕构造；`ConfigScreenInspection` 和 `inspection` 参数已移除。自动化检查请通过屏幕的 `editor` 进行。 |
 
 两端的状态/动作策略和动作声明必须一致。客户端确认菜单挂接与策略后才开始发送状态正文，打开时增加一次确认往返。完整默认值、拒绝处理及突发行为见[菜单同步](menu-sync.md)。
 

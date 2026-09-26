@@ -13,9 +13,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.contentDescription
@@ -45,14 +42,7 @@ import net.minecraftforge.fml.ModContainer
 import net.minecraftforge.fml.config.ModConfig
 import net.minecraftforge.common.ForgeConfigSpec
 import java.util.Locale
-import java.util.concurrent.ConcurrentHashMap
 
-/** Optional geometry diagnostics, published from composition as immutable pixel bounds. */
-class ConfigScreenInspection {
-    val bounds = ConcurrentHashMap<String, Rect>()
-    val actions = java.util.concurrent.ConcurrentLinkedDeque<String>()
-    internal fun trace(value:String){actions.addLast(value);while(actions.size>64)actions.pollFirst()}
-}
 private data class ConfigField(val source: EntryView, val title: String, val comment: String, val choices: Map<String,String>)
 private data class ConfigFile(val source: FileView, val title: String, val fields: List<ConfigField>)
 private data class ConfigReply(val id: Long = 0, val result: Result = Result.OK)
@@ -70,7 +60,7 @@ private class ConfigUiState {
     var confirmClose by mutableStateOf(false)
     var sequence = 0L
 }
-private class ConfigController(val mod: ModContainer,private val inspection:ConfigScreenInspection?) : AutoCloseable {
+private class ConfigController(val mod: ModContainer) : AutoCloseable {
     val editor = ForgeConfigEditor(mod.modId)
     val local = ConfigUiState()
     private var language: Language? = null
@@ -97,7 +87,6 @@ private class ConfigController(val mod: ModContainer,private val inspection:Conf
             }
             if(action.kind!="save")saved=false
             reply=ConfigReply(action.id,result)
-            inspection?.trace("processed ${action.id} ${action.kind} ${action.file}: $result; pending=${editor.changes()}")
         }
         if(!closed)ui.update(snapshot())
     }
@@ -132,9 +121,9 @@ private class ConfigController(val mod: ModContainer,private val inspection:Conf
 
 /** Register with ConfigScreenHandler.ConfigScreenFactory. Values are staged until Save; only loader-owned, locally editable files are changed. */
 open class ForgeComposeConfigScreen private constructor(mod: ModContainer, private val parent: Screen,
-    private val controller: ConfigController, val inspection: ConfigScreenInspection?) :
-    ForgeComposeScreen(Component.literal(mod.modInfo.displayName),content={ ConfigContent(controller.ui,controller.local,inspection) }) {
-    @JvmOverloads constructor(mod: ModContainer,parent: Screen,inspection: ConfigScreenInspection?=null):this(mod,parent,ConfigController(mod,inspection),inspection)
+    private val controller: ConfigController) :
+    ForgeComposeScreen(Component.literal(mod.modInfo.displayName),content={ ConfigContent(controller.ui,controller.local) }) {
+    constructor(mod: ModContainer,parent: Screen):this(mod,parent,ConfigController(mod))
     val editor: ForgeConfigEditor get()=controller.editor
     override fun tick(){super.tick();controller.tick { Minecraft.getInstance().setScreen(parent) }}
     override fun onClose(){
@@ -145,7 +134,7 @@ open class ForgeComposeConfigScreen private constructor(mod: ModContainer, priva
 }
 
 @Composable
-private fun ConfigContent(binding: UiBinding<ConfigView,ConfigAction>,local: ConfigUiState,inspection: ConfigScreenInspection?) {
+private fun ConfigContent(binding: UiBinding<ConfigView,ConfigAction>,local: ConfigUiState) {
     val state=binding.value;val labels=state.labels
     val dialogHeight=with(LocalDensity.current){(LocalWindowInfo.current.containerSize.height.toDp()-105.dp).coerceIn(24.dp,160.dp)}
     val file=state.files.firstOrNull { it.source.id()==local.file } ?: state.files.firstOrNull()
@@ -154,7 +143,6 @@ private fun ConfigContent(binding: UiBinding<ConfigView,ConfigAction>,local: Con
     val rows=remember(file?.fields,local.query){val term=local.query.trim().lowercase(Locale.ROOT);file?.fields.orEmpty().filter { term.isEmpty()||term in (it.title+" "+it.comment+" "+it.source.id()).lowercase(Locale.ROOT) }}
     fun send(kind:String,entry:String="",input:Input=Input.scalar(""),await:Boolean=false){
         val id=++local.sequence
-        inspection?.trace("sent $id $kind")
         if(binding.send(ConfigAction(kind,file?.source?.id().orEmpty(),entry,input,id))&&await)local.pending=id
     }
     fun close(){if(state.changes>0)local.confirmClose=true else send("close")}
@@ -163,22 +151,22 @@ private fun ConfigContent(binding: UiBinding<ConfigView,ConfigAction>,local: Con
         local.pending=0
         if(state.reply.result==Result.OK){local.edit=null;local.error=null}else local.error=state.reply.result
     }}
-    OreScreen(state.title,maxWidth=400.dp,maxHeight=450.dp,panelModifier=Modifier.configBounds("panel",inspection),onClose={close()},closeLabel=labels.getValue("done"),footer={
-        OreButton(labels.getValue("reload"),{send("reload")},Modifier.weight(1f).configBounds("reload",inspection),enabled=file!=null,style=OreButtonStyle.Secondary)
-        OreButton(labels.getValue("save"),{send("save")},Modifier.weight(1.4f).configBounds("save",inspection),enabled=editable&&(file?.source?.changes()?:0)>0)
-        OreButton(labels.getValue("done"),{close()},Modifier.weight(1f).configBounds("done",inspection),style=OreButtonStyle.Secondary)
+    OreScreen(state.title,maxWidth=400.dp,maxHeight=450.dp,onClose={close()},closeLabel=labels.getValue("done"),footer={
+        OreButton(labels.getValue("reload"),{send("reload")},Modifier.weight(1f),enabled=file!=null,style=OreButtonStyle.Secondary)
+        OreButton(labels.getValue("save"),{send("save")},Modifier.weight(1.4f),enabled=editable&&(file?.source?.changes()?:0)>0)
+        OreButton(labels.getValue("done"),{close()},Modifier.weight(1f),style=OreButtonStyle.Secondary)
     }) {
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(4.dp)){
             state.files.forEach { candidate -> OreTab(candidate.title+(if(state.files.count { it.source.type()==candidate.source.type() }>1)" · "+candidate.source.id() else "")+(if(candidate.source.changes()>0)" *" else ""),candidate==file,{
                 local.file=candidate.source.id();local.query="";local.edit=null
-            },Modifier.configBounds("file:${candidate.source.id()}",inspection)) }
+            }) }
         }
         file?.let {
             OreText(it.source.id(),style=OreTheme.typography.caption,color=OreTheme.colors.mutedText)
             if(!editable)OreText(labels.getValue("access_${it.source.access().name}"),style=OreTheme.typography.caption,color=OreTheme.colors.mutedText)
             else if(it.source.sharedServerFile())OreText(labels.getValue("shared_server"),style=OreTheme.typography.caption,color=OreTheme.colors.mutedText)
         }
-        OreTextField(local.query,{local.query=it},Modifier.fillMaxWidth().configBounds("search",inspection),placeholder=labels.getValue("search"))
+        OreTextField(local.query,{local.query=it},Modifier.fillMaxWidth(),placeholder=labels.getValue("search"))
         if(state.reply.result!=Result.OK)OreText(labels.getValue("result_${state.reply.result.name}"),color=OreTheme.colors.danger,style=OreTheme.typography.caption)
         else if(state.saved)OreText(labels.getValue("saved"),style=OreTheme.typography.caption)
         if(state.restart!=RestartType.NONE)OreText(labels.getValue("restart_${state.restart.name}"),style=OreTheme.typography.caption)
@@ -187,7 +175,7 @@ private fun ConfigContent(binding: UiBinding<ConfigView,ConfigAction>,local: Con
             LazyColumn(Modifier.fillMaxSize().padding(end=7.dp),state=list,verticalArrangement=Arrangement.spacedBy(4.dp)){
                 items(rows,key={it.source.id()}) { row ->
                     val entry=row.source
-                    OreSurface(Modifier.configBounds("entry:${entry.id()}",inspection).fillMaxWidth()) {
+                    OreSurface(Modifier.fillMaxWidth()) {
                         Row(Modifier.fillMaxWidth().padding(5.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
                             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(1.5.dp)) {
                                 OreText(row.title+(if(entry.changed())" *" else ""))
@@ -199,12 +187,12 @@ private fun ConfigContent(binding: UiBinding<ConfigView,ConfigAction>,local: Con
                                 },style=OreTheme.typography.caption,color=OreTheme.colors.mutedText)
                             }
                             if(entry.kind()==Kind.BOOLEAN) {
-                                OreSwitch(entry.value().text()=="true",{send("stage",entry.id(),Input.scalar(it.toString()))},Modifier.configBounds("toggle:${entry.id()}",inspection),enabled=editable)
-                                OreButton(labels.getValue("default"),{send("default",entry.id())},Modifier.configBounds("default:${entry.id()}",inspection),enabled=editable&&entry.value()!=entry.defaults(),style=OreButtonStyle.Quiet)
+                                OreSwitch(entry.value().text()=="true",{send("stage",entry.id(),Input.scalar(it.toString()))},enabled=editable)
+                                OreButton(labels.getValue("default"),{send("default",entry.id())},enabled=editable&&entry.value()!=entry.defaults(),style=OreButtonStyle.Quiet)
                             }
                             else OreButton(labels.getValue(if(editable)"edit" else "view"),{
                                 local.edit=row;local.text=entry.value().text();local.elements.clear();local.elements.addAll(entry.value().elements());local.error=null
-                            },Modifier.configBounds("edit:${entry.id()}",inspection),style=OreButtonStyle.Secondary)
+                            },style=OreButtonStyle.Secondary)
                         }
                     }
                 }
@@ -218,10 +206,10 @@ private fun ConfigContent(binding: UiBinding<ConfigView,ConfigAction>,local: Con
         OreDialog(row.title,{local.edit=null},closeLabel=labels.getValue("cancel"),buttons={
             Row(horizontalArrangement=Arrangement.spacedBy(4.dp)) {
             if(editable&&entry.kind()!=Kind.UNSUPPORTED) {
-                OreButton(labels.getValue("apply"),{send("stage",entry.id(),if(entry.kind()==Kind.LIST)Input.list(local.elements.toList())else Input.scalar(local.text),true)},Modifier.weight(1.2f).configBounds("apply",inspection),enabled=local.pending==0L)
-                OreButton(labels.getValue("default"),{send("default",entry.id(),await=true)},Modifier.weight(1f).configBounds("default",inspection),style=OreButtonStyle.Secondary)
+                OreButton(labels.getValue("apply"),{send("stage",entry.id(),if(entry.kind()==Kind.LIST)Input.list(local.elements.toList())else Input.scalar(local.text),true)},Modifier.weight(1.2f),enabled=local.pending==0L)
+                OreButton(labels.getValue("default"),{send("default",entry.id(),await=true)},Modifier.weight(1f),style=OreButtonStyle.Secondary)
             }
-            OreButton(labels.getValue("cancel"),{local.edit=null},Modifier.weight(1f).configBounds("cancel",inspection),style=OreButtonStyle.Secondary)
+            OreButton(labels.getValue("cancel"),{local.edit=null},Modifier.weight(1f),style=OreButtonStyle.Secondary)
             }
         }) {
             Column(Modifier.heightIn(max=dialogHeight),verticalArrangement=Arrangement.spacedBy(4.dp)) {
@@ -230,35 +218,28 @@ private fun ConfigContent(binding: UiBinding<ConfigView,ConfigAction>,local: Con
                 if(entry.restart()!=RestartType.NONE)OreText(labels.getValue("restart_${entry.restart().name}"),style=OreTheme.typography.caption)
                 when(entry.kind()) {
                     Kind.ENUM->LazyColumn(Modifier.heightIn(max=90.dp).weight(1f,fill=false),verticalArrangement=Arrangement.spacedBy(3.dp)){
-                        items(row.choices.entries.toList(),key={it.key}) { (value,label) -> OreListItem(local.text==value,{local.text=value},Modifier.fillMaxWidth().configBounds("choice:$value",inspection),enabled=editable){OreText(label)} }
+                        items(row.choices.entries.toList(),key={it.key}) { (value,label) -> OreListItem(local.text==value,{local.text=value},Modifier.fillMaxWidth(),enabled=editable){OreText(label)} }
                     }
                     Kind.LIST->{
                         LazyColumn(Modifier.heightIn(max=90.dp).weight(1f,fill=false),verticalArrangement=Arrangement.spacedBy(3.dp)) { itemsIndexed(local.elements) { index,text ->
                             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(2.dp),verticalAlignment=Alignment.CenterVertically){
-                                OreTextField(text,{next->if(next.length<=1_048_576)local.elements[index]=next},Modifier.weight(1f).configBounds("list:$index",inspection),readOnly=!editable||local.pending>0)
+                                OreTextField(text,{next->if(next.length<=1_048_576)local.elements[index]=next},Modifier.weight(1f),readOnly=!editable||local.pending>0)
                                 OreButton("↑",{java.util.Collections.swap(local.elements,index,index-1)},Modifier.width(18.dp).semantics { contentDescription=labels.getValue("up") },enabled=editable&&index>0,style=OreButtonStyle.Secondary)
                                 OreButton("↓",{java.util.Collections.swap(local.elements,index,index+1)},Modifier.width(18.dp).semantics { contentDescription=labels.getValue("down") },enabled=editable&&index<local.elements.lastIndex,style=OreButtonStyle.Secondary)
                                 OreButton("−",{local.elements.removeAt(index)},Modifier.width(18.dp).semantics { contentDescription=labels.getValue("remove") },enabled=editable,style=OreButtonStyle.Secondary)
                             }
                         } }
-                        OreButton(labels.getValue("add"),{if(local.elements.size<100_000)local.elements.add(entry.newElement())},Modifier.fillMaxWidth().configBounds("add",inspection),enabled=editable&&entry.canAdd(),style=OreButtonStyle.Secondary)
+                        OreButton(labels.getValue("add"),{if(local.elements.size<100_000)local.elements.add(entry.newElement())},Modifier.fillMaxWidth(),enabled=editable&&entry.canAdd(),style=OreButtonStyle.Secondary)
                     }
                     Kind.UNSUPPORTED->OreText(labels.getValue("unsupported"),color=OreTheme.colors.mutedText)
-                    else->OreTextField(local.text,{if(it.length<=1_048_576)local.text=it},Modifier.fillMaxWidth().configBounds("value",inspection),singleLine=entry.kind()!=Kind.STRING,readOnly=!editable,isError=local.error!=null)
+                    else->OreTextField(local.text,{if(it.length<=1_048_576)local.text=it},Modifier.fillMaxWidth(),singleLine=entry.kind()!=Kind.STRING,readOnly=!editable,isError=local.error!=null)
                 }
                 local.error?.let { OreText(labels.getValue("result_${it.name}"),color=OreTheme.colors.danger,style=OreTheme.typography.caption) }
             }
         }
     }
     if(local.confirmClose)OreDialog(labels.getValue("discard_title"),{local.confirmClose=false},closeLabel=labels.getValue("cancel"),buttons={
-        OreButton(labels.getValue("discard"),{send("discardClose")},Modifier.fillMaxWidth().configBounds("discard",inspection),style=OreButtonStyle.Destructive)
+        OreButton(labels.getValue("discard"),{send("discardClose")},Modifier.fillMaxWidth(),style=OreButtonStyle.Destructive)
         OreButton(labels.getValue("cancel"),{local.confirmClose=false},Modifier.fillMaxWidth(),style=OreButtonStyle.Secondary)
     }) { OreText(labels.getValue("discard_text")) }
-}
-
-@Composable
-private fun Modifier.configBounds(key:String,inspection:ConfigScreenInspection?):Modifier {
-    if(inspection==null)return this
-    DisposableEffect(key){onDispose{inspection.bounds.remove(key)}}
-    return onGloballyPositioned { inspection.bounds[key]=it.boundsInWindow() }
 }
