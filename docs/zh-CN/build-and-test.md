@@ -182,7 +182,7 @@ python tools/summarize_benchmarks.py minecraft/neoforge-1.21.1/build/benchmark-o
 
 [CI](../../.github/workflows/verify.yml)在 Windows/Linux 检查共享核心，在 Linux 构建全部五个适配器。真实 GPU 验证在合适的宿主上单独执行。
 
-代码格式由 Spotless 统一：Kotlin 源码与 Kotlin 构建脚本使用 ktfmt（Kotlin 编码约定风格，行宽 120），Java 使用 palantir-java-format，Groovy 构建脚本只检查空白。提交前运行 `.\gradlew.bat spotlessApply`；`check` 和 CI 使用的 `checkCore` 都会运行 `spotlessCheck`。`.editorconfig` 为编辑器提供相同的缩进与行宽；安装 ktfmt 和 palantir-java-format 的 IntelliJ 插件可得到与格式化器完全一致的结果。`.git-blame-ignore-revs` 列出只改格式的提交；运行 `git config blame.ignoreRevsFile .git-blame-ignore-revs` 可让本地 blame 跳过它们。
+代码格式由 Spotless 统一：Kotlin 源码与 Kotlin 构建脚本使用 ktfmt（Kotlin 编码约定风格，行宽 120），Java 使用 palantir-java-format，Groovy 构建脚本只检查空白。提交前运行 `.\gradlew.bat spotlessApply`。CI 使用的 `checkCore` 会运行 `spotlessCheck`；格式化整个仓库较慢，因此 `check` 和 `build` 不运行它。`.editorconfig` 为编辑器提供相同的缩进与行宽；安装 ktfmt 和 palantir-java-format 的 IntelliJ 插件可得到与格式化器完全一致的结果。`.git-blame-ignore-revs` 列出只改格式的提交；运行 `git config blame.ignoreRevsFile .git-blame-ignore-revs` 可让本地 blame 跳过它们。
 
 修改依赖或模块边界后，运行 `verifyCoreBoundary` 和受影响的测试/构建。修改共享公开 API 时，编译所有受影响适配器及独立消费者。渲染或原生生命周期变化还需要为对应版本/后端运行两套客户端测试。修改测试驱动时必须同时修改全部五份副本，否则 `verifySuiteParity` 会失败。
 

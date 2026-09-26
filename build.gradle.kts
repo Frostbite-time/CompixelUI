@@ -76,8 +76,10 @@ apply(from = "gradle/verify-core-boundary.gradle.kts")
 
 apply(from = "gradle/verify-suite-parity.gradle.kts")
 
-// One formatter setup for the repository: `spotlessApply` rewrites; `check` and `checkCore` run `spotlessCheck`.
+// One formatter setup for the repository: `spotlessApply` rewrites. Only `checkCore` runs `spotlessCheck`;
+// `check` and `build` skip it because formatting the whole repository is slow.
 spotless {
+    isEnforceCheck = false
     val outputs = listOf("**/build/**", "**/run/**", ".work/**")
     kotlin {
         target("**/src/**/*.kt")
