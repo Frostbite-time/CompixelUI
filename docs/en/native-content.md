@@ -16,7 +16,8 @@ Create an `ItemIcon` snapshot on the client render thread, then pass its handle 
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import dev.composemc.forge.*
+import dev.composemc.forge.ComposeScreen
+import dev.composemc.forge.item.*
 import dev.composemc.ui.ore.layout.OreScreen
 import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.Component

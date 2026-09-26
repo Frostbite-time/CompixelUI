@@ -2,7 +2,7 @@ package dev.composemc.forge.mixin;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
-import dev.composemc.forge.NativeGuiTargetScope;
+import dev.composemc.forge.item.NativeGuiTargetScope;
 import net.minecraft.client.gui.render.GuiRenderer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;

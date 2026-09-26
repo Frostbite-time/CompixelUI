@@ -9,7 +9,7 @@ Compose MC 为已注册的加载器配置规范提供 Ore 编辑器，包含文�
 在 NeoForge 的**客户端入口**中，使用消费者的 `ModContainer` 注册：
 
 ```java
-import dev.composemc.forge.ComposeConfigScreen;
+import dev.composemc.forge.config.ComposeConfigScreen;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 

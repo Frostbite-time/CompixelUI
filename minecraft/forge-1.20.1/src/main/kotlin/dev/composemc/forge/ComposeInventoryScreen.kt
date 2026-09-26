@@ -15,6 +15,8 @@ import net.minecraft.world.inventory.ClickType
 import net.minecraft.world.inventory.Slot
 import org.lwjgl.glfw.GLFW
 import kotlin.math.*
+import dev.composemc.forge.item.NativeItemOptions
+import dev.composemc.forge.slots.ComposeMenuSlots
 
 /** Compose layout/drawing inside the native container lifecycle, with replaceable inventory behavior. */
 open class ComposeInventoryScreen<M : AbstractContainerMenu>(

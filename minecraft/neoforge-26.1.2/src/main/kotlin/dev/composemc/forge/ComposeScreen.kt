@@ -12,6 +12,11 @@ import net.minecraft.client.input.KeyEvent
 import net.minecraft.client.input.PreeditEvent // IME
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.network.chat.Component
+import dev.composemc.forge.input.MinecraftTextInput
+import dev.composemc.forge.item.NativeItemOptions
+import dev.composemc.forge.item.NativeItemStatistics
+import dev.composemc.forge.item.NativeTooltipStatistics
+import dev.composemc.forge.render.configuredRenderBackend
 
 /**
  * Full-screen Compose adapter. Widgets added through screen initialization events draw above the

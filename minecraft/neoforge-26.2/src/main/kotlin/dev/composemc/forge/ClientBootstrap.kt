@@ -5,6 +5,8 @@ import net.minecraft.resources.Identifier
 import net.neoforged.neoforge.client.event.AddClientReloadListenersEvent
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener
 import net.neoforged.neoforge.common.NeoForge
+import dev.composemc.forge.render.FrameRetirement
+import dev.composemc.forge.render.RendererResources
 
 internal object ClientBootstrap {
     fun register(modEventBus: IEventBus) {

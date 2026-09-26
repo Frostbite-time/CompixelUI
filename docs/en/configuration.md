@@ -9,7 +9,7 @@ Compose MC supplies an Ore editor for registered loader configuration specs. It 
 On NeoForge, register from your **client entry point**, using its `ModContainer`:
 
 ```java
-import dev.composemc.forge.ComposeConfigScreen;
+import dev.composemc.forge.config.ComposeConfigScreen;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 

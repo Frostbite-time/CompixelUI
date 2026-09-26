@@ -17,6 +17,9 @@ import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.ItemStackTemplate
 import net.minecraft.world.item.Items
 import net.minecraft.world.item.component.BundleContents
+import dev.composemc.forge.item.ItemIcon
+import dev.composemc.forge.item.MinecraftItemIcon
+import dev.composemc.forge.item.MinecraftItemTooltip
 
 class ComposePreviewScreen private constructor(
     parent: Screen?,

@@ -2,6 +2,10 @@ package dev.composemc.forge
 
 import org.junit.jupiter.api.Test
 import kotlin.test.*
+import dev.composemc.forge.input.ClipboardMailbox
+import dev.composemc.forge.input.CommittedCharacters
+import dev.composemc.forge.render.ScreenMetrics
+import dev.composemc.forge.render.configuredRenderBackend
 
 class AdapterContractsTest {
     @Test fun unsupportedBackendsFailWithoutFallback() {

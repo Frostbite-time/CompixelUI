@@ -2,9 +2,9 @@ package dev.composemc.development.render
 
 import androidx.compose.ui.geometry.Rect
 import dev.composemc.bridge.ComposeThread
-import dev.composemc.forge.IconRefresh
-import dev.composemc.forge.ItemIcon
-import dev.composemc.forge.MinecraftItemIcon
+import dev.composemc.forge.item.IconRefresh
+import dev.composemc.forge.item.ItemIcon
+import dev.composemc.forge.item.MinecraftItemIcon
 import dev.composemc.forge.ComposeScreen
 import dev.composemc.testing.suite.ScreenPixels
 import dev.composemc.testing.ui.NATIVE_VISUAL_RED

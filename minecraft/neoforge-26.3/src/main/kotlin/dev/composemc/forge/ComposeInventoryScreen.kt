@@ -17,6 +17,9 @@ import net.minecraft.world.inventory.AbstractContainerMenu
 import net.minecraft.world.inventory.ContainerInput
 import net.minecraft.world.inventory.Slot
 import kotlin.math.*
+import dev.composemc.forge.input.MinecraftTextInput
+import dev.composemc.forge.item.NativeItemOptions
+import dev.composemc.forge.slots.ComposeMenuSlots
 
 /** Compose layout/drawing inside the native container lifecycle, with replaceable inventory behavior. */
 open class ComposeInventoryScreen<M : AbstractContainerMenu>(

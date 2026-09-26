@@ -2,8 +2,8 @@ package dev.composemc.development
 
 import com.mojang.blaze3d.systems.RenderSystem
 import dev.composemc.forge.ComposeScreen
-import dev.composemc.forge.RendererResources
-import dev.composemc.forge.configuredRenderBackend
+import dev.composemc.forge.render.RendererResources
+import dev.composemc.forge.render.configuredRenderBackend
 import dev.composemc.render.RenderBackend
 import dev.composemc.testing.suite.ScreenPixels
 import net.minecraft.client.InactivityFpsLimit

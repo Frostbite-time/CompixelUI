@@ -8,6 +8,10 @@ import net.minecraft.client.gui.components.EditBox
 import net.minecraft.client.gui.components.events.GuiEventListener
 import net.minecraft.client.gui.screens.Screen
 import net.minecraft.network.chat.Component
+import dev.composemc.forge.item.NativeItemOptions
+import dev.composemc.forge.item.NativeItemStatistics
+import dev.composemc.forge.item.NativeTooltipStatistics
+import dev.composemc.forge.render.configuredRenderBackend
 
 /**
  * Full-screen Compose adapter. Widgets added through screen initialization events draw above the

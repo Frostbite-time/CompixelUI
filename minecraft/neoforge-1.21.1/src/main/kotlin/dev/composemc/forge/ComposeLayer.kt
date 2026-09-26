@@ -16,6 +16,26 @@ import net.minecraft.client.gui.screens.Screen
 import net.minecraft.client.resources.sounds.SimpleSoundInstance
 import net.minecraft.sounds.SoundEvents
 import java.util.concurrent.atomic.AtomicBoolean
+import dev.composemc.forge.input.ClipboardMailbox
+import dev.composemc.forge.input.CommittedCharacters
+import dev.composemc.forge.input.toModifiers
+import dev.composemc.forge.input.toMouseButton
+import dev.composemc.forge.input.uiKey
+import dev.composemc.forge.item.ItemImageMailbox
+import dev.composemc.forge.item.ItemTooltipMailbox
+import dev.composemc.forge.item.LocalItemImages
+import dev.composemc.forge.item.LocalItemTooltips
+import dev.composemc.forge.item.NativeItemAtlas
+import dev.composemc.forge.item.NativeItemOptions
+import dev.composemc.forge.item.NativeItemStatistics
+import dev.composemc.forge.item.NativeTooltipRenderer
+import dev.composemc.forge.item.NativeTooltipStatistics
+import dev.composemc.forge.render.RendererResources
+import dev.composemc.forge.render.ScreenFrameRenderer
+import dev.composemc.forge.render.ScreenMetrics
+import dev.composemc.forge.render.ScreenRenderDestination
+import dev.composemc.forge.render.configuredRenderBackend
+import dev.composemc.forge.render.createScreenRenderer
 
 /**
  * A Compose session with its renderer, native items and tooltips, drawn inside a host screen. It is
