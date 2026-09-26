@@ -2,10 +2,10 @@ package dev.composemc.development.render
 
 import androidx.compose.ui.geometry.Rect
 import dev.composemc.bridge.ComposeThread
-import dev.composemc.neoforge.IconRefresh
-import dev.composemc.neoforge.ItemIcon
-import dev.composemc.neoforge.MinecraftItemIcon
-import dev.composemc.neoforge.NeoForgeComposeScreen
+import dev.composemc.forge.IconRefresh
+import dev.composemc.forge.ItemIcon
+import dev.composemc.forge.MinecraftItemIcon
+import dev.composemc.forge.ComposeScreen
 import dev.composemc.testing.suite.ScreenPixels
 import dev.composemc.testing.ui.NATIVE_VISUAL_RED
 import dev.composemc.testing.ui.NativeItemVisualModel
@@ -17,7 +17,7 @@ internal class NativeItemVisualScreen(
     val model: NativeItemVisualModel = ComposeThread.call { NativeItemVisualModel() },
     private val icon: ItemIcon = ItemIcon.drawn("native visual acceptance",
         { graphics -> graphics.fill(0, 0, 16, 16, NATIVE_VISUAL_RED) }, IconRefresh.STATIC),
-) : NeoForgeComposeScreen(Component.literal("Native item visual acceptance"), content = {
+) : ComposeScreen(Component.literal("Native item visual acceptance"), content = {
     NativeItemVisualScene(model) { modifier -> MinecraftItemIcon(icon, modifier) }
 }) {
     override fun isUiWindowFocused() = dev.composemc.development.SuiteEnvironment.uiFocused(super.isUiWindowFocused())

@@ -1,8 +1,8 @@
 package dev.composemc.development
 
-import dev.composemc.neoforge.NeoForgeComposeScreen
-import dev.composemc.neoforge.RendererResources
-import dev.composemc.neoforge.configuredRenderBackend
+import dev.composemc.forge.ComposeScreen
+import dev.composemc.forge.RendererResources
+import dev.composemc.forge.configuredRenderBackend
 import dev.composemc.render.RenderBackend
 import dev.composemc.testing.suite.ScreenPixels
 import net.minecraft.client.Minecraft
@@ -26,7 +26,7 @@ import org.lwjgl.opengl.GL11
 import java.io.File
 import java.util.function.Consumer
 
-internal typealias SuiteComposeScreen = NeoForgeComposeScreen
+internal typealias SuiteComposeScreen = ComposeScreen
 
 /** Every Minecraft 1.21.1 / NeoForge call the shared suite code needs, in one reviewable place. */
 internal object SuitePlatform {

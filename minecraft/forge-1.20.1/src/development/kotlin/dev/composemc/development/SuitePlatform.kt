@@ -1,6 +1,6 @@
 package dev.composemc.development
 
-import dev.composemc.forge.ForgeComposeScreen
+import dev.composemc.forge.ComposeScreen
 import dev.composemc.forge.RendererResources
 import dev.composemc.forge.configuredRenderBackend
 import dev.composemc.render.RenderBackend
@@ -26,7 +26,7 @@ import org.lwjgl.opengl.GL11
 import java.io.File
 import java.util.function.Consumer
 
-internal typealias SuiteComposeScreen = ForgeComposeScreen
+internal typealias SuiteComposeScreen = ComposeScreen
 
 /** Every Minecraft 1.20.1 / Forge call the shared suite code needs, in one reviewable place. */
 internal object SuitePlatform {

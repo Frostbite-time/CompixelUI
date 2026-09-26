@@ -12,7 +12,7 @@ This reference contains the public Kotlin and Java declarations for the Minecraf
 - `dev.composemc.host`: screen sessions and immutable state/action bindings / 屏幕会话及不可变状态与动作绑定。
 - `dev.composemc.sync`: server-safe menu synchronization / 可在服务端使用的菜单同步。
 - `dev.composemc.slots`: loader-independent slot policies and transfer routes / 与加载器无关的槽位策略与转移路径。
-- `dev.composemc.forge` or `dev.composemc.neoforge`: the selected Minecraft adapter / 当前版本的 Minecraft 适配器。
+- `dev.composemc.forge`: the selected target's adapter, with the same names on Forge and NeoForge / 当前版本的适配器，Forge 与 NeoForge 使用相同名称。
 
 Member descriptions come from the existing KDoc/Javadoc comments. Type signatures do not replace the documented thread, lifetime and synchronization requirements. Minecraft-facing sources use the readable development mappings, including Forge 1.20.1.
 

@@ -2,7 +2,7 @@
 
 [简体中文](../zh-CN/inventory.md) · [Documentation](../README.md)
 
-Use `NeoForgeComposeInventoryScreen` to arrange real menu slots with Compose. It retains the native container screen and its input/render hooks. Forge 1.20.1 provides `ForgeComposeInventoryScreen` in `dev.composemc.forge`.
+Use `ComposeInventoryScreen` to arrange real menu slots with Compose. It retains the native container screen and its input/render hooks.
 
 ![Slot styling with native items](../assets/native-slots.png)
 
@@ -12,10 +12,10 @@ Use `NeoForgeComposeInventoryScreen` to arrange real menu slots with Compose. It
 
 | Host | Use |
 | --- | --- |
-| `NeoForgeComposeScreen` | Client UI with no native menu lifecycle |
-| `NeoForgeComposeMenuScreen<M>` | Server-backed menu with **no slots** |
-| `NeoForgeComposeInventoryScreen<M>` | Menu with native slots and container gestures |
-| `NeoForgeSlotBehaviorScreen<M>` | Native-rendered container with shared slot policies |
+| `ComposeScreen` | Client UI with no native menu lifecycle |
+| `ComposeMenuScreen<M>` | Server-backed menu with **no slots** |
+| `ComposeInventoryScreen<M>` | Menu with native slots and container gestures |
+| `SlotBehaviorScreen<M>` | Native-rendered container with shared slot policies |
 
 The no-slot menu host rejects menus containing slots. Register NeoForge menu screens with `RegisterMenuScreensEvent`; Forge 1.20.1 uses `MenuScreens.register` from client setup's `enqueueWork`.
 
@@ -27,15 +27,15 @@ Call this factory from a client menu-screen registration. It captures IDs and th
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import dev.composemc.neoforge.NeoForgeComposeInventoryScreen
+import dev.composemc.forge.ComposeInventoryScreen
 import dev.composemc.ui.ore.layout.OreScreen
 import net.minecraft.network.chat.Component
 import net.minecraft.world.inventory.AbstractContainerMenu
 
-fun <M : AbstractContainerMenu> inventoryScreen(menu: M, title: Component): NeoForgeComposeInventoryScreen<M> {
+fun <M : AbstractContainerMenu> inventoryScreen(menu: M, title: Component): ComposeInventoryScreen<M> {
     val ids = menu.slots.indices.toList()
     val caption = title.string
-    return NeoForgeComposeInventoryScreen(menu, title, content = { slots ->
+    return ComposeInventoryScreen(menu, title, content = { slots ->
         OreScreen(caption, panelModifier = slots.areaModifier()) {
             ids.chunked(9).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
@@ -70,7 +70,7 @@ SlotBehavior context = SlotBehavior.standard()
     .replaceClick(1, new SlotIntent.Local("example:context"));
 ```
 
-Imports are `dev.composemc.slots.SlotBehavior` and `SlotIntent`. Return the policy from the adapter's `behavior` hook, or override `slotBehavior`/`localSlotAction` in `NeoForgeSlotBehaviorScreen`. Replacing right click also suppresses its drag phases. Other standard gestures remain available. Local actions do not send packets or grant permission to modify server inventory.
+Imports are `dev.composemc.slots.SlotBehavior` and `SlotIntent`. Return the policy from the adapter's `behavior` hook, or override `slotBehavior`/`localSlotAction` in `SlotBehaviorScreen`. Replacing right click also suppresses its drag phases. Other standard gestures remain available. Local actions do not send packets or grant permission to modify server inventory.
 
 ## Declare Shift-click routes
 
@@ -87,7 +87,7 @@ SlotTransferRoutes routes = SlotTransferRoutes.builder(45)
     .build();
 ```
 
-Import `dev.composemc.slots.SlotTransferRoutes`. Ranges are disjoint and end-exclusive; `true` reverses destination traversal. Rebuild routes if slot allocation changes. In the menu's `quickMoveStack`, delegate ordinary item transfers to `dev.composemc.neoforge.slots.NativeSlotTransfers.quickMove(this, player, slotId, routes)`.
+Import `dev.composemc.slots.SlotTransferRoutes`. Ranges are disjoint and end-exclusive; `true` reverses destination traversal. Rebuild routes if slot allocation changes. In the menu's `quickMoveStack`, delegate ordinary item transfers to `dev.composemc.forge.slots.NativeSlotTransfers.quickMove(this, player, slotId, routes)`.
 
 The executor merges matching stacks before filling empty slots, respects pickup/placement and stack limits, and calls native source hooks. It is not a rollback transaction manager. Crafting/merchant result slots are rejected by the generic executor. Ghost slots, virtual resources and special crafting outputs need consumer-owned execution; the same route declarations can still be reused.
 

@@ -9,19 +9,19 @@ Compose MC 为已注册的加载器配置规范提供 Ore 编辑器，包含文�
 在 NeoForge 的**客户端入口**中，使用消费者的 `ModContainer` 注册：
 
 ```java
-import dev.composemc.neoforge.NeoForgeComposeConfigScreen;
+import dev.composemc.forge.ComposeConfigScreen;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 
 final class ConfigRegistration {
     static void register(ModContainer container) {
         container.registerExtensionPoint(IConfigScreenFactory.class,
-            NeoForgeComposeConfigScreen::new);
+            ComposeConfigScreen::new);
     }
 }
 ```
 
-Forge 1.20.1 提供 `dev.composemc.forge.ForgeComposeConfigScreen`。构造模组时捕获消费者的 `ModContainer`，在客户端入口注册 `ConfigScreenHandler.ConfigScreenFactory`，其工厂创建 `new ForgeComposeConfigScreen(modContainer, parent)`。Forge 与 NeoForge 的扩展点注册签名不同，应针对所选目标编译。
+Forge 1.20.1 使用同一个 `ComposeConfigScreen`，只是注册方式不同：构造模组时捕获消费者的 `ModContainer`，在客户端入口注册 `ConfigScreenHandler.ConfigScreenFactory`，其工厂创建 `new ComposeConfigScreen(modContainer, parent)`。Forge 与 NeoForge 的扩展点注册签名不同，应针对所选目标编译。
 
 ## 编辑与保存
 
@@ -43,20 +43,20 @@ Forge 1.20.1 提供 `dev.composemc.forge.ForgeComposeConfigScreen`。构造模�
 
 ## 自定义展示
 
-`dev.composemc.neoforge.config.NeoForgeConfigEditor` 是公开的客户端游戏线程模型，提供不可变文件/条目快照，自定义 Compose 页面不需要读取实时加载器规范。使用快照提供的 ID，不要使用显示标签作为标识。
+`dev.composemc.forge.config.ConfigEditor` 是公开的客户端游戏线程模型，提供不可变文件/条目快照，自定义 Compose 页面不需要读取实时加载器规范。使用快照提供的 ID，不要使用显示标签作为标识。
 
 ```java
-import dev.composemc.neoforge.config.NeoForgeConfigEditor;
+import dev.composemc.forge.config.ConfigEditor;
 
 final class ConfigEdits {
-    static NeoForgeConfigEditor.Result stageLimit(
-            NeoForgeConfigEditor editor, String fileId, String entryId, String text) {
-        return editor.stage(fileId, entryId, NeoForgeConfigEditor.Input.scalar(text));
+    static ConfigEditor.Result stageLimit(
+            ConfigEditor editor, String fileId, String entryId, String text) {
+        return editor.stage(fileId, entryId, ConfigEditor.Input.scalar(text));
     }
 }
 ```
 
-使用模组 ID 构造编辑器。`snapshot()` 获取文件，`Input.list(values)` 创建列表输入，`reset` 暂存默认值，`reload` 丢弃单个文件草稿并重新捕获，`discardAll` 丢弃全部草稿。用户执行保存时调用 `save(fileId)`，并检查 `SaveResult` 中的冲突、错误和重启要求。Forge 提供对应的 `ForgeConfigEditor`。
+使用模组 ID 构造编辑器。`snapshot()` 获取文件，`Input.list(values)` 创建列表输入，`reset` 暂存默认值，`reload` 丢弃单个文件草稿并重新捕获，`discardAll` 丢弃全部草稿。用户执行保存时调用 `save(fileId)`，并检查 `SaveResult` 中的冲突、错误和重启要求。Forge 提供对应的 `ConfigEditor`。
 
 条目 ID 对路径段中的 `~` 和 `/` 转义，以区分包含点号的字面键。标签优先使用规范的翻译键，然后使用 `<modid>.configuration.<dot-joined-path>`；对应的 `.tooltip` 键可覆盖规范注释。枚举标签依次尝试 `<entry-key>.<constant-lowercase>`、`<modid>.configuration.option.<constant-lowercase>`，最后使用可读回退名。
 

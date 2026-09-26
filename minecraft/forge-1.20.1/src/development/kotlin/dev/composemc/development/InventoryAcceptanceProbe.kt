@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import dev.composemc.forge.ForgeComposeInventoryScreen
+import dev.composemc.forge.ComposeInventoryScreen
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.network.chat.Component
@@ -24,7 +24,7 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
     private var slotHooks = 0
     private var initialized: CompletableFuture<Void>? = null
     private var serverVerified: CompletableFuture<Boolean>? = null
-    private var screen: ForgeComposeInventoryScreen<InventoryMenu>? = null
+    private var screen: ComposeInventoryScreen<InventoryMenu>? = null
 
     fun tick() {
         check(++ticks < 600) { "Inventory acceptance timed out at stage $stage" }
@@ -40,7 +40,7 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
             }
             1 -> if (initialized!!.isDone && player.inventory.getItem(0).count == 8) {
                 initialized!!.join()
-                screen = object : ForgeComposeInventoryScreen<InventoryMenu>(
+                screen = object : ComposeInventoryScreen<InventoryMenu>(
                     player.inventoryMenu, Component.literal("Native inventory acceptance"), content = { slots ->
                         Column(Modifier.fillMaxSize().background(Color(0xFF204060)).padding(20.dp)) {
                             Row(slots.areaModifier()) { slots.Slot(36); slots.Slot(37); slots.Slot(5); slots.Slot(45) }

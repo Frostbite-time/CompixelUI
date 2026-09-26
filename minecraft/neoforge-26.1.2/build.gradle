@@ -93,5 +93,5 @@ verifyMinecraftArtifacts(artifacts, [
     'public-f net.minecraft.world.inventory.Slot y',
     'protected-f net.minecraft.client.gui.screens.inventory.AbstractContainerScreen imageWidth',
     'protected-f net.minecraft.client.gui.screens.inventory.AbstractContainerScreen imageHeight',
-] as Set, ['composemc.mixins.json', 'dev/composemc/neoforge/mixin/GuiRendererMixin.class'] as Set)
+] as Set, ['composemc.mixins.json', 'dev/composemc/forge/mixin/GuiRendererMixin.class'] as Set)
 verifyMinecraftRuns(runSettings, 'earlyWindowControl=false\n')

@@ -47,6 +47,7 @@ This release uses menu protocol **5**. Rebuild the consumer against the matching
 | Ore glyphs | `OreGlyph` entries are named by shape: `Close` → `Cross`, `Check` → `Checkmark`, `Search` → `MagnifyingGlass`, `Edit` → `Pencil`, `Back` → `ArrowLeft`, `Settings` → `Sliders`. `Network` left the library; define domain icons as `OrePixelArt`. |
 | Custom hosts | `UiKey` covers the standard keyboard. A host that maps its own native keys translates every entry and resolves letters and punctuation through the active layout. A host that shares its window with native widgets can drive its text input and input method with `HostTextInput`. |
 | Config screen | Construct it with the mod container and parent screen only; `ConfigScreenInspection` and the `inspection` parameter were removed. Drive automated checks through the screen's `editor`. |
+| Adapter package | Every target uses `dev.composemc.forge`. Replace `dev.composemc.neoforge` imports and drop the `Forge`/`NeoForge` prefix: `ComposeScreen`, `ComposeInventoryScreen`, `ComposeMenuScreen`, `ComposeConfigScreen`, `config.ConfigEditor`, `slots.SlotBehaviorScreen`. |
 
 State/action policies and action declarations must match on both sides. The client confirms its menu attachment and policy before state bodies are sent, adding one opening confirmation round trip. See [menu synchronization](menu-sync.md) for all defaults, refusal handling and burst behavior.
 
@@ -60,9 +61,10 @@ Each normal JAR includes Skiko natives for Windows, Linux and macOS on x64 and a
 
 ## Loader and API differences
 
+Every target publishes its adapter API in `dev.composemc.forge` under the same type names, so code shared between Forge and NeoForge targets uses one set of imports; only Maven coordinates name the loader. These still differ:
+
 | Area | Forge 1.20.1 | NeoForge targets |
 | --- | --- | --- |
-| Adapter namespace | `dev.composemc.forge` / `Forge*` hosts | `dev.composemc.neoforge` / `NeoForge*` hosts |
 | Dependency metadata | `mods.toml`, `mandatory=true` | `neoforge.mods.toml`, `type="required"` |
 | Menu screen registration | Client setup `enqueueWork`, `MenuScreens.register` | `RegisterMenuScreensEvent` |
 | Sync transport | `SimpleChannel` | Payload registration |

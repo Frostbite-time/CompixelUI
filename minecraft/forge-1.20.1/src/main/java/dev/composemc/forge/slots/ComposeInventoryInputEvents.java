@@ -1,6 +1,6 @@
 package dev.composemc.forge.slots;
 
-import dev.composemc.forge.ForgeComposeInventoryScreen;
+import dev.composemc.forge.ComposeInventoryScreen;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -12,7 +12,7 @@ import net.minecraftforge.client.event.ScreenEvent;
 public final class ComposeInventoryInputEvents {
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void keyPressed(ScreenEvent.KeyPressed.Pre event) {
-        if (event.getScreen() instanceof ForgeComposeInventoryScreen<?> screen && screen.getHasTextInputFocus())
+        if (event.getScreen() instanceof ComposeInventoryScreen<?> screen && screen.getHasTextInputFocus())
             event.setCanceled(screen.keyPressed(event.getKeyCode(), event.getScanCode(), event.getModifiers()));
     }
 }

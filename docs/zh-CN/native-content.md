@@ -2,7 +2,7 @@
 
 [English](../en/native-content.md) · [文档目录](../README.md)
 
-所有支持的适配器都能在 Compose 中显示 Minecraft 物品图像和原生提示。本页示例使用 1.21.1 的 `dev.composemc.neoforge`；Forge 1.20.1 使用对应的 `dev.composemc.forge` API。
+所有支持的适配器都能在 Compose 中显示 Minecraft 物品图像和原生提示。本页示例基于 1.21.1；所有目标都提供相同的 `dev.composemc.forge` API。
 
 ![Ore 界面中的原生 Minecraft 物品](../assets/native-items.png)
 
@@ -16,7 +16,7 @@
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import dev.composemc.neoforge.*
+import dev.composemc.forge.*
 import dev.composemc.ui.ore.layout.OreScreen
 import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.Component
@@ -25,7 +25,7 @@ import net.minecraft.world.item.ItemStack
 fun openItemScreen(stack: ItemStack) {
     val minecraft = Minecraft.getInstance()
     val icon = ItemIcon.snapshot(stack)
-    minecraft.setScreen(NeoForgeComposeScreen(
+    minecraft.setScreen(ComposeScreen(
         Component.literal("物品详情"), parent = minecraft.screen,
     ) {
         OreScreen("物品详情") {

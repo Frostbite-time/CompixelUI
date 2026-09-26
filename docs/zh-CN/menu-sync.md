@@ -13,9 +13,9 @@
 ```java
 import dev.composemc.sync.SyncCodecs;
 import dev.composemc.sync.SyncSchema;
-import dev.composemc.neoforge.sync.MenuAction;
-import dev.composemc.neoforge.sync.MenuSync;
-import dev.composemc.neoforge.sync.SyncedMenu;
+import dev.composemc.forge.sync.MenuAction;
+import dev.composemc.forge.sync.MenuSync;
+import dev.composemc.forge.sync.SyncedMenu;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.MenuType;
@@ -110,8 +110,8 @@ final class CatalogState {
 在调用处处理拒绝，不要直接假定点击已经成功。下面的辅助方法接受消费者自己的反馈回调，并向调用者保留完整结果：
 
 ```java
-import dev.composemc.neoforge.sync.MenuAction;
-import dev.composemc.neoforge.sync.MenuSync;
+import dev.composemc.forge.sync.MenuAction;
+import dev.composemc.forge.sync.MenuSync;
 import dev.composemc.sync.ActionSubmission;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import java.util.function.Consumer;

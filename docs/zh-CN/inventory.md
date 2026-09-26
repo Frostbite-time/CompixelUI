@@ -2,7 +2,7 @@
 
 [English](../en/inventory.md) · [文档目录](../README.md)
 
-使用 `NeoForgeComposeInventoryScreen` 通过 Compose 排列真实菜单槽位，同时保留原生容器屏幕及输入、渲染钩子。Forge 1.20.1 在 `dev.composemc.forge` 中提供 `ForgeComposeInventoryScreen`。
+使用 `ComposeInventoryScreen` 通过 Compose 排列真实菜单槽位，同时保留原生容器屏幕及输入、渲染钩子。
 
 ![带原生物品的槽位外观](../assets/native-slots.png)
 
@@ -12,10 +12,10 @@
 
 | 宿主 | 用途 |
 | --- | --- |
-| `NeoForgeComposeScreen` | 无原生菜单生命周期的客户端 UI |
-| `NeoForgeComposeMenuScreen<M>` | 服务端驱动且**没有槽位**的菜单 |
-| `NeoForgeComposeInventoryScreen<M>` | 包含真实槽位和容器手势的菜单 |
-| `NeoForgeSlotBehaviorScreen<M>` | 保留原生绘制、采用共享槽位策略的容器 |
+| `ComposeScreen` | 无原生菜单生命周期的客户端 UI |
+| `ComposeMenuScreen<M>` | 服务端驱动且**没有槽位**的菜单 |
+| `ComposeInventoryScreen<M>` | 包含真实槽位和容器手势的菜单 |
+| `SlotBehaviorScreen<M>` | 保留原生绘制、采用共享槽位策略的容器 |
 
 无槽位菜单宿主会拒绝包含槽位的菜单。NeoForge 使用 `RegisterMenuScreensEvent` 注册菜单屏幕；Forge 1.20.1 在客户端初始化的 `enqueueWork` 中调用 `MenuScreens.register`。
 
@@ -27,15 +27,15 @@
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import dev.composemc.neoforge.NeoForgeComposeInventoryScreen
+import dev.composemc.forge.ComposeInventoryScreen
 import dev.composemc.ui.ore.layout.OreScreen
 import net.minecraft.network.chat.Component
 import net.minecraft.world.inventory.AbstractContainerMenu
 
-fun <M : AbstractContainerMenu> inventoryScreen(menu: M, title: Component): NeoForgeComposeInventoryScreen<M> {
+fun <M : AbstractContainerMenu> inventoryScreen(menu: M, title: Component): ComposeInventoryScreen<M> {
     val ids = menu.slots.indices.toList()
     val caption = title.string
-    return NeoForgeComposeInventoryScreen(menu, title, content = { slots ->
+    return ComposeInventoryScreen(menu, title, content = { slots ->
         OreScreen(caption, panelModifier = slots.areaModifier()) {
             ids.chunked(9).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
@@ -70,7 +70,7 @@ SlotBehavior context = SlotBehavior.standard()
     .replaceClick(1, new SlotIntent.Local("example:context"));
 ```
 
-导入 `dev.composemc.slots.SlotBehavior` 和 `SlotIntent`。在适配器的 `behavior` 钩子中返回该策略，或在 `NeoForgeSlotBehaviorScreen` 中覆盖 `slotBehavior` / `localSlotAction`。替换右键也会抑制右键拖拽阶段，其他标准手势继续可用。本地动作不会自动发包，也不会授予修改服务端物品栏的权限。
+导入 `dev.composemc.slots.SlotBehavior` 和 `SlotIntent`。在适配器的 `behavior` 钩子中返回该策略，或在 `SlotBehaviorScreen` 中覆盖 `slotBehavior` / `localSlotAction`。替换右键也会抑制右键拖拽阶段，其他标准手势继续可用。本地动作不会自动发包，也不会授予修改服务端物品栏的权限。
 
 ## 声明 Shift 点击路线
 
@@ -87,7 +87,7 @@ SlotTransferRoutes routes = SlotTransferRoutes.builder(45)
     .build();
 ```
 
-导入 `dev.composemc.slots.SlotTransferRoutes`。分组区间互不重叠，右端不包含；`true` 表示反向遍历目标。槽位分配变化后应重新构建。在菜单的 `quickMoveStack` 中，普通物品转移可委托给 `dev.composemc.neoforge.slots.NativeSlotTransfers.quickMove(this, player, slotId, routes)`。
+导入 `dev.composemc.slots.SlotTransferRoutes`。分组区间互不重叠，右端不包含；`true` 表示反向遍历目标。槽位分配变化后应重新构建。在菜单的 `quickMoveStack` 中，普通物品转移可委托给 `dev.composemc.forge.slots.NativeSlotTransfers.quickMove(this, player, slotId, routes)`。
 
 执行器先合并相同物品堆，再填充空槽，遵守取出、放入和堆叠限制，并调用原生源槽位钩子。它不是回滚事务管理器。通用执行器会拒绝合成和交易结果槽。幽灵槽、虚拟资源和特殊合成结果需要消费者提供执行逻辑，仍可复用同一套路线声明。
 

@@ -1,6 +1,6 @@
 package dev.composemc.development
 
-import dev.composemc.neoforge.*
+import dev.composemc.forge.*
 
 import dev.composemc.bridge.ComposeThread
 import dev.composemc.demo.preview.DemoModel
@@ -24,7 +24,7 @@ class ComposePreviewScreen private constructor(
     private val icons: List<ItemIcon>,
     private val samples: Map<Int, ItemIcon> = listOf(0, 1, 3, 8).filter { it < icons.size }
         .associateWith { ItemIcon.snapshot(icons[it].stack) },
-) : NeoForgeComposeScreen(Component.literal("Compose MC"), parent, content = {
+) : ComposeScreen(Component.literal("Compose MC"), parent, content = {
     DemoScreen(model, tooltipItem = if (icons.isEmpty()) null else { modifier ->
         MinecraftItemIcon(icons[0], modifier)
     }, slotItem = if (icons.isEmpty()) null else { index, modifier ->

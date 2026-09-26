@@ -39,7 +39,7 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
                     if (!expectedMixins.empty) {
                         def mixinConfig = new groovy.json.JsonSlurper().parseText(
                             zip.getInputStream(zip.getEntry('composemc.mixins.json')).getText('UTF-8'))
-                        if (mixinConfig.package != 'dev.composemc.neoforge.mixin' ||
+                        if (mixinConfig.package != 'dev.composemc.forge.mixin' ||
                             mixinConfig.client != ['GuiRendererMixin'] || mixinConfig.mixins || mixinConfig.server ||
                             mixinConfig.required != true || mixinConfig.injectors?.defaultRequire != 1)
                             throw new GradleException('Unexpected native GUI Mixin configuration')
@@ -90,7 +90,7 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
                     throw new GradleException('Development artifact embedded renderer implementation')
                 if (zip.entries().findAll { it.name.startsWith('androidx/') || it.name.startsWith('kotlin/') ||
                     it.name.startsWith('org/jetbrains/skiko/') || it.name.startsWith('org/jetbrains/skia/') ||
-                    it.name.startsWith("dev/composemc/${artifacts.loader}/") })
+                    it.name.startsWith('dev/composemc/forge/') })
                     throw new GradleException('Development artifact embedded runtime/production adapter classes')
             }
             new java.util.zip.ZipFile(tasks.named('consumerDevJar').get().archiveFile.get().asFile).withCloseable { zip ->
@@ -107,30 +107,32 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
         dependsOn artifacts.apiDocs.sources, artifacts.apiDocs.documentation
         doLast {
             def api = artifacts.apiDocs
-            def namespace = artifacts.loader == 'forge' ? 'forge' : 'neoforge'
-            def screen = artifacts.loader == 'forge' ? 'ForgeComposeScreen' : 'NeoForgeComposeScreen'
             new java.util.zip.ZipFile(api.sources.get().archiveFile.get().asFile).withCloseable { zip ->
                 ['dev/composemc/host/UiBinding.kt', 'dev/composemc/ui/ore/button/OreButton.kt',
                  'dev/composemc/sync/SyncSchema.java', 'dev/composemc/slots/SlotBehavior.java',
-                 "dev/composemc/$namespace/${screen}.kt", 'META-INF/composemc/LICENSE'].each {
+                 'dev/composemc/forge/ComposeScreen.kt', 'META-INF/composemc/LICENSE'].each {
                     if (zip.getEntry(it) == null) throw new GradleException("Missing library source: $it")
                 }
+                def checkout = [:]
+                api.sourceRoots.each { root ->
+                    project.fileTree(root).matching { include '**/*.java', '**/*.kt' }.files.each { source ->
+                        checkout[root.toPath().relativize(source.toPath()).toString().replace('\\', '/')] = source
+                    }
+                }
+                // Every adapter shares the dev.composemc.forge package, so adapter sources must come from this checkout's roots.
                 def forbidden = zip.entries().findAll {
                     it.name.startsWith('dev/composemc/development/') || it.name.startsWith('dev/composemc/demo/') ||
                         it.name.startsWith('dev/composemc/testing/') ||
                         it.name.startsWith('net/minecraft/') || it.name.startsWith('androidx/') || it.name.startsWith('kotlin/') ||
-                        it.name.startsWith("dev/composemc/${namespace == 'forge' ? 'neoforge' : 'forge'}/") ||
+                        it.name.startsWith('dev/composemc/forge/') && !it.directory && !checkout.containsKey(it.name) ||
                         it.name.endsWith('.class') || it.name.endsWith('Test.kt') || it.name.endsWith('Test.java')
                 }
                 if (!forbidden.empty) throw new GradleException("Unexpected sources in published API: ${forbidden*.name}")
                 // Compare bytes with this checkout, catching stale or wrong-version adapter sources.
-                api.sourceRoots.each { root ->
-                    project.fileTree(root).matching { include '**/*.java', '**/*.kt' }.files.each { source ->
-                        def relative = root.toPath().relativize(source.toPath()).toString().replace('\\', '/')
-                        def entry = zip.getEntry(relative)
-                        if (entry == null || !Arrays.equals(zip.getInputStream(entry).bytes, source.bytes))
-                            throw new GradleException("Source archive differs from checkout: $relative")
-                    }
+                checkout.each { relative, source ->
+                    def entry = zip.getEntry(relative)
+                    if (entry == null || !Arrays.equals(zip.getInputStream(entry).bytes, source.bytes))
+                        throw new GradleException("Source archive differs from checkout: $relative")
                 }
             }
             new java.util.zip.ZipFile(api.documentation.get().archiveFile.get().asFile).withCloseable { zip ->
@@ -138,7 +140,7 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
                 ['index.html', 'scripts/pages.json', 'META-INF/composemc/LICENSE',
                  "${api.moduleName}/dev.composemc.host/-ui-binding/index.html",
                  "${api.moduleName}/dev.composemc.sync/-sync-schema/index.html",
-                 "${api.moduleName}/dev.composemc.$namespace/-${namespace == 'forge' ? 'forge' : 'neo-forge'}-compose-screen/index.html",
+                 "${api.moduleName}/dev.composemc.forge/-compose-screen/index.html",
                  "${api.moduleName}/dev.composemc.ui.ore.button/-ore-button.html"].each {
                     if (zip.getEntry(it.toString()) == null) throw new GradleException("Missing generated API page: $it")
                 }

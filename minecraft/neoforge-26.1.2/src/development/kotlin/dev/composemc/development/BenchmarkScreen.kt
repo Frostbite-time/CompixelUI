@@ -1,6 +1,6 @@
 package dev.composemc.development
 
-import dev.composemc.neoforge.*
+import dev.composemc.forge.*
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -45,7 +45,7 @@ internal class BenchmarkScreen private constructor(
     icons: List<ItemIcon>,
     samples: Map<Int, ItemIcon> = if (fixture.kind == BenchmarkKind.ORE_COMPONENTS && fixture.count == dev.composemc.demo.preview.DemoPage.Items.ordinal)
         listOf(0, 1, 3, 8).associateWith { ItemIcon.snapshot(icons[it].stack) } else emptyMap(),
-) : NeoForgeComposeScreen(Component.literal("Compose MC benchmark"),
+) : ComposeScreen(Component.literal("Compose MC benchmark"),
     nativeItemOptions = if (fixture.kind == BenchmarkKind.NATIVE_ANIMATED) NativeItemOptions(cacheCapacity = 512) else NativeItemOptions(),
     content = { BenchmarkContent(fixture, model, icons, samples) }) {
     private val componentExercise = if (fixture.kind == BenchmarkKind.ORE_COMPONENTS)

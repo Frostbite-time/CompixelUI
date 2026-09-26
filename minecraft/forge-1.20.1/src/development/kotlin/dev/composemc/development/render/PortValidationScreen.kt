@@ -10,7 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import dev.composemc.bridge.ComposeThread
-import dev.composemc.forge.ForgeComposeScreen
+import dev.composemc.forge.ComposeScreen
 import dev.composemc.testing.suite.ScreenPixels
 import net.minecraft.network.chat.Component
 
@@ -21,7 +21,7 @@ internal class PortValidationModel {
 
 /** Deliberately asymmetric fixture, with a real Compose click target and alpha patch. */
 internal class PortValidationScreen(val model: PortValidationModel = ComposeThread.call { PortValidationModel() }) :
-    ForgeComposeScreen(Component.literal("Port validation"), content = {
+    ComposeScreen(Component.literal("Port validation"), content = {
         Box(Modifier.fillMaxSize().background(Color(0xFF204060))) {
             Box(Modifier.align(Alignment.TopStart).padding(16.dp).size(40.dp)
                 .background(if (model.clicks == 0) Color.Red else Color.Yellow).clickable { model.clicks++ })

@@ -1,8 +1,8 @@
 package dev.composemc.development;
 
-import dev.composemc.neoforge.sync.MenuAction;
-import dev.composemc.neoforge.sync.MenuSync;
-import dev.composemc.neoforge.sync.SyncedMenu;
+import dev.composemc.forge.sync.MenuAction;
+import dev.composemc.forge.sync.MenuSync;
+import dev.composemc.forge.sync.SyncedMenu;
 import dev.composemc.sync.SyncCodecs;
 import dev.composemc.sync.SyncSchema;
 import net.minecraft.core.registries.Registries;

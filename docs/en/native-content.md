@@ -2,7 +2,7 @@
 
 [简体中文](../zh-CN/native-content.md) · [Documentation](../README.md)
 
-All supported adapters can display Minecraft item images and native tooltips inside Compose. Examples here use `dev.composemc.neoforge` on 1.21.1; Forge 1.20.1 uses the corresponding `dev.composemc.forge` API.
+All supported adapters can display Minecraft item images and native tooltips inside Compose. Examples here target 1.21.1; every target provides the same `dev.composemc.forge` API.
 
 ![Native Minecraft items within an Ore interface](../assets/native-items.png)
 
@@ -16,7 +16,7 @@ Create an `ItemIcon` snapshot on the client render thread, then pass its handle 
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import dev.composemc.neoforge.*
+import dev.composemc.forge.*
 import dev.composemc.ui.ore.layout.OreScreen
 import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.Component
@@ -25,7 +25,7 @@ import net.minecraft.world.item.ItemStack
 fun openItemScreen(stack: ItemStack) {
     val minecraft = Minecraft.getInstance()
     val icon = ItemIcon.snapshot(stack)
-    minecraft.setScreen(NeoForgeComposeScreen(
+    minecraft.setScreen(ComposeScreen(
         Component.literal("Item details"), parent = minecraft.screen,
     ) {
         OreScreen("Item details") {

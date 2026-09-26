@@ -13,9 +13,9 @@ Implement `SyncedMenu` on your existing `AbstractContainerMenu` and keep one bin
 ```java
 import dev.composemc.sync.SyncCodecs;
 import dev.composemc.sync.SyncSchema;
-import dev.composemc.neoforge.sync.MenuAction;
-import dev.composemc.neoforge.sync.MenuSync;
-import dev.composemc.neoforge.sync.SyncedMenu;
+import dev.composemc.forge.sync.MenuAction;
+import dev.composemc.forge.sync.MenuSync;
+import dev.composemc.forge.sync.SyncedMenu;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.MenuType;
@@ -110,8 +110,8 @@ Register matching action IDs/codecs before opening the menu. The adapter checks 
 Handle refusal at the call site instead of assuming a click succeeded. This helper accepts your own feedback callback and keeps the full result available to the caller:
 
 ```java
-import dev.composemc.neoforge.sync.MenuAction;
-import dev.composemc.neoforge.sync.MenuSync;
+import dev.composemc.forge.sync.MenuAction;
+import dev.composemc.forge.sync.MenuSync;
 import dev.composemc.sync.ActionSubmission;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import java.util.function.Consumer;

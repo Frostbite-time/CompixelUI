@@ -1,8 +1,8 @@
 package dev.composemc.development
 
-import dev.composemc.forge.config.ForgeConfigEditor
-import dev.composemc.forge.config.ForgeConfigEditor.Input
-import dev.composemc.forge.config.ForgeConfigEditor.Result
+import dev.composemc.forge.config.ConfigEditor
+import dev.composemc.forge.config.ConfigEditor.Input
+import dev.composemc.forge.config.ConfigEditor.Result
 import net.minecraftforge.common.ForgeConfigSpec
 import net.minecraftforge.fml.ModLoadingContext
 import net.minecraftforge.fml.config.ModConfig
@@ -18,9 +18,9 @@ internal object ConfigAcceptance {
     fun register() = ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, spec, FILE)
 
     fun verify(): String {
-        val editor = ForgeConfigEditor("composemc_development")
+        val editor = ConfigEditor("composemc_development")
         val file = editor.snapshot().single { it.id() == FILE }
-        check(file.access() == ForgeConfigEditor.Access.EDITABLE) { "Acceptance config is not editable: ${file.access()}" }
+        check(file.access() == ConfigEditor.Access.EDITABLE) { "Acceptance config is not editable: ${file.access()}" }
         val oldCount = count.get()
         val oldNames = names.get().toList()
         check(editor.stage(FILE, "count", Input.scalar("101")) == Result.INVALID) { "An out-of-range value was accepted" }

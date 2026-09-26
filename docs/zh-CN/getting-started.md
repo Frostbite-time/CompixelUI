@@ -68,7 +68,7 @@ side="CLIENT"
 
 ```kotlin
 import androidx.compose.runtime.*
-import dev.composemc.neoforge.NeoForgeComposeScreen
+import dev.composemc.forge.ComposeScreen
 import dev.composemc.ui.ore.button.OreButton
 import dev.composemc.ui.ore.display.OreText
 import dev.composemc.ui.ore.layout.OreScreen
@@ -79,7 +79,7 @@ import net.minecraft.network.chat.Component
 fun openCounterScreen() {
     val minecraft = Minecraft.getInstance()
     val parent = minecraft.screen
-    minecraft.setScreen(NeoForgeComposeScreen(
+    minecraft.setScreen(ComposeScreen(
         title = Component.literal("计数器"),
         parent = parent,
     ) {

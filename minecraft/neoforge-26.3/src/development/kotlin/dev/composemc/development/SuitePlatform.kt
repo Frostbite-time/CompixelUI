@@ -2,9 +2,9 @@ package dev.composemc.development
 
 import com.mojang.blaze3d.platform.InputConstants
 import com.mojang.blaze3d.systems.RenderSystem
-import dev.composemc.neoforge.NeoForgeComposeScreen
-import dev.composemc.neoforge.RendererResources
-import dev.composemc.neoforge.configuredRenderBackend
+import dev.composemc.forge.ComposeScreen
+import dev.composemc.forge.RendererResources
+import dev.composemc.forge.configuredRenderBackend
 import dev.composemc.render.RenderBackend
 import dev.composemc.testing.suite.ScreenPixels
 import net.minecraft.client.InactivityFpsLimit
@@ -33,7 +33,7 @@ import org.lwjgl.sdl.SDLVideo
 import java.io.File
 import java.util.function.Consumer
 
-internal typealias SuiteComposeScreen = NeoForgeComposeScreen
+internal typealias SuiteComposeScreen = ComposeScreen
 
 /** Every Minecraft 26.3 / NeoForge call the shared suite code needs, in one reviewable place. */
 internal object SuitePlatform {

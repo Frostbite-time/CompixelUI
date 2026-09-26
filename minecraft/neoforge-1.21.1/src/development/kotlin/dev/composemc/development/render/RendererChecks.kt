@@ -1,6 +1,6 @@
 package dev.composemc.development.render
 
-import dev.composemc.neoforge.*
+import dev.composemc.forge.*
 import dev.composemc.render.RenderBackend
 import dev.composemc.render.gl.testing.OpenGlRendererProbe
 import dev.composemc.testing.render.RendererAcceptance

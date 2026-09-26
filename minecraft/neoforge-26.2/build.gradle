@@ -103,6 +103,6 @@ verifyMinecraftArtifacts(artifacts, [
     'protected-f net.minecraft.client.gui.screens.inventory.AbstractContainerScreen imageWidth',
     'protected-f net.minecraft.client.gui.screens.inventory.AbstractContainerScreen imageHeight',
     'public-f com.mojang.blaze3d.systems.GpuDevice backend',
-] as Set, ['composemc.mixins.json', 'dev/composemc/neoforge/mixin/GuiRendererMixin.class'] as Set)
+] as Set, ['composemc.mixins.json', 'dev/composemc/forge/mixin/GuiRendererMixin.class'] as Set)
 // NeoForge 26.2.0.88 omits stencil-pipeline cleanup; the control run reproduces this upstream diagnostic.
 verifyMinecraftRuns(runSettings, 'earlyWindowControl=false\n', vulkanValidation, ['VUID-vkDestroyDevice-device-05137'] as Set)

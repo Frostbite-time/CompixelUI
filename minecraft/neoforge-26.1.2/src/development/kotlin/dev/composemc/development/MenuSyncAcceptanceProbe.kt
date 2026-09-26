@@ -1,14 +1,14 @@
 package dev.composemc.development
 
-import dev.composemc.neoforge.NeoForgeComposeMenuScreen
-import dev.composemc.neoforge.sync.MenuSync
+import dev.composemc.forge.ComposeMenuScreen
+import dev.composemc.forge.sync.MenuSync
 import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.Component
 import net.minecraft.world.SimpleMenuProvider
 import net.minecraft.world.entity.player.Inventory
 
 internal class SyncAcceptanceScreen(menu: SyncAcceptanceMenu, @Suppress("UNUSED_PARAMETER") inventory: Inventory, title: Component) :
-    NeoForgeComposeMenuScreen<SyncAcceptanceMenu>(menu, title, content = {}) {
+    ComposeMenuScreen<SyncAcceptanceMenu>(menu, title, content = {}) {
     override fun isUiWindowFocused() = SuiteEnvironment.uiFocused(super.isUiWindowFocused())
 }
 
