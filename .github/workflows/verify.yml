@@ -50,16 +50,4 @@ jobs:
           COMPOSEMC_JDK21: ${{ steps.java21.outputs.path }}
           COMPOSEMC_JDK25: ${{ steps.java25.outputs.path }}
         run: bash gradlew -PcomposemcTargets=${{ matrix.target }} :minecraft:${{ matrix.loader || 'neoforge' }}-${{ matrix.target }}:build --console=plain
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: verification-${{ matrix.os }}-${{ matrix.target }}
-          path: |
-            **/build/reports/tests/
-            desktop/build/screenshots/
-            minecraft/neoforge-*/build/libs/*.jar
-            minecraft/forge-*/build/libs/*.jar
-            minecraft/*/build/release/*.jar
-            runtimes/*/build/libs/composemc-*.jar
-          retention-days: 7
 # Real GPU acceptance uses the Windows isolated-desktop launcher on a GPU host.
