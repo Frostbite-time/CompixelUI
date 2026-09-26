@@ -10,6 +10,9 @@ junit-platform = "1.13.4"
 moddev = "2.0.147"
 shadow = "9.2.2"
 dokka = "2.2.0"
+spotless = "8.10.3"
+ktfmt = "0.64"
+palantir-java-format = "2.99.0"
 
 [libraries]
 skiko-standard = { module = "org.jetbrains.skiko:skiko-awt", version.ref = "skiko-standard" }
@@ -22,3 +25,4 @@ compose = { id = "org.jetbrains.compose", version.ref = "compose" }
 moddev = { id = "net.neoforged.moddev", version.ref = "moddev" }
 shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
 dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }

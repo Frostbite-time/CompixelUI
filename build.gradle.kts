@@ -11,6 +11,7 @@ plugins {
     alias(libs.plugins.moddev) apply false
     alias(libs.plugins.shadow) apply false
     alias(libs.plugins.dokka) apply false
+    alias(libs.plugins.spotless)
 }
 abstract class ApiDocumentationWorkers : BuildService<BuildServiceParameters.None>
 val apiDocumentationWorkers = gradle.sharedServices.registerIfAbsent("apiDocumentationWorkers", ApiDocumentationWorkers::class) {
@@ -57,9 +58,37 @@ subprojects {
 apply(from = "gradle/verify-core-boundary.gradle.kts")
 apply(from = "gradle/verify-suite-parity.gradle.kts")
 
+// One formatter setup for the repository: `spotlessApply` rewrites; `check` and `checkCore` run `spotlessCheck`.
+spotless {
+    val outputs = listOf("**/build/**", "**/run/**", ".work/**")
+    kotlin {
+        target("**/src/**/*.kt")
+        targetExclude(outputs)
+        ktfmt(libs.versions.ktfmt.get()).kotlinlangStyle().configure { it.setMaxWidth(120) }
+    }
+    kotlinGradle {
+        target("*.gradle.kts", "**/*.gradle.kts")
+        targetExclude(outputs)
+        ktfmt(libs.versions.ktfmt.get()).kotlinlangStyle().configure { it.setMaxWidth(120) }
+    }
+    java {
+        target("**/src/**/*.java")
+        targetExclude(outputs)
+        palantirJavaFormat(libs.versions.palantir.java.format.get())
+    }
+    // Groovy build scripts only get whitespace rules.
+    format("groovyGradle") {
+        target("*.gradle", "**/*.gradle")
+        targetExclude(outputs)
+        trimTrailingWhitespace()
+        leadingTabsToSpaces(4)
+        endWithNewline()
+    }
+}
+
 tasks.register("checkCore") {
     group = "verification"
-    dependsOn("verifyCoreBoundary", "verifySuiteParity", ":desktop:smoke")
+    dependsOn("verifyCoreBoundary", "verifySuiteParity", "spotlessCheck", ":desktop:smoke")
     dependsOn(listOf("platform", "render", "render-gl", "render-vulkan", "compose-bridge", "host", "ui-ore", "menu-sync", "slot-core", "demo", "desktop", "testing")
         .map { ":$it:check" })
 }
