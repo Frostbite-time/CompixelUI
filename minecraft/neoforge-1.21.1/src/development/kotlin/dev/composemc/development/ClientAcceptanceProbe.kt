@@ -26,6 +26,7 @@ internal class ClientAcceptanceProbe {
     private val log = AcceptanceLog()
     private val session = SuiteSession(ClientSuite.ACCEPTANCE, frameLimit = 260)
     private val script = SuiteScript(session)
+    private val hud = HudAcceptance(session, log, script)
     private val preview = PreviewAcceptance(session, log, script)
     private var started = false
     private var finished = false
@@ -95,6 +96,7 @@ internal class ClientAcceptanceProbe {
                 log.pass(AcceptanceStep.CONFIG, ConfigAcceptance.verify())
                 port()
                 nativeVisual()
+                hud.schedule()
                 preview.schedule()
                 scripted = true
             }

@@ -64,6 +64,13 @@ internal object SuitePlatform {
     val guiScale: Int
         get() = minecraft.window.guiScale
 
+    /** Whether the vanilla HUD is hidden, as F1 toggles it. */
+    var hudHidden: Boolean
+        get() = minecraft.options.hideGui
+        set(hidden) {
+            minecraft.options.hideGui = hidden
+        }
+
     val resourceEpoch: Long
         get() = RendererResources.epoch
 

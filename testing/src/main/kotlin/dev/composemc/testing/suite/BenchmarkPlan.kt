@@ -15,7 +15,13 @@ enum class BenchmarkKind {
     NATIVE_SCROLL,
     NATIVE_ANIMATED,
     TOOLTIP,
-    ORE_COMPONENTS,
+    HUD_STATIC,
+    HUD_ANIMATED,
+    ORE_COMPONENTS;
+
+    /** Measured on the development HUD layer over the game view, with no screen open. */
+    val hud: Boolean
+        get() = this == HUD_STATIC || this == HUD_ANIMATED
 }
 
 data class BenchmarkCase(val name: String, val kind: BenchmarkKind, val count: Int = 0)
@@ -42,6 +48,8 @@ object BenchmarkPlan {
             BenchmarkCase("native-scroll-10k", BenchmarkKind.NATIVE_SCROLL, 10000),
             BenchmarkCase("native-animated", BenchmarkKind.NATIVE_ANIMATED, 1000),
             BenchmarkCase("rich-tooltip", BenchmarkKind.TOOLTIP),
+            BenchmarkCase("hud-static", BenchmarkKind.HUD_STATIC),
+            BenchmarkCase("hud-animated", BenchmarkKind.HUD_ANIMATED),
         ) +
             oreComponentPages.map {
                 BenchmarkCase("ore-${it.name.lowercase()}", BenchmarkKind.ORE_COMPONENTS, it.ordinal)
@@ -65,7 +73,7 @@ object BenchmarkPlan {
 
     val notes =
         listOf(
-            "CPU spans are wall time inside Screen.render, excluding frame limiting, report export and screenshots.",
+            "CPU spans are wall time inside Screen.render, or inside the HUD layer for hud-* cases, excluding frame limiting, report export and screenshots.",
             "CPU details overlap top-level spans. GPU values are disjoint command-stream intervals, not busy time; do not add CPU and GPU times.",
             "Zero GPU requests means the stage did not run. Backends without GPU timers report no GPU columns.",
             "CSV rows join CPU and delayed GPU measurements by the originating host frame ID. No glFinish or blocking query reads are used.",
@@ -89,9 +97,17 @@ object BenchmarkValidity {
         check(rows.maxOf { it.cachedItems } <= if (case.kind == BenchmarkKind.NATIVE_ANIMATED) 512 else 128) {
             "${case.name} exceeded its native item cache"
         }
-        if (case.kind == BenchmarkKind.STATIC || case.kind == BenchmarkKind.NATIVE_STATIC)
+        if (case.kind in setOf(BenchmarkKind.STATIC, BenchmarkKind.NATIVE_STATIC, BenchmarkKind.HUD_STATIC))
             check(rows.none { it.rendered }) { "Static fixture ${case.name} kept repainting" }
-        if (case.kind in setOf(BenchmarkKind.LIST, BenchmarkKind.ANIMATION, BenchmarkKind.NATIVE_ANIMATED))
+        if (
+            case.kind in
+                setOf(
+                    BenchmarkKind.LIST,
+                    BenchmarkKind.ANIMATION,
+                    BenchmarkKind.NATIVE_ANIMATED,
+                    BenchmarkKind.HUD_ANIMATED,
+                )
+        )
             check(rows.count { it.rendered } > samples * 9 / 10) {
                 "Animated/scroll fixture ${case.name} did not advance"
             }

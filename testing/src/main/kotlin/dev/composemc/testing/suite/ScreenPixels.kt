@@ -36,11 +36,55 @@ class ScreenPixels(val width: Int, val height: Int, private val argb: IntArray) 
     }
 }
 
+/** A laid-out rectangle in framebuffer pixels: [left, right) by [top, bottom), top-left origin. */
+data class PixelRect(val left: Int, val top: Int, val right: Int, val bottom: Int) {
+    init {
+        require(left < right && top < bottom) { "Empty pixel rectangle $left,$top..$right,$bottom" }
+    }
+}
+
 /** Pixel expectations shared by every adapter's acceptance captures. */
 object SuitePixels {
     /** Drawn by Minecraft's own GUI after Compose, in GUI units, to catch projection and viewport pollution. */
     const val MARKER_ARGB: Int = 0xFF22CC66.toInt()
     const val MARKER_GUI_SIZE = 4
+
+    /** The development HUD panel's opaque color, which nothing in the test world draws. */
+    const val HUD_ARGB: Int = 0xFFB02A8C.toInt()
+
+    /**
+     * The HUD panel keeps its exact color just inside its corners, where neither its item nor its text reaches, so it
+     * sits where it was laid out. Its native item covers at least a fifth of the item's own bounds.
+     */
+    fun requireHud(pixels: ScreenPixels, name: String, panel: PixelRect, item: PixelRect) {
+        val corners =
+            listOf(
+                panel.left + 2 to panel.top + 2,
+                panel.right - 3 to panel.top + 2,
+                panel.left + 2 to panel.bottom - 3,
+                panel.right - 3 to panel.bottom - 3,
+            )
+        for ((x, y) in corners) {
+            check(near(pixels.argb(x, y), HUD_ARGB, 4)) {
+                "The HUD panel is missing or misplaced in $name at ($x,$y): ${pixels.rgb(x, y).toString(16)}"
+            }
+        }
+        val region = pixels.region(item.left, item.top, item.right - item.left, item.bottom - item.top)
+        val drawn = region.count { !near(it, HUD_ARGB, 48) }
+        check(drawn >= region.size / 5) { "The HUD item is missing in $name: $drawn of ${region.size} pixels" }
+    }
+
+    /** Where the HUD panel was laid out, the hidden HUD left none of its color. */
+    fun requireHudHidden(pixels: ScreenPixels, name: String, panel: PixelRect) {
+        val region = pixels.region(panel.left, panel.top, panel.right - panel.left, panel.bottom - panel.top)
+        val shown = region.count { near(it, HUD_ARGB, 4) }
+        check(shown <= region.size / 100) { "The hidden HUD still drew $shown of ${region.size} pixels in $name" }
+    }
+
+    private fun near(argb: Int, expected: Int, tolerance: Int) =
+        (0..2).all { channel ->
+            abs((argb ushr (channel * 8) and 255) - (expected ushr (channel * 8) and 255)) <= tolerance
+        }
 
     fun requireContent(pixels: ScreenPixels, name: String, minimumColors: Int = 16) {
         val colors = pixels.distinctColors(step = 8)

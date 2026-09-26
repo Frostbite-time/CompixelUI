@@ -5,9 +5,11 @@ import dev.composemc.testing.suite.ClientSuite
 import dev.composemc.testing.suite.SuitePixels
 import net.minecraft.client.KeyMapping
 import net.minecraft.client.Minecraft
+import net.minecraft.resources.ResourceLocation
 import net.neoforged.bus.api.IEventBus
 import net.neoforged.fml.ModContainer
 import net.neoforged.neoforge.client.event.ClientTickEvent
+import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent
 import net.neoforged.neoforge.client.event.ScreenEvent
@@ -35,6 +37,7 @@ internal object DevelopmentClientBootstrap {
         SyncAcceptanceMenu.register(modEventBus)
         ConfigAcceptance.register(container)
         modEventBus.addListener(::registerKeyMappings)
+        modEventBus.addListener(::registerHud)
         modEventBus.addListener { event: RegisterMenuScreensEvent ->
             event.register(SyncAcceptanceMenu.TYPE.get(), ::SyncAcceptanceScreen)
         }
@@ -45,6 +48,17 @@ internal object DevelopmentClientBootstrap {
 
     private fun registerKeyMappings(event: RegisterKeyMappingsEvent) {
         event.register(openPreview)
+    }
+
+    /** The development HUD, above every vanilla layer, drawn only while a suite step or case shows it. */
+    private fun registerHud(event: RegisterGuiLayersEvent) {
+        val id = ResourceLocation.fromNamespaceAndPath("composemc_development", "suite_hud")
+        event.registerAboveAll(id) { graphics, deltaTracker ->
+            if (SuiteHud.enabled) {
+                SuiteHud.layer.render(graphics, deltaTracker)
+                benchmark?.afterHudRender()
+            }
+        }
     }
 
     private fun onClientTick(event: ClientTickEvent.Post) {

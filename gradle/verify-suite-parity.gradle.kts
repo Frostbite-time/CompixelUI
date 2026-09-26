@@ -18,6 +18,8 @@ val identicalSuiteFiles =
         "SuiteSession.kt",
         "ClientAcceptanceProbe.kt",
         "PreviewAcceptance.kt",
+        "HudAcceptance.kt",
+        "SuiteHud.kt",
         "ClientBenchmarkProbe.kt",
         "NativeTooltipProbe.kt",
     )

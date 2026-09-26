@@ -6,6 +6,7 @@ import dev.composemc.testing.suite.SuitePixels
 import net.minecraft.client.KeyMapping
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.screens.MenuScreens
+import net.minecraftforge.client.event.RegisterGuiOverlaysEvent
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent
 import net.minecraftforge.client.event.ScreenEvent
 import net.minecraftforge.client.settings.KeyConflictContext
@@ -35,6 +36,7 @@ internal object DevelopmentClientBootstrap {
         SyncAcceptanceMenu.register(modEventBus)
         ConfigAcceptance.register()
         modEventBus.addListener(::registerKeyMappings)
+        modEventBus.addListener(::registerHud)
         modEventBus.addListener { event: FMLClientSetupEvent ->
             event.enqueueWork { MenuScreens.register(SyncAcceptanceMenu.TYPE.get(), ::SyncAcceptanceScreen) }
         }
@@ -45,6 +47,16 @@ internal object DevelopmentClientBootstrap {
 
     private fun registerKeyMappings(event: RegisterKeyMappingsEvent) {
         event.register(openPreview)
+    }
+
+    /** The development HUD, above every vanilla overlay, drawn only while a suite step or case shows it. */
+    private fun registerHud(event: RegisterGuiOverlaysEvent) {
+        event.registerAboveAll("suite_hud") { gui, graphics, partialTick, width, height ->
+            if (SuiteHud.enabled) {
+                SuiteHud.layer.render(gui, graphics, partialTick, width, height)
+                benchmark?.afterHudRender()
+            }
+        }
     }
 
     private fun onClientTick(event: TickEvent.ClientTickEvent) {

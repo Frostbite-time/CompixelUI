@@ -32,7 +32,9 @@ internal class SuiteSession(val suite: ClientSuite, private val frameLimit: Int)
     private var pendingCaptures = 0
     private var captureFailure: Throwable? = null
     private var finished = false
-    /** The suite screen whose rendered frames drive the suite. Other screens' frames are ignored. */
+    /**
+     * The suite screen whose rendered frames drive the suite, or null over the game view. Other screens are ignored.
+     */
     var current: Screen? = null
         private set
 
@@ -86,6 +88,16 @@ internal class SuiteSession(val suite: ClientSuite, private val frameLimit: Int)
         check(SuitePlatform.screen === next) { "${next.title.string} did not open" }
         adopt(next)
         if (previous is SuiteComposeScreen && previous !== next) requireReleased(previous)
+    }
+
+    /** Returns to the game view and verifies that a replaced Compose screen released everything. */
+    fun closeScreen() {
+        val previous = current
+        SuitePlatform.setScreen(null)
+        check(SuitePlatform.screen == null) { "The game view did not return" }
+        current = null
+        frames = 0
+        if (previous is SuiteComposeScreen) requireReleased(previous)
     }
 
     /** Follows a screen that Minecraft or a key mapping opened. */

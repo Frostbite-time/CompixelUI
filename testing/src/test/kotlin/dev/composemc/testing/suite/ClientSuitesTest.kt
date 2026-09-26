@@ -1,5 +1,9 @@
 package dev.composemc.testing.suite
 
+import dev.composemc.render.CpuDetail
+import dev.composemc.render.CpuPhase
+import dev.composemc.render.GpuPhase
+import dev.composemc.render.UiFrameProfile
 import kotlin.test.*
 import org.junit.jupiter.api.Test
 
@@ -61,6 +65,73 @@ class ClientSuitesTest {
         assertEquals(SuitePixels.MARKER_ARGB, capture.argb(7, 7))
         assertEquals(4, capture.region(10, 10, 2, 2).size)
         assertFailsWith<IllegalArgumentException> { capture.region(39, 19, 2, 2) }
+    }
+
+    @Test
+    fun `HUD checks find the panel color and its item`() {
+        val width = 64
+        val height = 40
+        val world = 0xFF6080C0.toInt()
+        val panel = PixelRect(8, 8, 56, 24)
+        val item = PixelRect(12, 10, 24, 22)
+        fun inside(rect: PixelRect, index: Int) =
+            index % width in rect.left until rect.right && index / width in rect.top until rect.bottom
+        val blank = IntArray(width * height) { if (inside(panel, it)) SuitePixels.HUD_ARGB else world }
+        val drawn =
+            blank.copyOf().also {
+                for (index in it.indices) if (inside(item, index) && (index + index / width) % 2 == 0)
+                    it[index] = 0xFF30D0E0.toInt()
+            }
+        val shown = ScreenPixels(width, height, drawn)
+        SuitePixels.requireHud(shown, "shown", panel, item)
+        assertFailsWith<IllegalStateException> { SuitePixels.requireHudHidden(shown, "shown", panel) }
+        assertFailsWith<IllegalStateException> {
+            SuitePixels.requireHud(ScreenPixels(width, height, blank), "without item", panel, item)
+        }
+        assertFailsWith<IllegalStateException> {
+            SuitePixels.requireHud(shown, "moved", PixelRect(4, 8, 52, 24), PixelRect(8, 10, 20, 22))
+        }
+        val hidden = ScreenPixels(width, height, IntArray(width * height) { world })
+        SuitePixels.requireHudHidden(hidden, "hidden", panel)
+        assertFailsWith<IllegalStateException> { SuitePixels.requireHud(hidden, "hidden", panel, item) }
+        assertFailsWith<IllegalArgumentException> { PixelRect(8, 8, 8, 24) }
+    }
+
+    @Test
+    fun `HUD cases follow the static and animated fixture rules`() {
+        val static = BenchmarkPlan.cases.single { it.kind == BenchmarkKind.HUD_STATIC }
+        val animated = BenchmarkPlan.cases.single { it.kind == BenchmarkKind.HUD_ANIMATED }
+        assertTrue(static.kind.hud && animated.kind.hud)
+        assertEquals(listOf(static, animated), BenchmarkPlan.cases.filter { it.kind.hud })
+        fun rows(rendered: Boolean) =
+            (1L..120L).map { id ->
+                UiFrameProfile(
+                    id,
+                    id * 16_000_000L,
+                    1_000L,
+                    CpuPhase.entries.associateWith { 0L },
+                    CpuDetail.entries.associateWith { 0L },
+                    GpuPhase.entries.associateWith { null },
+                    GpuPhase.entries.associateWith { 0 },
+                    missingGpuResults = 0,
+                    renderThreadBytes = null,
+                    composeThreadBytes = null,
+                    composeCalls = 1,
+                    recordings = if (rendered) 1 else 0,
+                    rendered = rendered,
+                    generation = id,
+                    activeItems = 9,
+                    cachedItems = 9,
+                    pendingItems = 0,
+                    tooltipVisible = false,
+                )
+            }
+        BenchmarkValidity.check(static, rows(rendered = false), 120, 9, 0, 0)
+        assertFailsWith<IllegalStateException> { BenchmarkValidity.check(static, rows(rendered = true), 120, 9, 0, 0) }
+        BenchmarkValidity.check(animated, rows(rendered = true), 120, 9, 0, 0)
+        assertFailsWith<IllegalStateException> {
+            BenchmarkValidity.check(animated, rows(rendered = false), 120, 9, 0, 0)
+        }
     }
 
     @Test

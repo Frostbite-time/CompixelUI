@@ -31,6 +31,12 @@ enum class AcceptanceStep(val report: String) {
     PORT_SCALE("GUI scaling and framebuffer resize keep pixels in place"),
     PORT_RELOAD("resource reload keeps rendered pixels correct"),
     NATIVE_VISUAL("native item alpha, rotation, shape clipping, occlusion and repeated placement"),
+    HUD_RENDER(
+        "HUD layer: Compose and native item pixels over the world, drawing on beneath a screen that takes the input"
+    ),
+    HUD_VISIBILITY("hiding the GUI hides the HUD layer; showing it again resumes the same session"),
+    HUD_RESIZE("GUI scale, framebuffer resize and resource reload keep the HUD session and its pixels in place"),
+    HUD_RELEASE("leaving the world and close() release the HUD session; the next drawn frame opens a new one"),
     PREVIEW_OPEN("F8 key mapping opens the development preview"),
     RETAINED_FRAME("static UI reuses its retained frame"),
     TEXT_FIELD("text field focus, supplementary Unicode input and select-all delete"),

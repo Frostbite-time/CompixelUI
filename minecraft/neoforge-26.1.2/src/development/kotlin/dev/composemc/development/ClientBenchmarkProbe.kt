@@ -4,7 +4,12 @@ import com.google.gson.GsonBuilder
 import com.mojang.logging.LogUtils
 import dev.composemc.bridge.ComposeThread
 import dev.composemc.development.render.verifyRenderer
+import dev.composemc.forge.item.NativeItemStatistics
+import dev.composemc.forge.item.NativeTooltipStatistics
 import dev.composemc.render.GpuPhase
+import dev.composemc.render.RendererStatistics
+import dev.composemc.render.UiFrameProfiler
+import dev.composemc.testing.suite.BenchmarkCase
 import dev.composemc.testing.suite.BenchmarkKind
 import dev.composemc.testing.suite.BenchmarkLog
 import dev.composemc.testing.suite.BenchmarkPlan
@@ -35,7 +40,7 @@ internal class ClientBenchmarkProbe {
     private var world = false
     private var finished = false
     private var warmingPipeline = true
-    private var screen: BenchmarkScreen? = null
+    private var target: BenchmarkTarget? = null
     private var switching = false
     private var capturing = false
     private var frames = 0
@@ -54,7 +59,17 @@ internal class ClientBenchmarkProbe {
         }
         session.checkWindow()
         if (!session.rendered(parent) || switching) return@guard
-        if (SuiteEnvironment.control) controlFrame() else screen?.let(::measure)
+        if (SuiteEnvironment.control) controlFrame() else (target as? BenchmarkScreen)?.let(::measure)
+    }
+
+    /** After each frame of the development HUD; only HUD cases measure it. */
+    fun afterHudRender() = guard {
+        val active = target as? HudBenchmark ?: return@guard
+        if (switching) return@guard
+        session.checkWindow()
+        check(SuitePlatform.screen == null) { "A screen opened during ${active.fixture.name}" }
+        SuitePlatform.clearToasts()
+        measure(active)
     }
 
     fun tick() = guard {
@@ -125,9 +140,17 @@ internal class ClientBenchmarkProbe {
     private fun openCase() {
         switching = false
         val case = if (warmingPipeline) BenchmarkPlan.pipelineWarmup else checkNotNull(log.next).second
-        val next = BenchmarkScreen(case)
-        session.open(next)
-        screen = next
+        target =
+            if (case.kind.hud) {
+                session.closeScreen()
+                SuiteHud.show(
+                    if (case.kind == BenchmarkKind.HUD_ANIMATED) SuiteHudMode.ANIMATED else SuiteHudMode.STATIC
+                )
+                HudBenchmark(case)
+            } else {
+                if (SuiteHud.enabled) SuiteHud.hide()
+                BenchmarkScreen(case).also(session::open)
+            }
         frames = 0
         hiddenFrames = 0
         focusedFrames = 0
@@ -139,7 +162,7 @@ internal class ClientBenchmarkProbe {
         SuitePlatform.defer { guard(block) }
     }
 
-    private fun measure(active: BenchmarkScreen) {
+    private fun measure(active: BenchmarkTarget) {
         check(
             minecraft.window.width == BenchmarkPlan.WIDTH &&
                 minecraft.window.height == BenchmarkPlan.HEIGHT &&
@@ -176,7 +199,11 @@ internal class ClientBenchmarkProbe {
             if (SuitePlatform.windowHidden) hiddenFrames++
             if (SuitePlatform.windowFocused) focusedFrames++
         }
-        if (frames == BenchmarkPlan.TOOLTIP_HOVER_FRAME && active.fixture.kind == BenchmarkKind.TOOLTIP) {
+        if (
+            frames == BenchmarkPlan.TOOLTIP_HOVER_FRAME &&
+                active.fixture.kind == BenchmarkKind.TOOLTIP &&
+                active is BenchmarkScreen
+        ) {
             val point = ComposeThread.call {
                 checkNotNull(active.model.tooltipTarget) { "The tooltip target is not laid out" }.center
             }
@@ -194,10 +221,10 @@ internal class ClientBenchmarkProbe {
         if (frames == warmup + samples + BenchmarkPlan.GPU_DRAIN_FRAMES) finishCase(active)
     }
 
-    private fun finishCase(active: BenchmarkScreen) {
+    private fun finishCase(active: BenchmarkTarget) {
         val (repeat, case) = checkNotNull(log.next)
         check(active.fixture == case) {
-            "Benchmark screen ${active.fixture.name} does not match the schedule's ${case.name}"
+            "Benchmark fixture ${active.fixture.name} does not match the schedule's ${case.name}"
         }
         active.verifyComponents()
         val rows = checkNotNull(active.frameProfiler).frames().filter { it.frameId in firstMeasured..lastMeasured }
@@ -251,6 +278,7 @@ internal class ClientBenchmarkProbe {
     private fun finish() {
         finished = true
         writeReport()
+        if (SuiteHud.enabled) SuiteHud.hide()
         session.open(SuiteParentScreen())
         session.finish(log.report(session.header))
     }
@@ -280,4 +308,43 @@ internal class ClientBenchmarkProbe {
     private companion object {
         val LOGGER = LogUtils.getLogger()
     }
+}
+
+/** What a benchmark case measures: a [BenchmarkScreen], or the development HUD over the game view. */
+internal interface BenchmarkTarget {
+    val fixture: BenchmarkCase
+    val frameProfiler: UiFrameProfiler?
+    val componentsReady: Boolean
+    val rendererStatistics: RendererStatistics
+    val nativeItemStatistics: NativeItemStatistics
+    val nativeTooltipStatistics: NativeTooltipStatistics
+
+    /** Called once per sampled frame, after it was drawn. */
+    fun advance()
+
+    fun verifyComponents()
+}
+
+/** A HUD case: the development HUD layer draws over the game view with no screen open. */
+private class HudBenchmark(override val fixture: BenchmarkCase) : BenchmarkTarget {
+    override val frameProfiler: UiFrameProfiler?
+        get() = SuiteHud.layer.frameProfiler
+
+    override val componentsReady
+        get() = true
+
+    override val rendererStatistics: RendererStatistics
+        get() = SuiteHud.layer.rendererStatistics
+
+    override val nativeItemStatistics: NativeItemStatistics
+        get() = SuiteHud.layer.nativeItemStatistics
+
+    // Without input, a HUD never shows a native tooltip.
+    override val nativeTooltipStatistics = NativeTooltipStatistics()
+
+    override fun advance() {
+        if (fixture.kind == BenchmarkKind.HUD_ANIMATED) SuiteHud.advance()
+    }
+
+    override fun verifyComponents() = Unit
 }

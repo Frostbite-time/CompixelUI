@@ -44,7 +44,7 @@ internal class BenchmarkModel {
 /** Fixed fixtures: no network, world simulation, random input, or dataset-sized snapshot allocation. */
 internal class BenchmarkScreen
 private constructor(
-    val fixture: BenchmarkCase,
+    override val fixture: BenchmarkCase,
     val model: BenchmarkModel,
     icons: List<ItemIcon>,
     samples: Map<Int, ItemIcon> =
@@ -61,7 +61,8 @@ private constructor(
             if (fixture.kind == BenchmarkKind.NATIVE_ANIMATED) NativeItemOptions(cacheCapacity = 512)
             else NativeItemOptions(),
         content = { BenchmarkContent(fixture, model, icons, samples) },
-    ) {
+    ),
+    BenchmarkTarget {
     private val componentExercise =
         if (fixture.kind == BenchmarkKind.ORE_COMPONENTS)
             dev.composemc.testing.ui.OreComponentExercise(
@@ -70,11 +71,11 @@ private constructor(
             )
         else null
 
-    fun verifyComponents() {
+    override fun verifyComponents() {
         componentExercise?.verify()
     }
 
-    val componentsReady
+    override val componentsReady
         get() = componentExercise?.complete ?: true
 
     init {
@@ -111,7 +112,7 @@ private constructor(
 
     protected override fun isUiWindowFocused(): Boolean = SuiteEnvironment.uiFocused(super.isUiWindowFocused())
 
-    fun advance() {
+    override fun advance() {
         componentExercise?.advance(checkNotNull(session))
         if (fixture.kind in setOf(BenchmarkKind.ANIMATION, BenchmarkKind.LIST, BenchmarkKind.NATIVE_SCROLL))
             session!!.post(Runnable { model.step++ })
@@ -176,7 +177,10 @@ private fun BenchmarkContent(
     ) {
         BasicText("Compose MC · ${fixture.name}", style = text.copy(fontSize = 24.sp))
         when (fixture.kind) {
-            BenchmarkKind.ORE_COMPONENTS -> Unit
+            // Screens never show HUD cases; ORE_COMPONENTS returned above.
+            BenchmarkKind.ORE_COMPONENTS,
+            BenchmarkKind.HUD_STATIC,
+            BenchmarkKind.HUD_ANIMATED -> Unit
             BenchmarkKind.STATIC,
             BenchmarkKind.ANIMATION -> {
                 repeat(8) { index ->
