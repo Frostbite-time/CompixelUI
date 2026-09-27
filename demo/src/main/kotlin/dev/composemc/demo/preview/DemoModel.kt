@@ -31,6 +31,7 @@ enum class DemoPage {
 }
 
 class DemoModel {
+    var lightTheme by mutableStateOf(false)
     val itemBrowser = ItemBrowserModel()
     val bounds = mutableMapOf<String, androidx.compose.ui.geometry.Rect>()
     var locale by mutableStateOf("en_us")

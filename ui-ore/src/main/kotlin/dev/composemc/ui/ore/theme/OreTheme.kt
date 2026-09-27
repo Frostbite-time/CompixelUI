@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.Color
 
 private val LocalOreColors = staticCompositionLocalOf { OreColors() }
 private val LocalOreTypography = staticCompositionLocalOf { OreTypography() }
+private val LocalOreThemeCatalog = compositionLocalOf { OreThemeCatalog.Default }
 internal val LocalOreFeedback = staticCompositionLocalOf { OreFeedback {} }
 internal val LocalOreContentColor = compositionLocalOf { Color(0xFFF2F3F4) }
 
@@ -17,6 +18,23 @@ object OreTheme {
 
     val typography: OreTypography
         @Composable get() = LocalOreTypography.current
+}
+
+/** Supplies a resource snapshot to this tree, including nested themes and Compose overlays. */
+@Composable
+fun OreThemeResources(catalog: OreThemeCatalog, content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalOreThemeCatalog provides catalog, content = content)
+}
+
+/** Resolves a named theme from the current resource snapshot without replacing the composition. */
+@Composable
+fun OreTheme(
+    id: OreThemeId,
+    typography: OreTypography = OreTheme.typography,
+    feedback: OreFeedback = LocalOreFeedback.current,
+    content: @Composable () -> Unit,
+) {
+    OreTheme(LocalOreThemeCatalog.current.colors(id), typography, feedback, content)
 }
 
 @Composable

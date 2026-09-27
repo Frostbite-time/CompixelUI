@@ -16,7 +16,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.state.ToggleableState
@@ -85,15 +84,15 @@ fun OreCheckbox(
                 .oreFrame(
                     fill,
                     if (enabled) colors.edge else colors.disabledEdge,
-                    lerp(fill, Color.White, .28f),
+                    lerp(fill, colors.bevelLight, .28f),
                 )
                 .oreOutline(if (focused && enabled) colors.focus else null),
             contentAlignment = Alignment.Center,
         ) {
             if (state == ToggleableState.On)
-                OreIcon(OreGlyph.Checkmark, color = if (enabled) colors.text else colors.mutedText)
+                OreIcon(OreGlyph.Checkmark, color = if (enabled) colors.onPrimary else colors.mutedText)
             else if (state == ToggleableState.Indeterminate)
-                Box(Modifier.size(7.dp, 1.dp).background(if (enabled) colors.text else colors.mutedText))
+                Box(Modifier.size(7.dp, 1.dp).background(if (enabled) colors.onPrimary else colors.mutedText))
         }
         if (label != null) OreText(label, color = if (enabled) colors.text else colors.mutedText)
     }

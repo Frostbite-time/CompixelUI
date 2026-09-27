@@ -56,4 +56,8 @@ data class OreColors(
     val dangerPressed: Color = Color(0xFF812126),
     val dangerEdge: Color = Color(0xFF591A1F),
     val focus: Color = Color.White,
+    val onPrimary: Color = text,
+    val onSecondary: Color = ink,
+    val onDanger: Color = text,
+    val bevelLight: Color = Color.White,
 )

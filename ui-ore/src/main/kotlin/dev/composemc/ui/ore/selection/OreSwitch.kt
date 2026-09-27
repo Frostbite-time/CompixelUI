@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -46,7 +45,7 @@ fun OreSwitch(
             label = "OreSwitchThumbPosition",
         )
     val trackFill = if (!enabled) colors.secondary else if (checked) colors.primary else colors.switchTrack
-    val trackHighlight = lerp(trackFill, Color.White, .20f)
+    val trackHighlight = lerp(trackFill, colors.bevelLight, .20f)
     val thumbFill =
         when {
             !enabled -> colors.secondary
@@ -54,7 +53,7 @@ fun OreSwitch(
             hovered -> colors.secondaryHover
             else -> colors.secondary
         }
-    val thumbHighlight = lerp(thumbFill, Color.White, if (hovered) .80f else .40f)
+    val thumbHighlight = lerp(thumbFill, colors.bevelLight, if (hovered) .80f else .40f)
     val thumbShadow = if (!enabled) colors.secondaryPressed else colors.secondaryEdge
     Box(
         modifier.size(28.dp, 15.dp).toggleable(
@@ -87,7 +86,7 @@ fun OreSwitch(
                     Offset(2 * unit, 2 * unit),
                     Size((size.width - 4 * unit).coerceAtLeast(0f), (size.height - 4 * unit).coerceAtLeast(0f)),
                 )
-                val ink = if (!enabled) colors.disabledText else if (checked) colors.text else colors.ink
+                val ink = if (!enabled) colors.disabledText else if (checked) colors.onPrimary else colors.onSecondary
                 val left = (size.width / 2).roundToInt().toFloat() - 4 * unit
                 val top = (size.height / 2).roundToInt().toFloat() - 4 * unit
                 if (checked) {

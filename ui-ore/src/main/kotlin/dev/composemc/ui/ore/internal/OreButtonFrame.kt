@@ -5,7 +5,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.IntOffset
@@ -104,7 +103,7 @@ internal fun Modifier.oreButtonFrame(
                     OreButtonStyle.Destructive -> .10f
                     OreButtonStyle.Quiet -> .20f
                 }
-            val faceHighlight = lerp(fill, Color.White, highlightAmount)
+            val faceHighlight = lerp(fill, colors.bevelLight, highlightAmount)
             drawRect(faceHighlight, innerOffset, Size(innerWidth, faceHeight))
             drawRect(
                 fill,
@@ -125,7 +124,7 @@ internal fun Modifier.oreButtonFrame(
             val left = (size.width * .38f).roundToInt().toFloat()
             val right = (size.width * .62f).roundToInt().toFloat()
             drawRect(
-                if (enabled) colors.text else colors.disabledText,
+                if (enabled) colors.onPrimary else colors.disabledText,
                 Offset(left, size.height - 2 * frame),
                 Size(right - left, frame),
             )

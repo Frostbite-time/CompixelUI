@@ -140,7 +140,7 @@ fun OreSlider(
                         hovered -> colors.secondaryHover
                         else -> colors.secondary
                     }
-                val thumbHighlight = lerp(thumbFill, Color.White, if (hovered) .80f else .40f)
+                val thumbHighlight = lerp(thumbFill, colors.bevelLight, if (hovered) .80f else .40f)
                 val thumbShadow = if (!enabled) colors.secondaryPressed else colors.secondaryEdge
                 // Same face as the switch thumb: 1px frame, 1px light ring on three
                 // sides, 2px face inset, lower shadow. Geometry stays local here.

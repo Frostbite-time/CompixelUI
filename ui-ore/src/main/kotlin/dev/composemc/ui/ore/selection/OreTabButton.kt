@@ -106,7 +106,8 @@ fun OreTabButton(
             ) {
                 OreText(
                     label,
-                    color = if (!active) colors.disabledText else if (selected) colors.text else colors.ink,
+                    color =
+                        if (!active) colors.disabledText else if (selected) colors.onPrimary else colors.onSecondary,
                     textAlign = TextAlign.Center,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,

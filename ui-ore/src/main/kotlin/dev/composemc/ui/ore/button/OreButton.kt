@@ -59,7 +59,9 @@ fun OreButton(
     val ink =
         when {
             !enabled -> colors.disabledText
-            style == OreButtonStyle.Secondary -> colors.ink
+            style == OreButtonStyle.Secondary -> colors.onSecondary
+            style == OreButtonStyle.Primary -> colors.onPrimary
+            style == OreButtonStyle.Destructive -> colors.onDanger
             else -> colors.text
         }
     CompositionLocalProvider(LocalOreContentColor provides ink) {

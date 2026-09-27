@@ -59,6 +59,7 @@ import dev.composemc.ui.ore.selection.OreSelect
 import dev.composemc.ui.ore.selection.OreSwitch
 import dev.composemc.ui.ore.selection.OreTabButton
 import dev.composemc.ui.ore.theme.OreTheme
+import dev.composemc.ui.ore.theme.OreThemeId
 
 /** Default preview exercises the same Ore components shipped to consumer mods. */
 @Composable
@@ -70,7 +71,7 @@ fun OreDemoScreen(
 ) {
     val zh = model.locale == "zh_cn"
     fun label(english: String, chinese: String) = if (zh) chinese else english
-    OreTheme {
+    OreTheme(id = if (model.lightTheme) OreThemeId.Light else OreThemeId.Default) {
         OreScreen(
             "Compose MC",
             maxWidth = 560.dp,
@@ -82,6 +83,11 @@ fun OreDemoScreen(
                     style = OreButtonStyle.Secondary,
                 )
                 Spacer(Modifier.weight(1f))
+                OreButton(
+                    if (model.lightTheme) label("Dark", "深色") else label("Light", "浅色"),
+                    { model.lightTheme = !model.lightTheme },
+                    style = OreButtonStyle.Secondary,
+                )
                 OreButton(label("Apply changes", "应用更改"), { model.dialog = true }, Modifier.demoBounds(model, "apply"))
             },
         ) {

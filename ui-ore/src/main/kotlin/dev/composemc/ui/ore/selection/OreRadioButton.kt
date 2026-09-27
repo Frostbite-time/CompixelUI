@@ -64,7 +64,7 @@ fun OreRadioButton(
                     when {
                         !enabled -> colors.secondary
                         selected && pressed -> colors.primaryPressed
-                        selected && hovered -> lerp(colors.primary, colors.text, .12f)
+                        selected && hovered -> lerp(colors.primary, colors.bevelLight, .12f)
                         selected -> colors.primary
                         pressed -> colors.secondaryEdge
                         hovered -> colors.secondaryHover
@@ -76,7 +76,7 @@ fun OreRadioButton(
                         selected -> colors.primaryEdge
                         else -> colors.frameEdge
                     }
-                val light = if (enabled) lerp(face, colors.text, .24f) else colors.mutedText
+                val light = if (enabled) lerp(face, colors.bevelLight, .24f) else colors.mutedText
                 // Rasterize the straight diamond edges on framebuffer pixels. The body
                 // is 13dp; its separate focus diamond has a one-dp transparent gap.
                 val unit = size.minDimension / 17f
@@ -112,7 +112,7 @@ fun OreRadioButton(
                 diamond(6.5f * unit, edge)
                 diamond(5.5f * unit, light, edge)
                 diamond(4.5f * unit, face)
-                if (selected) diamond(2.5f * unit, if (enabled) colors.text else colors.secondaryButtonLightEdge)
+                if (selected) diamond(2.5f * unit, if (enabled) colors.onPrimary else colors.secondaryButtonLightEdge)
             }
         )
         if (label != null) OreText(label, color = if (enabled) colors.text else colors.mutedText)

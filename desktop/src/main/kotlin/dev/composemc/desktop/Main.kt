@@ -108,6 +108,19 @@ private fun smoke(directory: File) {
                                 },
                             ),
                         )
+                    } +
+                    (listOf(DemoPage.Settings, DemoPage.Buttons) + dev.composemc.testing.ui.oreComponentPages).map {
+                        page ->
+                        Triple(
+                            "ore-light-${page.name.lowercase()}",
+                            Viewport(1100, 840, 2f),
+                            {
+                                model.lightTheme = true
+                                model.page = page
+                                model.locale = "en_us"
+                                model.dialog = false
+                            },
+                        )
                     }
             var time = 1_000_000_000L
             cases.forEach { (name, viewport, configure) ->
