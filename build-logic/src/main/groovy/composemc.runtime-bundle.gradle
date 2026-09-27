@@ -2,6 +2,10 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import groovy.xml.XmlSlurper
+import org.gradle.api.artifacts.result.ResolvedArtifactResult
+import org.gradle.jvm.JvmLibrary
+import org.gradle.language.base.artifact.SourcesArtifact
+import org.gradle.language.java.artifact.JavadocArtifact
 import org.gradle.maven.MavenModule
 import org.gradle.maven.MavenPomArtifact
 
@@ -292,28 +296,61 @@ tasks.register('verifyRuntimeArchive') {
 }
 tasks.named('check') { dependsOn tasks.named('verifyRuntimeArchive') }
 
-// Central requires sources and javadoc for every JAR. A bundle has none of its own, so these point to upstream.
-def readme = tasks.register('bundleReadme') {
-    def output = layout.buildDirectory.file('bundle-readme/README.md')
-    inputs.files(notices)
-    outputs.file(output)
-    doLast {
-        output.get().asFile.setText("""# ${bundleName} ${project.version}
+// Like any Maven library, a bundle attaches the sources and API documentation of the code it contains: the
+// attachments its libraries publish. Sources merge into one tree, as the classes do in the binary JAR; each
+// library's documentation keeps its own directory.
+def attachments = [sources: SourcesArtifact, javadoc: JavadocArtifact].collect { kind, type ->
+    def upstream = tasks.register("upstream${kind.capitalize()}") {
+        def output = layout.buildDirectory.dir("upstream-$kind")
+        inputs.files(configurations.runtimeClasspath)
+        outputs.dir(output)
+        doLast {
+            def components = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts
+                .findAll { bundled(it.moduleVersion.id) }.collect { it.id.componentIdentifier }.unique()
+            def result = dependencies.createArtifactResolutionQuery().forComponents(components)
+                .withArtifacts(JvmLibrary, type).execute()
+            if (result.components.any { it instanceof org.gradle.api.artifacts.result.UnresolvedComponentResult })
+                throw new GradleException("Cannot resolve the upstream $kind of ${bundleName}")
+            def root = output.get().asFile
+            project.delete(root)
+            root.mkdirs()
+            def included = []
+            def missing = []
+            result.resolvedComponents.sort { it.id.displayName }.each { component ->
+                def files = component.getArtifacts(type).findAll { it instanceof ResolvedArtifactResult }*.file
+                (files ? included : missing) << component.id.displayName
+                files.each { file ->
+                    copy {
+                        from zipTree(file)
+                        into kind == 'sources' ? root : new File(root, component.id.displayName.replace(':', '/'))
+                        exclude 'META-INF/MANIFEST.MF', 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA'
+                        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+                    }
+                }
+            }
+            def title = kind == 'sources' ? 'Sources' : 'API documentation'
+            def arrangement = kind == 'sources' ?
+                'merged into one tree. Kotlin Multiplatform libraries keep source-set directories such as commonMain and jvmMain.' :
+                'each under group/artifact/version, as its project publishes it.'
+            new File(root, 'README.md').setText("""# ${title} of ${bundleName} ${project.version}
 
-This JAR packages third-party libraries as one FML library for Compose MC. It contains no sources or API
-documentation of its own; use those published by the upstream projects:
+The ${title.toLowerCase(Locale.ROOT)} of the libraries in this bundle, ${arrangement}
 
-${bundledCoordinates().collect { "- $it" }.join('\n')}
+Included:
+${included.collect { "- $it" }.join('\n') ?: '- none'}
 
-Licenses and notices are in the binary JAR under META-INF/composemc-third-party.
+Published without ${kind == 'sources' ? 'sources' : 'documentation'}:
+${missing.collect { "- $it" }.join('\n') ?: '- none'}
+
+Licenses and notices are under META-INF/composemc-third-party.
 """, 'UTF-8')
+        }
     }
-}
-def placeholders = ['sources', 'javadoc'].collect { classifier ->
-    tasks.register("${classifier}PlaceholderJar", Jar) {
+    tasks.register("${kind}Jar", Jar) {
         archiveBaseName = bundleName
-        archiveClassifier = classifier
-        from readme
+        archiveClassifier = kind
+        from upstream
+        from(notices) { into 'META-INF/composemc-third-party' }
     }
 }
 tasks.named('assemble') { dependsOn bundle }
@@ -323,7 +360,7 @@ publishing {
         runtime(MavenPublication) {
             artifactId = bundleName
             artifact bundle
-            placeholders.each { artifact it }
+            attachments.each { artifact it }
             pom {
                 if (kotlinBundle) {
                     name = 'Compose MC Kotlin libraries'
