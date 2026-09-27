@@ -1,0 +1,130 @@
+name: Publish to the Wintercogs Maven
+# Started by hand. Publishes the runtime bundle versions the repository lacks, then every adapter at
+# mod_version. Needs the secrets REPOSILITE_TOKEN_NAME and REPOSILITE_TOKEN_SECRET: a Reposilite access
+# token with write access to /releases.
+on: workflow_dispatch
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  MAVEN_RELEASES: https://maven.wintercogs.com/releases
+
+jobs:
+  runtimes:
+    name: Runtime bundles
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        id: java17
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Find the bundle versions the repository lacks
+        id: missing
+        run: |
+          # A published bundle version never changes; bundle.lock ties each version to its dependencies.
+          missing=""
+          for bundle in standard vulkan kotlin; do
+            version=$(sed -n "s/^runtime_${bundle}_version=//p" gradle.properties | tr -d '\r')
+            artifact="composemc-runtime-$bundle"
+            if [ "$bundle" = kotlin ]; then artifact=composemc-kotlin; fi
+            status=$(curl -s -o /dev/null -w '%{http_code}' "$MAVEN_RELEASES/dev/composemc/$artifact/$version/$artifact-$version.pom")
+            case "$status" in
+              200) echo "$artifact $version is already published" ;;
+              404) missing="$missing $bundle" ;;
+              *) echo "::error::Checking $artifact $version returned HTTP $status"; exit 1 ;;
+            esac
+          done
+          echo "bundles=$missing" >> "$GITHUB_OUTPUT"
+      - name: Verify the missing bundles
+        if: steps.missing.outputs.bundles != ''
+        env:
+          COMPOSEMC_JDK17: ${{ steps.java17.outputs.path }}
+        run: |
+          tasks=()
+          for bundle in ${{ steps.missing.outputs.bundles }}; do tasks+=(":runtime-$bundle:check"); done
+          bash gradlew -PcomposemcTargets=none --console=plain "${tasks[@]}"
+      - name: Publish the missing bundles
+        if: steps.missing.outputs.bundles != ''
+        env:
+          COMPOSEMC_JDK17: ${{ steps.java17.outputs.path }}
+          ORG_GRADLE_PROJECT_wintercogsUsername: ${{ secrets.REPOSILITE_TOKEN_NAME }}
+          ORG_GRADLE_PROJECT_wintercogsPassword: ${{ secrets.REPOSILITE_TOKEN_SECRET }}
+        run: |
+          tasks=()
+          for bundle in ${{ steps.missing.outputs.bundles }}; do
+            tasks+=(":runtime-$bundle:publishRuntimePublicationToWintercogsRepository")
+          done
+          bash gradlew -PcomposemcTargets=none --console=plain "${tasks[@]}"
+
+  adapters:
+    name: Minecraft ${{ matrix.target }}
+    needs: runtimes
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ['1.20.1', '1.21.1', '26.1.2', '26.2', '26.3']
+        include:
+          - target: '1.20.1'
+            loader: forge
+    env:
+      ADAPTER: ${{ matrix.loader || 'neoforge' }}-${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refuse to replace a published version
+        run: |
+          version=$(sed -n 's/^mod_version=//p' gradle.properties | tr -d '\r')
+          for artifact in "composemc-$ADAPTER" "composemc-$ADAPTER-with-kotlin"; do
+            status=$(curl -s -o /dev/null -w '%{http_code}' "$MAVEN_RELEASES/dev/composemc/$artifact/$version/$artifact-$version.pom")
+            if [ "$status" != 404 ]; then
+              echo "::error::$artifact $version is already published or cannot be checked (HTTP $status). Raise mod_version."
+              exit 1
+            fi
+          done
+      - uses: actions/setup-java@v4
+        id: java17
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-java@v4
+        id: java21
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-java@v4
+        id: java25
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build and verify
+        env:
+          COMPOSEMC_JDK17: ${{ steps.java17.outputs.path }}
+          COMPOSEMC_JDK21: ${{ steps.java21.outputs.path }}
+          COMPOSEMC_JDK25: ${{ steps.java25.outputs.path }}
+        run: bash gradlew -PcomposemcTargets=${{ matrix.target }} :minecraft:$ADAPTER:build --console=plain
+      - name: Publish
+        env:
+          COMPOSEMC_JDK17: ${{ steps.java17.outputs.path }}
+          COMPOSEMC_JDK21: ${{ steps.java21.outputs.path }}
+          COMPOSEMC_JDK25: ${{ steps.java25.outputs.path }}
+          ORG_GRADLE_PROJECT_wintercogsUsername: ${{ secrets.REPOSILITE_TOKEN_NAME }}
+          ORG_GRADLE_PROJECT_wintercogsPassword: ${{ secrets.REPOSILITE_TOKEN_SECRET }}
+        run: >-
+          bash gradlew -PcomposemcTargets=${{ matrix.target }} --console=plain
+          :minecraft:$ADAPTER:publishLibraryPublicationToWintercogsRepository
+          :minecraft:$ADAPTER:publishLibraryWithKotlinPublicationToWintercogsRepository

@@ -144,14 +144,9 @@ ext.configureMinecraftArtifacts = { Map spec ->
                 }
             }
         }
-        repositories {
-            maven {
-                name = 'consumer'
-                url = rootProject.layout.buildDirectory.dir('consumer-maven')
-            }
-        }
     }
-    // A consumer of the local repository also needs the bundles these POMs name.
+    // A consumer of the local repository also needs the bundles these POMs name. The release workflow
+    // publishes a bundle to the Wintercogs Maven only once, when its version is new.
     tasks.matching { it.name == 'publishAllPublicationsToConsumerRepository' }.configureEach {
         dependsOn "${runtime.path}:publishAllPublicationsToConsumerRepository", ':runtime-kotlin:publishAllPublicationsToConsumerRepository'
     }

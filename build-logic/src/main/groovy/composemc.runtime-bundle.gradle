@@ -394,10 +394,4 @@ publishing {
             }
         }
     }
-    repositories {
-        maven {
-            name = 'consumer'
-            url = rootProject.layout.buildDirectory.dir('consumer-maven')
-        }
-    }
 }

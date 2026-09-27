@@ -37,6 +37,41 @@ subprojects {
             from(rootProject.file("LICENSE")) { into("META-INF/composemc") }
         }
     }
+    // Every publication shares these repositories and project metadata. Publishing to the Wintercogs Maven
+    // needs the wintercogsUsername/wintercogsPassword properties of a Reposilite access token, which only the
+    // release workflow supplies; see docs/en/build-and-test.md.
+    plugins.withId("maven-publish") {
+        val projectUrl = providers.gradleProperty("mod_url").get()
+        configure<PublishingExtension> {
+            repositories {
+                maven {
+                    name = "consumer"
+                    setUrl(rootProject.layout.buildDirectory.dir("consumer-maven"))
+                }
+                maven {
+                    name = "wintercogs"
+                    url = uri("https://maven.wintercogs.com/releases")
+                    credentials(PasswordCredentials::class)
+                }
+            }
+            publications.withType<MavenPublication>().configureEach {
+                pom {
+                    url = projectUrl
+                    scm {
+                        url = projectUrl
+                        connection = "scm:git:$projectUrl.git"
+                        developerConnection = "scm:git:ssh://git@github.com/Frostbite-time/compose-mc.git"
+                    }
+                    developers {
+                        developer {
+                            id = "Frostbite-time"
+                            name = "Frostbite-time"
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 // Runtime bundles carry third-party code only and keep their own versions. The Kotlin bundle resolves
