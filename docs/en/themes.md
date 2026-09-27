@@ -129,7 +129,7 @@ your-resource-pack/
 
 **The filename must match the theme ID actually selected by the screen.** Creating `storage.json` does not automatically attach it to a storage screen; only screens using `examplemod:storage` read it. Look up theme IDs in the target mod's resource-pack guide. If they are not published, the mod author needs to provide them. A mod may share one theme between screens or use the `composemc` namespace, so you cannot infer the path from its mod name alone.
 
-For example, the current BeyondDimensions integration uses `beyonddimensions:storage`, `beyonddimensions:network` and `beyonddimensions:primary_network`. Set their shared defaults in `assets/beyonddimensions/composemc/ore_themes/default.json`; to change only the storage theme, use `storage.json` in the same directory.
+For example, suppose a mod selects `examplemod:storage` for its storage screen and `examplemod:settings` for its settings screen. Set their shared defaults in `assets/examplemod/composemc/ore_themes/default.json`; to change only the storage theme, use `storage.json` in the same directory.
 
 ## How files combine
 

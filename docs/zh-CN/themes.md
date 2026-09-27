@@ -129,7 +129,7 @@
 
 **文件名必须对应界面实际使用的主题 ID。** 创建 `storage.json` 不会自动将它绑定到某个仓储界面；只有使用 `examplemod:storage` 的界面才会读取它。请从目标模组的资源包说明获取主题 ID，未公布时需要模组作者补充。模组也可能让多个界面共用同一个主题，或使用 `composemc` 命名空间，因此不能只凭模组名猜路径。
 
-例如，当前 BeyondDimensions 接入的主题是 `beyonddimensions:storage`、`beyonddimensions:network`、`beyonddimensions:primary_network`。修改其共同默认配色可放在 `assets/beyonddimensions/composemc/ore_themes/default.json`；只改仓储主题则放在同目录的 `storage.json`。
+例如，假设某个模组为仓储界面选择了 `examplemod:storage`，为设置界面选择了 `examplemod:settings`。修改两者共同的默认配色，可使用 `assets/examplemod/composemc/ore_themes/default.json`；只改仓储主题，则使用同目录的 `storage.json`。
 
 ## 多个文件如何叠加
 
