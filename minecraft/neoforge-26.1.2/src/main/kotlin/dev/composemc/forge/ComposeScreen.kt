@@ -6,6 +6,7 @@ import dev.composemc.forge.item.NativeItemStatistics
 import dev.composemc.forge.item.NativeTooltipStatistics
 import dev.composemc.forge.render.configuredRenderBackend
 import dev.composemc.render.*
+import dev.composemc.ui.ore.theme.OreThemeId
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.gui.components.EditBox
@@ -28,6 +29,7 @@ open class ComposeScreen(
     val renderBackend: RenderBackend = configuredRenderBackend(),
     nativeItemOptions: NativeItemOptions = NativeItemOptions(),
     minimumUiDensity: Float = 1f,
+    theme: OreThemeId = OreThemeId.Default,
     content: @Composable () -> Unit,
 ) : Screen(title) {
     private val layer =
@@ -36,6 +38,7 @@ open class ComposeScreen(
             guiUnitsPerDp,
             nativeItemOptions,
             minimumUiDensity,
+            theme = theme,
             windowFocused = { isUiWindowFocused() },
             content = content,
         )

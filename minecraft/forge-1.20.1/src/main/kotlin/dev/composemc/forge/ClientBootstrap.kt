@@ -1,6 +1,7 @@
 package dev.composemc.forge
 
 import dev.composemc.forge.render.RendererResources
+import dev.composemc.forge.theme.OreThemeReloadListener
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent
 import net.minecraftforge.client.event.RegisterClientReloadListenersEvent
@@ -15,6 +16,7 @@ internal object ClientBootstrap {
     }
 
     private fun registerReloadListeners(event: RegisterClientReloadListenersEvent) {
+        event.registerReloadListener(OreThemeReloadListener)
         event.registerReloadListener(ResourceManagerReloadListener { RendererResources.reloaded() })
     }
 

@@ -2,6 +2,7 @@ package dev.composemc.forge
 
 import dev.composemc.forge.render.FrameRetirement
 import dev.composemc.forge.render.RendererResources
+import dev.composemc.forge.theme.OreThemeReloadListener
 import net.minecraft.resources.Identifier
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener
 import net.neoforged.bus.api.IEventBus
@@ -19,6 +20,7 @@ internal object ClientBootstrap {
     }
 
     private fun registerReloadListeners(event: AddClientReloadListenersEvent) {
+        event.addListener(Identifier.fromNamespaceAndPath("composemc", "ore_themes"), OreThemeReloadListener)
         event.addListener(
             Identifier.fromNamespaceAndPath("composemc", "renderer_resources"),
             ResourceManagerReloadListener { RendererResources.reloaded() },

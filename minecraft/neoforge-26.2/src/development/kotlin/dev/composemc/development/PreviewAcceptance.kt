@@ -33,6 +33,7 @@ internal class PreviewAcceptance(
         private set
 
     private var tooltips: NativeTooltipProbe? = null
+    private val themes = ThemeAcceptance(session, script, log)
     private var reference: IntArray? = null
     private var reload: CompletableFuture<Void>? = null
     private var entry = 0.0 to 0.0
@@ -59,10 +60,12 @@ internal class PreviewAcceptance(
         closePreview()
         reopenPreview()
         components()
+        themes.schedule()
         stress()
     }
 
     fun release() {
+        themes.release()
         tooltips?.close()
         tooltips = null
     }

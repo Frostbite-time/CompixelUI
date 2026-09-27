@@ -6,6 +6,7 @@ import dev.composemc.forge.slots.ComposeMenuSlots
 import dev.composemc.forge.slots.SlotBehaviorScreen
 import dev.composemc.slots.SlotBehavior
 import dev.composemc.slots.SlotIntent
+import dev.composemc.ui.ore.theme.OreThemeId
 import kotlin.math.*
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphics
@@ -23,11 +24,13 @@ open class ComposeInventoryScreen<M : AbstractContainerMenu>(
     protected val container: M,
     title: Component,
     val inventory: ComposeMenuSlots<M> = ComposeMenuSlots(container),
+    theme: OreThemeId = OreThemeId.Default,
     content: @Composable (ComposeMenuSlots<M>) -> Unit,
 ) : SlotBehaviorScreen<M>(container, checkNotNull(Minecraft.getInstance().player).inventory, title) {
     private val layer =
         ComposeLayer(
             nativeItemOptions = NativeItemOptions(cacheCapacity = 256),
+            theme = theme,
             windowFocused = { isUiWindowFocused() },
             prepareFrameContent = { inventory.refreshAfterLayout() },
         ) {

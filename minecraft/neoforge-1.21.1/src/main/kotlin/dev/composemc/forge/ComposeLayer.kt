@@ -2,6 +2,7 @@ package dev.composemc.forge
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
 import com.mojang.blaze3d.systems.RenderSystem
 import dev.composemc.bridge.ComposeThread
 import dev.composemc.forge.input.ClipboardMailbox
@@ -24,12 +25,15 @@ import dev.composemc.forge.render.ScreenMetrics
 import dev.composemc.forge.render.ScreenRenderDestination
 import dev.composemc.forge.render.configuredRenderBackend
 import dev.composemc.forge.render.createScreenRenderer
+import dev.composemc.forge.theme.OreThemeReloadListener
 import dev.composemc.host.SessionState
 import dev.composemc.host.UiSession
 import dev.composemc.platform.*
 import dev.composemc.render.*
 import dev.composemc.ui.ore.theme.OreFeedback
 import dev.composemc.ui.ore.theme.OreTheme
+import dev.composemc.ui.ore.theme.OreThemeId
+import dev.composemc.ui.ore.theme.OreThemeResources
 import java.util.concurrent.atomic.AtomicBoolean
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphics
@@ -47,6 +51,7 @@ internal class ComposeLayer(
     private val guiUnitsPerDp: Float = 1f,
     private val nativeItemOptions: NativeItemOptions = NativeItemOptions(),
     private val minimumUiDensity: Float = 1f,
+    private val theme: OreThemeId = OreThemeId.Default,
     private val windowFocused: () -> Boolean,
     /** Adapter-owned layout-to-snapshot handoff, on the game thread before presentation. */
     private val prepareFrameContent: () -> Boolean = { false },
@@ -76,6 +81,16 @@ internal class ComposeLayer(
         get() = ComposeThread.call { tooltipMailbox.bounds }
 
     private var resourceEpoch = RendererResources.epoch
+    private var themeCatalog = OreThemeReloadListener.catalog
+    private val themeState = ComposeThread.call { mutableStateOf(themeCatalog) }
+
+    private fun refreshTheme() {
+        val next = OreThemeReloadListener.catalog
+        if (themeCatalog === next) return
+        themeCatalog = next
+        ComposeThread.call { themeState.value = next }
+    }
+
     private var metrics: ScreenMetrics? = null
     /** Set by [prepare] for the [render] call that presents the frame. */
     private var prepared: ScreenMetrics? = null
@@ -103,6 +118,7 @@ internal class ComposeLayer(
         RenderSystem.assertOnRenderThread()
         val current = currentMetrics(width, height)
         refreshClipboard()
+        refreshTheme()
         val existing = session
         if (existing == null || existing.state == SessionState.CLOSED) {
             val backend = createScreenRenderer(renderBackend, frameProfiler)
@@ -113,7 +129,9 @@ internal class ComposeLayer(
                             LocalItemImages provides itemMailbox,
                             LocalItemTooltips provides tooltipMailbox,
                         ) {
-                            OreTheme(feedback = oreFeedback, content = content)
+                            OreThemeResources(themeState.value) {
+                                OreTheme(id = theme, feedback = oreFeedback, content = content)
+                            }
                         }
                     }
                 renderer = backend
@@ -191,6 +209,7 @@ internal class ComposeLayer(
                     metrics = current
                 }
                 updateWindowFocus()
+                refreshTheme()
                 guiGraphics.flush()
                 val currentResourceEpoch = RendererResources.epoch
                 if (resourceEpoch != currentResourceEpoch) {

@@ -33,6 +33,7 @@ import dev.composemc.ui.ore.overlay.OreDialog
 import dev.composemc.ui.ore.scroll.OreScrollbar
 import dev.composemc.ui.ore.selection.OreSwitch
 import dev.composemc.ui.ore.theme.OreTheme
+import dev.composemc.ui.ore.theme.OreThemeId
 import java.util.Locale
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.screens.Screen
@@ -236,12 +237,19 @@ private constructor(
     mod: ModContainer,
     private val parent: Screen,
     private val controller: ConfigController,
+    theme: OreThemeId,
 ) :
     ComposeScreen(
         Component.literal(mod.modInfo.displayName),
+        theme = theme,
         content = { ConfigContent(controller.ui, controller.local) },
     ) {
-    constructor(mod: ModContainer, parent: Screen) : this(mod, parent, ConfigController(mod))
+    @JvmOverloads
+    constructor(
+        mod: ModContainer,
+        parent: Screen,
+        theme: OreThemeId = OreThemeId(mod.modId),
+    ) : this(mod, parent, ConfigController(mod), theme)
 
     val editor: ConfigEditor
         get() = controller.editor

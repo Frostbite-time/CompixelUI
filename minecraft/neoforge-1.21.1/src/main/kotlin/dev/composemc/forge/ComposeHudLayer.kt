@@ -6,6 +6,7 @@ import dev.composemc.forge.item.NativeItemStatistics
 import dev.composemc.forge.render.configuredRenderBackend
 import dev.composemc.host.UiSession
 import dev.composemc.render.*
+import dev.composemc.ui.ore.theme.OreThemeId
 import net.minecraft.client.DeltaTracker
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphics
@@ -24,6 +25,7 @@ class ComposeHudLayer(
     val renderBackend: RenderBackend = configuredRenderBackend(),
     private val nativeItemOptions: NativeItemOptions = NativeItemOptions(),
     private val minimumUiDensity: Float = 1f,
+    private val theme: OreThemeId = OreThemeId.Default,
     private val content: @Composable () -> Unit,
 ) : LayeredDraw.Layer {
     // Created by the first drawn frame, not while Minecraft registers layers during startup.
@@ -61,6 +63,7 @@ class ComposeHudLayer(
                         guiUnitsPerDp,
                         nativeItemOptions,
                         minimumUiDensity,
+                        theme = theme,
                         // Without input the content never takes focus, or with it Minecraft's text input.
                         windowFocused = { false },
                         content = content,

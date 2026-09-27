@@ -2,6 +2,7 @@ package dev.composemc.forge
 
 import androidx.compose.runtime.Composable
 import com.mojang.blaze3d.platform.InputConstants
+import dev.composemc.ui.ore.theme.OreThemeId
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.screens.inventory.MenuAccess
 import net.minecraft.network.chat.Component
@@ -16,9 +17,16 @@ open class ComposeMenuScreen<M : AbstractContainerMenu>(
     title: Component,
     guiUnitsPerDp: Float = 1f,
     minimumUiDensity: Float = 1f,
+    theme: OreThemeId = OreThemeId.Default,
     content: @Composable () -> Unit,
 ) :
-    ComposeScreen(title, guiUnitsPerDp = guiUnitsPerDp, minimumUiDensity = minimumUiDensity, content = content),
+    ComposeScreen(
+        title,
+        guiUnitsPerDp = guiUnitsPerDp,
+        minimumUiDensity = minimumUiDensity,
+        theme = theme,
+        content = content,
+    ),
     MenuAccess<M> {
     private var menuRemoved = false
 
