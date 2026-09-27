@@ -170,7 +170,7 @@ fun SettingsTree() {
 
 ## 主题与文字
 
-- `OreTheme` 提供 `OreColors` 和 `OreTypography`。用 `OreTheme(colors = OreTheme.colors.copy(primary = …)) { … }` 包裹内容即可修改。
+- `OreTheme` 提供 `OreColors` 和 `OreTypography`。通过界面的 `theme = OreThemeId("yourmod", "storage")` 接入[资源包主题及浅色风格](themes.md)。`OreTheme(colors = …)` 仍可用于精确颜色覆盖。
 - 文字使用内置的 Monocraft 字体。它缺少的字符（例如中文）由系统字体补齐，因此显示效果取决于玩家的电脑。
 - `OreSlot` 是 18 dp 的槽位框，内容区 16 dp；[容器界面](inventory.md)用它显示真实的菜单槽位。
 

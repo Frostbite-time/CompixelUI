@@ -32,7 +32,7 @@ kotlin { jvmToolchain(21) }
 And in `gradle.properties`:
 
 ```properties
-composemc_version=0.1.0-alpha.35
+composemc_version=0.1.0-alpha.36
 kotlin.stdlib.default.dependency=false
 ```
 
@@ -48,7 +48,7 @@ In `src/main/resources/META-INF/neoforge.mods.toml`, with your own mod ID:
 [[dependencies.examplemod]]
 modId = "composemc"
 type = "required"
-versionRange = "[0.1.0-alpha.35]"
+versionRange = "[0.1.0-alpha.36]"
 ordering = "AFTER"
 side = "CLIENT"
 ```
@@ -129,8 +129,8 @@ Players install Compose MC next to your mod. Each Minecraft version has two file
 
 | File | For |
 | --- | --- |
-| `composemc-neoforge-1.21.1-0.1.0-alpha.35-with-kotlin.jar` | Everyone; Kotlin included |
-| `composemc-neoforge-1.21.1-0.1.0-alpha.35.jar` | Players who already have Kotlin for Forge |
+| `composemc-neoforge-1.21.1-0.1.0-alpha.36-with-kotlin.jar` | Everyone; Kotlin included |
+| `composemc-neoforge-1.21.1-0.1.0-alpha.36.jar` | Players who already have Kotlin for Forge |
 
 Both are on the [Releases](https://github.com/Frostbite-time/compose-mc/releases) page.
 

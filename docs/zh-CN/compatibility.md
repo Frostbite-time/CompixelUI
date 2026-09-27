@@ -2,7 +2,7 @@
 
 [English](../en/compatibility.md) · [全部指南](../README.md)
 
-本页说明 Compose MC **0.1.0-alpha.35** 的兼容情况。
+本页说明 Compose MC **0.1.0-alpha.36** 的兼容情况。
 
 ## Minecraft 版本
 
