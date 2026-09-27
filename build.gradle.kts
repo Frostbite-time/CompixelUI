@@ -39,7 +39,7 @@ subprojects {
     }
     // Every publication shares these repositories and project metadata. Publishing to the Wintercogs Maven
     // needs the wintercogsUsername/wintercogsPassword properties of a Reposilite access token, which only the
-    // release workflow supplies; see docs/en/build-and-test.md.
+    // release workflow supplies; see .github/workflows/maven-publish.yml.
     plugins.withId("maven-publish") {
         val projectUrl = providers.gradleProperty("mod_url").get()
         configure<PublishingExtension> {

@@ -4,77 +4,70 @@
 
 [English](README.md) · 简体中文
 
-Compose MC 为 Minecraft Java 版带来声明式布局、状态驱动的交互和 Ore 风格控件。使用熟悉的 Compose 代码编写设置页、物品浏览器和容器界面，由 Minecraft 的图形上下文完成渲染。
+![在 Minecraft 世界中打开的一个用 Compose MC 构建的存储终端](docs/assets/hero-zh-CN.png)
 
-![Ore 风格的组合标签按钮、下拉选择、菱形单选框和三态复选框](docs/assets/choices-zh-CN.png)
+Compose MC 把 Jetpack Compose 带进 Minecraft Java 版。用声明式 Kotlin 编写界面、容器界面和 HUD，配上 Minecraft 风格的控件，再放入真实的物品图标与物品提示，全部在游戏内由 GPU 绘制。
 
-*当前 Ore 组件的实际渲染效果，由共享 UI 代码在桌面离屏预览中生成。*
-
-## 为游戏界面而设计
-
-- **统一的 Ore 风格。** 像素字体、台阶按钮、内凹输入框，以及菜单、树形视图、颜色选择器和可拖动缩放的浮窗。
-- **在 Compose 中展示 Minecraft 内容。** 原生物品图像、动画图标和丰富的物品提示，可以与普通组件组合。
-- **保留原生容器交互。** 使用 Compose 排列真实槽位，保留容器点击、拖拽和模组集成钩子。
-- **HUD 层。** 以普通 HUD 层在游戏画面上绘制 Compose，位于打开的屏幕下方，并随原版 HUD 隐藏。
-- **状态与动作分离。** 发布不可变 UI 快照，通过有界更新和类型化请求同步服务端菜单。
-- **GPU 渲染。** 所有支持版本均使用 OpenGL；Minecraft 26.2 和 26.3 还支持 Vulkan。
-
-| 交互菜单 | 多层提示 |
+| Ore UI 控件 | 物品与提示 |
 | --- | --- |
-| ![Ore 操作菜单](docs/assets/menus-zh-CN.png) | ![三层可交互提示](docs/assets/tooltips-zh-CN.png) |
+| ![从按钮打开的菜单](docs/assets/gallery-ore-zh-CN.png) | ![显示 Minecraft 物品提示的物品网格](docs/assets/gallery-items-zh-CN.png) |
+| **容器界面** | **HUD 层** |
+| ![用 Compose 排布的箱子界面](docs/assets/gallery-storage-zh-CN.png) | ![游戏画面上的任务面板](docs/assets/gallery-hud-zh-CN.png) |
 
-以上均为真实组件渲染。控件用法、状态归属和示例见[组件指南](docs/zh-CN/ore-ui.md)。
+## 功能
 
-![Ore 浏览器中的 Minecraft 原生物品](docs/assets/native-items.png)
+- **Ore UI**：按钮、文本与数值输入框、滑块、标签、菜单、多层提示、窗口、树形列表等，风格清晰统一。
+- **真实物品**：任意 `ItemStack` 连同动画、附魔光效和原版提示，直接放进普通可组合项。
+- **容器界面**：用 Compose 排布真实菜单槽位，点击、拖动、Shift 点击以及其他模组的钩子照常工作。
+- **HUD 层**：在游戏画面上绘制 Compose 内容。
+- **菜单同步**：把服务端菜单状态同步到客户端，并把类型化请求发回服务端。
+- **配置界面**：现成的模组配置文件编辑器。
+- **OpenGL 与 Vulkan**：跟随游戏的渲染后端，Minecraft 26.2 和 26.3 支持 Vulkan。
 
-*在 Minecraft 1.21.1、NeoForge 和 OpenGL 环境下获取的游戏内截图，预览语言为英文。物品图像、动画及提示用法见[原生内容](docs/zh-CN/native-content.md)。*
-
-## 用几行代码开始
-
-在 Compose MC 屏幕中，直接使用标准 Compose 状态和 Ore 控件：
+## 第一个界面
 
 ```kotlin
-import androidx.compose.runtime.*
-import dev.composemc.ui.ore.button.OreButton
-import dev.composemc.ui.ore.display.OreText
-import dev.composemc.ui.ore.layout.OreScreen
-
-@Composable
-fun CounterPanel() {
+Minecraft.getInstance().setScreen(ComposeScreen(Component.literal("计数器")) {
     var count by remember { mutableStateOf(0) }
-    OreScreen("你好，Minecraft") {
-        OreText("计数：$count")
-        OreButton("加一", onClick = { count++ })
+    OreScreen("计数器") {
+        OreText("已点击 $count 次")
+        OreButton("点我", onClick = { count++ })
     }
-}
+})
 ```
 
-[快速开始](docs/zh-CN/getting-started.md)提供依赖配置及完整的客户端屏幕示例。组件目录见 [Ore UI](docs/zh-CN/ore-ui.md)。
+[快速开始](docs/zh-CN/getting-started.md)会带你从空模组做到这个界面。
 
-## 支持的 Minecraft 版本
+## 支持的版本
 
-| Minecraft | 加载器基线 | 图形后端 |
+| Minecraft | 加载器 | 图形后端 |
 | --- | --- | --- |
 | 1.20.1 | Forge 47.4.23 | OpenGL |
 | 1.21.1 | NeoForge 21.1.250 | OpenGL |
 | 26.1.2 | NeoForge 26.1.2.109 | OpenGL |
-| 26.2 | NeoForge 26.2.0.88 | OpenGL / Vulkan |
-| 26.3 | NeoForge 26.3.0.6-beta | OpenGL / Vulkan |
+| 26.2 | NeoForge 26.2.0.88 | OpenGL、Vulkan |
+| 26.3 | NeoForge 26.3.0.6-beta | OpenGL、Vulkan |
 
-当前版本：**0.1.0-alpha.35**。Alpha 阶段 API 可能发生变化。每个目标有独立的 mod JAR，请选择与 Minecraft 版本和加载器匹配的产物。平台验证范围和已知限制见[兼容性说明](docs/zh-CN/compatibility.md)。
+最新版本：**0.1.0-alpha.35**。Alpha 阶段的 API 仍可能变化。
 
-## 开始使用
+## 玩家须知
 
-Compose MC 作为**独立的前置模组**安装。标准 JAR 配合 Kotlin for Forge 等外部 Kotlin 提供者使用；`with-kotlin` JAR 自带 Kotlin。两者均包含 Compose 和 Skiko，只选装一个。所有 Minecraft 目标均提供这两种产物。
+Compose MC 是前置库，当你玩的模组需要它时再安装。在 [Releases](https://github.com/Frostbite-time/compose-mc/releases) 下载对应 Minecraft 版本的文件：
 
-1. 按照[快速开始](docs/zh-CN/getting-started.md)添加 Maven 仓库，配置消费者依赖。
-2. 根据需要使用 [Ore 控件](docs/zh-CN/ore-ui.md)、[原生内容](docs/zh-CN/native-content.md)、[HUD 层](docs/zh-CN/hud.md)或[容器界面](docs/zh-CN/inventory.md)。
-3. 按照[构建指南](docs/zh-CN/build-and-test.md)，从 IntelliJ IDEA 启动指定 Minecraft 版本并打开 F8 预览。
+- `…-with-kotlin.jar` 可以单独使用。
+- 不带后缀的 `.jar` 更小，但需要 [Kotlin for Forge](https://modrinth.com/mod/kotlin-for-forge)。
 
-[完整文档](docs/README.md) · [菜单同步](docs/zh-CN/menu-sync.md) · [配置界面](docs/zh-CN/configuration.md) · [项目架构](docs/zh-CN/architecture.md)
+两者只装其一。
 
-## 许可与致谢
+## 文档
 
-Compose MC 自有代码和文档采用 [MIT 许可证](LICENSE)。第三方组件和资源保留各自许可，详见[第三方声明](THIRD-PARTY-NOTICES.md)。Ore 外观是参考 Minecraft 界面设计的独立实现；本项目并非 Mojang 或 Microsoft 官方产品。
+- [快速开始](docs/zh-CN/getting-started.md)：添加依赖并打开界面
+- [Ore UI](docs/zh-CN/ore-ui.md) · [物品与提示](docs/zh-CN/items.md) · [容器界面](docs/zh-CN/inventory.md) · [HUD 层](docs/zh-CN/hud.md)
+- [菜单同步](docs/zh-CN/menu-sync.md) · [配置界面](docs/zh-CN/configuration.md)
+- [兼容性](docs/zh-CN/compatibility.md) · [参与开发](docs/zh-CN/contributing.md) · [架构](docs/zh-CN/architecture.md)
 
-内置 [Monocraft 字体](https://github.com/IdreesInc/Monocraft)由 Idrees Hassan 创作，保留 [SIL Open Font License 1.1](ui-ore/src/main/resources/dev/composemc/ui/ore/Monocraft-LICENSE.txt)。运行时包在 `META-INF/composemc-third-party` 中附带逐依赖许可证、原生库声明和机器可读清单。
+## 许可
+
+Compose MC 以 [MIT 许可证](LICENSE)发布。随附的库保留各自的许可，见[第三方声明](THIRD-PARTY-NOTICES.md)。界面文字使用 Idrees Hassan 的 [Monocraft](https://github.com/IdreesInc/Monocraft) 字体，遵循 [SIL 开放字体许可证 1.1](ui-ore/src/main/resources/dev/composemc/ui/ore/Monocraft-LICENSE.txt)。
+
+Compose MC 不是 Minecraft 官方产品，与 Mojang 和 Microsoft 无关。

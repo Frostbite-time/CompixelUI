@@ -2,22 +2,16 @@
 
 ## API reference / API 参考
 
-This reference contains the public Kotlin and Java declarations for the Minecraft adapter named above and the shared Compose MC modules it distributes. The Maven library, its `-with-kotlin` coordinate and both release JARs share this source and documentation set. Third-party Kotlin, Compose and Minecraft sources are provided by their respective upstream projects.
+This reference lists the public Kotlin and Java API of Compose MC for the Minecraft version named above, including the shared modules it ships with. Guides with complete examples are in the [English documentation](https://github.com/Frostbite-time/compose-mc/tree/main/docs/en).
 
-本参考包含上方 Minecraft 适配器及随它分发的共享 Compose MC 模块的公开 Kotlin/Java 声明。Maven 库、它的 `-with-kotlin` 坐标以及两种发布 JAR 共用这套源码与文档。第三方 Kotlin、Compose 和 Minecraft 源码由各自上游提供。
+本参考列出上方所示 Minecraft 版本的 Compose MC 公开 Kotlin 与 Java API，包括随之发布的共享模块。含完整示例的指南见[中文文档](https://github.com/Frostbite-time/compose-mc/tree/main/docs/zh-CN)。
 
 ### Where to start / 从哪里开始
 
-- `dev.composemc.ui.ore`: Ore controls, theme and interaction state / Ore 控件、主题与交互状态。
-- `dev.composemc.host`: screen sessions and immutable state/action bindings / 屏幕会话及不可变状态与动作绑定。
-- `dev.composemc.sync`: server-safe menu synchronization, with schemas, snapshots and codecs in `state`, client actions in `action` and fragments and transfer budgets in `transport` / 可在服务端使用的菜单同步：`state` 为状态结构、快照与编解码，`action` 为客户端动作，`transport` 为分片与传输预算。
-- `dev.composemc.slots`: loader-independent slot policies and transfer routes / 与加载器无关的槽位策略与转移路径。
-- `dev.composemc.forge`: the selected target's adapter, with the same names on Forge and NeoForge: screen and HUD hosts at the root, then `config`, `slots`, `item` and `sync` for config screens, menu slots, native items and menu sync / 当前版本的适配器，Forge 与 NeoForge 使用相同名称：根包为屏幕与 HUD 宿主，`config`、`slots`、`item`、`sync` 分别对应配置屏幕、菜单槽位、原生物品与菜单同步。
+- `dev.composemc.forge`: screens, container screens and HUD layers; `item`, `slots`, `sync` and `config` hold items and tooltips, menu slots, menu sync and config screens. / 界面、容器界面与 HUD 层；`item`、`slots`、`sync`、`config` 分别对应物品与提示、菜单槽位、菜单同步和配置界面。
+- `dev.composemc.ui.ore`: Ore UI components and theme. / Ore UI 组件与主题。
+- `dev.composemc.host`: `UiBinding` and UI sessions. / `UiBinding` 与界面会话。
+- `dev.composemc.sync`: the menu synchronization protocol, which also runs on servers. / 菜单同步协议，也可在服务端运行。
+- `dev.composemc.slots`: slot rules and shift-click routes. / 槽位规则与 Shift 点击路线。
 
-Member descriptions come from the existing KDoc/Javadoc comments. Type signatures do not replace the documented thread, lifetime and synchronization requirements. Minecraft-facing sources use the readable development mappings, including Forge 1.20.1.
-
-成员说明来自现有 KDoc/Javadoc 注释。类型签名不能替代线程、生命周期及同步约束说明。涉及 Minecraft 的源码采用可读开发映射，Forge 1.20.1 也如此。
-
-See the [English guides](https://github.com/Frostbite-time/compose-mc/tree/main/docs/en) and [简体中文指南](https://github.com/Frostbite-time/compose-mc/tree/main/docs/zh-CN) for complete screen, inventory and synchronization examples. The source and documentation of Compose MC are licensed under MIT; third-party components retain their own licenses.
-
-完整的屏幕、容器和同步示例见上面的中英文指南。Compose MC 的源码和文档采用 MIT，第三方组件保留各自许可。
+Compose MC is licensed under MIT; bundled libraries keep their own licenses. / Compose MC 采用 MIT 许可，随附的库保留各自的许可。

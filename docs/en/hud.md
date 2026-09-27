@@ -1,68 +1,72 @@
 # HUD layers
 
-[简体中文](../zh-CN/hud.md) · [Documentation](../README.md)
+[简体中文](../zh-CN/hud.md) · [All guides](../README.md)
 
-`ComposeHudLayer` draws Compose content as an ordinary HUD layer. Every target provides it in `dev.composemc.forge` with the same constructor. It implements that loader's own layer type, so you register and order it through the loader, like any other HUD layer. Examples here target NeoForge 1.21.1.
+`ComposeHudLayer` draws Compose content over the game view. It is an ordinary HUD layer: you register it with the loader, and it stacks with the vanilla HUD.
+
+![A diamond quest panel in the top-left corner of the game view](../assets/hud-en.png)
 
 ## Register a layer
 
-Register from client-only code, for example the client entry point that registers your screens. The binding carries game state into the layer, as in the [quick start](getting-started.md#4-connect-game-state):
+This layer counts the diamonds in the player's inventory:
 
 ```kotlin
-import androidx.compose.foundation.layout.padding
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import dev.composemc.forge.ComposeHudLayer
-import dev.composemc.host.UiBinding
-import dev.composemc.ui.ore.display.OreText
-import net.minecraft.client.Minecraft
-import net.minecraft.resources.ResourceLocation
-import net.neoforged.bus.api.IEventBus
-import net.neoforged.neoforge.client.event.ClientTickEvent
-import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent
-import net.neoforged.neoforge.client.gui.VanillaGuiLayers
-import net.neoforged.neoforge.common.NeoForge
+object QuestHud {
+    private lateinit var diamonds: UiBinding<Int, Nothing>
 
-object HealthHud {
-    private lateinit var health: UiBinding<Int, Nothing>
-
-    fun register(modEventBus: IEventBus) {
-        modEventBus.addListener(::registerLayer)
+    fun register(modBus: IEventBus) {
+        modBus.addListener(::registerLayer)
         NeoForge.EVENT_BUS.addListener(::tick)
     }
 
-    // Runs on the client thread while the game starts.
     private fun registerLayer(event: RegisterGuiLayersEvent) {
-        health = UiBinding(0)
+        diamonds = UiBinding(0)
+        val diamond = ItemIcon.snapshot(ItemStack(Items.DIAMOND))
         event.registerAbove(
             VanillaGuiLayers.HOTBAR,
-            ResourceLocation.fromNamespaceAndPath("examplemod", "health"),
-            ComposeHudLayer { OreText("Health: ${health.value}", Modifier.padding(8.dp)) },
+            ResourceLocation.fromNamespaceAndPath("examplemod", "quest"),
+            ComposeHudLayer { QuestPanel(diamond, diamonds.value) },
         )
     }
 
     private fun tick(event: ClientTickEvent.Post) {
-        Minecraft.getInstance().player?.let { health.update(it.health.toInt()) }
+        Minecraft.getInstance().player?.let { diamonds.update(it.inventory.countItem(Items.DIAMOND)) }
+    }
+}
+
+@Composable
+fun QuestPanel(diamond: ItemIcon, found: Int) {
+    OreSurface(Modifier.padding(8.dp).width(128.dp)) {
+        Column(Modifier.padding(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                MinecraftItemIcon(diamond)
+                OreText("Diamonds $found / 16")
+            }
+            OreProgressBar(found / 16f)
+        }
     }
 }
 ```
 
-| Target | Register in | Layer type | Identifiers and anchors |
-| --- | --- | --- | --- |
-| Forge 1.20.1 | `RegisterGuiOverlaysEvent` | `IGuiOverlay` | A `String` in your mod's namespace; `VanillaGuiOverlay.HOTBAR.id()` |
-| NeoForge 1.21.1 | `RegisterGuiLayersEvent` | `LayeredDraw.Layer` | `ResourceLocation`; `VanillaGuiLayers` |
-| NeoForge 26.x | `RegisterGuiLayersEvent` | `GuiLayer` | `Identifier`; `VanillaGuiLayers` |
+Call `QuestHud.register(modBus)` from your client mod constructor.
 
-## Behavior
+## What to expect
 
-- **Order.** The layer draws over the game view at the position you registered. Open screens draw above it, and it keeps drawing beneath them, as vanilla HUD elements do.
-- **Hidden with the HUD.** Loaders can draw registered layers while F1 hides the vanilla HUD, so the layer checks this itself and draws nothing while the HUD is hidden.
-- **No input.** Pointer, keys and text stay with the game or the open screen. The content never has window focus: text fields cannot be edited, Ore menus and tooltips do not open, and `MinecraftItemTooltip` never shows. Open a screen for interaction.
-- **Native items.** `MinecraftItemIcon` works as in screens. Create `ItemIcon` snapshots on the client thread; see [native content](native-content.md).
-- **Lifetime.** The session opens on the first frame drawn in a world. It keeps its state across window resizes, GUI scale changes and resource reloads, and closes when the player leaves the world. `close()` releases it sooner, for example when your mod turns the HUD off. The next drawn frame opens a new session, so `remember` state starts over.
+- The layer draws at the position you registered it, below any open screen.
+- It hides with the rest of the HUD when the player presses F1.
+- It never takes input. Clicks, keys and text go to the game, and tooltips don't open, so use a screen for anything interactive.
+- It starts on the first frame in a world and stops when the player leaves. Call `close()` to stop it sooner; `remember`ed state starts over the next time.
 
-## Cost
+## On other versions
 
-Every drawn frame costs one Compose-thread round trip and a full-window composite, even when nothing changed; unchanged content reuses its retained frame. Changed content records and redraws the frame. Each layer has its own session, window-sized surface and Skia context, so prefer one layer per mod with every element inside it, and avoid animations that never stop. The benchmark suite measures a static and an animated HUD; see [build and test](build-and-test.md#benchmark-protocol).
+| Minecraft | Register in | Layer type |
+| --- | --- | --- |
+| 1.20.1 (Forge) | `RegisterGuiOverlaysEvent` | `IGuiOverlay`, with a string ID and `VanillaGuiOverlay` anchors |
+| 1.21.1 | `RegisterGuiLayersEvent` | `LayeredDraw.Layer`, with a `ResourceLocation` |
+| 26.x | `RegisterGuiLayersEvent` | `GuiLayer`, with an `Identifier` |
 
-Read `rendererStatistics`, `nativeItemStatistics` and, with `-Dcomposemc.profile=true`, `frameProfiler` on the client thread.
+The `ComposeHudLayer` constructor is the same everywhere.
+
+## Keep it light
+
+Each layer has its own Compose session and a window-sized surface, and it composites every frame the HUD is visible. Put all of your mod's HUD elements in one layer, and avoid animations that never stop.

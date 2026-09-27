@@ -4,77 +4,70 @@
 
 English · [简体中文](README.zh-CN.md)
 
-Compose MC brings declarative layouts, state-driven interaction and Ore-style controls to Minecraft Java Edition. Create settings pages, item browsers and inventory screens with familiar Compose code, backed by Minecraft's graphics context.
+![A storage terminal built with Compose MC, open in a Minecraft world](docs/assets/hero-en.png)
 
-![Ore-style tabs, dropdowns, diamond radio buttons and tri-state checkboxes](docs/assets/choices-en.png)
+Compose MC brings Jetpack Compose to Minecraft Java Edition. Write screens, inventories and HUDs as declarative Kotlin, style them with Minecraft-flavored controls, and mix in real item icons and tooltips, all drawn on the GPU inside the game.
 
-*Current Ore components rendered directly from the shared UI code in the offscreen desktop preview.*
-
-## Made for game interfaces
-
-- **A consistent Ore style.** Pixel typography, stepped buttons, inset fields, menus, trees, color pickers and draggable, resizable windows.
-- **Minecraft content in Compose.** Native item images, animated icons and rich item tooltips alongside ordinary composables.
-- **Real inventory interaction.** Arrange native slots with Compose while retaining container clicks, dragging and integration hooks.
-- **HUD layers.** Draw Compose over the game view as an ordinary HUD layer, beneath open screens and hidden with the vanilla HUD.
-- **State and actions.** Publish immutable UI snapshots; synchronize server menus through bounded updates and typed requests.
-- **GPU rendering.** OpenGL across all supported targets, plus Vulkan on Minecraft 26.2 and 26.3.
-
-| Interactive menus | Nested tooltips |
+| Ore UI controls | Items and tooltips |
 | --- | --- |
-| ![Ore action menu](docs/assets/menus-en.png) | ![Three nested interactive tooltip layers](docs/assets/tooltips-en.png) |
+| ![A menu opened from a button](docs/assets/gallery-ore-en.png) | ![An item grid showing a Minecraft tooltip](docs/assets/gallery-items-en.png) |
+| **Container screens** | **HUD layers** |
+| ![A chest laid out with Compose](docs/assets/gallery-storage-en.png) | ![A quest panel over the game view](docs/assets/gallery-hud-en.png) |
 
-These are actual component renders. Explore the [component guide](docs/en/ore-ui.md) for controls, state ownership and examples.
+## Features
 
-![Minecraft-native items rendered inside an Ore browser](docs/assets/native-items.png)
+- **Ore UI**: buttons, text and number fields, sliders, tabs, menus, nested tooltips, windows, trees and more, in a crisp Minecraft style.
+- **Real items**: any `ItemStack` with its animation, enchantment glint and native tooltip, inside ordinary composables.
+- **Container screens**: arrange real menu slots with Compose. Clicking, dragging, shift-clicking and other mods' hooks keep working.
+- **HUD layers**: Compose content over the game view.
+- **Menu sync**: server menu state on the client, and typed requests back to the server.
+- **Config screens**: a ready-made editor for your mod's config files.
+- **OpenGL and Vulkan**: follows the game's renderer, including Vulkan on Minecraft 26.2 and 26.3.
 
-*Captured in Minecraft 1.21.1 with NeoForge and OpenGL. [Native content](docs/en/native-content.md) explains item images, animation and tooltips.*
-
-## A small interface, in a few lines
-
-Inside a Compose MC screen, use standard Compose state and Ore controls:
+## A first screen
 
 ```kotlin
-import androidx.compose.runtime.*
-import dev.composemc.ui.ore.button.OreButton
-import dev.composemc.ui.ore.display.OreText
-import dev.composemc.ui.ore.layout.OreScreen
-
-@Composable
-fun CounterPanel() {
+Minecraft.getInstance().setScreen(ComposeScreen(Component.literal("Counter")) {
     var count by remember { mutableStateOf(0) }
-    OreScreen("Hello, Minecraft") {
-        OreText("Count: $count")
-        OreButton("Add one", onClick = { count++ })
+    OreScreen("Counter") {
+        OreText("Clicked $count times")
+        OreButton("Click me", onClick = { count++ })
     }
-}
+})
 ```
 
-The [quick start](docs/en/getting-started.md) supplies the dependency setup and a complete client screen example. Browse [Ore UI](docs/en/ore-ui.md) for the component catalog.
+[Getting started](docs/en/getting-started.md) takes you from an empty mod to this screen.
 
-## Supported Minecraft versions
+## Supported versions
 
-| Minecraft | Loader baseline | Graphics |
+| Minecraft | Loader | Graphics |
 | --- | --- | --- |
 | 1.20.1 | Forge 47.4.23 | OpenGL |
 | 1.21.1 | NeoForge 21.1.250 | OpenGL |
 | 26.1.2 | NeoForge 26.1.2.109 | OpenGL |
-| 26.2 | NeoForge 26.2.0.88 | OpenGL / Vulkan |
-| 26.3 | NeoForge 26.3.0.6-beta | OpenGL / Vulkan |
+| 26.2 | NeoForge 26.2.0.88 | OpenGL, Vulkan |
+| 26.3 | NeoForge 26.3.0.6-beta | OpenGL, Vulkan |
 
-Current version: **0.1.0-alpha.35**. APIs may change during alpha. Each target has its own mod JAR; use the artifact matching your Minecraft version and loader. See [compatibility](docs/en/compatibility.md) for platform coverage and known limitations.
+Latest version: **0.1.0-alpha.35**. The API can still change between alpha releases.
 
-## Start building
+## For players
 
-Compose MC is installed as a **separate library mod**. Choose the standard JAR with an external Kotlin provider such as Kotlin for Forge, or the `with-kotlin` JAR with Kotlin included. Both include Compose and Skiko; install only one variant. Every Minecraft target offers both choices.
+Compose MC is a library. Install it when a mod you play asks for it: download the file for your Minecraft version from [Releases](https://github.com/Frostbite-time/compose-mc/releases).
 
-1. Follow the [quick start](docs/en/getting-started.md) to add the Maven repository and connect a consumer.
-2. Choose [Ore controls](docs/en/ore-ui.md), [native content](docs/en/native-content.md), [HUD layers](docs/en/hud.md) or [inventory screens](docs/en/inventory.md).
-3. Use the [build guide](docs/en/build-and-test.md) to launch a specific Minecraft version from IntelliJ IDEA and open the F8 preview.
+- `…-with-kotlin.jar` works on its own.
+- The plain `.jar` is smaller and needs [Kotlin for Forge](https://modrinth.com/mod/kotlin-for-forge).
 
-[All documentation](docs/README.md) · [Menu synchronization](docs/en/menu-sync.md) · [Configuration screens](docs/en/configuration.md) · [Architecture](docs/en/architecture.md)
+Install one of the two, not both.
 
-## License and credits
+## Documentation
 
-Compose MC's original code and documentation are available under the [MIT License](LICENSE). Third-party components and assets retain their own licenses; see [third-party notices](THIRD-PARTY-NOTICES.md). Ore styling is an independent implementation inspired by Minecraft's interface design; this project is not an official Mojang or Microsoft product.
+- [Getting started](docs/en/getting-started.md): add the dependency and open a screen
+- [Ore UI](docs/en/ore-ui.md) · [Items and tooltips](docs/en/items.md) · [Container screens](docs/en/inventory.md) · [HUD layers](docs/en/hud.md)
+- [Menu synchronization](docs/en/menu-sync.md) · [Config screens](docs/en/configuration.md)
+- [Compatibility](docs/en/compatibility.md) · [Contributing](docs/en/contributing.md) · [Architecture](docs/en/architecture.md)
 
-The bundled [Monocraft font](https://github.com/IdreesInc/Monocraft) is by Idrees Hassan and retains its [SIL Open Font License 1.1](ui-ore/src/main/resources/dev/composemc/ui/ore/Monocraft-LICENSE.txt). Runtime bundles include per-dependency licenses, native-library notices and a machine-readable inventory under `META-INF/composemc-third-party`.
+## License
+
+Compose MC is released under the [MIT License](LICENSE). Bundled libraries keep their own licenses; see [third-party notices](THIRD-PARTY-NOTICES.md). Text uses the [Monocraft](https://github.com/IdreesInc/Monocraft) font by Idrees Hassan, under the [SIL Open Font License 1.1](ui-ore/src/main/resources/dev/composemc/ui/ore/Monocraft-LICENSE.txt).
+
+Compose MC is not an official Minecraft product and is not associated with Mojang or Microsoft.

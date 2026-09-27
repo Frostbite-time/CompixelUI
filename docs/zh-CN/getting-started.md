@@ -1,125 +1,143 @@
 # 快速开始
 
-[English](../en/getting-started.md) · [文档目录](../README.md)
+[English](../en/getting-started.md) · [全部指南](../README.md)
 
-本指南将一个现有的 **NeoForge 1.21.1 Kotlin 模组**接入 Compose MC，使用 Java 21、Kotlin/Compose 编译器 2.4.10 和库版本 0.1.0-alpha.35。其他目标见[兼容性](compatibility.md)。
+本指南为一个 NeoForge 1.21.1 模组接入 Compose MC，并打开第一个界面。其他 Minecraft 版本的步骤相同，差异见[兼容性](compatibility.md)。
 
-已经接入较早 Alpha 版本的消费者，请先按[升级说明](compatibility.md#升级已有消费者)调整请求结果 API、传输配置和协议版本，再重新构建。
+## 1. 添加依赖
 
-## 1. 添加仓库
-
-Compose MC 的发布版本位于 Wintercogs Maven。将它加入消费者的 Groovy `build.gradle`；内容过滤可以避免在这里查找其他依赖：
-
-```groovy
-repositories {
-    maven {
-        url = uri('https://maven.wintercogs.com/releases')
-        content { includeGroup 'dev.composemc' }
-    }
-}
-```
-
-如需试用尚未发布的改动，在 Compose MC 仓库中运行 `.\gradlew.bat '-PcomposemcTargets=1.21.1' :minecraft:neoforge-1.21.1:publishAllPublicationsToConsumerRepository`，然后把仓库地址换成其中的 `build/consumer-maven` 目录；运行时包也会一并发布到那里。工具链和其他操作系统的命令写法见[构建与测试](build-and-test.md)。
-
-## 2. 配置消费者依赖
-
-将以下声明合并到同一个 `build.gradle` 中，保留原来的加载器插件和 Minecraft 配置。其中 `localRuntime` 由 NeoForge ModDevGradle 提供。
+在模组的 `build.gradle` 中：
 
 ```groovy
 plugins {
     id 'org.jetbrains.kotlin.jvm' version '2.4.10'
     id 'org.jetbrains.kotlin.plugin.compose' version '2.4.10'
 }
+
+repositories {
+    maven {
+        url = 'https://maven.wintercogs.com/releases'
+        content { includeGroup 'dev.composemc' }
+    }
+}
+
 dependencies {
     compileOnly "dev.composemc:composemc-neoforge-1.21.1-with-kotlin:${composemc_version}"
     localRuntime "dev.composemc:composemc-neoforge-1.21.1-with-kotlin:${composemc_version}"
 }
+
 kotlin { jvmToolchain(21) }
 ```
 
-在消费者的 `gradle.properties` 中加入：
+在 `gradle.properties` 中：
 
 ```properties
 composemc_version=0.1.0-alpha.35
 kotlin.stdlib.default.dependency=false
 ```
 
-`-with-kotlin` 坐标会解析出三部分：库模组、装有 Compose 和 Skiko 的 `composemc-runtime-standard`，以及装有 Kotlin 库的 `composemc-kotlin`。开发启动时这两个运行时包会作为库与模组一起加载，因此无需外部 Kotlin 提供者。如果你的模组本身依赖 Kotlin for Forge，两行都改用不带 `-with-kotlin` 的 `composemc-neoforge-1.21.1`：KFF 的依赖会为编译和开发启动提供 Kotlin。如果 KFF 只加入开发启动（见下文），`compileOnly` 保留 `-with-kotlin` 坐标以获得 Kotlin API，`localRuntime` 改用不带后缀的坐标。不要同时安装两个版本，也不要将 `with-kotlin` 与 KFF 混装。Kotlin 和 Compose 编译器插件应保持相同版本；消费者不要再内嵌这些运行时。
+`-with-kotlin` 坐标会一并带上 Kotlin 库。如果你的模组本来就依赖 Kotlin for Forge，两行都改用 `composemc-neoforge-1.21.1`，由 KFF 提供 Kotlin。
 
-在 NeoForge 1.21.1 开发启动中加载 KFF，可在仓库配置加入 `maven { url = 'https://api.modrinth.com/maven' }`，在依赖中加入 `localRuntime 'maven.modrinth:kotlin-for-forge:5.12.0'`。这是开发运行依赖，不是 JarJar 依赖。已验证提供者和运行时要求见[兼容性](compatibility.md#kotlin-运行时提供者)。
+Compose MC 作为独立模组安装，不要用 Jar-in-Jar 打进你的 JAR。
 
-在 `META-INF/neoforge.mods.toml` 中声明依赖，替换 `your_mod_id`：
+## 2. 声明依赖
+
+在 `src/main/resources/META-INF/neoforge.mods.toml` 中，换成你的模组 ID：
 
 ```toml
-[[dependencies.your_mod_id]]
-modId="composemc"
-type="required"
-versionRange="[0.1.0-alpha.35]"
-ordering="AFTER"
-side="CLIENT"
+[[dependencies.examplemod]]
+modId = "composemc"
+type = "required"
+versionRange = "[0.1.0-alpha.35]"
+ordering = "AFTER"
+side = "CLIENT"
 ```
 
-使用菜单同步或公共槽位操作时，改为 `side="BOTH"`。处理元数据模板时，应从同一个 Gradle 属性生成版本范围。Forge 1.20.1 使用 `META-INF/mods.toml`，并以 `mandatory=true` 代替 `type="required"`。
+如果用到[菜单同步](menu-sync.md)，它也在服务端运行，请改为 `side = "BOTH"`。
 
-## 3. 打开一个屏幕
-
-将以下文件放在消费者的客户端代码中，从客户端线程事件或按键处理器调用 `openCounterScreen()`。宿主会自动提供 `OreTheme` 和游戏点击反馈。Compose MC 的宿主在所有目标上都不绘制 Minecraft 的菜单背景、模糊或压暗，`OreScreen` 自带背景遮罩。
+## 3. 打开界面
 
 ```kotlin
 import androidx.compose.runtime.*
+import androidx.compose.ui.unit.dp
 import dev.composemc.forge.ComposeScreen
 import dev.composemc.ui.ore.button.OreButton
 import dev.composemc.ui.ore.display.OreText
 import dev.composemc.ui.ore.layout.OreScreen
-import dev.composemc.ui.ore.theme.OreTheme
 import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.Component
 
 fun openCounterScreen() {
-    val minecraft = Minecraft.getInstance()
-    val parent = minecraft.screen
-    minecraft.setScreen(ComposeScreen(
-        title = Component.literal("计数器"),
-        parent = parent,
-    ) {
+    Minecraft.getInstance().setScreen(ComposeScreen(Component.literal("计数器")) {
         var count by remember { mutableStateOf(0) }
-        OreScreen("计数器") {
-            OreText("计数：$count")
-            OreButton("加一", onClick = { count++ })
+        OreScreen("计数器", maxWidth = 160.dp, maxHeight = 78.dp) {
+            OreText("已点击 $count 次")
+            OreButton("点我", onClick = { count++ })
         }
     })
 }
 ```
 
-这里的计数属于 UI 本地状态。游戏对象在进入组合之前捕获；修改游戏状态的回调需要使用下面的桥接方式。屏幕的构造与注册应放在客户端专用入口，避免专用服务器加载 UI 类。
+![点击三次后的计数器界面](../assets/counter-zh-CN.png)
 
-## 4. 连接游戏状态
+在客户端代码中调用 `openCounterScreen()`，例如按键绑定的处理函数。`ComposeScreen` 就是普通的 Minecraft 界面，`OreScreen` 负责绘制面板和标题。界面代码放在仅客户端加载的类里，专用服务器就不会加载它。
 
-`dev.composemc.host.UiBinding<S, A>` 将不可变快照传入 Compose，并将类型化动作传回创建它的线程：
+## 4. 显示游戏数据
 
-| 操作 | 调用位置 |
+Compose 运行在自己的线程上。请在游戏线程读取游戏数据，再通过 `dev.composemc.host` 中的 `UiBinding` 把不可变快照交给 Compose；按钮也通过它把动作发回来：
+
+```kotlin
+data class HeldItem(val name: String, val count: Int)
+
+fun openHandScreen() {
+    val minecraft = Minecraft.getInstance()
+    val held = UiBinding<HeldItem, Unit>(HeldItem("", 0))
+    minecraft.setScreen(object : ComposeScreen(Component.literal("手持物品"), content = {
+        val item = held.value
+        OreScreen("手持物品", maxWidth = 180.dp, maxHeight = 84.dp) {
+            OreText("${item.name} × ${item.count}")
+            OreButton("丢出一个", onClick = { held.send(Unit) })
+        }
+    }) {
+        override fun tick() {
+            super.tick()
+            val player = minecraft.player ?: return
+            held.drainActions { player.drop(false) }
+            val stack = player.mainHandItem
+            held.update(HeldItem(stack.hoverName.string, stack.count))
+        }
+
+        override fun removed() {
+            super.removed()
+            held.close()
+        }
+    })
+}
+```
+
+| `UiBinding` 调用 | 在哪里调用 |
 | --- | --- |
-| 构造 `UiBinding(initialSnapshot)` | 客户端游戏线程 |
-| 读取 `binding.value` | 组合函数内部 |
-| `binding.send(action)` | UI 回调 |
-| `binding.drainActions(handler)` 后调用 `binding.update(snapshot)` | 游戏线程 tick |
-| `binding.close()` | 逻辑所有者最终关闭时，在游戏线程调用 |
+| 构造、`update`、`drainActions`、`close` | 游戏线程 |
+| `value` | 可组合项内部 |
+| `send` | UI 回调。绑定关闭或已有 64 个动作排队时返回 `false`。 |
 
-关闭后或有界队列已满时，`send` 返回 false；默认队列容量为 64。对于重要动作，应处理拒绝结果。相等快照不会触发新的发布。保持数据不可变，并复用未变化的集合。搜索文本、焦点和弹层可见性等 UI 本地状态可以保留在 Compose 中。
+不要在可组合项里访问玩家、物品堆等游戏对象，也不要让 Compose 等待游戏线程。
 
-不要在组合函数中读取实时菜单、`ItemStack` 或 `Minecraft`，也不要从 Compose 同步等待游戏线程：游戏线程此时可能正在等待组合完成。[临时进入配方界面](inventory.md)与最终关闭菜单绑定是不同的生命周期事件。
+## 5. 发布
 
-## 5. 安装与预览
+玩家把 Compose MC 和你的模组装在一起。每个 Minecraft 版本有两个文件，玩家选其一：
 
-| 产物 | 用途 |
+| 文件 | 适用于 |
 | --- | --- |
-| `build/release/composemc-neoforge-1.21.1-0.1.0-alpha.35.jar` | 标准版：与消费者和兼容的外部 Kotlin 提供者一起安装 |
-| `build/release/…-with-kotlin.jar` | 另一种安装选择：自带 Kotlin，无需外部提供者 |
-| `build/libs/…-development.jar` | 可选 F8 预览/探针模组；需要正式库 |
-| `build/libs/…-sources.jar` / `…-javadoc.jar` | Maven 库的源码/API 文档附件 |
+| `composemc-neoforge-1.21.1-0.1.0-alpha.35-with-kotlin.jar` | 所有玩家，已包含 Kotlin |
+| `composemc-neoforge-1.21.1-0.1.0-alpha.35.jar` | 已安装 Kotlin for Forge 的玩家 |
 
-从适配器的 `build/release/` 中选一个发布版本，与消费者一起安装；标准版还需要外部运行时提供者。两种安装包具有相同的 Mod ID 和 API，都内嵌 Compose/Skiko 运行时。`build/libs/` 存放 Maven 产物：其中的库 JAR 把运行时留给 Gradle 解析，不能单独启动。查看组件时可额外安装开发包，它不包含第二份运行时。
+两个文件都可以在 [Releases](https://github.com/Frostbite-time/compose-mc/releases) 页面下载。
 
-源码和文档 JAR 由同一个 Maven 发布任务提供，属于 IDE 附件，不是运行依赖或模组。在 IDEA 开启源码/文档下载并刷新 Gradle，即可浏览 Compose MC 自有源码和生成的 API 参考。运行时包只附带一份列出上游库的 README，这些库仍使用各自上游的源码及文档。
+## 下一步
 
-接下来可以阅读 [Ore UI](ore-ui.md)、[原生物品](native-content.md)、[HUD 层](hud.md)、[容器界面](inventory.md)或[服务端菜单同步](menu-sync.md)。
+- [Ore UI](ore-ui.md)：所有控件及示例
+- [物品与提示](items.md)：在界面中显示真实物品
+- [容器界面](inventory.md)：带槽位的菜单
+- [HUD 层](hud.md)：游戏画面上的 Compose 内容
+- [菜单同步](menu-sync.md)与[配置界面](configuration.md)

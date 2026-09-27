@@ -1,63 +1,73 @@
-# Configuration screens
+# Config screens
 
-[简体中文](../zh-CN/configuration.md) · [Documentation](../README.md)
+[简体中文](../zh-CN/configuration.md) · [All guides](../README.md)
 
-Compose MC supplies an Ore editor for registered loader configuration specs. It includes file tabs, search, validation, defaults, undo/refresh, per-file saving and unsaved-change dismissal. Consumers keep their normal specs and persistence hooks.
+Compose MC includes a ready-made editor for your mod's config files. Players get a tab per file, search, value checks, defaults, undo and saving; you keep your normal config spec.
 
-## Register a screen
+![The config screen of an example mod](../assets/config-en.png)
 
-On NeoForge, register from your **client entry point**, using its `ModContainer`:
+## Register it
 
-```java
-import dev.composemc.forge.config.ComposeConfigScreen;
-import net.neoforged.fml.ModContainer;
-import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
+Define your config as usual, then register `ComposeConfigScreen` as the mod's config screen, from your client mod constructor:
 
-final class ConfigRegistration {
-    static void register(ModContainer container) {
-        container.registerExtensionPoint(IConfigScreenFactory.class,
-            ComposeConfigScreen::new);
+```kotlin
+object ExampleConfig {
+    private val builder = ModConfigSpec.Builder()
+    val showHud = builder.define("showHud", true)
+    val goal = builder.defineInRange("goal", 16, 1, 64)
+    val corner = builder.defineEnum("corner", Corner.TOP_LEFT)
+    val scale = builder.defineInRange("scale", 1.0, 0.5, 2.0)
+    val title = builder.define("title", "Diamond hunt")
+    val trackedItems = builder.defineList("trackedItems",
+        listOf("minecraft:diamond", "minecraft:emerald"), { "minecraft:diamond" }) { it is String }
+    val spec: ModConfigSpec = builder.build()
+
+    fun register(container: ModContainer) {
+        container.registerConfig(ModConfig.Type.CLIENT, spec)
+        container.registerExtensionPoint(IConfigScreenFactory::class.java,
+            IConfigScreenFactory { mod, parent -> ComposeConfigScreen(mod, parent) })
     }
 }
 ```
 
-Forge 1.20.1 registers the same `ComposeConfigScreen` differently: capture the consumer's `ModContainer` during construction, then register its `ConfigScreenHandler.ConfigScreenFactory` from the client entry point with a factory that constructs `new ComposeConfigScreen(modContainer, parent)`. Forge and NeoForge extension-point registration signatures differ; compile against the selected target.
+The **Mods** list now opens this screen for your mod. On Forge 1.20.1, register a `ConfigScreenHandler.ConfigScreenFactory` that returns `ComposeConfigScreen(modContainer, parent)`.
+
+## Names and descriptions
+
+Labels come from your language file:
+
+```json
+{
+  "examplemod.configuration.goal": "Diamond goal",
+  "examplemod.configuration.goal.tooltip": "Diamonds needed to finish the quest.",
+  "examplemod.configuration.option.top_left": "Top left"
+}
+```
+
+| Text | Key |
+| --- | --- |
+| Entry name | The spec's translation key, or `<modid>.configuration.<path>` |
+| Description | `<entry key>.tooltip`, or the spec comment |
+| Enum option | `<entry key>.<constant>`, or `<modid>.configuration.option.<constant>` |
+
+Constants are written in lower case. Without a translation, the editor shows a readable form of the path.
 
 ## Editing and saving
 
-Supported values include Boolean, signed 32/64-bit integers, finite doubles, strings, enums and flat homogeneous scalar lists. The editor follows the specification's allowed values and list constraints. Unknown/custom types remain read-only. Forge 1.20.1 infers homogeneous list types from nonempty defaults/current values because its public spec API lacks the modern element specification.
+- Supported values: booleans, integers, longs, finite doubles, strings, enums and lists of those. Other types are shown but can't be edited.
+- Changes stay pending until the player saves that file. Values are checked again before saving, and a file changed elsewhere asks for a refresh.
+- Defaults and undo only stage values; nothing is written until saving.
+- Closing with unsaved changes asks the player first.
+- Server configs are read-only when connected to a remote server, and while the world is open to LAN.
 
-Edits are buffered locally. **Use value** validates and stages an edit; **Save this file** checks access, current values and constraints again before applying and saving through the loader. Unrelated external changes are retained. Conflicts require an explicit refresh. Closing with drafts asks whether to discard them.
+## Build your own page
 
-Defaults stage a value; they do not immediately modify the file. Saved restart requirements are displayed without automatically restarting the game. Available restart categories follow the selected loader version; Forge 1.20.1 does not expose NeoForge's STARTUP/GAME settings.
-
-Scalar inputs are bounded to 1,048,576 UTF-16 units and lists to 100,000 entries. Larger/unsupported data is not offered for editing. These are UI bounds, not changes to the consumer's configuration format.
-
-## File and world ownership
-
-The editor follows the file selected by the loader. Unloaded or non-file-backed configs cannot be saved. Remote SERVER configs are read-only, as are integrated-server configs while the world is published to LAN.
-
-A SERVER file may be shared under `config/` or overridden per world, depending on loader behavior. Drafts are bound to the active world/config/path context so they cannot carry into another world. A same-context reload retains drafts only while their original values remain unchanged.
-
-Save failure attempts to restore values changed by the editor. It cannot roll back arbitrary mod reload-event side effects or concurrent third-party writes; inspect the error and refresh before continuing.
-
-## Custom presentation
-
-`dev.composemc.forge.config.ConfigEditor` is a public client-game-thread model. It exposes immutable file/entry snapshots, so a custom Compose page need not read live loader specs. Use the IDs supplied by the snapshot, not display labels.
+`ConfigEditor` is the model behind the screen. Use it from the game thread to build a custom config page:
 
 ```java
-import dev.composemc.forge.config.ConfigEditor;
-
-final class ConfigEdits {
-    static ConfigEditor.Result stageLimit(
-            ConfigEditor editor, String fileId, String entryId, String text) {
-        return editor.stage(fileId, entryId, ConfigEditor.Input.scalar(text));
-    }
-}
+ConfigEditor editor = new ConfigEditor("examplemod");
+ConfigEditor.Result staged = editor.stage(fileId, "goal", ConfigEditor.Input.scalar("24"));
+ConfigEditor.SaveResult saved = editor.save(fileId);
 ```
 
-Construct the editor with your mod ID. Call `snapshot()` for files, `Input.list(values)` for lists, `reset` for a staged default, `reload` to discard a file's drafts and recapture, and `discardAll` to drop all drafts. Call `save(fileId)` in response to a Save action and inspect `SaveResult` for conflicts, errors and restart requirements. Forge exposes the equivalent `ConfigEditor`.
-
-Entry IDs escape `~` and `/` in path segments, preserving literal dotted keys. Label lookup prefers the spec translation key, then `<modid>.configuration.<dot-joined-path>`. A matching `.tooltip` key overrides the spec comment. Enum labels try `<entry-key>.<constant-lowercase>`, then `<modid>.configuration.option.<constant-lowercase>`, then a readable fallback.
-
-Use [UiBinding](getting-started.md) for actions between your custom composition and the editor. Keep permission, file and world checks in the game-thread model.
+`snapshot()` lists the files and entries with their IDs; `Input.list(values)` stages a list; `reset`, `reload` and `discardAll` undo changes.

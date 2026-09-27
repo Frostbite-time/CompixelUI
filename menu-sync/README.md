@@ -1,12 +1,7 @@
-# Menu synchronization / 菜单同步
+# menu-sync
 
-`menu-sync` is the Minecraft-independent, dependency-free Java 17 protocol core. It provides schemas, bounded incremental updates, immutable `SyncMap` snapshots and complete-revision publication. A transport must supply reliable, ordered delivery; Minecraft adapters provide menu lifecycle and networking integration.
+The protocol core of Compose MC's menu synchronization: schemas, codecs, immutable `SyncMap` snapshots, bounded batching and typed client requests. It is plain Java 17 with no dependencies and no Minecraft code; the Minecraft adapters add menus and networking.
 
-`menu-sync` 是独立于 Minecraft、无生产依赖的 Java 17 协议核心，提供声明式数据结构、有界增量更新、不可变 `SyncMap` 快照和完整版本发布。传输层需要保证可靠、有序交付；Minecraft 适配器负责菜单生命周期与网络集成。
+Compose MC 菜单同步的协议核心：数据结构、编解码器、不可变的 `SyncMap` 快照、有上限的分批传输和类型化的客户端请求。它是不含任何依赖和 Minecraft 代码的纯 Java 17 模块，菜单与网络由 Minecraft 适配器接入。
 
-`MenuSyncOptions` exposes state and action budgets. `TransferBudget` separates sustained refill, saved burst credit and peak bytes per tick. `ActionQueue` returns explicit admission outcomes and preserves FIFO ordering; adapters own connection lifetime, packet envelopes and diagnostic delivery.
-
-`MenuSyncOptions` 公开状态与动作预算，`TransferBudget` 分别设置持续补充、突发积蓄和每 tick 峰值。`ActionQueue` 返回明确的入队结果并保持 FIFO 顺序；连接生命周期、物理包长和诊断结果传递由适配器负责。
-
-- [English: API and usage](../docs/en/menu-sync.md) · [中文：API 与用法](../docs/zh-CN/menu-sync.md)
-- [English: build and profiling](../docs/en/build-and-test.md) · [中文：构建与性能测量](../docs/zh-CN/build-and-test.md)
+- [Menu synchronization guide](../docs/en/menu-sync.md) · [菜单同步指南](../docs/zh-CN/menu-sync.md)

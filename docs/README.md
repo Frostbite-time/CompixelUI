@@ -1,26 +1,20 @@
-# Documentation / 文档
+# Compose MC documentation · 文档
 
 [Project home](../README.md) · [项目首页](../README.zh-CN.md)
 
-Choose a guide below. Every guide has a complete English and Simplified Chinese edition, with a language link at the top. Examples target **0.1.0-alpha.35**; game-facing examples use NeoForge 1.21.1 unless stated otherwise.
-
-从下表选择指南。每篇均提供完整英文与简体中文版，页首可切换语言。示例基于 **0.1.0-alpha.35**；涉及游戏 API 时，除特别说明外均使用 NeoForge 1.21.1。
-
-| Topic / 主题 | English | 简体中文 |
+| Topic · 主题 | English | 简体中文 |
 | --- | --- | --- |
-| Install and open a screen / 安装与创建屏幕 | [Quick start](en/getting-started.md) | [快速开始](zh-CN/getting-started.md) |
-| Controls, themes and popups / 控件、主题与弹层 | [Ore UI](en/ore-ui.md) | [Ore UI](zh-CN/ore-ui.md) |
-| Items and native tooltips / 物品与原生提示 | [Native content](en/native-content.md) | [原生内容](zh-CN/native-content.md) |
-| Compose over the game view / 游戏画面上的 Compose | [HUD layers](en/hud.md) | [HUD 层](zh-CN/hud.md) |
-| Containers and slot policies / 容器与槽位策略 | [Inventory](en/inventory.md) | [容器与槽位](zh-CN/inventory.md) |
-| Server state and client requests / 服务端状态与客户端请求 | [Menu synchronization](en/menu-sync.md) | [菜单同步](zh-CN/menu-sync.md) |
-| Mod configuration editors / 模组配置编辑器 | [Configuration](en/configuration.md) | [配置界面](zh-CN/configuration.md) |
-| Versions and known limits / 版本与已知限制 | [Compatibility](en/compatibility.md) | [兼容性](zh-CN/compatibility.md) |
-| IDEA, artifacts and validation / IDEA、构建产物与验证 | [Build and test](en/build-and-test.md) | [构建与测试](zh-CN/build-and-test.md) |
-| Modules and adapter development / 模块与适配器开发 | [Architecture](en/architecture.md) | [架构与扩展](zh-CN/architecture.md) |
+| Add the library and open a first screen · 接入并打开第一个界面 | [Getting started](en/getting-started.md) | [快速开始](zh-CN/getting-started.md) |
+| Controls, popups and theme · 控件、弹出层与主题 | [Ore UI](en/ore-ui.md) | [Ore UI](zh-CN/ore-ui.md) |
+| Item icons and tooltips · 物品图标与提示 | [Items and tooltips](en/items.md) | [物品与提示](zh-CN/items.md) |
+| Menus with slots · 带槽位的菜单 | [Container screens](en/inventory.md) | [容器界面](zh-CN/inventory.md) |
+| Compose over the game view · 游戏画面上的界面 | [HUD layers](en/hud.md) | [HUD 层](zh-CN/hud.md) |
+| Server state and client requests · 服务端状态与客户端请求 | [Menu synchronization](en/menu-sync.md) | [菜单同步](zh-CN/menu-sync.md) |
+| Editing config files in game · 在游戏中编辑配置 | [Config screens](en/configuration.md) | [配置界面](zh-CN/configuration.md) |
+| Versions, Kotlin and graphics · 版本、Kotlin 与图形后端 | [Compatibility](en/compatibility.md) | [兼容性](zh-CN/compatibility.md) |
+| Building and testing · 构建与测试 | [Contributing](en/contributing.md) | [参与开发](zh-CN/contributing.md) |
+| How the code is organized · 代码结构 | [Architecture](en/architecture.md) | [架构](zh-CN/architecture.md) |
 
-Licenses / 许可：[MIT](../LICENSE) · [Third-party notices / 第三方声明](../THIRD-PARTY-NOTICES.md)
+New to Compose MC? Start with Getting started, then pick the guides you need. Each release also ships an API reference as its `javadoc` JAR.
 
-New consumers should begin with the quick start. For a server-backed inventory, continue with both the inventory and synchronization guides. Library contributors can start with build and test, then architecture.
-
-首次接入请先阅读快速开始。服务端驱动的容器界面需要同时阅读容器和同步指南。开发本库时，可从构建与测试、架构与扩展开始。
+第一次使用请从快速开始读起，再按需阅读其他指南。每个版本还附带 `javadoc` JAR 形式的 API 参考。

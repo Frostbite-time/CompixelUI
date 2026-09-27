@@ -1,94 +1,96 @@
-# Containers and slot policies
+# Container screens
 
-[简体中文](../zh-CN/inventory.md) · [Documentation](../README.md)
+[简体中文](../zh-CN/inventory.md) · [All guides](../README.md)
 
-Use `ComposeInventoryScreen` to arrange real menu slots with Compose. It retains the native container screen and its input/render hooks.
+`ComposeInventoryScreen` lays out a menu's real slots with Compose. Everything else stays native: clicking, dragging, double-click collecting, shift-clicking, the carried stack, slot tooltips, and the hooks that recipe viewers and other mods rely on.
 
-![Slot styling with native items](../assets/native-slots.png)
-
-*Slot presentation examples captured in the packaged 1.21.1 OpenGL preview. These demonstrate visual states; the example below connects a real menu.*
-
-## Choose the host
-
-| Host | Use |
-| --- | --- |
-| `ComposeScreen` | Client UI with no native menu lifecycle |
-| `ComposeMenuScreen<M>` | Server-backed menu with **no slots** |
-| `ComposeInventoryScreen<M>` | Menu with native slots and container gestures |
-| `SlotBehaviorScreen<M>` | Native-rendered container with shared slot policies |
-
-The no-slot menu host rejects menus containing slots. Register NeoForge menu screens with `RegisterMenuScreensEvent`; Forge 1.20.1 uses `MenuScreens.register` from client setup's `enqueueWork`.
+![A chest laid out with Compose, showing the tooltip of an enchanted book](../assets/storage-en.png)
 
 ## Lay out a menu
 
-Call this factory from a client menu-screen registration. It captures IDs and the title before composition. The sample is intended for a small fixed-size inventory; larger layouts should scroll or page their visible slots.
+This screen is for a menu with 27 storage slots followed by the player's inventory, like a chest:
 
 ```kotlin
-import androidx.compose.foundation.layout.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import dev.composemc.forge.ComposeInventoryScreen
-import dev.composemc.ui.ore.layout.OreScreen
-import net.minecraft.network.chat.Component
-import net.minecraft.world.inventory.AbstractContainerMenu
-
-fun <M : AbstractContainerMenu> inventoryScreen(menu: M, title: Component): ComposeInventoryScreen<M> {
-    val ids = menu.slots.indices.toList()
+fun storageScreen(menu: StorageMenu, inventory: Inventory, title: Component): ComposeInventoryScreen<StorageMenu> {
     val caption = title.string
-    return ComposeInventoryScreen(menu, title, content = { slots ->
-        OreScreen(caption, panelModifier = slots.areaModifier()) {
-            ids.chunked(9).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
-                    row.forEach { id -> slots.Slot(id, Modifier.size(18.dp)) }
-                }
-            }
+    return ComposeInventoryScreen(menu, title) { slots ->
+        OreScreen(caption, maxWidth = 176.dp, maxHeight = 190.dp, panelModifier = slots.areaModifier()) {
+            SlotGrid(slots, 0 until 27)
+            OreText("Inventory")
+            SlotGrid(slots, 27 until 54)
+            SlotGrid(slots, 54 until 63)
         }
-    })
+    }
+}
+
+@Composable
+fun SlotGrid(slots: ComposeMenuSlots<*>, ids: IntRange) {
+    Column {
+        for (row in ids.chunked(9)) Row { for (id in row) slots.Slot(id) }
+    }
 }
 ```
 
-Slot IDs are native menu/protocol IDs, not row numbers. Do not place the same slot ID twice simultaneously. `areaModifier()` reports the container area. `bounds(id)` and `areaBounds()` expose clipped GUI-unit rectangles for integrations; unplaced slots have no bounds. GUI units and framebuffer pixels are different coordinate spaces.
+Register it like any other menu screen, from your client mod constructor:
 
-## Preserve native behavior
-
-The host retains vanilla clicks, dragging, double-click collection, swaps, drops, carried-stack drawing and container hooks. `VanillaMenuSlotAdapter` snapshots ordinary items and executes through Minecraft's existing click/prediction path. Empty slots retain their native background icon hints.
-
-Use `inventoryTick()` to publish game-thread snapshots or drain a `UiBinding`. Keep that binding while a recipe viewer temporarily replaces the screen and the same menu remains active. Rendering resources may close during the visit; final menu closure/replacement is the point to dispose business bindings.
-
-Call `slots.Interaction(enabled = !overlayBlocksInventory)` from composition when an overlay should block native slot input. The host cancels partial captures on disabling, resize or focus loss. Text editing gets priority over container shortcuts; `hasTextInputFocus` is available on Compose screen hosts.
-
-If synchronized outbound action fragments are queued, supplied inventory hosts suspend native inventory gestures to preserve ordering with vanilla packets. A custom executor must honor `menuSync().isSendingAction()` too. See [menu synchronization](menu-sync.md).
-
-## Customize a slot
-
-`MenuSlotAdapter` provides `visual`, `behavior`, `canDragTo`, `execute`, `localAction` and `tooltip` hooks. These hooks own live-game access; composables receive snapshots. `MenuSlotVisual` carries the item handle, full/compact amount labels and marked style. Reuse an icon for quantity-only changes. Custom drawn resources need a custom tooltip hook.
-
-For example, this immutable policy turns right click into a local action:
-
-```java
-SlotBehavior context = SlotBehavior.standard()
-    .replaceClick(1, new SlotIntent.Local("example:context"));
+```kotlin
+modBus.addListener { event: RegisterMenuScreensEvent ->
+    event.register(ModMenus.STORAGE.get(), ::storageScreen)
+}
 ```
 
-Imports are `dev.composemc.slots.SlotBehavior` and `SlotIntent`. Return the policy from the adapter's `behavior` hook, or override `slotBehavior`/`localSlotAction` in `SlotBehaviorScreen`. Replacing right click also suppresses its drag phases. Other standard gestures remain available. Local actions do not send packets or grant permission to modify server inventory.
+- `slots.Slot(id)` places the menu slot with that index. Place each slot once; slots you leave out are hidden.
+- `slots.areaModifier()` marks the area other mods treat as the container, for example to place recipe viewer panels beside it.
+- Read the title and other game objects before composition, as `caption` does here.
 
-## Declare Shift-click routes
+On Forge 1.20.1, register the screen with `MenuScreens.register` inside `FMLClientSetupEvent.enqueueWork`.
 
-Build routes after allocating slots. This example describes storage IDs 0–8, player IDs 9–35 and hotbar IDs 36–44:
+## Choose a screen class
+
+| Class | For |
+| --- | --- |
+| `ComposeScreen` | Screens without a menu |
+| `ComposeMenuScreen` | Server menus without slots |
+| `ComposeInventoryScreen` | Menus with slots |
+| `SlotBehaviorScreen` | Container screens you draw natively, with Compose MC's slot rules |
+
+## Change what a click does
+
+Slot rules are immutable `SlotBehavior` values. This one turns right-click into your own action instead of splitting a stack:
 
 ```java
-SlotTransferRoutes routes = SlotTransferRoutes.builder(45)
-    .group("storage", 0, 9)
-    .group("player", 9, 36)
-    .group("hotbar", 36, 45, true)
-    .route("player", "storage")
+SlotBehavior inspect = SlotBehavior.standard()
+    .replaceClick(1, new SlotIntent.Local("example:inspect"));
+```
+
+Return it from your `MenuSlotAdapter`'s `behavior` hook, or override `slotBehavior` in a `SlotBehaviorScreen`, and handle the action in `localAction`. Other gestures stay as they are. A local action sends nothing to the server by itself.
+
+`MenuSlotAdapter` also decides what each slot shows (`visual`), where dragging may go (`canDragTo`) and how clicks run (`execute`). The default, `VanillaMenuSlotAdapter`, does what Minecraft does.
+
+## Shift-click routes
+
+Declare where shift-clicked items go, then let `quickMoveStack` use the routes:
+
+```java
+SlotTransferRoutes routes = SlotTransferRoutes.builder(63)
+    .group("storage", 0, 27)
+    .group("inventory", 27, 54)
+    .group("hotbar", 54, 63, true)
+    .route("storage", "hotbar", "inventory")
+    .route("inventory", "storage")
     .route("hotbar", "storage")
-    .route("storage", "hotbar", "player")
     .build();
+
+@Override
+public ItemStack quickMoveStack(Player player, int slot) {
+    return NativeSlotTransfers.quickMove(this, player, slot, routes);
+}
 ```
 
-Import `dev.composemc.slots.SlotTransferRoutes`. Ranges are disjoint and end-exclusive; `true` reverses destination traversal. Rebuild routes if slot allocation changes. In the menu's `quickMoveStack`, delegate ordinary item transfers to `dev.composemc.forge.slots.NativeSlotTransfers.quickMove(this, player, slotId, routes)`.
+Ranges exclude their end, and `true` fills that group from its last slot. Stacks merge into matching stacks before filling empty slots, and every slot's limits still apply. Result slots, such as crafting output, need their own handling.
 
-The executor merges matching stacks before filling empty slots, respects pickup/placement and stack limits, and calls native source hooks. It is not a rollback transaction manager. Crafting/merchant result slots are rejected by the generic executor. Ghost slots, virtual resources and special crafting outputs need consumer-owned execution; the same route declarations can still be reused.
+## Overlays and other screens
 
-The Java 17 `slot-core` module contains only policies and routes. Native gesture translation, packets and execution live in version adapters. [Architecture](architecture.md) documents the small target-specific access transformers used for slot and container geometry and rendering.
+- Call `slots.Interaction(enabled = false)` while a dialog or window should block slot clicks.
+- Override `inventoryTick()` to update a `UiBinding` each tick.
+- When a recipe viewer opens its own screen over yours, the menu stays open. Keep your bindings until the menu itself closes.

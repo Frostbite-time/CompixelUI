@@ -1,94 +1,65 @@
 # Compatibility
 
-[简体中文](../zh-CN/compatibility.md) · [Documentation](../README.md)
+[简体中文](../zh-CN/compatibility.md) · [All guides](../README.md)
 
-This page describes the **0.1.0-alpha.35** build baseline. Each adapter under [minecraft](../../minecraft) owns its build settings in `build.gradle` and `gradle.properties`; the [target index](../../gradle/minecraft-targets.properties) selects directories, and the [version catalog](../../gradle/libs.versions.toml) owns shared dependencies. Rebuild consumers when adopting an alpha release with API changes.
+This page describes Compose MC **0.1.0-alpha.35**.
 
-## Targets
+## Minecraft versions
 
-| Minecraft | Loader | Adapter Java | Runtime | Graphics |
-| --- | --- | --- | --- | --- |
-| 1.20.1 | Forge 47.4.23 | 17 | Skiko 0.150.1 | OpenGL |
-| 1.21.1 | NeoForge 21.1.250 | 21 | Skiko 0.150.1 | OpenGL |
-| 26.1.2 | NeoForge 26.1.2.109 | 25 | Skiko 0.150.1 | OpenGL |
-| 26.2 | NeoForge 26.2.0.88 | 25 | Polyfrost Skiko 0.999.6 | OpenGL / Vulkan |
-| 26.3 | NeoForge 26.3.0.6-beta | 25 | Polyfrost Skiko 0.999.6 | OpenGL / Vulkan |
+| Minecraft | Loader | Java | Graphics |
+| --- | --- | --- | --- |
+| 1.20.1 | Forge 47.4.23 | 17 | OpenGL |
+| 1.21.1 | NeoForge 21.1.250 | 21 | OpenGL |
+| 26.1.2 | NeoForge 26.1.2.109 | 25 | OpenGL |
+| 26.2 | NeoForge 26.2.0.88 | 25 | OpenGL, Vulkan |
+| 26.3 | NeoForge 26.3.0.6-beta | 25 | OpenGL, Vulkan |
 
-Shared modules target Java 17. Each adapter is compiled for its own Minecraft/loader APIs; one target's mod JAR cannot be installed on another target. Consumer Maven coordinates are `dev.composemc:composemc-<loader>-<minecraft>:<version>` and `…-with-kotlin`; Gradle resolves the runtime bundles they depend on.
+Each Minecraft version has its own build of Compose MC, so use the one that matches. The API has the same package and class names on every version, `dev.composemc.forge` included; only the Minecraft and loader types around it differ.
 
-Kotlin and the Compose compiler are 2.4.10; Compose is 1.12.0. Every target offers two installation variants with the same mod ID and API. Do not mix standard and Vulkan graphics profiles or embed Compose MC into a consumer.
+Compose MC is built with Kotlin 2.4.10 and Compose 1.12.0.
 
-## Kotlin runtime providers
+## Maven coordinates
 
-| Installation | Kotlin libraries | External provider |
-| --- | --- | --- |
-| Standard `composemc-…-0.1.0-alpha.35.jar` | Not included | Compatible stdlib, Coroutines Core and Serialization Core; KFF recommended |
-| `composemc-…-0.1.0-alpha.35-with-kotlin.jar` | Included | Do not combine with KFF or another Kotlin runtime |
-
-Install exactly one variant. Both include Compose, Skiko, atomicfu and the Swing dispatcher integration; neither embeds KFF. The standard JAR checks the client runtime instead of requiring the `kotlinforforge` mod ID. Stdlib must be at least 2.2.21 and Coroutines/Serialization must supply compatible APIs. Checking classes and representative methods cannot certify every third-party combination.
-
-Provider baselines: KFF 4.12.0 for Forge 1.20.1, KFF 5.12.0 for NeoForge 1.21.1, KFF 6.3.0 for 26.1.2/26.2. They supply Coroutines 1.10.2 or 1.11.0 with matched Serialization libraries. KFF 6.3.0 excludes 26.3: use `with-kotlin` or a compatible independent provider. Both variants are built for 26.3 without special packaging logic; recognizing a future provider does not itself require a new Compose MC release.
-
-Maven consumers see the same split. `composemc-<loader>-<minecraft>` is the library JAR, which depends on `composemc-runtime-standard` or `composemc-runtime-vulkan`. The `…-with-kotlin` coordinate adds `composemc-kotlin`, so compiling against it supplies the Kotlin API for either variant. The library's Java-only server menu/slot entry path does not require or initialize Kotlin/UI; consumers may impose additional requirements.
-
-## Upgrade an existing consumer
-
-Ore UI now uses responsibility-based subpackages. Replace root-package imports using the [component/package table](ore-ui.md#choose-a-component), then rebuild the consumer and install the matching library. This changes JVM names as well as source imports; an already compiled consumer needs recompilation.
-
-This release uses menu protocol **5**. Rebuild the consumer against the matching Maven artifact and upgrade the installed library on both sides together. Protocol 4 peers and the previous state-record framing are incompatible.
-
-| Integration point | Current API |
+| Coordinate | Contents |
 | --- | --- |
-| `MenuSync.bind` configuration | Pass `MenuSyncOptions`; use `.withState(SyncLimits)` and `.withActions(ActionLimits)` for overrides. |
-| `SyncLimits` transmission setting | Pass `TransferBudget(refill, capacity, peak)` as the second component. `TransferBudget.steady(n)` gives a fixed per-tick budget without accumulated bursts. |
-| `MenuSync.request` result | Handle `ActionSubmission.queued()`, `failure()`, `actual()` and `limit()`. Use `onActionResult` for final execution results. |
-| Action size constants | `MenuAction.DEFAULT_MAX_BYTES` names the 8 KiB default. Declare the desired `maximumBytes` explicitly; there is no `MAX_FRAGMENTED_BYTES` constant. |
-| Custom core transport | Supply the transport cap to `SyncBatch.read(input, maximumBatchBytes)`. State field indexes use 32-bit framing. |
-| Ore glyphs | `OreGlyph` entries are named by shape: `Close` → `Cross`, `Check` → `Checkmark`, `Search` → `MagnifyingGlass`, `Edit` → `Pencil`, `Back` → `ArrowLeft`, `Settings` → `Sliders`. `Network` left the library; define domain icons as `OrePixelArt`. |
-| Custom hosts | `UiKey` covers the standard keyboard. A host that maps its own native keys translates every entry and resolves letters and punctuation through the active layout. A host that shares its window with native widgets can drive its text input and input method with `HostTextInput`. |
-| Config screen | Construct it with the mod container and parent screen only; `ConfigScreenInspection` and the `inspection` parameter were removed. Drive automated checks through the screen's `editor`. |
-| Adapter package | Every target uses `dev.composemc.forge`. Replace `dev.composemc.neoforge` imports and drop the `Forge`/`NeoForge` prefix: `ComposeScreen`, `ComposeInventoryScreen`, `ComposeMenuScreen`, `ComposeConfigScreen`, `config.ConfigEditor`, `slots.SlotBehaviorScreen`. |
-| Package layout | `dev.composemc.sync` keeps `MenuSyncOptions` and its exceptions; schemas, snapshots and codecs moved to `.state`, actions to `.action`, fragments and transfer budgets to `.transport`. Adapter APIs moved by feature: `ComposeConfigScreen` to `.config`, `ComposeMenuSlots` and its slot types to `.slots`, item icons and tooltips with their options and statistics to `.item`. |
-| Native sync codecs | `MinecraftSyncCodecs.registry(id, maxBytes, streamCodec)` no longer takes a registry supplier or binds to the creating thread; declare it as a shared constant like the built-in codecs. It works only inside synchronized menu values and actions. Forge 1.20.1's `buffer` no longer binds to a thread either. |
-| Maven coordinates | The `dev` and `with-kotlin` classifiers were removed. With the bundled Kotlin, use `composemc-<loader>-<minecraft>-with-kotlin` for `compileOnly` and `localRuntime`; a mod that depends on KFF uses the plain coordinate for both. The [quick start](getting-started.md#2-add-consumer-dependencies) covers a development launch that only adds KFF. Gradle adds the runtime bundles. Forge 1.20.1 publishes SRG names; remap it like other Forge mod dependencies. Player JARs are in each adapter's `build/release`. |
+| `dev.composemc:composemc-<loader>-<minecraft>` | The library; Gradle adds the Compose runtime it needs |
+| `dev.composemc:composemc-<loader>-<minecraft>-with-kotlin` | The same, plus the Kotlin libraries |
 
-State/action policies and action declarations must match on both sides. The client confirms its menu attachment and policy before state bodies are sent, adding one opening confirmation round trip. See [menu synchronization](menu-sync.md) for all defaults, refusal handling and burst behavior.
+The loader is `forge` for 1.20.1 and `neoforge` for the others. The 1.20.1 artifact uses SRG names; add it through your toolchain's remapping configuration, as with other Forge mods. Each version also publishes `sources`, `javadoc` and `development` (the F8 preview) classifiers.
 
-## Rendering
+## Kotlin
 
-Default rendering follows Minecraft's selected backend on 26.2/26.3. Earlier targets use OpenGL. Native GPU paths avoid full-frame pixel readback, PNG conversion and CPU upload. OpenGL supports the 3.2 context used by vanilla 1.20.1; optional queries and state handling follow host capabilities.
+Every release has two player files per Minecraft version:
 
-The `composemc.backend` property accepts `auto` (the default), `opengl` and `cpu` on every target, plus `vulkan` on 26.2/26.3; other targets reject `vulkan` with an explicit error. `-Dcomposemc.backend=cpu` selects a diagnostic reference renderer. It is useful for investigating pixels, not representative of normal GPU performance. Backend selection during development launches is covered in [build and test](build-and-test.md).
+| File | Kotlin |
+| --- | --- |
+| `…-with-kotlin.jar` | Included. Don't combine with Kotlin for Forge. |
+| `….jar` | Needs a Kotlin provider, such as Kotlin for Forge |
 
-Each normal JAR includes Skiko natives for Windows, Linux and macOS on x64 and arm64. Bundling a native library does not establish runtime support for every OS/GPU/driver combination. Actual game GPU validation has covered Windows x64 on NVIDIA hardware. Hosted Windows/Linux CI covers core/desktop checks and adapter builds, not real GPU clients. macOS, other GPU vendors, shader-mod combinations, device-loss recovery and long-duration stress require separate validation.
+Tested Kotlin for Forge versions: 4.12.0 on 1.20.1, 5.12.0 on 1.21.1, and 6.3.0 on 26.1.2 and 26.2. Kotlin for Forge 6.3.0 doesn't support 26.3, so use the `-with-kotlin` file there. Any provider needs Kotlin 2.2.21 or newer with matching Coroutines and Serialization libraries. The game reports a clear error at startup if they're missing.
 
-## Loader and API differences
+## Graphics
 
-Every target publishes its adapter API in `dev.composemc.forge` under the same type names, so code shared between Forge and NeoForge targets uses one set of imports; only Maven coordinates name the loader. These still differ:
+Compose MC draws with the same graphics API as the game: OpenGL, or Vulkan when Minecraft 26.2 or 26.3 runs on Vulkan. Set `-Dcomposemc.backend` to `opengl`, `vulkan` or `cpu` to override it; `cpu` is a slow reference renderer for troubleshooting.
 
-| Area | Forge 1.20.1 | NeoForge targets |
+Each file contains the native libraries for Windows, Linux and macOS on x64 and arm64. Testing on real hardware has so far covered Windows x64 with NVIDIA graphics. Other systems, graphics drivers and shader mods are expected to work but have not been verified.
+
+## Loader differences
+
+| | Forge 1.20.1 | NeoForge |
 | --- | --- | --- |
-| Dependency metadata | `mods.toml`, `mandatory=true` | `neoforge.mods.toml`, `type="required"` |
-| Menu screen registration | Client setup `enqueueWork`, `MenuScreens.register` | `RegisterMenuScreensEvent` |
-| HUD layer registration | `RegisterGuiOverlaysEvent`; `ComposeHudLayer` is an `IGuiOverlay` | `RegisterGuiLayersEvent`; a `LayeredDraw.Layer` on 1.21.1, a `GuiLayer` on 26.x |
-| Sync transport | `SimpleChannel` | Payload registration |
-| Native codec bridge | `FriendlyByteBuf` / `PacketCodec` | Registry-aware `StreamCodec` bridge |
-| Config spec | `ForgeConfigSpec`, legacy list/restart metadata | `ModConfigSpec`, target-specific modern metadata |
+| Metadata | `mods.toml`, `mandatory = true` | `neoforge.mods.toml`, `type = "required"` |
+| Menu screens | `MenuScreens.register` in `enqueueWork` | `RegisterMenuScreensEvent` |
+| HUD layers | `RegisterGuiOverlaysEvent` | `RegisterGuiLayersEvent` |
+| Config screens | `ConfigScreenHandler.ConfigScreenFactory` | `IConfigScreenFactory` |
+| Minecraft values in menu sync | `MinecraftSyncCodecs.buffer` | `MinecraftSyncCodecs.registry` |
 
-Shared Ore, snapshot, sync and slot-policy code has one source. Source compatibility of game-facing signatures still depends on Minecraft: tooltip extraction, input events and graphics APIs change across versions. Use the matching target's Maven artifact instead of compiling against one target and assuming cross-version binary compatibility.
+## Keyboard and text input
 
-## Vulkan stencil-pipeline cleanup
+- Letter and punctuation keys follow the player's keyboard layout. Text fields support selection and the clipboard.
+- On 26.x, a focused text field opens Minecraft's text input like a vanilla edit box, and input method text is composed inside the field.
+- On 1.20.1 and 1.21.1, the operating system's input method window shows text being composed.
 
-The pinned NeoForge 26.2.0.88 Vulkan code creates an additional stencil pipeline and omits its destruction. Validation can report `VUID-vkDestroyDevice-device-05137` when the device shuts down; it also reproduces without a Compose renderer. The omitted release can retain resources before shutdown, so it should not be treated as only a harmless log message.
+## Other mods
 
-The reviewed 26.3 stencil path creates the extra pipeline conditionally but still omits its release. A tested scene reporting zero validation errors does not prove that every stencil-enabled path is unaffected. These statements describe the pinned/reviewed code, not an assertion about the latest upstream release.
-
-Source references: [26.2 patch](https://github.com/NeoForged/NeoForge/blob/1ad7d233fc1ff8c3cb5c8b159f1701aabf4b7b96/patches/com/mojang/blaze3d/vulkan/VulkanRenderPipeline.java.patch) and [26.3 patch](https://github.com/NeoForged/NeoForge/blob/a323cff632de78d54fe82e48ee5e3fa1a82bf4e3/patches/com/mojang/renderpearl/backend/vulkan/VulkanRenderPipeline.java.patch). [Issue #3389](https://github.com/NeoForged/NeoForge/issues/3389) is a broader validation report, not a confirmed dedicated report for this omission.
-
-Compose MC contains no project Mixin workaround. Prefer an upstream fix and revalidate a loader upgrade. The 26.2 validation task records its configured known diagnostic separately; that exception is not evidence that the defect is fixed.
-
-## Input and integrations
-
-Key events cover the standard keyboard: letters, digits, F1–F12, editing and navigation keys, punctuation, the numeric keypad and modifiers. Letters and punctuation follow the active keyboard layout, as desktop applications do, and keep their US position where the layout types no Latin character there; digits and every other key keep their US position. The adapters support committed text, selection and clipboard editing. On 26.x a focused Compose text field opens Minecraft's text input, as a vanilla edit box does: 26.3 delivers typed text only while it is open, and 26.1.2/26.2 keep the input method available through it. There, input method composition shows inside the field and the candidate window follows the caret; a click or loss of focus discards an unconfirmed composition. 1.20.1 and 1.21.1 report no composition, so the system's input method window shows it. Validate the input methods your players use. [HUD layers](hud.md) receive no input and never open Minecraft's text input. Platform font fallback also varies; see [Ore typography](ore-ui.md).
-
-Inventory hosts preserve native container hooks and geometry, but third-party compatibility is not universal. On every target, screen pre-render and background hooks draw beneath the Compose layer; foreground and post-render hooks draw above it. Container background hooks see the current frame's geometry, and initialization hooks already see the laid-out Compose area. Hosts draw no vanilla backdrop, so they do not fire the deprecated `ScreenEvent.BackgroundRendered` on 1.20.1/1.21.1; container background events and the 26.x `ScreenEvent.Render.Background` still fire. In every host, widgets added through screen initialization events draw above the Compose layer and receive input before it. Keys, text and 26.x input method composition that neither a widget nor Compose consumes stay unhandled, so their Post events fire. Test recipe-viewer, shader and input integrations in your own target/modpack. GPU timings from bounded UI fixtures do not describe whole-game FPS or establish long-term leak freedom.
+Container screens keep the native container screen and its events, so recipe viewers and other container add-ons keep working. Widgets that other mods add to a screen draw above the Compose content and receive input first. Test the combinations your modpack relies on; shaders and heavily modified GUIs have not been tested widely.
