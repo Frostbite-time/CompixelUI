@@ -77,14 +77,33 @@ Every JAR has the ordinary `sources` and `javadoc` attachments. For a runtime bu
 
 ## Publish a release
 
-Releases go to the Wintercogs Maven, `https://maven.wintercogs.com/releases`, through the **Publish to the Wintercogs Maven** GitHub workflow. Start it by hand from the Actions tab. Its publishing jobs use the `maven-publish` environment. Add yourself there as a required reviewer and store the environment secrets `REPOSILITE_TOKEN_NAME` and `REPOSILITE_TOKEN_SECRET`: a Reposilite access token with write access to `/releases`. A job cannot read those secrets until a reviewer approves it. On the GitHub Free, Pro and Team plans, required reviewers work only in public repositories, and environment secrets in a private repository need Pro or above.
+The two manual Actions workflows publish different distributions: [maven-publish](../../.github/workflows/maven-publish.yml) publishes developer dependencies to `https://maven.wintercogs.com/releases`; [mod-publish](../../.github/workflows/mod-publish.yml) publishes player installation JARs to CurseForge and GitHub Releases. Neither workflow changes repository visibility.
+
+Before dispatching either workflow, validate the selected commit locally with `checkCore buildAllMods`, the affected hidden client suites and the real consumer. GPU acceptance and full performance validation remain local responsibilities; hosted runners perform the existing per-target build checks. Keep the results associated with that commit.
+
+### Maven dependencies
+
+The `maven-publish` jobs use the environment of the same name. Configure its reviewers and permitted branches/tags, then add `REPOSILITE_TOKEN_NAME` and `REPOSILITE_TOKEN_SECRET`: a Reposilite access token with write access to `/releases`. Merely referencing the environment in YAML does not configure its protection rules. GitHub plan restrictions apply to environments and reviewers in private repositories.
 
 1. Raise `mod_version` in `gradle.properties` and push.
-2. A first job checks the repository without secrets. It fails if an adapter version is already published, so a release that cannot succeed never asks for approval, and it lists the runtime bundle versions the repository lacks.
-3. If a bundle version is new, the bundle job waits for approval, verifies the bundle and publishes it. A published bundle version is never replaced.
+2. Start `maven-publish` on that commit. A first job checks the repository without secrets. It refuses an adapter version whose POM already exists and lists missing runtime bundle versions. Runtime checks require the main JAR, POM, sources, javadoc and all four valid SHA-256 sidecars; a POM alone is insufficient.
+3. If a bundle version is new, the bundle job waits for approval. It rechecks each bundle on every attempt, builds its checks and attachments, rechecks immediately before uploading, and verifies completeness afterwards. Complete bundles are skipped, including bundles uploaded by an earlier attempt of the same failed job. Published versions are never replaced automatically.
 4. The five Minecraft target jobs then wait for approval together, and one review releases them all. Each builds and verifies its adapter before publishing the library and its `-with-kotlin` POM.
 
-A target job that fails after uploading part of its version leaves that version incomplete. Delete it in Reposilite, then rerun the failed job, which checks the version again. Uploads pass through Cloudflare, whose per-request limit (100 MB on the smaller plans) caps a bundle's size; the largest is about 75 MB. The repository name `wintercogs` gives Gradle the credential properties `wintercogsUsername` and `wintercogsPassword`; the workflow sets them from the secrets.
+A partial runtime publication fails with the missing filenames, even when its POM exists or only a JAR/checksum was uploaded. Inspect it in Reposilite and remove only that incomplete version before rerunning the failed job; leave complete runtime versions in place. The check verifies file presence and checksum syntax, not a fresh download/hash comparison of previously published payloads. An adapter job interrupted after part of its publication still requires manual cleanup of that adapter's incomplete library/with-kotlin version before retrying. Rerun failed jobs rather than restarting the entire workflow after some adapters have succeeded: the initial adapter preflight intentionally refuses published versions.
+
+Uploads pass through Cloudflare, whose per-request limit (100 MB on the smaller plans) caps a bundle's size; the largest is about 75 MB. The repository name `wintercogs` gives Gradle the credential properties `wintercogsUsername` and `wintercogsPassword`; the workflow sets them from the secrets.
+
+### Player installation files
+
+Configure a `mod-publish` environment with the desired reviewers/ref restrictions and the environment secret `CURSEFORGE_TOKEN`. Set the **repository variable** `CURSEFORGE_ID` to the numeric project ID. GitHub publishing uses the job's `GITHUB_TOKEN` with `contents: write`; no personal GitHub token is needed.
+
+1. Dispatch `mod-publish` on the locally verified commit and enter release notes. The version comes from `mod_version`; the release tag is `v<mod_version>`. An existing lightweight or annotated tag must point to the selected commit. Alpha/beta versions become GitHub prereleases and the corresponding CurseForge release type.
+2. The target registry supplies the build matrix. Each target builds once and stages exactly its two `build/release` player JARs plus SHA-256 checksums. All builds finish before either publishing destination starts. Published files are downloaded from those build artifacts and their checksums are checked again.
+3. `Kir-Antipov/mc-publish` uploads both variants as **independent CurseForge files**, each with the exact Minecraft target, loader and Java version. The standard file requires the provider named by that adapter's `curseforge_kotlin_provider`. The `with-kotlin` file adds no external Kotlin dependency. For 26.3 the provider is explicitly empty because the verified KFF 6.3.0 excludes it; its standard file instead explains the independent-provider requirement. Review this property when adding targets or changing the verified provider baseline.
+4. A single GitHub publishing job creates/updates the release with all ten installation JARs, `SHA256SUMS` and the release notes. Only one variant may be installed at a time. Maven library/development/source/documentation JARs are excluded.
+
+CurseForge and GitHub publish in separate jobs, so a failed destination does not require rerunning a successful one. Each CurseForge job uploads one file and disables automatic upload retries: if a response was lost, inspect the project's files before retrying to avoid duplicates. Use **rerun failed jobs**, which retains the build artifacts; do not blindly rerun all ten CurseForge uploads. The upstream action replaces same-named GitHub assets on a retry; the tag check prevents using a different commit for the same release tag. CurseForge approval and support for a new Minecraft/Java version depend on the service and are not established by local checks.
 
 ## Desktop previews and documentation images
 

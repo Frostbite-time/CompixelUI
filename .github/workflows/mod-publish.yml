@@ -1,0 +1,179 @@
+name: mod-publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      changelog:
+        description: Release notes (Markdown) for this mod_version
+        required: true
+        type: string
+
+concurrency:
+  group: mod-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+      type: ${{ steps.release.outputs.type }}
+      builds: ${{ steps.release.outputs.builds }}
+      uploads: ${{ steps.release.outputs.uploads }}
+      game_versions: ${{ steps.release.outputs.game_versions }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read the target registry and check the release tag
+        id: release
+        env:
+          CURSEFORGE_ID: ${{ vars.CURSEFORGE_ID }}
+        run: node tools/mod_release.mjs prepare
+
+  build:
+    name: Build ${{ matrix.adapter }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.builds) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        id: java17
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-java@v4
+        id: java21
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-java@v4
+        id: java25
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build and verify the adapter
+        env:
+          COMPOSEMC_JDK17: ${{ steps.java17.outputs.path }}
+          COMPOSEMC_JDK21: ${{ steps.java21.outputs.path }}
+          COMPOSEMC_JDK25: ${{ steps.java25.outputs.path }}
+          MC_TARGET: ${{ matrix.target }}
+          ADAPTER: ${{ matrix.adapter }}
+        run: bash gradlew "-PcomposemcTargets=$MC_TARGET" ":minecraft:$ADAPTER:build" --console=plain
+      - name: Stage both player JARs and checksums
+        shell: bash
+        env:
+          ADAPTER: ${{ matrix.adapter }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          mkdir -p dist
+          stem="composemc-$ADAPTER-$VERSION"
+          cp "minecraft/$ADAPTER/build/release/$stem.jar" "dist/$stem.jar"
+          cp "minecraft/$ADAPTER/build/release/$stem-with-kotlin.jar" "dist/$stem-with-kotlin.jar"
+          node tools/mod_release.mjs checksums "$ADAPTER"
+          node tools/mod_release.mjs verify "$ADAPTER"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mod-${{ matrix.adapter }}
+          path: dist/*
+          if-no-files-found: error
+          compression-level: 0
+
+  curseforge:
+    name: CurseForge ${{ matrix.adapter }} / ${{ matrix.variant }}
+    needs: [prepare, build]
+    environment: mod-publish
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix: ${{ fromJSON(needs.prepare.outputs.uploads) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: mod-${{ matrix.adapter }}
+          path: dist
+      - name: Check the download and publishing credentials
+        env:
+          ADAPTER: ${{ matrix.adapter }}
+          CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
+        run: |
+          test -n "$CURSEFORGE_TOKEN" || { echo '::error::Set CURSEFORGE_TOKEN in the mod-publish environment'; exit 1; }
+          node tools/mod_release.mjs verify "$ADAPTER"
+      - name: Publish one independent CurseForge file
+        uses: Kir-Antipov/mc-publish@52307b03863581dec6b652b83e597aec02ebb075 # v3.3.1
+        with:
+          curseforge-id: ${{ vars.CURSEFORGE_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          files: dist/${{ matrix.file }}
+          name: Compose MC ${{ needs.prepare.outputs.version }} / ${{ matrix.adapter }} / ${{ matrix.variant }}
+          version: ${{ needs.prepare.outputs.version }}
+          version-type: ${{ needs.prepare.outputs.type }}
+          changelog: |
+            ${{ inputs.changelog }}
+
+            **Installation:** ${{ matrix.installation }}
+            [Runtime compatibility](https://github.com/${{ github.repository }}/blob/${{ github.sha }}/docs/en/compatibility.md)
+          loaders: ${{ matrix.loader }}
+          game-versions: ${{ matrix.target }}
+          game-version-filter: none
+          java: ${{ matrix.java }}
+          environment: client | server
+          dependencies: ${{ matrix.dependencies }}
+          # A lost upload response can mean the file exists. Inspect CF before retrying that job.
+          retry-attempts: 1
+          fail-mode: fail
+
+  github:
+    name: GitHub Release
+    needs: [prepare, build]
+    environment: mod-publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: mod-*
+          merge-multiple: true
+          path: dist
+      - name: Verify all ten player JARs and the release tag
+        run: |
+          node tools/mod_release.mjs verify all
+          node tools/mod_release.mjs tag
+      - name: Publish the player installation archives
+        uses: Kir-Antipov/mc-publish@52307b03863581dec6b652b83e597aec02ebb075 # v3.3.1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-tag: ${{ needs.prepare.outputs.tag }}
+          github-commitish: ${{ github.sha }}
+          files: |
+            dist/*.jar
+            dist/SHA256SUMS
+          name: Compose MC ${{ needs.prepare.outputs.version }}
+          version: ${{ needs.prepare.outputs.version }}
+          version-type: ${{ needs.prepare.outputs.type }}
+          changelog: |
+            ${{ inputs.changelog }}
+
+            Choose the file matching your Minecraft version and loader. Install **one** variant only:
+            - Standard: requires a compatible external Kotlin provider.
+            - `with-kotlin`: includes Kotlin; do not combine it with KFF or another Kotlin runtime.
+
+            [Runtime compatibility](https://github.com/${{ github.repository }}/blob/${{ github.sha }}/docs/en/compatibility.md)
+            SHA-256 checksums are provided in `SHA256SUMS`.
+          loaders: |
+            forge
+            neoforge
+          game-versions: ${{ needs.prepare.outputs.game_versions }}
+          game-version-filter: none
+          environment: client | server
+          fail-mode: fail

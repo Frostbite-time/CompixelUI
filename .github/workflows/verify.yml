@@ -36,6 +36,11 @@ jobs:
           distribution: temurin
           java-version: '25'
       - uses: gradle/actions/setup-gradle@v4
+      - name: Check release tooling and documentation
+        if: matrix.target == 'core' && matrix.os == 'ubuntu-latest'
+        run: |
+          node --test tools/check_runtime_publication.test.mjs tools/mod_release.test.mjs
+          node tools/check_docs.mjs
       - name: Verify core without Minecraft projects
         if: matrix.target == 'core'
         env:

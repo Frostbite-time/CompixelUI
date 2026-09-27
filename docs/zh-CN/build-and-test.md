@@ -81,14 +81,33 @@ Maven 库 JAR 含有相同的 Compose MC 类，并把对应的运行时包声明
 
 ## 发布正式版本
 
-正式版本通过 GitHub 工作流 **Publish to the Wintercogs Maven** 发布到 Wintercogs Maven（`https://maven.wintercogs.com/releases`），需在 Actions 页面手动启动。负责发布的任务使用 `maven-publish` 环境：请在该环境中把自己设为必需审批人，并添加环境 secret `REPOSILITE_TOKEN_NAME` 和 `REPOSILITE_TOKEN_SECRET`，即一个对 `/releases` 有写权限的 Reposilite 访问令牌。任务在审批通过前读取不到这些 secret。在 GitHub Free、Pro 和 Team 套餐下，必需审批人只对公开仓库生效；私有仓库使用环境 secret 需要 Pro 及以上套餐。
+两个手动 Actions 工作流分别交付不同产物：[maven-publish](../../.github/workflows/maven-publish.yml) 将开发依赖发布到 `https://maven.wintercogs.com/releases`；[mod-publish](../../.github/workflows/mod-publish.yml) 将玩家安装包发布到 CurseForge 和 GitHub Releases。两个工作流都不会改变仓库可见性。
+
+启动任一工作流前，在本机对所选提交完成 `checkCore buildAllMods`、受影响的隐藏客户端套件和真实消费者验证。GPU 验收与完整性能验证继续由本机承担；GitHub 运行机保留现行的分目标构建检查。验证结果应与该提交对应。
+
+### Maven 开发依赖
+
+`maven-publish` 任务使用同名环境。配置审批人、允许发布的分支/tag，再添加 `REPOSILITE_TOKEN_NAME` 和 `REPOSILITE_TOKEN_SECRET`，即对 `/releases` 有写权限的 Reposilite 访问令牌。仅在 YAML 中引用环境不会配置保护规则；私有仓库的环境与审批功能受 GitHub 套餐限制。
 
 1. 提高 `gradle.properties` 中的 `mod_version` 并推送。
-2. 第一个任务不使用 secret，只检查仓库：任何适配器版本已经发布过就直接失败，这样注定无法完成的发布不会请求审批；同时找出仓库中还没有的运行时包版本。
-3. 如果有新的运行时包版本，运行时包任务先等待审批，然后校验并发布。已发布的运行时包版本绝不覆盖。
+2. 对该提交启动 `maven-publish`。第一个任务不使用 secret，只检查仓库：适配器版本的 POM 已存在就直接失败，同时找出缺少的运行时版本。运行时检查要求主 JAR、POM、sources、javadoc 以及四份格式有效的 SHA-256 校验文件齐全，不再仅凭 POM 判断完成。
+3. 如果有新的运行时版本，运行时任务先等待审批。每次执行都重新查询各包，构建检查和附件，在上传前再次查询，并在上传后确认文件齐全。已完整发布的运行时直接跳过，包括同一个失败任务前次已经上传成功的包。不会自动覆盖已发布版本。
 4. 随后 5 个 Minecraft 目标的任务一起等待审批，批准一次即可全部放行。每个任务先构建并校验自己的适配器，再发布库和 `-with-kotlin` POM。
 
-某个目标的任务如果在上传了部分文件后失败，该版本就不完整。请先在 Reposilite 中删除它，再重新运行失败的任务，重跑时会再次检查版本。上传经过 Cloudflare，其单个请求的上限（较低档套餐为 100 MB）限制了运行时包的大小；目前最大的包约 75 MB。仓库名 `wintercogs` 对应 Gradle 的凭据属性 `wintercogsUsername` 和 `wintercogsPassword`，工作流从上述 secret 设置它们。
+运行时只上传了部分文件时，检查会失败并列出缺失文件，包括 POM 已存在、只上传了 JAR 或遗留校验文件的情况。请在 Reposilite 检查并仅删除这个不完整版本，再重跑失败任务；保留已完整发布的运行时。检查核对文件存在性和校验文件格式，不会重新下载已发布内容进行哈希比对。适配器任务在部分上传后中断，仍需要先人工清理该适配器不完整的 library/with-kotlin 版本再重试。已有部分适配器成功时，应选择“重跑失败任务”，而非重新启动整个工作流，因为最初的适配器预检会主动拒绝已发布版本。
+
+上传经过 Cloudflare，其单个请求的上限（较低档套餐为 100 MB）限制了运行时包的大小；目前最大的包约 75 MB。仓库名 `wintercogs` 对应 Gradle 的凭据属性 `wintercogsUsername` 和 `wintercogsPassword`，工作流从上述 secret 设置它们。
+
+### 玩家安装包
+
+配置 `mod-publish` 环境及所需审批/分支限制，在其中添加 secret `CURSEFORGE_TOKEN`。将 **仓库变量** `CURSEFORGE_ID` 设为项目的数字 ID。GitHub 发布使用具有 `contents: write` 权限的任务 `GITHUB_TOKEN`，无需个人 GitHub 令牌。
+
+1. 对本机已验证的提交手动启动 `mod-publish`，填写更新说明。版本来自 `mod_version`，Release tag 为 `v<mod_version>`；已存在的轻量或附注 tag 必须指向所选提交。Alpha/beta 版本分别设置对应的 CurseForge 类型，并标记为 GitHub 预发布。
+2. 从目标索引生成构建矩阵。每个目标只构建一次，收集 `build/release` 中的两个玩家安装包及 SHA-256 校验文件。所有构建成功后才启动两个平台的发布任务；发布时下载本轮构建产物并再次校验哈希。
+3. 使用 `Kir-Antipov/mc-publish` 将两种变体作为 **独立 CurseForge 文件** 上传，分别标注准确的 Minecraft 版本、加载器和 Java 版本。标准版要求安装适配器 `curseforge_kotlin_provider` 指定的提供者，`with-kotlin` 不添加外部 Kotlin 依赖。26.3 的提供者显式留空，因为已验证的 KFF 6.3.0 排除了该版本；标准文件的说明会注明需要兼容的独立提供者。新增目标或更新已验证提供者时，应一并检查这个属性。
+4. 单个 GitHub 发布任务创建/更新 Release，交付十个安装包、`SHA256SUMS` 和更新说明。玩家只能选装一种变体；不会混入 Maven 库、开发、源码或文档 JAR。
+
+CurseForge 与 GitHub 使用独立任务，因此单个平台失败不必重跑已成功的平台。每个 CurseForge 任务只上传一个文件，并关闭自动上传重试；若上传响应丢失，应先检查项目文件列表再重试，避免重复文件。使用“重跑失败任务”复用已构建产物，不要盲目重跑十个 CurseForge 上传。上游 action 在重试时会替换 GitHub 中同名附件；tag 检查阻止用不同提交发布相同 tag。CurseForge 的审核以及对新 Minecraft/Java 版本的支持仍由平台决定，本机检查不代表平台已接受上传。
 
 ## 桌面预览与文档图片
 

@@ -1,11 +1,11 @@
-name: Publish to the Wintercogs Maven
+name: maven-publish
 # Started by hand. Jobs that publish use the maven-publish environment, whose required reviewers approve
 # them and whose secrets REPOSILITE_TOKEN_NAME and REPOSILITE_TOKEN_SECRET hold a Reposilite access token
 # with write access to /releases. New runtime bundle versions are approved first, then all adapters at once.
 on: workflow_dispatch
 
 concurrency:
-  group: publish
+  group: maven-publish
   cancel-in-progress: false
 
 permissions:
@@ -42,21 +42,7 @@ jobs:
           done
       - name: Find the runtime bundle versions the repository lacks
         id: bundles
-        run: |
-          # A published bundle version never changes; bundle.lock ties each version to its dependencies.
-          missing=""
-          for bundle in standard vulkan kotlin; do
-            version=$(sed -n "s/^runtime_${bundle}_version=//p" gradle.properties | tr -d '\r')
-            artifact="composemc-runtime-$bundle"
-            if [ "$bundle" = kotlin ]; then artifact=composemc-kotlin; fi
-            status=$(curl -s -o /dev/null -w '%{http_code}' "$MAVEN_RELEASES/dev/composemc/$artifact/$version/$artifact-$version.pom")
-            case "$status" in
-              200) echo "$artifact $version is already published" ;;
-              404) missing="$missing $bundle" ;;
-              *) echo "::error::Checking $artifact $version returned HTTP $status"; exit 1 ;;
-            esac
-          done
-          echo "bundles=$missing" >> "$GITHUB_OUTPUT"
+        run: node tools/check_runtime_publication.mjs
 
   runtimes:
     name: Runtime bundles
@@ -75,24 +61,24 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-      - name: Verify the missing bundles
-        env:
-          COMPOSEMC_JDK17: ${{ steps.java17.outputs.path }}
-        run: |
-          tasks=()
-          for bundle in ${{ needs.preflight.outputs.bundles }}; do tasks+=(":runtime-$bundle:check"); done
-          bash gradlew -PcomposemcTargets=none --console=plain "${tasks[@]}"
-      - name: Publish the missing bundles
+      - name: Verify and publish bundles still missing
         env:
           COMPOSEMC_JDK17: ${{ steps.java17.outputs.path }}
           ORG_GRADLE_PROJECT_wintercogsUsername: ${{ secrets.REPOSILITE_TOKEN_NAME }}
           ORG_GRADLE_PROJECT_wintercogsPassword: ${{ secrets.REPOSILITE_TOKEN_SECRET }}
         run: |
-          tasks=()
           for bundle in ${{ needs.preflight.outputs.bundles }}; do
-            tasks+=(":runtime-$bundle:publishRuntimePublicationToWintercogsRepository")
+            # A failed-job retry reuses preflight outputs. Query the repository again for every bundle.
+            missing=$(node tools/check_runtime_publication.mjs "$bundle")
+            if [ -z "$missing" ]; then continue; fi
+            bash gradlew -PcomposemcTargets=none --console=plain ":runtime-$bundle:check" \
+              ":runtime-$bundle:sourcesJar" ":runtime-$bundle:javadocJar"
+            missing=$(node tools/check_runtime_publication.mjs "$bundle")
+            if [ -n "$missing" ]; then
+              bash gradlew -PcomposemcTargets=none --console=plain ":runtime-$bundle:publishRuntimePublicationToWintercogsRepository"
+            fi
+            node tools/check_runtime_publication.mjs "$bundle" --require-complete
           done
-          bash gradlew -PcomposemcTargets=none --console=plain "${tasks[@]}"
 
   adapters:
     name: Minecraft ${{ matrix.target }}
