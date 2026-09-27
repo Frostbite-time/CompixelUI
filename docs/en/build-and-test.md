@@ -77,13 +77,14 @@ Every JAR has the ordinary `sources` and `javadoc` attachments. For a runtime bu
 
 ## Publish a release
 
-Releases go to the Wintercogs Maven, `https://maven.wintercogs.com/releases`, through the **Publish to the Wintercogs Maven** GitHub workflow. Start it by hand from the Actions tab. It needs two repository secrets, `REPOSILITE_TOKEN_NAME` and `REPOSILITE_TOKEN_SECRET`: a Reposilite access token with write access to `/releases`.
+Releases go to the Wintercogs Maven, `https://maven.wintercogs.com/releases`, through the **Publish to the Wintercogs Maven** GitHub workflow. Start it by hand from the Actions tab. Its publishing jobs use the `maven-publish` environment. Add yourself there as a required reviewer and store the environment secrets `REPOSILITE_TOKEN_NAME` and `REPOSILITE_TOKEN_SECRET`: a Reposilite access token with write access to `/releases`. A job cannot read those secrets until a reviewer approves it. On the GitHub Free, Pro and Team plans, required reviewers work only in public repositories, and environment secrets in a private repository need Pro or above.
 
-1. Raise `mod_version` in `gradle.properties` and push. The workflow refuses a version the repository already has.
-2. The first job publishes each runtime bundle whose version the repository lacks. It never replaces a published bundle version.
-3. One job per Minecraft target then builds and verifies that adapter before publishing its library and `-with-kotlin` POM.
+1. Raise `mod_version` in `gradle.properties` and push.
+2. A first job checks the repository without secrets. It fails if an adapter version is already published, so a release that cannot succeed never asks for approval, and it lists the runtime bundle versions the repository lacks.
+3. If a bundle version is new, the bundle job waits for approval, verifies the bundle and publishes it. A published bundle version is never replaced.
+4. The five Minecraft target jobs then wait for approval together, and one review releases them all. Each builds and verifies its adapter before publishing the library and its `-with-kotlin` POM.
 
-A target job that fails after uploading part of its version leaves that version incomplete. Delete it in Reposilite, then rerun the failed job. Uploads pass through Cloudflare, whose per-request limit (100 MB on the smaller plans) caps a bundle's size; the largest is about 75 MB. The repository name `wintercogs` gives Gradle the credential properties `wintercogsUsername` and `wintercogsPassword`; the workflow sets them from the secrets.
+A target job that fails after uploading part of its version leaves that version incomplete. Delete it in Reposilite, then rerun the failed job, which checks the version again. Uploads pass through Cloudflare, whose per-request limit (100 MB on the smaller plans) caps a bundle's size; the largest is about 75 MB. The repository name `wintercogs` gives Gradle the credential properties `wintercogsUsername` and `wintercogsPassword`; the workflow sets them from the secrets.
 
 ## Desktop previews and documentation images
 

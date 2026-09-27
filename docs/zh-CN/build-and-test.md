@@ -81,13 +81,14 @@ Maven 库 JAR 含有相同的 Compose MC 类，并把对应的运行时包声明
 
 ## 发布正式版本
 
-正式版本通过 GitHub 工作流 **Publish to the Wintercogs Maven** 发布到 Wintercogs Maven（`https://maven.wintercogs.com/releases`），需在 Actions 页面手动启动。它需要两个仓库 secret：`REPOSILITE_TOKEN_NAME` 和 `REPOSILITE_TOKEN_SECRET`，即一个对 `/releases` 有写权限的 Reposilite 访问令牌。
+正式版本通过 GitHub 工作流 **Publish to the Wintercogs Maven** 发布到 Wintercogs Maven（`https://maven.wintercogs.com/releases`），需在 Actions 页面手动启动。负责发布的任务使用 `maven-publish` 环境：请在该环境中把自己设为必需审批人，并添加环境 secret `REPOSILITE_TOKEN_NAME` 和 `REPOSILITE_TOKEN_SECRET`，即一个对 `/releases` 有写权限的 Reposilite 访问令牌。任务在审批通过前读取不到这些 secret。在 GitHub Free、Pro 和 Team 套餐下，必需审批人只对公开仓库生效；私有仓库使用环境 secret 需要 Pro 及以上套餐。
 
-1. 提高 `gradle.properties` 中的 `mod_version` 并推送。仓库里已有的版本，工作流会拒绝发布。
-2. 第一个任务发布仓库中还没有的运行时包版本，已发布的运行时包版本绝不覆盖。
-3. 随后每个 Minecraft 目标各有一个任务：先构建并校验该适配器，再发布库和 `-with-kotlin` POM。
+1. 提高 `gradle.properties` 中的 `mod_version` 并推送。
+2. 第一个任务不使用 secret，只检查仓库：任何适配器版本已经发布过就直接失败，这样注定无法完成的发布不会请求审批；同时找出仓库中还没有的运行时包版本。
+3. 如果有新的运行时包版本，运行时包任务先等待审批，然后校验并发布。已发布的运行时包版本绝不覆盖。
+4. 随后 5 个 Minecraft 目标的任务一起等待审批，批准一次即可全部放行。每个任务先构建并校验自己的适配器，再发布库和 `-with-kotlin` POM。
 
-某个目标的任务如果在上传了部分文件后失败，该版本就不完整。请先在 Reposilite 中删除它，再重新运行失败的任务。上传经过 Cloudflare，其单个请求的上限（较低档套餐为 100 MB）限制了运行时包的大小；目前最大的包约 75 MB。仓库名 `wintercogs` 对应 Gradle 的凭据属性 `wintercogsUsername` 和 `wintercogsPassword`，工作流从上述 secret 设置它们。
+某个目标的任务如果在上传了部分文件后失败，该版本就不完整。请先在 Reposilite 中删除它，再重新运行失败的任务，重跑时会再次检查版本。上传经过 Cloudflare，其单个请求的上限（较低档套餐为 100 MB）限制了运行时包的大小；目前最大的包约 75 MB。仓库名 `wintercogs` 对应 Gradle 的凭据属性 `wintercogsUsername` 和 `wintercogsPassword`，工作流从上述 secret 设置它们。
 
 ## 桌面预览与文档图片
 
