@@ -30,9 +30,11 @@ class OreThemeCatalog private constructor(private val themes: Map<OreThemeId, Or
                     val id = OreThemeId(namespace)
                     resolved[id] = apply(id, global)
                 }
-            resolved[OreThemeId.Light] = apply(OreThemeId.Light, OrePalettes.Light)
+            // Built-in themes start from their own palette rather than the global default.
+            val builtIns = mapOf(OreThemeId.Light to OrePalettes.Light, OreThemeId.Twilight to OrePalettes.Twilight)
+            builtIns.forEach { (id, palette) -> resolved[id] = apply(id, palette) }
             layers.keys
-                .filter { it.path != "default" && it != OreThemeId.Light }
+                .filter { it.path != "default" && it !in builtIns }
                 .forEach { id ->
                     resolved[id] = apply(id, resolved[OreThemeId(id.namespace)] ?: global)
                 }

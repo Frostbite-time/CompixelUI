@@ -2,7 +2,7 @@ package dev.composemc.ui.ore.theme
 
 import androidx.compose.ui.graphics.Color
 
-/** Built-in palettes. Light uses neutral metal panels and violet accents. */
+/** Built-in palettes. Light uses neutral metal panels and violet accents; Twilight uses deep navy and teal. */
 object OrePalettes {
     val Light =
         OreColors(
@@ -51,4 +51,33 @@ object OrePalettes {
             onSecondary = Color(0xFF262935),
             onDanger = Color(0xFFFFF8F8),
         )
+
+    /**
+     * Deep navy panels with a teal accent. The primary and secondary families are generated as a theme file's `palette`
+     * generates them; the brighter teal on filled tracks keeps sliders and progress bars vivid.
+     */
+    val Twilight =
+        OreColors(
+                backdrop = Color(0xD90B0E1A),
+                panel = Color(0xFF1A1F33),
+                raised = Color(0xFF252C48),
+                hovered = Color(0xFF2E3658),
+                edge = Color(0xFF0E1222),
+                highlight = Color(0xFF3A4470),
+                frameEdge = Color(0xFF06080F),
+                ledge = Color(0xFF11152A),
+                slot = Color(0xFF131829),
+                slotEdge = Color(0xFF060810),
+                text = Color(0xFFEEF3FF),
+                mutedText = Color(0xFF9EABD0),
+                buttonBorder = Color(0xFF0B0E1A),
+                switchTrack = Color(0xFF4A5480),
+                trackEmptyLight = Color(0xFF6572A3),
+                trackEmpty = Color(0xFF4A5480),
+                disabledEdge = Color(0xFF4F587C),
+                disabledText = Color(0xFF6B7598),
+            )
+            .withPalette("primary", Color(0xFF177E9C))
+            .withPalette("secondary", Color(0xFF3B4470))
+            .copy(trackFilled = Color(0xFF2EA7C4), trackFilledLight = Color(0xFF62C0D6))
 }

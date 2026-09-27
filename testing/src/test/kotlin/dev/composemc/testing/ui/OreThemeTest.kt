@@ -121,9 +121,29 @@ class OreThemeTest {
         assertEquals(OrePalettes.Light, OreThemeCatalog.Default.colors(OreThemeId.Light))
         assertEquals(Color(0xFFEEEEEE), catalog.colors(OreThemeId("a", "storage")).panel)
         assertEquals(OrePalettes.Light.primary, catalog.colors(OreThemeId("a")).primary)
+        assertReadable(OrePalettes.Light)
+    }
+
+    @Test
+    fun `twilight is built in as a theme and a preset`() {
+        assertEquals(OrePalettes.Twilight, OreThemeCatalog.Default.colors(OreThemeId.Twilight))
+        assertEquals(OrePalettes.Twilight, patch("preset" to "twilight").applyTo(OrePalettes.Light))
+        val catalog =
+            OreThemeCatalog.create(
+                mapOf(
+                    OreThemeId.Default to listOf(patch("colors" to mapOf("panel" to "#123456"))),
+                    OreThemeId.Twilight to listOf(patch("colors" to mapOf("text" to "#FFFFFF"))),
+                )
+            )
+        // Like light, twilight skips the global default but still applies its own theme files.
+        assertEquals(OrePalettes.Twilight.panel, catalog.colors(OreThemeId.Twilight).panel)
+        assertEquals(Color.White, catalog.colors(OreThemeId.Twilight).text)
+        assertReadable(OrePalettes.Twilight)
+    }
+
+    private fun assertReadable(colors: OreColors) {
         fun contrast(a: Color, b: Color): Float =
             (maxOf(a.luminance(), b.luminance()) + .05f) / (minOf(a.luminance(), b.luminance()) + .05f)
-        val colors = OrePalettes.Light
         for ((foreground, background) in
             listOf(
                 colors.text to colors.panel,
@@ -133,7 +153,7 @@ class OreThemeTest {
                 colors.onSecondary to colors.secondary,
                 colors.onDanger to colors.danger,
             )) {
-            assertTrue(contrast(foreground, background) >= 4.5f)
+            assertTrue(contrast(foreground, background) >= 4.5f, "$foreground on $background")
         }
     }
 

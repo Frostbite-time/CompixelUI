@@ -4,7 +4,7 @@
 
 [English](README.md) · 简体中文
 
-![在 Minecraft 世界中打开的一个用 Compose MC 构建的存储终端](docs/assets/hero-zh-CN.png)
+![用 Compose MC 在 Minecraft 中构建的路径点浏览界面：地点预览网格与详情面板](docs/assets/hero-zh-CN.png)
 
 Compose MC 把 Jetpack Compose 带进 Minecraft Java 版。用声明式 Kotlin 编写界面、容器界面和 HUD，配上 Minecraft 风格的控件，再放入真实的物品图标与物品提示，全部在游戏内由 GPU 绘制。
 
@@ -62,7 +62,7 @@ Compose MC 是前置库，当你玩的模组需要它时再安装。在 [Release
 ## 文档
 
 - [快速开始](docs/zh-CN/getting-started.md)：添加依赖并打开界面
-- [Ore UI](docs/zh-CN/ore-ui.md) · [物品与提示](docs/zh-CN/items.md) · [容器界面](docs/zh-CN/inventory.md) · [HUD 层](docs/zh-CN/hud.md)
+- [Ore UI](docs/zh-CN/ore-ui.md) · [主题](docs/zh-CN/themes.md) · [物品与提示](docs/zh-CN/items.md) · [容器界面](docs/zh-CN/inventory.md) · [HUD 层](docs/zh-CN/hud.md)
 - [菜单同步](docs/zh-CN/menu-sync.md) · [配置界面](docs/zh-CN/configuration.md)
 - [兼容性](docs/zh-CN/compatibility.md) · [参与开发](docs/zh-CN/contributing.md) · [架构](docs/zh-CN/architecture.md)
 

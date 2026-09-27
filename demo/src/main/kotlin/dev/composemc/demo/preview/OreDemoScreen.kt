@@ -71,7 +71,7 @@ fun OreDemoScreen(
 ) {
     val zh = model.locale == "zh_cn"
     fun label(english: String, chinese: String) = if (zh) chinese else english
-    OreTheme(id = if (model.lightTheme) OreThemeId.Light else OreThemeId.Default) {
+    OreTheme(id = model.theme) {
         OreScreen(
             "Compose MC",
             maxWidth = 560.dp,
@@ -83,9 +83,20 @@ fun OreDemoScreen(
                     style = OreButtonStyle.Secondary,
                 )
                 Spacer(Modifier.weight(1f))
+                // Cycles through the built-in themes; the label names the next one.
+                val next =
+                    when (model.theme) {
+                        OreThemeId.Default -> OreThemeId.Light
+                        OreThemeId.Light -> OreThemeId.Twilight
+                        else -> OreThemeId.Default
+                    }
                 OreButton(
-                    if (model.lightTheme) label("Dark", "深色") else label("Light", "浅色"),
-                    { model.lightTheme = !model.lightTheme },
+                    when (next) {
+                        OreThemeId.Light -> label("Light", "浅色")
+                        OreThemeId.Twilight -> label("Twilight", "暮光")
+                        else -> label("Dark", "深色")
+                    },
+                    { model.theme = next },
                     style = OreButtonStyle.Secondary,
                 )
                 OreButton(label("Apply changes", "应用更改"), { model.dialog = true }, Modifier.demoBounds(model, "apply"))

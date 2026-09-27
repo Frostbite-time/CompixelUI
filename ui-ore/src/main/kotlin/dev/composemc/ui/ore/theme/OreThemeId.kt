@@ -19,5 +19,6 @@ data class OreThemeId(val namespace: String, val path: String = "default") {
     companion object {
         val Default = OreThemeId("composemc")
         val Light = OreThemeId("composemc", "light")
+        val Twilight = OreThemeId("composemc", "twilight")
     }
 }

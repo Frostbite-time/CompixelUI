@@ -187,7 +187,7 @@ Tree rows are created lazily, so ten thousand entries scroll smoothly. For flat 
 
 ## Theme and text
 
-- `OreTheme` supplies `OreColors` and `OreTypography`. Use a screen's `theme = OreThemeId("yourmod", "storage")` for [resource-pack themes and the light style](themes.md). `OreTheme(colors = …)` remains available for literal color overrides.
+- `OreTheme` supplies `OreColors` and `OreTypography`. Give a screen `theme = OreThemeId("yourmod", "storage")` so resource packs can recolor it, or pick the built-in light or twilight theme; see [Themes](themes.md). `OreTheme(colors = …)` sets fixed colors directly.
 - Text uses the bundled Monocraft font. Characters it lacks, such as Chinese, come from the system fonts, so their look depends on the player's computer.
 - `OreSlot` is an 18 dp slot frame with a 16 dp content area; [container screens](inventory.md) use it for real menu slots.
 

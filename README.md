@@ -4,7 +4,7 @@
 
 English · [简体中文](README.zh-CN.md)
 
-![A storage terminal built with Compose MC, open in a Minecraft world](docs/assets/hero-en.png)
+![A waypoint browser built with Compose MC in Minecraft: a grid of location previews and a details panel](docs/assets/hero-en.png)
 
 Compose MC brings Jetpack Compose to Minecraft Java Edition. Write screens, inventories and HUDs as declarative Kotlin, style them with Minecraft-flavored controls, and mix in real item icons and tooltips, all drawn on the GPU inside the game.
 
@@ -62,7 +62,7 @@ Install one of the two, not both.
 ## Documentation
 
 - [Getting started](docs/en/getting-started.md): add the dependency and open a screen
-- [Ore UI](docs/en/ore-ui.md) · [Items and tooltips](docs/en/items.md) · [Container screens](docs/en/inventory.md) · [HUD layers](docs/en/hud.md)
+- [Ore UI](docs/en/ore-ui.md) · [Themes](docs/en/themes.md) · [Items and tooltips](docs/en/items.md) · [Container screens](docs/en/inventory.md) · [HUD layers](docs/en/hud.md)
 - [Menu synchronization](docs/en/menu-sync.md) · [Config screens](docs/en/configuration.md)
 - [Compatibility](docs/en/compatibility.md) · [Contributing](docs/en/contributing.md) · [Architecture](docs/en/architecture.md)
 

@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | Add the library and open a first screen · 接入并打开第一个界面 | [Getting started](en/getting-started.md) | [快速开始](zh-CN/getting-started.md) |
 | Controls, popups and theme · 控件、弹出层与主题 | [Ore UI](en/ore-ui.md) | [Ore UI](zh-CN/ore-ui.md) |
-| Per-mod colors and resource reload · 模组独立配色与资源重载 | [Themes](en/themes.md) | [主题](zh-CN/themes.md) |
+| Built-in themes and resource-pack colors · 内置主题与资源包配色 | [Themes](en/themes.md) | [主题](zh-CN/themes.md) |
 | Item icons and tooltips · 物品图标与提示 | [Items and tooltips](en/items.md) | [物品与提示](zh-CN/items.md) |
 | Menus with slots · 带槽位的菜单 | [Container screens](en/inventory.md) | [容器界面](zh-CN/inventory.md) |
 | Compose over the game view · 游戏画面上的界面 | [HUD layers](en/hud.md) | [HUD 层](zh-CN/hud.md) |

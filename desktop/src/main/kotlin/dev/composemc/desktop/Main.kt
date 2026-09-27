@@ -7,6 +7,7 @@ import dev.composemc.demo.preview.Fixture
 import dev.composemc.demo.preview.OreDemoScreen as DemoScreen
 import dev.composemc.host.UiSession
 import dev.composemc.platform.*
+import dev.composemc.ui.ore.theme.OreThemeId
 import java.awt.*
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
@@ -109,18 +110,20 @@ private fun smoke(directory: File) {
                             ),
                         )
                     } +
-                    (listOf(DemoPage.Settings, DemoPage.Buttons) + dev.composemc.testing.ui.oreComponentPages).map {
-                        page ->
-                        Triple(
-                            "ore-light-${page.name.lowercase()}",
-                            Viewport(1100, 840, 2f),
-                            {
-                                model.lightTheme = true
-                                model.page = page
-                                model.locale = "en_us"
-                                model.dialog = false
-                            },
-                        )
+                    listOf("light" to OreThemeId.Light, "twilight" to OreThemeId.Twilight).flatMap { (name, theme) ->
+                        (listOf(DemoPage.Settings, DemoPage.Buttons) + dev.composemc.testing.ui.oreComponentPages)
+                            .map { page ->
+                                Triple(
+                                    "ore-$name-${page.name.lowercase()}",
+                                    Viewport(1100, 840, 2f),
+                                    {
+                                        model.theme = theme
+                                        model.page = page
+                                        model.locale = "en_us"
+                                        model.dialog = false
+                                    },
+                                )
+                            }
                     }
             var time = 1_000_000_000L
             cases.forEach { (name, viewport, configure) ->

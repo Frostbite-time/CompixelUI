@@ -17,6 +17,7 @@ private constructor(
         var result =
             when (preset) {
                 "light" -> OrePalettes.Light
+                "twilight" -> OrePalettes.Twilight
                 "default" -> OreColors()
                 else -> base
             }
@@ -34,8 +35,8 @@ private constructor(
             val format = document["format"]
             require(format is Number && format.toDouble() == 1.0) { "format: expected 1" }
             val preset = document["preset"]
-            require("preset" !in document || preset == "default" || preset == "light") {
-                "preset: expected default or light"
+            require("preset" !in document || preset in setOf("default", "light", "twilight")) {
+                "preset: expected default, light or twilight"
             }
             fun section(name: String, allowed: Set<String>): Map<String, Color> {
                 if (name !in document) return emptyMap()
@@ -112,7 +113,8 @@ private constructor(
 
 private fun foreground(color: Color): Color = if (color.luminance() > .179f) Color(0xFF161820) else Color.White
 
-private fun OreColors.withPalette(key: String, color: Color): OreColors {
+/** Generates a role's whole state family from one base color, as a theme file's `palette` section does. */
+internal fun OreColors.withPalette(key: String, color: Color): OreColors {
     val hover = lerp(color, Color.Black, .16f)
     val pressed = lerp(color, Color.Black, .26f)
     val border = lerp(color, Color.Black, .48f)
