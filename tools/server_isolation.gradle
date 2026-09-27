@@ -24,12 +24,12 @@ gradle.beforeProject { p ->
                 doFirst { p.delete p.file('build/server-initialization/class-init.log') }
                 doLast {
                     def log = p.file('build/server-initialization/class-init.log').getText('UTF-8')
-                    def namespace = forge ? 'forge' : 'neoforge'
+                    // Every adapter publishes its API in dev.composemc.forge.
                     ['ComposeMcCommon', 'sync/MenuSyncNetworking'].each { type ->
-                        if (!log.contains("Initializing 'dev/composemc/$namespace/$type'"))
+                        if (!log.contains("Initializing 'dev/composemc/forge/$type'"))
                             throw new GradleException("Server did not initialize $type")
                     }
-                    def ui = ~/Initializing '(androidx\/compose|org\/jetbrains\/(skia|skiko)|java\/awt|javax\/swing|kotlin\/|dev\/composemc\/(host|bridge|render|ui|forge\/Client|neoforge\/Client))/
+                    def ui = ~/Initializing '(androidx\/compose|org\/jetbrains\/(skia|skiko)|java\/awt|javax\/swing|kotlin\/|dev\/composemc\/(host|bridge|render|ui|forge\/Client))/
                     if (log =~ ui) throw new GradleException('Server initialized a client UI runtime')
                     logger.lifecycle('Server isolation PASS: common entry and networking initialized without UI runtime')
                 }
