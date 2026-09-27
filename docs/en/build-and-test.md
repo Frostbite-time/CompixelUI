@@ -50,9 +50,9 @@ Players install a JAR from `minecraft/<loader>-<mc>/build/release/`; Maven consu
 
 | Filename | Destination |
 | --- | --- |
-| `release/composemc-<loader>-<mc>-0.1.0-alpha.34.jar` | Standard installation; requires an external Kotlin provider |
+| `release/composemc-<loader>-<mc>-0.1.0-alpha.35.jar` | Standard installation; requires an external Kotlin provider |
 | `release/…-with-kotlin.jar` | Alternative installation including Kotlin; install only one variant |
-| `libs/composemc-<loader>-<mc>-0.1.0-alpha.34.jar` | Maven library JAR without the runtime; not an installable mod |
+| `libs/composemc-<loader>-<mc>-0.1.0-alpha.35.jar` | Maven library JAR without the runtime; not an installable mod |
 | `libs/…-development.jar` | Optional F8 preview/probe mod alongside the player JAR |
 | `libs/…-sources.jar` | Project sources of the library JAR; not an installable mod |
 | `libs/…-javadoc.jar` | Dokka HTML API reference; not an installable mod |
@@ -73,7 +73,17 @@ Publish locally for a consumer with:
 
 The repository is `build/consumer-maven`. The task also publishes the runtime bundles that the POMs name. It does not publish to an external Maven service. See [quick start](getting-started.md) for consumer dependencies.
 
-The library JAR's attachments use the ordinary `sources` and `javadoc` classifiers. Maven Central requires both for every JAR, so each runtime bundle attaches two that contain only a README naming its upstream libraries. Enable source/documentation downloading in your IDE and refresh Gradle if attachments are not downloaded automatically.
+Every JAR has the ordinary `sources` and `javadoc` attachments. For a runtime bundle, these hold what its libraries publish: their sources merged into one tree, and each library's API documentation in its own directory. A README in each attachment lists the libraries and those published without one. Enable source/documentation downloading in your IDE and refresh Gradle if attachments are not downloaded automatically.
+
+## Publish a release
+
+Releases go to the Wintercogs Maven, `https://maven.wintercogs.com/releases`, through the **Publish to the Wintercogs Maven** GitHub workflow. Start it by hand from the Actions tab. It needs two repository secrets, `REPOSILITE_TOKEN_NAME` and `REPOSILITE_TOKEN_SECRET`: a Reposilite access token with write access to `/releases`.
+
+1. Raise `mod_version` in `gradle.properties` and push. The workflow refuses a version the repository already has.
+2. The first job publishes each runtime bundle whose version the repository lacks. It never replaces a published bundle version.
+3. One job per Minecraft target then builds and verifies that adapter before publishing its library and `-with-kotlin` POM.
+
+A target job that fails after uploading part of its version leaves that version incomplete. Delete it in Reposilite, then rerun the failed job. Uploads pass through Cloudflare, whose per-request limit (100 MB on the smaller plans) caps a bundle's size; the largest is about 75 MB. The repository name `wintercogs` gives Gradle the credential properties `wintercogsUsername` and `wintercogsPassword`; the workflow sets them from the secrets.
 
 ## Desktop previews and documentation images
 

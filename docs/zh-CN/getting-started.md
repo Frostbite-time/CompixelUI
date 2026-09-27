@@ -2,34 +2,33 @@
 
 [English](../en/getting-started.md) · [文档目录](../README.md)
 
-本指南将一个现有的 **NeoForge 1.21.1 Kotlin 模组**接入 Compose MC，使用 Java 21、Kotlin/Compose 编译器 2.4.10 和库版本 0.1.0-alpha.34。其他目标见[兼容性](compatibility.md)。
+本指南将一个现有的 **NeoForge 1.21.1 Kotlin 模组**接入 Compose MC，使用 Java 21、Kotlin/Compose 编译器 2.4.10 和库版本 0.1.0-alpha.35。其他目标见[兼容性](compatibility.md)。
 
 已经接入较早 Alpha 版本的消费者，请先按[升级说明](compatibility.md#升级已有消费者)调整请求结果 API、传输配置和协议版本，再重新构建。
 
-## 1. 构建本库
+## 1. 添加仓库
 
-在 Compose MC 仓库中运行：
+Compose MC 的发布版本位于 Wintercogs Maven。将它加入消费者的 Groovy `build.gradle`；内容过滤可以避免在这里查找其他依赖：
 
-```powershell
-.\gradlew.bat '-PcomposemcTargets=1.21.1' :minecraft:neoforge-1.21.1:build :minecraft:neoforge-1.21.1:publishAllPublicationsToConsumerRepository
+```groovy
+repositories {
+    maven {
+        url = uri('https://maven.wintercogs.com/releases')
+        content { includeGroup 'dev.composemc' }
+    }
+}
 ```
 
-这会在 `build/consumer-maven` 生成本地 Maven 仓库，包含本库、对应的 `-with-kotlin` 坐标以及它们依赖的运行时包。以下配置使用该仓库，不假定当前版本已在 Maven Central 发布。工具链和其他操作系统的命令写法见[构建与测试](build-and-test.md)。
+如需试用尚未发布的改动，在 Compose MC 仓库中运行 `.\gradlew.bat '-PcomposemcTargets=1.21.1' :minecraft:neoforge-1.21.1:publishAllPublicationsToConsumerRepository`，然后把仓库地址换成其中的 `build/consumer-maven` 目录；运行时包也会一并发布到那里。工具链和其他操作系统的命令写法见[构建与测试](build-and-test.md)。
 
 ## 2. 配置消费者依赖
 
-将以下声明合并到消费者现有的 Groovy `build.gradle` 中，保留原来的加载器插件和 Minecraft 配置。其中 `localRuntime` 由 NeoForge ModDevGradle 提供。
+将以下声明合并到同一个 `build.gradle` 中，保留原来的加载器插件和 Minecraft 配置。其中 `localRuntime` 由 NeoForge ModDevGradle 提供。
 
 ```groovy
 plugins {
     id 'org.jetbrains.kotlin.jvm' version '2.4.10'
     id 'org.jetbrains.kotlin.plugin.compose' version '2.4.10'
-}
-repositories {
-    maven {
-        url = uri('../compose-mc/build/consumer-maven')
-        content { includeGroup 'dev.composemc' }
-    }
 }
 dependencies {
     compileOnly "dev.composemc:composemc-neoforge-1.21.1-with-kotlin:${composemc_version}"
@@ -38,10 +37,10 @@ dependencies {
 kotlin { jvmToolchain(21) }
 ```
 
-按实际目录调整仓库路径。在消费者的 `gradle.properties` 中加入：
+在消费者的 `gradle.properties` 中加入：
 
 ```properties
-composemc_version=0.1.0-alpha.34
+composemc_version=0.1.0-alpha.35
 kotlin.stdlib.default.dependency=false
 ```
 
@@ -55,7 +54,7 @@ kotlin.stdlib.default.dependency=false
 [[dependencies.your_mod_id]]
 modId="composemc"
 type="required"
-versionRange="[0.1.0-alpha.34]"
+versionRange="[0.1.0-alpha.35]"
 ordering="AFTER"
 side="CLIENT"
 ```
@@ -114,7 +113,7 @@ fun openCounterScreen() {
 
 | 产物 | 用途 |
 | --- | --- |
-| `build/release/composemc-neoforge-1.21.1-0.1.0-alpha.34.jar` | 标准版：与消费者和兼容的外部 Kotlin 提供者一起安装 |
+| `build/release/composemc-neoforge-1.21.1-0.1.0-alpha.35.jar` | 标准版：与消费者和兼容的外部 Kotlin 提供者一起安装 |
 | `build/release/…-with-kotlin.jar` | 另一种安装选择：自带 Kotlin，无需外部提供者 |
 | `build/libs/…-development.jar` | 可选 F8 预览/探针模组；需要正式库 |
 | `build/libs/…-sources.jar` / `…-javadoc.jar` | Maven 库的源码/API 文档附件 |

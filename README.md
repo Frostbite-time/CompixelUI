@@ -61,13 +61,13 @@ The [quick start](docs/en/getting-started.md) supplies the dependency setup and 
 | 26.2 | NeoForge 26.2.0.88 | OpenGL / Vulkan |
 | 26.3 | NeoForge 26.3.0.6-beta | OpenGL / Vulkan |
 
-Current version: **0.1.0-alpha.34**. APIs may change during alpha. Each target has its own mod JAR; use the artifact matching your Minecraft version and loader. See [compatibility](docs/en/compatibility.md) for platform coverage and known limitations.
+Current version: **0.1.0-alpha.35**. APIs may change during alpha. Each target has its own mod JAR; use the artifact matching your Minecraft version and loader. See [compatibility](docs/en/compatibility.md) for platform coverage and known limitations.
 
 ## Start building
 
 Compose MC is installed as a **separate library mod**. Choose the standard JAR with an external Kotlin provider such as Kotlin for Forge, or the `with-kotlin` JAR with Kotlin included. Both include Compose and Skiko; install only one variant. Every Minecraft target offers both choices.
 
-1. Follow the [quick start](docs/en/getting-started.md) to build the local Maven artifacts and connect a consumer.
+1. Follow the [quick start](docs/en/getting-started.md) to add the Maven repository and connect a consumer.
 2. Choose [Ore controls](docs/en/ore-ui.md), [native content](docs/en/native-content.md), [HUD layers](docs/en/hud.md) or [inventory screens](docs/en/inventory.md).
 3. Use the [build guide](docs/en/build-and-test.md) to launch a specific Minecraft version from IntelliJ IDEA and open the F8 preview.
 

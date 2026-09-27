@@ -2,9 +2,9 @@
 
 [Project home](../README.md) · [项目首页](../README.zh-CN.md)
 
-Choose a guide below. Every guide has a complete English and Simplified Chinese edition, with a language link at the top. Examples target **0.1.0-alpha.34**; game-facing examples use NeoForge 1.21.1 unless stated otherwise.
+Choose a guide below. Every guide has a complete English and Simplified Chinese edition, with a language link at the top. Examples target **0.1.0-alpha.35**; game-facing examples use NeoForge 1.21.1 unless stated otherwise.
 
-从下表选择指南。每篇均提供完整英文与简体中文版，页首可切换语言。示例基于 **0.1.0-alpha.34**；涉及游戏 API 时，除特别说明外均使用 NeoForge 1.21.1。
+从下表选择指南。每篇均提供完整英文与简体中文版，页首可切换语言。示例基于 **0.1.0-alpha.35**；涉及游戏 API 时，除特别说明外均使用 NeoForge 1.21.1。
 
 | Topic / 主题 | English | 简体中文 |
 | --- | --- | --- |

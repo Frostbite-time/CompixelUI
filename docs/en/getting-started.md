@@ -2,34 +2,33 @@
 
 [简体中文](../zh-CN/getting-started.md) · [Documentation](../README.md)
 
-This guide connects an existing **NeoForge 1.21.1 Kotlin mod** to Compose MC. It uses Java 21, Kotlin/Compose compiler 2.4.10 and library version 0.1.0-alpha.34. See [compatibility](compatibility.md) for other targets.
+This guide connects an existing **NeoForge 1.21.1 Kotlin mod** to Compose MC. It uses Java 21, Kotlin/Compose compiler 2.4.10 and library version 0.1.0-alpha.35. See [compatibility](compatibility.md) for other targets.
 
 Already integrated an earlier alpha? Follow [consumer upgrade notes](compatibility.md#upgrade-an-existing-consumer) for the request-result API, transport options and protocol version before rebuilding.
 
-## 1. Build the library
+## 1. Add the repository
 
-From the Compose MC repository, run:
+Compose MC releases are published to the Wintercogs Maven. Add it to the consumer's Groovy `build.gradle`; the content filter keeps other dependencies from being looked up there:
 
-```powershell
-.\gradlew.bat '-PcomposemcTargets=1.21.1' :minecraft:neoforge-1.21.1:build :minecraft:neoforge-1.21.1:publishAllPublicationsToConsumerRepository
+```groovy
+repositories {
+    maven {
+        url = uri('https://maven.wintercogs.com/releases')
+        content { includeGroup 'dev.composemc' }
+    }
+}
 ```
 
-This creates a local Maven repository at `build/consumer-maven` with the library, its `-with-kotlin` coordinate and the runtime bundles they depend on. The setup below uses that repository; it does not assume that this version is available on Maven Central. [Build and test](build-and-test.md) covers toolchain setup and other operating systems.
+To try unreleased changes, run `.\gradlew.bat '-PcomposemcTargets=1.21.1' :minecraft:neoforge-1.21.1:publishAllPublicationsToConsumerRepository` in the Compose MC repository. Then use its `build/consumer-maven` directory as the repository URL; it also receives the runtime bundles. [Build and test](build-and-test.md) covers toolchain setup and other operating systems.
 
 ## 2. Add consumer dependencies
 
-Merge these declarations into the consumer's existing Groovy `build.gradle`. Keep its loader plugin and Minecraft configuration. `localRuntime` below is supplied by NeoForge ModDevGradle.
+Merge these declarations into the same `build.gradle`. Keep its loader plugin and Minecraft configuration. `localRuntime` below is supplied by NeoForge ModDevGradle.
 
 ```groovy
 plugins {
     id 'org.jetbrains.kotlin.jvm' version '2.4.10'
     id 'org.jetbrains.kotlin.plugin.compose' version '2.4.10'
-}
-repositories {
-    maven {
-        url = uri('../compose-mc/build/consumer-maven')
-        content { includeGroup 'dev.composemc' }
-    }
 }
 dependencies {
     compileOnly "dev.composemc:composemc-neoforge-1.21.1-with-kotlin:${composemc_version}"
@@ -38,10 +37,10 @@ dependencies {
 kotlin { jvmToolchain(21) }
 ```
 
-Adjust the repository path to your checkout. In the consumer's `gradle.properties`:
+In the consumer's `gradle.properties`:
 
 ```properties
-composemc_version=0.1.0-alpha.34
+composemc_version=0.1.0-alpha.35
 kotlin.stdlib.default.dependency=false
 ```
 
@@ -55,7 +54,7 @@ Declare the dependency in `META-INF/neoforge.mods.toml`, replacing `your_mod_id`
 [[dependencies.your_mod_id]]
 modId="composemc"
 type="required"
-versionRange="[0.1.0-alpha.34]"
+versionRange="[0.1.0-alpha.35]"
 ordering="AFTER"
 side="CLIENT"
 ```
@@ -114,7 +113,7 @@ Do not read live menus, `ItemStack` or `Minecraft` from a composable. Do not syn
 
 | Artifact | Use |
 | --- | --- |
-| `build/release/composemc-neoforge-1.21.1-0.1.0-alpha.34.jar` | Standard: install beside the consumer and a compatible external Kotlin provider |
+| `build/release/composemc-neoforge-1.21.1-0.1.0-alpha.35.jar` | Standard: install beside the consumer and a compatible external Kotlin provider |
 | `build/release/…-with-kotlin.jar` | Alternative installation: includes Kotlin; no external provider needed |
 | `build/libs/…-development.jar` | Optional F8 preview/probe mod; requires the normal library |
 | `build/libs/…-sources.jar` / `…-javadoc.jar` | Source/API documentation attachments of the Maven library |

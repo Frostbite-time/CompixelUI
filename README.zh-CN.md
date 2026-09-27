@@ -61,13 +61,13 @@ fun CounterPanel() {
 | 26.2 | NeoForge 26.2.0.88 | OpenGL / Vulkan |
 | 26.3 | NeoForge 26.3.0.6-beta | OpenGL / Vulkan |
 
-当前版本：**0.1.0-alpha.34**。Alpha 阶段 API 可能发生变化。每个目标有独立的 mod JAR，请选择与 Minecraft 版本和加载器匹配的产物。平台验证范围和已知限制见[兼容性说明](docs/zh-CN/compatibility.md)。
+当前版本：**0.1.0-alpha.35**。Alpha 阶段 API 可能发生变化。每个目标有独立的 mod JAR，请选择与 Minecraft 版本和加载器匹配的产物。平台验证范围和已知限制见[兼容性说明](docs/zh-CN/compatibility.md)。
 
 ## 开始使用
 
 Compose MC 作为**独立的前置模组**安装。标准 JAR 配合 Kotlin for Forge 等外部 Kotlin 提供者使用；`with-kotlin` JAR 自带 Kotlin。两者均包含 Compose 和 Skiko，只选装一个。所有 Minecraft 目标均提供这两种产物。
 
-1. 按照[快速开始](docs/zh-CN/getting-started.md)构建本地 Maven 产物，配置消费者依赖。
+1. 按照[快速开始](docs/zh-CN/getting-started.md)添加 Maven 仓库，配置消费者依赖。
 2. 根据需要使用 [Ore 控件](docs/zh-CN/ore-ui.md)、[原生内容](docs/zh-CN/native-content.md)、[HUD 层](docs/zh-CN/hud.md)或[容器界面](docs/zh-CN/inventory.md)。
 3. 按照[构建指南](docs/zh-CN/build-and-test.md)，从 IntelliJ IDEA 启动指定 Minecraft 版本并打开 F8 预览。
 

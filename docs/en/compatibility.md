@@ -2,7 +2,7 @@
 
 [简体中文](../zh-CN/compatibility.md) · [Documentation](../README.md)
 
-This page describes the **0.1.0-alpha.34** build baseline. Each adapter under [minecraft](../../minecraft) owns its build settings in `build.gradle` and `gradle.properties`; the [target index](../../gradle/minecraft-targets.properties) selects directories, and the [version catalog](../../gradle/libs.versions.toml) owns shared dependencies. Rebuild consumers when adopting an alpha release with API changes.
+This page describes the **0.1.0-alpha.35** build baseline. Each adapter under [minecraft](../../minecraft) owns its build settings in `build.gradle` and `gradle.properties`; the [target index](../../gradle/minecraft-targets.properties) selects directories, and the [version catalog](../../gradle/libs.versions.toml) owns shared dependencies. Rebuild consumers when adopting an alpha release with API changes.
 
 ## Targets
 
@@ -22,8 +22,8 @@ Kotlin and the Compose compiler are 2.4.10; Compose is 1.12.0. Every target offe
 
 | Installation | Kotlin libraries | External provider |
 | --- | --- | --- |
-| Standard `composemc-…-0.1.0-alpha.34.jar` | Not included | Compatible stdlib, Coroutines Core and Serialization Core; KFF recommended |
-| `composemc-…-0.1.0-alpha.34-with-kotlin.jar` | Included | Do not combine with KFF or another Kotlin runtime |
+| Standard `composemc-…-0.1.0-alpha.35.jar` | Not included | Compatible stdlib, Coroutines Core and Serialization Core; KFF recommended |
+| `composemc-…-0.1.0-alpha.35-with-kotlin.jar` | Included | Do not combine with KFF or another Kotlin runtime |
 
 Install exactly one variant. Both include Compose, Skiko, atomicfu and the Swing dispatcher integration; neither embeds KFF. The standard JAR checks the client runtime instead of requiring the `kotlinforforge` mod ID. Stdlib must be at least 2.2.21 and Coroutines/Serialization must supply compatible APIs. Checking classes and representative methods cannot certify every third-party combination.
 

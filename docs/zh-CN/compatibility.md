@@ -2,7 +2,7 @@
 
 [English](../en/compatibility.md) · [文档目录](../README.md)
 
-本页描述 **0.1.0-alpha.34** 的构建基线。[minecraft](../../minecraft) 下各适配器的 `build.gradle` 和 `gradle.properties` 管理自身构建配置，[目标索引](../../gradle/minecraft-targets.properties)仅用于选择目录，[版本目录](../../gradle/libs.versions.toml)管理共享依赖。采用发生 API 变化的 Alpha 版本时，应重新构建消费者。
+本页描述 **0.1.0-alpha.35** 的构建基线。[minecraft](../../minecraft) 下各适配器的 `build.gradle` 和 `gradle.properties` 管理自身构建配置，[目标索引](../../gradle/minecraft-targets.properties)仅用于选择目录，[版本目录](../../gradle/libs.versions.toml)管理共享依赖。采用发生 API 变化的 Alpha 版本时，应重新构建消费者。
 
 ## 版本目标
 
@@ -22,8 +22,8 @@ Kotlin 与 Compose 编译器为 2.4.10，Compose 为 1.12.0。每个目标提供
 
 | 安装包 | Kotlin 库 | 外部提供者 |
 | --- | --- | --- |
-| 标准 `composemc-…-0.1.0-alpha.34.jar` | 不包含 | 兼容的标准库、协程 Core 和 Serialization Core；推荐 KFF |
-| `composemc-…-0.1.0-alpha.34-with-kotlin.jar` | 自带 | 不要与 KFF 或另一套 Kotlin 运行时混装 |
+| 标准 `composemc-…-0.1.0-alpha.35.jar` | 不包含 | 兼容的标准库、协程 Core 和 Serialization Core；推荐 KFF |
+| `composemc-…-0.1.0-alpha.35-with-kotlin.jar` | 自带 | 不要与 KFF 或另一套 Kotlin 运行时混装 |
 
 只能选装一个。两者均包含 Compose、Skiko、atomicfu 和 Swing 调度器集成，均不嵌入 KFF。标准 JAR 检查客户端运行时，不强制要求 `kotlinforforge` Mod ID。标准库至少为 2.2.21，协程及 Serialization 必须提供兼容 API。类和代表性方法检查不能保证所有第三方组合均兼容。
 

@@ -50,9 +50,9 @@ Gradle 需要 JDK 17 或更新版本，推荐 JDK 25。各适配器所需 Java �
 
 | 文件名 | 用途 |
 | --- | --- |
-| `release/composemc-<loader>-<mc>-0.1.0-alpha.34.jar` | 标准安装包，需要外部 Kotlin 提供者 |
+| `release/composemc-<loader>-<mc>-0.1.0-alpha.35.jar` | 标准安装包，需要外部 Kotlin 提供者 |
 | `release/…-with-kotlin.jar` | 自带 Kotlin 的另一种安装选择，只能选装一个版本 |
-| `libs/composemc-<loader>-<mc>-0.1.0-alpha.34.jar` | 不含运行时的 Maven 库 JAR，不是可安装模组 |
+| `libs/composemc-<loader>-<mc>-0.1.0-alpha.35.jar` | 不含运行时的 Maven 库 JAR，不是可安装模组 |
 | `libs/…-development.jar` | 可选 F8 预览/探针模组，与正式 JAR 同时安装 |
 | `libs/…-sources.jar` | 库 JAR 的项目源码，不是可安装模组 |
 | `libs/…-javadoc.jar` | Dokka HTML API 参考，不是可安装模组 |
@@ -77,7 +77,17 @@ Maven 库 JAR 含有相同的 Compose MC 类，并把对应的运行时包声明
 
 仓库位于 `build/consumer-maven`。该任务会一并发布 POM 所引用的运行时包，不会发布到外部 Maven 服务。消费者依赖见[快速开始](getting-started.md)。
 
-库 JAR 的附件使用常规 `sources`、`javadoc` classifier。Maven Central 要求每个 JAR 都带这两种附件，因此每个运行时包也附带两个，里面只有一份列出上游库的 README。若 IDE 未自动下载，请开启源码/文档下载并刷新 Gradle 项目。
+每个 JAR 都带常规的 `sources` 和 `javadoc` 附件。运行时包的附件装的是其中各库自己发布的内容：源码合并为一棵目录树，各库的 API 文档各占一个目录。每个附件里有一份 README，列出包含的库以及上游未发布对应附件的库。若 IDE 未自动下载，请开启源码/文档下载并刷新 Gradle 项目。
+
+## 发布正式版本
+
+正式版本通过 GitHub 工作流 **Publish to the Wintercogs Maven** 发布到 Wintercogs Maven（`https://maven.wintercogs.com/releases`），需在 Actions 页面手动启动。它需要两个仓库 secret：`REPOSILITE_TOKEN_NAME` 和 `REPOSILITE_TOKEN_SECRET`，即一个对 `/releases` 有写权限的 Reposilite 访问令牌。
+
+1. 提高 `gradle.properties` 中的 `mod_version` 并推送。仓库里已有的版本，工作流会拒绝发布。
+2. 第一个任务发布仓库中还没有的运行时包版本，已发布的运行时包版本绝不覆盖。
+3. 随后每个 Minecraft 目标各有一个任务：先构建并校验该适配器，再发布库和 `-with-kotlin` POM。
+
+某个目标的任务如果在上传了部分文件后失败，该版本就不完整。请先在 Reposilite 中删除它，再重新运行失败的任务。上传经过 Cloudflare，其单个请求的上限（较低档套餐为 100 MB）限制了运行时包的大小；目前最大的包约 75 MB。仓库名 `wintercogs` 对应 Gradle 的凭据属性 `wintercogsUsername` 和 `wintercogsPassword`，工作流从上述 secret 设置它们。
 
 ## 桌面预览与文档图片
 
