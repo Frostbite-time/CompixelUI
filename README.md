@@ -48,7 +48,7 @@ Minecraft.getInstance().setScreen(ComposeScreen(Component.literal("Counter")) {
 | 26.2 | NeoForge 26.2.0.88 | OpenGL, Vulkan |
 | 26.3 | NeoForge 26.3.0.6-beta | OpenGL, Vulkan |
 
-Latest version: **0.1.0-alpha.37**. The API can still change between alpha releases.
+Latest version: **0.1.0-alpha.38**. The API can still change between alpha releases.
 
 ## For players
 

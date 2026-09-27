@@ -27,11 +27,12 @@ open class ComposeInventoryScreen<M : AbstractContainerMenu>(
     title: Component,
     val inventory: ComposeMenuSlots<M> = ComposeMenuSlots(container),
     theme: OreThemeId = OreThemeId.Default,
+    nativeItemOptions: NativeItemOptions = NativeItemOptions(cacheCapacity = 256),
     content: @Composable (ComposeMenuSlots<M>) -> Unit,
 ) : SlotBehaviorScreen<M>(container, checkNotNull(Minecraft.getInstance().player).inventory, title) {
     private val layer =
         ComposeLayer(
-            nativeItemOptions = NativeItemOptions(cacheCapacity = 256),
+            nativeItemOptions = nativeItemOptions,
             theme = theme,
             windowFocused = { isUiWindowFocused() },
             prepareFrameContent = { inventory.refreshAfterLayout() },

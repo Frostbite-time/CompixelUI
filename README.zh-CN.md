@@ -48,7 +48,7 @@ Minecraft.getInstance().setScreen(ComposeScreen(Component.literal("计数器")) 
 | 26.2 | NeoForge 26.2.0.88 | OpenGL、Vulkan |
 | 26.3 | NeoForge 26.3.0.6-beta | OpenGL、Vulkan |
 
-最新版本：**0.1.0-alpha.37**。Alpha 阶段的 API 仍可能变化。
+最新版本：**0.1.0-alpha.38**。Alpha 阶段的 API 仍可能变化。
 
 ## 玩家须知
 

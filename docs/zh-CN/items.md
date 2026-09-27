@@ -61,11 +61,29 @@ val water = ItemIcon.drawn("水", { graphics ->
 
 ## 大量物品
 
-一个界面最多保留 128 个已准备的图标（容器界面为 256 个），每帧最多准备 64 个，所以大型网格会在几帧内陆续显示完整。同屏需要更多不同物品时，调高上限：
+普通界面默认最多缓存 128 个图标，`ComposeInventoryScreen` 默认缓存 256 个。创建 `ComposeScreen`、`ComposeMenuScreen`、`ComposeInventoryScreen` 或 `ComposeHudLayer` 时，可以通过 `nativeItemOptions` 为它单独设置总缓存容量：
 
 ```kotlin
 ComposeScreen(title, nativeItemOptions = NativeItemOptions(cacheCapacity = 512)) { … }
+
+ComposeInventoryScreen(
+    menu,
+    title,
+    nativeItemOptions = NativeItemOptions(cacheCapacity = 1024),
+) { slots ->
+    // 在这里排布菜单槽位。
+}
 ```
+
+`NativeItemOptions` 位于 `dev.composemc.forge.item`。
+
+| 参数 | 默认值 | 范围 | 含义 |
+| --- | --- | --- | --- |
+| `cacheCapacity` | 128；容器界面为 256 | 1–1024 | 当前界面或 HUD 层所有图集页合计可缓存的图标句柄数量 |
+| `preparationsPerFrame` | 64 | 1–64 | 每帧最多准备的图标数量 |
+| `imageSize` | 64 | 16–256 | 每个 16×16 图标准备时使用的像素尺寸 |
+
+增大 `cacheCapacity` 不会提高每帧准备上限。图集会分几帧准备，随着缓存填充占用更多显存。容量应覆盖同时处于使用状态的所有图标，包括玩家物品栏、合成区和手持物品，并为惰性布局预取留出余量。重复使用同一个 `ItemIcon` 句柄只占一个缓存条目；分别创建的句柄即使物品相同，也各占一个条目。如果缓存中的图标都还在使用，额外图标会一直等待，直到有条目可回收；超出容量的网格不会仅靠等待几帧就显示完整。
 
 ## 另见
 

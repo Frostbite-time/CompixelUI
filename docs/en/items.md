@@ -61,11 +61,29 @@ The drawing runs on the render thread and repeats every game tick unless you pas
 
 ## Large grids
 
-A screen keeps up to 128 prepared icons (256 in container screens) and prepares up to 64 per frame, so a big grid fills in over a few frames. For more distinct items on screen at once, raise the limit:
+A screen keeps up to 128 prepared icons by default; `ComposeInventoryScreen` defaults to 256. Set `nativeItemOptions` when creating a `ComposeScreen`, `ComposeMenuScreen`, `ComposeInventoryScreen` or `ComposeHudLayer` to choose its own cache capacity:
 
 ```kotlin
 ComposeScreen(title, nativeItemOptions = NativeItemOptions(cacheCapacity = 512)) { … }
+
+ComposeInventoryScreen(
+    menu,
+    title,
+    nativeItemOptions = NativeItemOptions(cacheCapacity = 1024),
+) { slots ->
+    // Lay out the menu's slots here.
+}
 ```
+
+`NativeItemOptions` is in `dev.composemc.forge.item`.
+
+| Option | Default | Range | Meaning |
+| --- | --- | --- | --- |
+| `cacheCapacity` | 128; 256 for inventory screens | 1–1024 | Total number of cached icon handles across all atlas pages in this screen or HUD layer |
+| `preparationsPerFrame` | 64 | 1–64 | Maximum number of icons prepared in one frame |
+| `imageSize` | 64 | 16–256 | Pixel size used to prepare each 16×16 icon |
+
+Increasing `cacheCapacity` keeps the per-frame preparation limit unchanged. Pages are prepared over several frames and consume more GPU memory as the cache fills. Size the cache for every simultaneously active icon, including player inventory, crafting and carried items, and leave room for lazy-layout prefetch. Reusing the same `ItemIcon` handle shares one cache entry; separately created handles use separate entries even for identical stacks. When all cached entries are still active, extra icons remain pending until an entry becomes available; waiting alone does not make an oversized grid complete.
 
 ## See also
 
