@@ -15,7 +15,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.composemc.ui.ore.theme.OreTheme
 
-/** Centered, bounded game panel; content can use weight(1f) for a lazy list. */
+/**
+ * Centered, bounded game panel; content can use weight(1f) for a lazy list. [showTitleBar] controls the title, close
+ * button and separator as one unit.
+ */
 @Composable
 fun OreScreen(
     title: String,
@@ -26,6 +29,7 @@ fun OreScreen(
     closeLabel: String = "Close",
     footer: (@Composable RowScope.() -> Unit)? = null,
     panelModifier: Modifier = Modifier,
+    showTitleBar: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     BoxWithConstraints(
@@ -38,6 +42,7 @@ fun OreScreen(
             onClose,
             closeLabel,
             footer,
+            showTitleBar = showTitleBar,
             content = content,
         )
     }

@@ -23,6 +23,23 @@ Each package below is under `dev.composemc.ui.ore`.
 | `inventory` | `OreSlot` |
 | `theme` | `OreTheme`, `OreColors`, `OreTypography` |
 
+## Screens and title bars
+
+`OreScreen` provides centering, size limits and a backdrop, using `OrePanel` for the panel itself. Both accept `showTitleBar = false` to hide the built-in title bar:
+
+```kotlin
+OreScreen(
+    title = "Storage",
+    showTitleBar = false,
+    footer = { OreButton("Close", onClick = onClose) },
+) {
+    // Custom heading, toolbar or other content
+    OreText("Storage contents")
+}
+```
+
+`showTitleBar` defaults to `true`. Setting it to `false` removes the title, built-in close button and separator below the title bar without reserving their height, giving the space to the content. The panel frame, content padding and footer remain. If you need a close button, put it in the footer as above or in your own toolbar. An empty title string still displays the title bar.
+
 ## Buttons and inputs
 
 ![A settings form with a text field, slider, checkbox, switch and buttons](../assets/ore-controls-en.png)

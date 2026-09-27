@@ -27,6 +27,7 @@ import dev.composemc.ui.ore.display.OreGlyph
 import dev.composemc.ui.ore.display.OreText
 import dev.composemc.ui.ore.theme.OreTheme
 
+/** When [showTitleBar] is false, the title, close button and separator occupy no space. */
 @Composable
 fun OrePanel(
     title: String,
@@ -35,31 +36,35 @@ fun OrePanel(
     closeLabel: String = "Close",
     footer: (@Composable RowScope.() -> Unit)? = null,
     contentPadding: PaddingValues = PaddingValues(start = 5.dp, top = 5.dp, end = 5.dp, bottom = 6.dp),
+    showTitleBar: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = OreTheme.colors
     OreSurface(modifier, bottomLedge = 2.dp, ledgeColor = colors.ledge, frameEdge = colors.frameEdge) {
         Column(Modifier.fillMaxSize()) {
-            Row(
-                Modifier.fillMaxWidth()
-                    .background(colors.raised)
-                    .heightIn(min = 20.dp)
-                    .padding(horizontal = 5.dp, vertical = 2.5.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                if (onClose != null) Spacer(Modifier.width(18.dp))
-                OreText(
-                    title,
-                    Modifier.weight(1f),
-                    style = OreTheme.typography.title,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (onClose != null) OreIconButton(OreGlyph.Cross, closeLabel, onClose, style = OreButtonStyle.Quiet)
+            if (showTitleBar) {
+                Row(
+                    Modifier.fillMaxWidth()
+                        .background(colors.raised)
+                        .heightIn(min = 20.dp)
+                        .padding(horizontal = 5.dp, vertical = 2.5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    if (onClose != null) Spacer(Modifier.width(18.dp))
+                    OreText(
+                        title,
+                        Modifier.weight(1f),
+                        style = OreTheme.typography.title,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (onClose != null)
+                        OreIconButton(OreGlyph.Cross, closeLabel, onClose, style = OreButtonStyle.Quiet)
+                }
+                Box(Modifier.fillMaxWidth().height(2.dp).background(colors.ledge))
             }
-            Box(Modifier.fillMaxWidth().height(2.dp).background(colors.ledge))
             Column(
                 Modifier.weight(1f).fillMaxWidth().padding(contentPadding),
                 verticalArrangement = Arrangement.spacedBy(6.dp),

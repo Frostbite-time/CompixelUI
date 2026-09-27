@@ -23,6 +23,23 @@ Ore UI 是 Compose MC 的 Minecraft 风格组件集：像素字体、立体按�
 | `inventory` | `OreSlot` |
 | `theme` | `OreTheme`、`OreColors`、`OreTypography` |
 
+## 屏幕与标题栏
+
+`OreScreen` 提供居中、尺寸限制和背景蒙层，内部用 `OrePanel` 绘制面板。两者都可以通过 `showTitleBar = false` 隐藏内置标题栏：
+
+```kotlin
+OreScreen(
+    title = "仓储",
+    showTitleBar = false,
+    footer = { OreButton("关闭", onClick = onClose) },
+) {
+    // 自定义标题、工具栏或其他内容
+    OreText("仓储内容")
+}
+```
+
+`showTitleBar` 默认为 `true`。设为 `false` 时，标题、内置关闭按钮以及标题栏下方的分隔条都不绘制，也不保留占位高度，内容区会使用腾出的空间。面板边框、内容内边距和 footer 仍然保留；需要关闭按钮时，可像上例一样放在 footer 或自定义工具栏中。只传空字符串标题仍会显示标题栏。
+
 ## 按钮与输入
 
 ![包含文本框、滑块、复选框、开关和按钮的设置表单](../assets/ore-controls-zh-CN.png)
