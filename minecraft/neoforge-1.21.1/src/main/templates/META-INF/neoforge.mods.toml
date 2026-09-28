@@ -9,6 +9,7 @@ modId="${mod_id}"
 version="${mod_version}"
 displayName="${mod_name}"
 displayURL="${mod_url}"
+logoFile="composemc-logo.png"
 authors="${mod_authors}"
 description='''Standalone Compose Multiplatform library for NeoForge 1.21.1, with OpenGL rendering.'''
 
