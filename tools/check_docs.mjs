@@ -13,9 +13,10 @@ const errors = [];
 const usedImages = new Set();
 const content = new Map(files.map(file => [file, fs.readFileSync(path.join(root, file), 'utf8')]));
 const error = (file, message) => errors.push(`${file}: ${message}`);
-// The mod page is pasted into download sites such as CurseForge, so it is English-only and every link is absolute.
-// 模组页面会粘贴到 CurseForge 等下载站，因此只用英文，所有链接都用绝对地址。
-const modPage = 'docs/mod-page.md';
+// The mod page and the changelog, which mod-publish uses as release notes, are shown on download sites such as
+// CurseForge, so they are English-only and every link is absolute.
+// 模组页面和 CHANGELOG（mod-publish 用作更新日志）会显示在 CurseForge 等下载站，因此只用英文，所有链接都用绝对地址。
+const externalPages = new Set(['docs/mod-page.md', 'docs/CHANGELOG.md']);
 // Absolute links into this repository must still name an existing file.
 // 指向本仓库的绝对链接同样必须指向存在的文件。
 const repositoryUrl = /^https:\/\/(?:github\.com\/Frostbite-time\/compose-mc\/(?:blob|tree)\/main|raw\.githubusercontent\.com\/Frostbite-time\/compose-mc\/main)\/([^?]+)$/;
@@ -68,7 +69,7 @@ for (const [file, text] of content) {
         const inRepository = repositoryUrl.exec(href)?.[1];
         if (!inRepository) {
             if (/^(https?:|mailto:)/i.test(href)) continue;
-            if (file === modPage) {
+            if (externalPages.has(file)) {
                 error(file, `Use an absolute URL / 请使用绝对链接: ${href}`);
                 continue;
             }
@@ -104,7 +105,7 @@ for (const file of files) {
         if (!content.has(counterpart)) error(file, `Missing translation / 缺少翻译: ${counterpart}`);
         const expected = path.posix.relative(path.posix.dirname(file), counterpart);
         if (!content.get(file).includes(`](${expected})`)) error(file, 'Missing language switch / 缺少语言切换链接');
-    } else if (file !== modPage && (!/[\u3400-\u9fff]/.test(prose(content.get(file))) || !/[A-Za-z]{3}/.test(prose(content.get(file))))) {
+    } else if (!externalPages.has(file) && (!/[\u3400-\u9fff]/.test(prose(content.get(file))) || !/[A-Za-z]{3}/.test(prose(content.get(file))))) {
         error(file, 'Standalone page must include English and Chinese / 单页文档需要中英文内容');
     }
 }

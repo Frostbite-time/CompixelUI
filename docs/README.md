@@ -2,6 +2,8 @@
 
 [Project home](../README.md) · [项目首页](../README.zh-CN.md)
 
+[Current release notes](CHANGELOG.md) · [当前版本更新日志](CHANGELOG.md)（English / 英文）
+
 | Topic · 主题 | English | 简体中文 |
 | --- | --- | --- |
 | Add the library and open a first screen · 接入并打开第一个界面 | [Getting started](en/getting-started.md) | [快速开始](zh-CN/getting-started.md) |

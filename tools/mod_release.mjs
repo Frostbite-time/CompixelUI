@@ -1,12 +1,13 @@
-// Shared metadata and artifact checks for the mod-publish workflow; no upload credentials needed.
+// Shared metadata and read-only publication checks for the mod-publish workflow.
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { properties } from './check_runtime_publication.mjs';
+import { annotate, properties } from './maven_publication.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const outputDelimiter = 'COMPOSEMC_OUTPUT';
 
 export function releaseMetadata(directory = root) {
     const version = properties(path.join(directory, 'gradle.properties')).mod_version;
@@ -34,6 +35,24 @@ export function releaseMetadata(directory = root) {
             : `Requires a compatible external Kotlin provider${target.provider ? ' (Kotlin for Forge)' : '; no compatible CurseForge provider is currently verified for this target'}. Install only this variant.`,
     })));
     return { version, tag: `v${version}`, type: version.includes('-alpha') ? 'alpha' : version.includes('-') ? 'beta' : 'release', targets, uploads };
+}
+
+/**
+ * The release notes. docs/CHANGELOG.md describes only the version being released: its heading must end with that
+ * version, and the text below the heading becomes the notes. Earlier versions' notes live in the file's history.
+ */
+export function releaseChangelog(version, directory = root) {
+    const text = fs.readFileSync(path.join(directory, 'docs/CHANGELOG.md'), 'utf8').replace(/\r\n/g, '\n').trim();
+    const [heading, ...body] = text.split('\n');
+    const title = /^# (.+)$/.exec(heading)?.[1].trim();
+    if (!title) throw new Error('docs/CHANGELOG.md must start with a "# Compose MC <version>" heading');
+    if (title.split(/\s+/).at(-1) !== version) {
+        throw new Error(`docs/CHANGELOG.md describes "${title}", not ${version}. Update it before publishing.`);
+    }
+    const notes = body.join('\n').trim();
+    if (!notes) throw new Error('docs/CHANGELOG.md has no release notes below its heading');
+    if (notes.split('\n').includes(outputDelimiter)) throw new Error(`docs/CHANGELOG.md must not contain a ${outputDelimiter} line`);
+    return notes;
 }
 
 export function assertTagCommit(remoteRefs, tag, sha) {
@@ -79,20 +98,183 @@ export function verifyArtifacts(metadata, adapter, directory) {
     return manifest;
 }
 
-function main() {
-    const [command, adapter, directory = 'dist'] = process.argv.slice(2);
+const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
+
+/**
+ * The GitHub release files to upload. A player JAR the release already has is kept, whatever this run built, and
+ * SHA256SUMS lists the JARs the release ends up with: it is uploaded when missing and replaced only when it no longer
+ * describes them. [built] maps each player JAR to its SHA-256; [existing] maps release asset names to { digest }, or
+ * { content } for SHA256SUMS.
+ */
+export function planReleaseAssets(metadata, built, existing) {
+    const upload = [], kept = [];
+    let manifest = '';
+    for (const { file } of metadata.uploads) {
+        const asset = existing.get(file);
+        if (asset) kept.push({ file, differs: asset.digest !== built.get(file) });
+        else upload.push(file);
+        manifest += `${asset ? asset.digest : built.get(file)}  ${file}\n`;
+    }
+    const sums = existing.get('SHA256SUMS');
+    if (sums?.content !== manifest) upload.push('SHA256SUMS');
+    return { upload, kept, manifest, replacesSums: !!sums && sums.content !== manifest };
+}
+
+/** Whether the release has every player JAR and a SHA256SUMS that lists them; [existing] is as for planReleaseAssets. */
+export function githubReleaseComplete(metadata, existing) {
+    let manifest = '';
+    for (const { file } of metadata.uploads) {
+        const asset = existing.get(file);
+        if (!asset) return false;
+        manifest += `${asset.digest}  ${file}\n`;
+    }
+    return existing.get('SHA256SUMS')?.content === manifest;
+}
+
+/** Build only adapters still needed by CurseForge, unless GitHub needs the complete set for its checksum manifest. */
+export function planModRelease(metadata, uploaded, existing) {
+    const uploads = metadata.uploads.filter(upload => !uploaded.has(upload.file));
+    const github = !githubReleaseComplete(metadata, existing);
+    const builds = metadata.targets.filter(target => github || uploads.some(upload => upload.adapter === target.adapter));
+    return { uploads, github, builds };
+}
+
+/**
+ * Receipts cover files still under review and absent from the public API. Scope them to the destination project too.
+ * [remoteRefs] is git ls-remote output; they supplement, rather than replace, the remote file listing.
+ */
+export function curseforgeUploads(remoteRefs, project, tag) {
+    const prefix = `refs/curseforge/${project}/${tag}/`;
+    return new Set(remoteRefs.split(/\r?\n/).map(line => line.split(/\s+/)[1] ?? '')
+        .filter(ref => ref.startsWith(prefix)).map(ref => ref.slice(prefix.length)));
+}
+
+/** Query all pages by exact filename, including files uploaded manually outside this workflow. */
+export async function curseforgeFiles(project, apiKey) {
+    if (!/^[1-9]\d*$/.test(project ?? '')) throw new Error('Set the CURSEFORGE_ID secret in the mod-publish environment before dispatching mod-publish');
+    if (!apiKey) throw new Error('Set the CURSEFORGE_API_KEY secret in the mod-publish environment (CurseForge Core API read key, not the upload token)');
+    const files = new Set();
+    for (let index = 0; index < 10_000;) {
+        const response = await fetch(`https://api.curseforge.com/v1/mods/${project}/files?index=${index}&pageSize=50`, {
+            headers: { 'x-api-key': apiKey, Accept: 'application/json' },
+            redirect: 'error', signal: AbortSignal.timeout(30_000),
+        });
+        if (response.status !== 200) throw new Error(`Cannot list CurseForge files for ${project}: HTTP ${response.status}; no upload will be attempted`);
+        const { data, pagination } = await response.json();
+        if (!Array.isArray(data) || data.some(file => typeof file.fileName !== 'string' || !file.fileName) ||
+            pagination?.index !== index || pagination.resultCount !== data.length ||
+            !Number.isInteger(pagination.totalCount) || pagination.totalCount < index + data.length) {
+            throw new Error('Invalid CurseForge file listing or pagination; no upload will be attempted');
+        }
+        for (const file of data) files.add(file.fileName);
+        index += data.length;
+        if (index >= pagination.totalCount) return files;
+        if (!data.length) throw new Error('Incomplete CurseForge file listing; no upload will be attempted');
+    }
+    throw new Error('CurseForge file listing exceeds its 10,000-file API limit; no upload will be attempted');
+}
+
+async function existingCurseforgeFiles(metadata) {
+    const project = process.env.CURSEFORGE_ID;
+    const files = await curseforgeFiles(project, process.env.CURSEFORGE_API_KEY);
+    const refs = execFileSync('git', ['ls-remote', 'origin', `refs/curseforge/${project}/${metadata.tag}/*`],
+        { cwd: root, encoding: 'utf8', timeout: 60_000 });
+    for (const file of curseforgeUploads(refs, project, metadata.tag)) files.add(file);
+    return files;
+}
+
+function github(route, token, accept = 'application/vnd.github+json') {
+    return fetch(`https://api.github.com${route}`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: accept, 'X-GitHub-Api-Version': '2022-11-28' },
+        redirect: 'manual', signal: AbortSignal.timeout(600_000),
+    });
+}
+
+async function downloadAsset(repository, asset, token) {
+    const response = await github(`/repos/${repository}/releases/assets/${asset.id}`, token, 'application/octet-stream');
+    // The API redirects to storage that must not receive the token.
+    const location = response.headers.get('location');
+    const file = location ? await fetch(location, { signal: AbortSignal.timeout(600_000) }) : response;
+    if (file.status !== 200) throw new Error(`Cannot download release asset ${asset.name}: HTTP ${file.status}`);
+    return Buffer.from(await file.arrayBuffer());
+}
+
+/** The assets of the release for [tag]: the SHA-256 of each file, and the content of SHA256SUMS. */
+export async function releaseAssets(repository, tag, token) {
+    const response = await github(`/repos/${repository}/releases/tags/${encodeURIComponent(tag)}`, token);
+    if (response.status === 404) return new Map();
+    if (response.status !== 200) throw new Error(`Cannot read the ${tag} release: HTTP ${response.status}`);
+    const release = await response.json();
+    const assets = new Map();
+    for (let page = 1; ; page++) {
+        const listing = await github(`/repos/${repository}/releases/${release.id}/assets?per_page=100&page=${page}`, token);
+        if (listing.status !== 200) throw new Error(`Cannot list the ${tag} release assets: HTTP ${listing.status}`);
+        const entries = await listing.json();
+        for (const asset of entries) {
+            if (asset.state !== 'uploaded' || asset.size <= 0) {
+                throw new Error(`Incomplete GitHub asset ${asset.name}; inspect and remove it before retrying`);
+            }
+            const digest = /^sha256:([0-9a-f]{64})$/.exec(asset.digest ?? '')?.[1];
+            if (asset.name === 'SHA256SUMS') assets.set(asset.name, { content: (await downloadAsset(repository, asset, token)).toString('utf8') });
+            // Assets uploaded before GitHub computed digests are hashed from a download.
+            else assets.set(asset.name, { digest: digest ?? sha256(await downloadAsset(repository, asset, token)) });
+        }
+        if (entries.length < 100) return assets;
+    }
+}
+
+function githubOutput(values) {
+    if (!process.env.GITHUB_OUTPUT) throw new Error('GITHUB_OUTPUT is required');
+    for (const [key, value] of Object.entries(values)) {
+        fs.appendFileSync(process.env.GITHUB_OUTPUT, `${key}<<${outputDelimiter}\n${value}\n${outputDelimiter}\n`);
+    }
+}
+
+async function main() {
+    const [command, ...args] = process.argv.slice(2);
+    const [adapter, directory = 'dist'] = command === 'github-assets' ? [undefined, ...args] : args;
     const metadata = releaseMetadata();
+    const token = process.env.GITHUB_TOKEN, repository = process.env.GITHUB_REPOSITORY;
+    const requireGitHub = () => {
+        if (!token || !/^[\w.-]+\/[\w.-]+$/.test(repository ?? '')) throw new Error('GITHUB_TOKEN and GITHUB_REPOSITORY are required');
+    };
     if (command === 'prepare') {
-        if (!/^\d+$/.test(process.env.CURSEFORGE_ID ?? '')) throw new Error('Set the repository variable CURSEFORGE_ID before dispatching mod-publish');
+        requireGitHub();
         verifyTag(metadata);
-        const outputs = {
+        const changelog = releaseChangelog(metadata.version);
+        const uploaded = await existingCurseforgeFiles(metadata);
+        const { uploads, github, builds } = planModRelease(metadata, uploaded, await releaseAssets(repository, metadata.tag, token));
+        for (const { file } of metadata.uploads.filter(upload => uploaded.has(upload.file))) {
+            annotate('notice', 'Already on CurseForge', `${file} exists in the file listing or has a successful upload receipt; skipped it.`);
+        }
+        if (!github) annotate('notice', 'Already on GitHub', `The ${metadata.tag} release already has every file; skipped it.`);
+        githubOutput({
             version: metadata.version, tag: metadata.tag, type: metadata.type,
-            builds: JSON.stringify({ include: metadata.targets }), uploads: JSON.stringify({ include: metadata.uploads }),
+            builds: JSON.stringify({ include: builds }), uploads: JSON.stringify({ include: uploads }),
+            upload_count: uploads.length, github, build: builds.length > 0,
             game_versions: metadata.targets.map(target => target.target).join('\n'),
-        };
-        if (!process.env.GITHUB_OUTPUT) throw new Error('GITHUB_OUTPUT is required');
-        for (const [key, value] of Object.entries(outputs)) fs.appendFileSync(process.env.GITHUB_OUTPUT, `${key}<<COMPOSEMC_OUTPUT\n${value}\nCOMPOSEMC_OUTPUT\n`);
-        console.log(`Prepared ${metadata.tag}: ${metadata.targets.length} builds, ${metadata.uploads.length} independent CurseForge files`);
+            changelog,
+        });
+        console.log(`Prepared ${metadata.tag}: ${uploads.length} of ${metadata.uploads.length} CurseForge files to upload; ` +
+            `GitHub release ${github ? 'incomplete' : 'complete'}`);
+    } else if (command === 'curseforge-file') {
+        const file = args[0];
+        if (!metadata.uploads.some(upload => upload.file === file)) throw new Error(`Unknown release file: ${file}`);
+        const uploaded = (await existingCurseforgeFiles(metadata)).has(file);
+        if (uploaded) annotate('notice', 'Already on CurseForge', `${file} exists in the file listing or has a successful upload receipt; skipped it.`);
+        githubOutput({ uploaded });
+    } else if (command === 'github-assets') {
+        requireGitHub();
+        const built = new Map(metadata.uploads.map(({ file }) => [file, sha256(fs.readFileSync(path.join(directory, file)))]));
+        const plan = planReleaseAssets(metadata, built, await releaseAssets(repository, metadata.tag, token));
+        fs.writeFileSync(path.join(directory, 'SHA256SUMS'), plan.manifest);
+        for (const { file, differs } of plan.kept) {
+            annotate('notice', 'Already on GitHub', `${file} is already attached to the ${metadata.tag} release; skipped it` +
+                `${differs ? ' and kept the published file, which differs from this build' : ''}.`);
+        }
+        if (plan.replacesSums) annotate('notice', 'Checksums updated', `SHA256SUMS no longer matched the ${metadata.tag} release files; replacing it.`);
+        githubOutput({ files: plan.upload.map(file => path.posix.join(directory, file)).join('\n') });
+        console.log(`Release files to upload: ${plan.upload.join(', ') || 'none'}`);
     } else if (command === 'tag') {
         verifyTag(metadata);
     } else if (command === 'checksums') {
@@ -102,10 +284,10 @@ function main() {
         if (adapter === 'all') fs.writeFileSync(path.join(directory, 'SHA256SUMS'), manifest);
         console.log(`Verified ${adapter} release artifacts`);
     } else {
-        throw new Error('Usage: mod_release.mjs prepare | tag | checksums <adapter> [directory] | verify <adapter|all> [directory]');
+        throw new Error('Usage: mod_release.mjs prepare | tag | checksums <adapter> [directory] | verify <adapter|all> [directory] | github-assets [directory] | curseforge-file <file>');
     }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
-    try { main(); } catch (error) { console.error(error.message); process.exitCode = 1; }
+    main().catch(error => { console.error(error.message); process.exitCode = 1; });
 }

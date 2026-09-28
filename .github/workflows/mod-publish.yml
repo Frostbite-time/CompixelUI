@@ -1,12 +1,8 @@
 name: mod-publish
-
-on:
-  workflow_dispatch:
-    inputs:
-      changelog:
-        description: Release notes (Markdown) for this mod_version
-        required: true
-        type: string
+# Started by hand. docs/CHANGELOG.md, which describes only the version in gradle.properties, becomes the release
+# notes. Every player JAR is an independent CurseForge file and a GitHub release asset; files an earlier run already
+# published are skipped with a notice, and the others are still published.
+on: workflow_dispatch
 
 concurrency:
   group: mod-publish
@@ -17,6 +13,8 @@ permissions:
 
 jobs:
   prepare:
+    # File-list credentials are environment secrets, so preflight also follows its approval rules.
+    environment: mod-publish
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.release.outputs.version }}
@@ -24,18 +22,26 @@ jobs:
       type: ${{ steps.release.outputs.type }}
       builds: ${{ steps.release.outputs.builds }}
       uploads: ${{ steps.release.outputs.uploads }}
+      upload_count: ${{ steps.release.outputs.upload_count }}
+      github: ${{ steps.release.outputs.github }}
+      build: ${{ steps.release.outputs.build }}
       game_versions: ${{ steps.release.outputs.game_versions }}
+      changelog: ${{ steps.release.outputs.changelog }}
     steps:
       - uses: actions/checkout@v4
-      - name: Read the target registry and check the release tag
+      - name: Read the target registry, the changelog and the release tag
         id: release
         env:
-          CURSEFORGE_ID: ${{ vars.CURSEFORGE_ID }}
+          CURSEFORGE_ID: ${{ secrets.CURSEFORGE_ID }}
+          CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node tools/mod_release.mjs prepare
 
   build:
     name: Build ${{ matrix.adapter }}
     needs: prepare
+    # Skipped when CurseForge and the GitHub release already have every file.
+    if: needs.prepare.outputs.build == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -88,19 +94,36 @@ jobs:
   curseforge:
     name: CurseForge ${{ matrix.adapter }} / ${{ matrix.variant }}
     needs: [prepare, build]
+    # Only the files no earlier run uploaded.
+    if: needs.prepare.outputs.upload_count != '0'
     environment: mod-publish
     runs-on: ubuntu-latest
+    permissions:
+      # Records each uploaded file as a ref; see the first step.
+      contents: write
     strategy:
       fail-fast: false
       max-parallel: 2
       matrix: ${{ fromJSON(needs.prepare.outputs.uploads) }}
+    env:
+      FILE: ${{ matrix.file }}
+      UPLOADED: refs/curseforge/${{ secrets.CURSEFORGE_ID }}/${{ needs.prepare.outputs.tag }}/${{ matrix.file }}
     steps:
       - uses: actions/checkout@v4
+      - name: Skip an existing file
+        id: existing
+        # Recheck the public file list and receipts on failed-job retries. Receipts also cover files still under review.
+        env:
+          CURSEFORGE_ID: ${{ secrets.CURSEFORGE_ID }}
+          CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
+        run: node tools/mod_release.mjs curseforge-file "$FILE"
       - uses: actions/download-artifact@v4
+        if: steps.existing.outputs.uploaded != 'true'
         with:
           name: mod-${{ matrix.adapter }}
           path: dist
       - name: Check the download and publishing credentials
+        if: steps.existing.outputs.uploaded != 'true'
         env:
           ADAPTER: ${{ matrix.adapter }}
           CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
@@ -108,16 +131,17 @@ jobs:
           test -n "$CURSEFORGE_TOKEN" || { echo '::error::Set CURSEFORGE_TOKEN in the mod-publish environment'; exit 1; }
           node tools/mod_release.mjs verify "$ADAPTER"
       - name: Publish one independent CurseForge file
+        if: steps.existing.outputs.uploaded != 'true'
         uses: Kir-Antipov/mc-publish@52307b03863581dec6b652b83e597aec02ebb075 # v3.3.1
         with:
-          curseforge-id: ${{ vars.CURSEFORGE_ID }}
+          curseforge-id: ${{ secrets.CURSEFORGE_ID }}
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           files: dist/${{ matrix.file }}
           name: Compose MC ${{ needs.prepare.outputs.version }} / ${{ matrix.adapter }} / ${{ matrix.variant }}
           version: ${{ needs.prepare.outputs.version }}
           version-type: ${{ needs.prepare.outputs.type }}
           changelog: |
-            ${{ inputs.changelog }}
+            ${{ needs.prepare.outputs.changelog }}
 
             **Installation:** ${{ matrix.installation }}
             [Runtime compatibility](https://github.com/${{ github.repository }}/blob/${{ github.sha }}/docs/en/compatibility.md)
@@ -127,13 +151,23 @@ jobs:
           java: ${{ matrix.java }}
           environment: client | server
           dependencies: ${{ matrix.dependencies }}
-          # A lost upload response can mean the file exists. Inspect CF before retrying that job.
+          # A lost upload response can mean the file exists. If CurseForge has it, create the ref before a retry.
           retry-attempts: 1
           fail-mode: fail
+      - name: Record the upload
+        if: steps.existing.outputs.uploaded != 'true'
+        run: |
+          for attempt in 1 2 3; do
+            git push origin "$GITHUB_SHA:$UPLOADED" && exit 0
+            sleep 10
+          done
+          echo "::error::$FILE is on CurseForge, but $UPLOADED could not be created. Create it before retrying this job."
+          exit 1
 
   github:
     name: GitHub Release
     needs: [prepare, build]
+    if: needs.prepare.outputs.github == 'true'
     environment: mod-publish
     runs-on: ubuntu-latest
     permissions:
@@ -149,20 +183,24 @@ jobs:
         run: |
           node tools/mod_release.mjs verify all
           node tools/mod_release.mjs tag
+      - name: Skip the files the release already has
+        id: assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node tools/mod_release.mjs github-assets
       - name: Publish the player installation archives
+        if: steps.assets.outputs.files != ''
         uses: Kir-Antipov/mc-publish@52307b03863581dec6b652b83e597aec02ebb075 # v3.3.1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-tag: ${{ needs.prepare.outputs.tag }}
           github-commitish: ${{ github.sha }}
-          files: |
-            dist/*.jar
-            dist/SHA256SUMS
+          files: ${{ steps.assets.outputs.files }}
           name: Compose MC ${{ needs.prepare.outputs.version }}
           version: ${{ needs.prepare.outputs.version }}
           version-type: ${{ needs.prepare.outputs.type }}
           changelog: |
-            ${{ inputs.changelog }}
+            ${{ needs.prepare.outputs.changelog }}
 
             Choose the file matching your Minecraft version and loader. Install **one** variant only:
             - Standard: requires a compatible external Kotlin provider.
@@ -176,4 +214,6 @@ jobs:
           game-versions: ${{ needs.prepare.outputs.game_versions }}
           game-version-filter: none
           environment: client | server
+          # On failure, rerun the job so github-assets checks each file again before mc-publish can replace it.
+          retry-attempts: 1
           fail-mode: fail
