@@ -32,7 +32,7 @@ kotlin { jvmToolchain(21) }
 在 `gradle.properties` 中：
 
 ```properties
-composemc_version=0.1.1
+composemc_version=0.1.2
 kotlin.stdlib.default.dependency=false
 ```
 
@@ -48,7 +48,7 @@ Compose MC 作为独立模组安装，不要用 Jar-in-Jar 打进你的 JAR。
 [[dependencies.examplemod]]
 modId = "composemc"
 type = "required"
-versionRange = "[0.1.1]"
+versionRange = "[0.1.2]"
 ordering = "AFTER"
 side = "CLIENT"
 ```
@@ -129,8 +129,8 @@ fun openHandScreen() {
 
 | 文件 | 适用于 |
 | --- | --- |
-| `composemc-neoforge-1.21.1-0.1.1-with-kotlin.jar` | 所有玩家，已包含 Kotlin |
-| `composemc-neoforge-1.21.1-0.1.1.jar` | 已安装 Kotlin for Forge 的玩家 |
+| `composemc-neoforge-1.21.1-0.1.2-with-kotlin.jar` | 所有玩家，已包含 Kotlin |
+| `composemc-neoforge-1.21.1-0.1.2.jar` | 已安装 Kotlin for Forge 的玩家 |
 
 两个文件都可以在 [Releases](https://github.com/Frostbite-time/compose-mc/releases) 页面下载。
 

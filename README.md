@@ -54,7 +54,7 @@ Minecraft.getInstance().setScreen(ComposeScreen(Component.literal("Counter")) {
 | 26.2 | NeoForge 26.2.0.0-beta or newer | OpenGL, Vulkan |
 | 26.3 | NeoForge 26.3.0.0-beta or newer | OpenGL, Vulkan |
 
-Latest version: **0.1.1**.
+Latest version: **0.1.2**.
 
 ## For players
 

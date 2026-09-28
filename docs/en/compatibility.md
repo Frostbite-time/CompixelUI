@@ -2,7 +2,7 @@
 
 [简体中文](../zh-CN/compatibility.md) · [All guides](../README.md)
 
-This page describes Compose MC **0.1.1**.
+This page describes Compose MC **0.1.2**.
 
 ## Minecraft versions
 
