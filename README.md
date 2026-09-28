@@ -1,8 +1,14 @@
+<div align="center">
+
+<img src="docs/assets/logo/composemc-logo-transparent.svg" width="160" alt="Compose MC logo">
+
 # Compose MC
 
 **Build Minecraft mod interfaces with Jetpack Compose.**
 
 English · [简体中文](README.zh-CN.md)
+
+</div>
 
 ![A waypoint browser built with Compose MC in Minecraft: a grid of location previews and a details panel](docs/assets/hero-en.png)
 

@@ -1,8 +1,14 @@
+<div align="center">
+
+<img src="docs/assets/logo/composemc-logo-transparent.svg" width="160" alt="Compose MC 标志">
+
 # Compose MC
 
 **用 Jetpack Compose 构建 Minecraft 模组界面。**
 
 [English](README.md) · 简体中文
+
+</div>
 
 ![用 Compose MC 在 Minecraft 中构建的路径点浏览界面：地点预览网格与详情面板](docs/assets/hero-zh-CN.png)
 
