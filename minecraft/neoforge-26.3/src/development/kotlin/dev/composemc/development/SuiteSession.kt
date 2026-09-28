@@ -120,7 +120,7 @@ internal class SuiteSession(val suite: ClientSuite, private val frameLimit: Int)
         val items = screen.nativeItemStatistics
         val tooltips = screen.nativeTooltipStatistics
         check(screen.session == null) { "$name kept its Compose session after closing" }
-        check(renderer.liveSurfaces == 0 && renderer.liveNativeImages == 0) {
+        check(renderer.liveSurfaces == 0 && renderer.liveNativeImages == 0 && renderer.strandedNativeImages == 0) {
             "$name leaked renderer resources: $renderer"
         }
         check(items.preparedImages == items.retiredImages) { "$name leaked native item images: $items" }

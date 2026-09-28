@@ -124,7 +124,8 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
                         active.onClose()
                         check(
                             active.rendererStatistics.liveSurfaces == 0 &&
-                                active.rendererStatistics.liveNativeImages == 0
+                                active.rendererStatistics.liveNativeImages == 0 &&
+                                active.rendererStatistics.strandedNativeImages == 0
                         ) {
                             "The inventory screen kept its renderer after closing: ${active.rendererStatistics}"
                         }

@@ -171,7 +171,7 @@ internal class HudAcceptance(
     private fun requireReleased(change: String) {
         val renderer = hud.rendererStatistics
         val items = hud.nativeItemStatistics
-        check(renderer.liveSurfaces == 0 && renderer.liveNativeImages == 0) {
+        check(renderer.liveSurfaces == 0 && renderer.liveNativeImages == 0 && renderer.strandedNativeImages == 0) {
             "$change leaked HUD renderer resources: $renderer"
         }
         check(items.preparedImages == items.retiredImages) { "$change leaked HUD item images: $items" }

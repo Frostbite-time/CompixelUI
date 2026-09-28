@@ -76,9 +76,7 @@ internal class VulkanScreenFrameRenderer(override val profiler: UiFrameProfiler?
                 return copy
             }
 
-            override fun release(image: Image) {
-                image.close()
-            }
+            override fun release(image: Image) = renderer.releaseImage(image)
         }
 
     private fun target(width: Int, height: Int): Target {
