@@ -33,20 +33,6 @@ Download the file for your Minecraft version and put it in your `mods` folder, n
 
 Don't combine the `-with-kotlin` file with Kotlin for Forge: the two copies of Kotlin conflict.
 
-## Supported versions
-
-| Minecraft | Loader | Graphics | Kotlin for Forge |
-| --- | --- | --- | --- |
-| 1.20.1 | Forge 47.2.18 or newer | OpenGL | 4.12.0 |
-| 1.21.1 | NeoForge 21.1.1 or newer | OpenGL | 5.12.0 |
-| 26.1.2 | NeoForge 26.1.2.0-beta or newer | OpenGL | 6.3.0 |
-| 26.2 | NeoForge 26.2.0.0-beta or newer | OpenGL, Vulkan | 6.3.0 |
-| 26.3 | NeoForge 26.3.0.0-beta or newer | OpenGL, Vulkan | Not supported yet; use `-with-kotlin` |
-
-The Kotlin for Forge column shows the versions tested with the plain file.
-
-Each file supports Windows, Linux and macOS on x64 and arm64, though testing so far has covered Windows with NVIDIA graphics. Other setups are expected to work, and reports are welcome. Shaders and heavily modified GUIs haven't been tested widely.
-
 ## Change the colors
 
 Resource packs can recolor Compose MC screens without any code. For example, a resource pack with this file at `assets/composemc/composemc/ore_themes/default.json` switches every Compose MC screen to the built-in Twilight theme:
