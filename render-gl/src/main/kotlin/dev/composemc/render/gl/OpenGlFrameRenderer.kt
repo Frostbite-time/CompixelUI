@@ -45,6 +45,8 @@ class OpenGlFrameRenderer(
     private var presentTimer: GlGpuTimer? = null
     private val nativeTimers = mutableMapOf<GpuPhase, GlGpuTimer>()
     private val importedImages = mutableSetOf<Image>()
+    private val retiredImages = RetiredImages()
+    private var strandedImages = 0
     private var imageCopies = 0L
     override val statistics
         get() =
@@ -58,7 +60,9 @@ class OpenGlFrameRenderer(
                 renderTimer?.timings?.summary(),
                 presentTimer?.timings?.summary(),
                 nativeImageCopies = imageCopies,
-                liveNativeImages = importedImages.size,
+                liveNativeImages = importedImages.size + retiredImages.size,
+                retiredNativeImages = retiredImages.size,
+                strandedNativeImages = strandedImages,
             )
 
     override val needsFrame
@@ -98,6 +102,8 @@ class OpenGlFrameRenderer(
             renderTimer = GlGpuTimer(profiler, GpuPhase.RENDER)
         val timer = renderTimer
         if (timer == null) drawFrame(frame) else timer.measure { drawFrame(frame) }
+        // Replaced frames and display lists may have held the last other references to retired images.
+        retiredImages.release()
     }
 
     /**
@@ -188,9 +194,13 @@ class OpenGlFrameRenderer(
 
     fun releaseImage(image: Image) = releaseImages(listOf(image))
 
-    /** Retire a bounded batch under one state snapshot. Recorded pictures retain their own references. */
+    /**
+     * Retire a bounded batch under one state snapshot. Recorded pictures retain their own references, and Compose may
+     * drop those on its own thread, so each image stays open until the renderer holds its last reference.
+     */
     fun releaseImages(images: List<Image>) = isolated {
-        images.forEach { image -> if (importedImages.remove(image)) image.close() }
+        images.forEach { image -> if (importedImages.remove(image)) retiredImages.retire(image) }
+        retiredImages.release()
     }
 
     private fun directContext(): DirectContext =
@@ -350,8 +360,9 @@ class OpenGlFrameRenderer(
         val deleted = intArrayOf(texture, framebuffer, stencil, compositor, privateVao, readFramebuffer)
         isolated {
             releaseSurface()
-            importedImages.forEach(Image::close)
+            importedImages.forEach(retiredImages::retire)
             importedImages.clear()
+            strandedImages += retiredImages.releaseAll()
             context?.close()
             context = null
             if (compositor != 0) glDeleteProgram(compositor)

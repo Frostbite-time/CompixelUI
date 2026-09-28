@@ -3,6 +3,7 @@ package dev.composemc.render.vulkan
 import dev.composemc.render.RecordedFrame
 import dev.composemc.render.RenderBackend
 import dev.composemc.render.RendererStatistics
+import dev.composemc.render.RetiredImages
 import org.jetbrains.skia.BackendRenderTarget
 import org.jetbrains.skia.DirectContext
 import org.jetbrains.skia.IRect
@@ -36,12 +37,26 @@ class VulkanFrameRenderer(handles: VulkanDeviceHandles) : AutoCloseable {
     private var frames = 0L
     private var generation = 0L
     private var snapshots = 0L
+    private val snapshotImages = mutableSetOf<Image>()
+    private val retiredImages = RetiredImages()
+    private var strandedImages = 0
     var needsFrame = true
         private set
 
     // The adapter adds its retained target's allocation/liveness counters.
     val statistics
-        get() = RendererStatistics(RenderBackend.VULKAN, frames, 0, 0, generation, nativeImageCopies = snapshots)
+        get() =
+            RendererStatistics(
+                RenderBackend.VULKAN,
+                frames,
+                0,
+                0,
+                generation,
+                nativeImageCopies = snapshots,
+                liveNativeImages = snapshotImages.size + retiredImages.size,
+                retiredNativeImages = retiredImages.size,
+                strandedNativeImages = strandedImages,
+            )
 
     private fun checkOpen() {
         check(Thread.currentThread() === owner) { "Vulkan renderer accessed outside its owning thread" }
@@ -83,6 +98,8 @@ class VulkanFrameRenderer(handles: VulkanDeviceHandles) : AutoCloseable {
         frames++
         generation = frame.generation
         needsFrame = false
+        // Replaced frames and display lists may have held the last other references to retired images.
+        retiredImages.release()
     }
 
     /**
@@ -129,8 +146,19 @@ class VulkanFrameRenderer(handles: VulkanDeviceHandles) : AutoCloseable {
         context.flush()
         context.submit(false)
         image.imageInfo
+        snapshotImages += image
         snapshots++
         return image
+    }
+
+    /**
+     * Retires a [snapshotImage] result. Recorded pictures retain their own references, and Compose may drop those on
+     * its own thread, so the image stays open until this renderer holds its last reference.
+     */
+    fun releaseImage(image: Image) {
+        checkOpen()
+        if (snapshotImages.remove(image)) retiredImages.retire(image)
+        retiredImages.release()
     }
 
     fun reset() {
@@ -142,6 +170,9 @@ class VulkanFrameRenderer(handles: VulkanDeviceHandles) : AutoCloseable {
     override fun close() {
         check(Thread.currentThread() === owner)
         if (closed) return
+        snapshotImages.forEach(retiredImages::retire)
+        snapshotImages.clear()
+        strandedImages += retiredImages.releaseAll()
         context.close()
         closed = true
     }

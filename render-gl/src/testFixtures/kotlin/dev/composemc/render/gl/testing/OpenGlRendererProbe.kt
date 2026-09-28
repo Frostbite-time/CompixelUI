@@ -5,6 +5,7 @@ import dev.composemc.render.UiFrameProfiler
 import dev.composemc.render.gl.*
 import dev.composemc.testing.render.RendererPixels
 import dev.composemc.testing.render.RendererProbeResult
+import kotlin.concurrent.thread
 import org.jetbrains.skia.BlendMode
 import org.jetbrains.skia.Paint
 import org.jetbrains.skia.PictureRecorder
@@ -123,7 +124,14 @@ object OpenGlRendererProbe {
                                 renderer.releaseImage(copied)
                                 cropped.close()
                             }
-                            check(renderer.statistics.liveNativeImages == 0)
+                            // The picture still refers to the released copies, so they wait in retirement.
+                            val released = renderer.statistics
+                            check(
+                                released.retiredNativeImages == (if (iteration == 0) 2 else 1) &&
+                                    released.liveNativeImages == released.retiredNativeImages
+                            ) {
+                                "Released images still referenced by a picture were not retired: $released"
+                            }
                             glColorMask(true, true, true, true)
                             glDisable(GL_SCISSOR_TEST)
                             glClearColor(0f, 0f, 0f, 0f)
@@ -150,6 +158,7 @@ object OpenGlRendererProbe {
                     check(renderer.statistics.surfaceAllocations == 2L) { "Retained surface was not reused" }
                 }
             }
+            verifyRetirement(frame, targetFbo)
             // A host that composites through its own pipeline never calls present(); polling alone must deliver
             // timings.
             val profiler = UiFrameProfiler()
@@ -174,6 +183,44 @@ object OpenGlRendererProbe {
             original.restore()
             original.assertRestored()
         }
+    }
+
+    /**
+     * Compose records imported images on its own thread and may drop those pictures after the renderer has released the
+     * image. The final release must still happen on this thread; a thread without the context would lose the texture.
+     */
+    private fun verifyRetirement(frame: RecordedFrame, framebuffer: Int) {
+        val width = frame.viewport.width
+        val height = frame.viewport.height
+        val textures = liveTextures()
+        OpenGlFrameRenderer(verifyState = true).use { renderer ->
+            repeat(3) {
+                val image = renderer.copyFramebuffer(OpenGlDestination(framebuffer, width, height))
+                val picture =
+                    PictureRecorder().use { recorder ->
+                        recorder.beginRecording(Rect.makeWH(width.toFloat(), height.toFloat())).drawImage(image, 0f, 0f)
+                        recorder.finishRecordingAsPicture()
+                    }
+                renderer.releaseImage(image)
+                check(!image.isClosed && renderer.statistics.retiredNativeImages == 1) {
+                    "An image was closed while a picture still referred to it"
+                }
+                thread { picture.close() }.join()
+                renderer.render(frame)
+                check(image.isClosed && renderer.statistics.liveNativeImages == 0) {
+                    "An unreferenced retired image stayed open: ${renderer.statistics}"
+                }
+            }
+        }
+        val remaining = liveTextures()
+        check(remaining == textures) { "Retired images left ${remaining - textures} GL textures behind" }
+    }
+
+    /** Scans past a fresh texture name: drivers hand out names upwards and reuse freed ones below it. */
+    private fun liveTextures(): Int {
+        val fresh = glGenTextures()
+        glDeleteTextures(fresh)
+        return (1..fresh + 4096).count { glIsTexture(it) }
     }
 
     private fun readRgba(framebuffer: Int, width: Int, height: Int): ByteArray {

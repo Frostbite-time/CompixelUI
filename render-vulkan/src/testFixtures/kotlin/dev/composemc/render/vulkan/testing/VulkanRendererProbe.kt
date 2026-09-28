@@ -7,6 +7,9 @@ import dev.composemc.render.vulkan.VulkanImageBarriers
 import dev.composemc.render.vulkan.VulkanImageTarget
 import dev.composemc.testing.render.RendererPixels
 import dev.composemc.testing.render.RendererProbeResult
+import kotlin.concurrent.thread
+import org.jetbrains.skia.PictureRecorder
+import org.jetbrains.skia.Rect
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.system.MemoryUtil
 import org.lwjgl.vulkan.*
@@ -55,8 +58,60 @@ object VulkanRendererProbe {
                 }
                 // The same borrowed image survives context destruction and is used by the next cycle.
             }
+            verifyRetirement(queue, handles, target, frame)
         }
         return RendererProbeResult(pixels, cycles, worstPixels, worstMean)
+    }
+
+    /**
+     * Compose records snapshots on its own thread and may drop those pictures after the renderer has released the
+     * image. The final release must still happen on this thread, which owns the Skia context.
+     */
+    private fun verifyRetirement(
+        queue: VkQueue,
+        handles: VulkanDeviceHandles,
+        target: ProbeTarget,
+        frame: RecordedFrame,
+    ) {
+        val renderer = VulkanFrameRenderer(handles)
+        try {
+            repeat(3) {
+                target.submit { VulkanImageBarriers.acquireForSnapshot(it, target.image.image) }
+                val image =
+                    renderer.snapshotImage(
+                        target.image,
+                        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                        target.image.width,
+                        target.image.height,
+                        bottomUp = false,
+                    )
+                target.submit { VulkanImageBarriers.releaseAfterSnapshot(it, target.image.image) }
+                val picture =
+                    PictureRecorder().use { recorder ->
+                        recorder
+                            .beginRecording(Rect.makeWH(image.width.toFloat(), image.height.toFloat()))
+                            .drawImage(image, 0f, 0f)
+                        recorder.finishRecordingAsPicture()
+                    }
+                renderer.releaseImage(image)
+                check(!image.isClosed && renderer.statistics.retiredNativeImages == 1) {
+                    "A snapshot was closed while a picture still referred to it"
+                }
+                thread { picture.close() }.join()
+                target.submit { VulkanImageBarriers.acquireForRendering(it, target.image.image) }
+                renderer.render(frame, target.image)
+                target.submit { VulkanImageBarriers.releaseForSampling(it, target.image.image) }
+                check(image.isClosed && renderer.statistics.liveNativeImages == 0) {
+                    "An unreferenced retired snapshot stayed open: ${renderer.statistics}"
+                }
+            }
+        } finally {
+            success(vkQueueWaitIdle(queue), "retire probe renderer")
+            renderer.close()
+        }
+        check(renderer.statistics.let { it.liveNativeImages == 0 && it.strandedNativeImages == 0 }) {
+            "The renderer kept snapshots after closing: ${renderer.statistics}"
+        }
     }
 }
 

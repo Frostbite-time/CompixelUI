@@ -61,6 +61,8 @@ flowchart LR
 
 游戏对象只留在游戏线程。Compose 看到的是不可变快照，并通过 `UiBinding` 把动作发回。每一帧先由 Compose 录制，再由渲染线程在 Minecraft 自己的图形上下文中绘制：OpenGL 状态在绘制后恢复，Vulkan 使用游戏的设备和队列。
 
+Compose 绘制的 GPU 图像（例如物品图标页）归渲染线程所有。Compose 录制的画面会保留对这些图像的引用，渲染器要等这些引用全部释放后才释放图像；在其他线程释放会丢失这块显存。
+
 ## 打包
 
 - 模组 JAR 包含所有 Compose MC 模块，不含第三方代码。

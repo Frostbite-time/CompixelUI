@@ -67,6 +67,10 @@ class NativeIconAtlas<I : Any>(
         /** Copies page [buffer] into an immutable image; a deferred host returns null until its copy completes. */
         fun snapshot(buffer: Int): Image?
 
+        /**
+         * The atlas no longer publishes [image], but pictures Compose recorded earlier may still draw it. A GPU host
+         * frees it only after those release it, and on the thread that owns its context.
+         */
         fun release(image: Image)
 
         /** Runs on the Compose thread. */

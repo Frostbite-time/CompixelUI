@@ -17,7 +17,12 @@ data class RendererStatistics(
     val gpuPresent: TimingSummary? = null,
     val nativeImageCopies: Long = 0,
     val nativeImageReadbacks: Long = 0,
+    /** GPU images the renderer still owns, including [retiredNativeImages]. */
     val liveNativeImages: Int = 0,
+    /** Released GPU images that recorded pictures still reference; the renderer closes them once they are unused. */
+    val retiredNativeImages: Int = 0,
+    /** GPU images other owners still referenced when the renderer closed, so their final release happens elsewhere. */
+    val strandedNativeImages: Int = 0,
 )
 
 /**
