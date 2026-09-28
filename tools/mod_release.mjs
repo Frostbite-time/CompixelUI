@@ -140,8 +140,8 @@ export function planModRelease(metadata, uploaded, existing) {
 }
 
 /**
- * Receipts cover files still under review and absent from the public API. Scope them to the destination project too.
- * [remoteRefs] is git ls-remote output; they supplement, rather than replace, the remote file listing.
+ * Successful uploads are recorded as refs, including files still under review. Scope them to the destination project.
+ * [remoteRefs] is git ls-remote output. Manual uploads need a receipt too; no CurseForge file-list API is used.
  */
 export function curseforgeUploads(remoteRefs, project, tag) {
     const prefix = `refs/curseforge/${project}/${tag}/`;
@@ -149,38 +149,17 @@ export function curseforgeUploads(remoteRefs, project, tag) {
         .filter(ref => ref.startsWith(prefix)).map(ref => ref.slice(prefix.length)));
 }
 
-/** Query all pages by exact filename, including files uploaded manually outside this workflow. */
-export async function curseforgeFiles(project, apiKey) {
+/** Read fresh receipts before planning or uploading. A failed Git query must never mean a file is missing. */
+export function recordedCurseforgeFiles(project, tag, directory = root) {
     if (!/^[1-9]\d*$/.test(project ?? '')) throw new Error('Set the CURSEFORGE_ID secret in the mod-publish environment before dispatching mod-publish');
-    if (!apiKey) throw new Error('Set the CURSEFORGE_API_KEY secret in the mod-publish environment (CurseForge Core API read key, not the upload token)');
-    const files = new Set();
-    for (let index = 0; index < 10_000;) {
-        const response = await fetch(`https://api.curseforge.com/v1/mods/${project}/files?index=${index}&pageSize=50`, {
-            headers: { 'x-api-key': apiKey, Accept: 'application/json' },
-            redirect: 'error', signal: AbortSignal.timeout(30_000),
-        });
-        if (response.status !== 200) throw new Error(`Cannot list CurseForge files for ${project}: HTTP ${response.status}; no upload will be attempted`);
-        const { data, pagination } = await response.json();
-        if (!Array.isArray(data) || data.some(file => typeof file.fileName !== 'string' || !file.fileName) ||
-            pagination?.index !== index || pagination.resultCount !== data.length ||
-            !Number.isInteger(pagination.totalCount) || pagination.totalCount < index + data.length) {
-            throw new Error('Invalid CurseForge file listing or pagination; no upload will be attempted');
-        }
-        for (const file of data) files.add(file.fileName);
-        index += data.length;
-        if (index >= pagination.totalCount) return files;
-        if (!data.length) throw new Error('Incomplete CurseForge file listing; no upload will be attempted');
+    let refs;
+    try {
+        refs = execFileSync('git', ['ls-remote', 'origin', `refs/curseforge/${project}/${tag}/*`],
+            { cwd: directory, encoding: 'utf8', timeout: 60_000, stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (error) {
+        throw new Error('Cannot read CurseForge upload receipts from origin; no upload will be attempted. ' + error.message);
     }
-    throw new Error('CurseForge file listing exceeds its 10,000-file API limit; no upload will be attempted');
-}
-
-async function existingCurseforgeFiles(metadata) {
-    const project = process.env.CURSEFORGE_ID;
-    const files = await curseforgeFiles(project, process.env.CURSEFORGE_API_KEY);
-    const refs = execFileSync('git', ['ls-remote', 'origin', `refs/curseforge/${project}/${metadata.tag}/*`],
-        { cwd: root, encoding: 'utf8', timeout: 60_000 });
-    for (const file of curseforgeUploads(refs, project, metadata.tag)) files.add(file);
-    return files;
+    return curseforgeUploads(refs, project, tag);
 }
 
 function github(route, token, accept = 'application/vnd.github+json') {
@@ -242,10 +221,10 @@ async function main() {
         requireGitHub();
         verifyTag(metadata);
         const changelog = releaseChangelog(metadata.version);
-        const uploaded = await existingCurseforgeFiles(metadata);
+        const uploaded = recordedCurseforgeFiles(process.env.CURSEFORGE_ID, metadata.tag);
         const { uploads, github, builds } = planModRelease(metadata, uploaded, await releaseAssets(repository, metadata.tag, token));
         for (const { file } of metadata.uploads.filter(upload => uploaded.has(upload.file))) {
-            annotate('notice', 'Already on CurseForge', `${file} exists in the file listing or has a successful upload receipt; skipped it.`);
+            annotate('notice', 'CurseForge upload recorded', `${file} has a successful upload receipt; skipped it.`);
         }
         if (!github) annotate('notice', 'Already on GitHub', `The ${metadata.tag} release already has every file; skipped it.`);
         githubOutput({
@@ -260,8 +239,8 @@ async function main() {
     } else if (command === 'curseforge-file') {
         const file = args[0];
         if (!metadata.uploads.some(upload => upload.file === file)) throw new Error(`Unknown release file: ${file}`);
-        const uploaded = (await existingCurseforgeFiles(metadata)).has(file);
-        if (uploaded) annotate('notice', 'Already on CurseForge', `${file} exists in the file listing or has a successful upload receipt; skipped it.`);
+        const uploaded = recordedCurseforgeFiles(process.env.CURSEFORGE_ID, metadata.tag).has(file);
+        if (uploaded) annotate('notice', 'CurseForge upload recorded', `${file} has a successful upload receipt; skipped it.`);
         githubOutput({ uploaded });
     } else if (command === 'github-assets') {
         requireGitHub();

@@ -3,9 +3,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
 import {
-    assertTagCommit, curseforgeFiles, curseforgeUploads, githubReleaseComplete, planModRelease, planReleaseAssets,
+    assertTagCommit, curseforgeUploads, githubReleaseComplete, planModRelease, planReleaseAssets, recordedCurseforgeFiles,
     releaseAssets, releaseChangelog, releaseMetadata, verifyArtifacts,
 } from './mod_release.mjs';
 
@@ -145,40 +146,44 @@ test('release planning skips complete runs and builds only adapters needed by mi
     assert.deepEqual(missingGitHub.builds, metadata.targets);
 });
 
-test('CurseForge checks exact filenames across pages, including manual uploads', async t => {
-    const files = Array.from({ length: 51 }, (_, index) => ({ fileName: `manual-${index}.jar` }));
-    const requests = [];
-    t.mock.method(globalThis, 'fetch', async (url, options) => {
-        const parsed = new URL(url);
-        assert.equal(parsed.origin, 'https://api.curseforge.com');
-        assert.equal(parsed.pathname, '/v1/mods/123/files');
-        assert.equal(parsed.searchParams.get('pageSize'), '50');
-        assert.equal(options.headers['x-api-key'], 'read-key');
-        assert.equal(options.redirect, 'error');
-        const index = Number(parsed.searchParams.get('index'));
-        requests.push(index);
-        const data = files.slice(index, index + 50);
-        return Response.json({ data, pagination: { index, resultCount: data.length, totalCount: files.length } });
-    });
-    assert.deepEqual(await curseforgeFiles('123', 'read-key'), new Set(files.map(file => file.fileName)));
-    assert.deepEqual(requests, [0, 50]);
+function receiptRepository(t) {
+    const directory = temporaryDirectory(t);
+    const remote = path.join(directory, 'remote.git');
+    const checkout = path.join(directory, 'checkout');
+    const git = (cwd, args, input) => execFileSync('git', args, {
+        cwd, input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+    git(directory, ['init', '--bare', remote]);
+    git(directory, ['init', checkout]);
+    git(checkout, ['remote', 'add', 'origin', remote]);
+    // Receipt discovery reads ref names; an opaque object is sufficient without making fixture commits.
+    const object = git(remote, ['hash-object', '-w', '--stdin'], 'published release fixture\n');
+    return { remote, checkout, git, object };
+}
+
+test('CurseForge retries read current Git receipts and skip only recorded files without an API key', t => {
+    t.mock.method(globalThis, 'fetch', () => assert.fail('Receipt checks must not call the CurseForge API'));
+    const { remote, checkout, git, object } = receiptRepository(t);
+    const metadata = releaseMetadata();
+    const file = metadata.uploads[0].file;
+    const ref = `refs/curseforge/123/${metadata.tag}/${file}`;
+    const read = () => recordedCurseforgeFiles('123', metadata.tag, checkout);
+    assert.deepEqual(read(), new Set());
+    git(remote, ['update-ref', ref, object]);
+    assert.deepEqual(read(), new Set([file]));
+    const plan = planModRelease(metadata, read(), new Map());
+    assert.deepEqual(plan.uploads, metadata.uploads.slice(1));
+    git(remote, ['update-ref', '-d', ref]);
+    assert.deepEqual(read(), new Set());
 });
 
-test('CurseForge errors and incomplete listings never mean a file is absent', async t => {
-    let response;
-    t.mock.method(globalThis, 'fetch', async () => response);
-    await assert.rejects(curseforgeFiles('123', ''), /CURSEFORGE_API_KEY/);
-    await assert.rejects(curseforgeFiles('../123', 'read-key'), /CURSEFORGE_ID/);
-    for (const status of [401, 403, 404, 500]) {
-        response = new Response(null, { status });
-        await assert.rejects(curseforgeFiles('123', 'read-key'), new RegExp(`HTTP ${status}`));
+test('invalid project settings or failed Git receipt queries never allow an upload', t => {
+    const { checkout, git } = receiptRepository(t);
+    for (const project of ['', '0', '../123']) {
+        assert.throws(() => recordedCurseforgeFiles(project, 'v1.0.0', checkout), /CURSEFORGE_ID/);
     }
-    response = Response.json({ data: [], pagination: { index: 0, resultCount: 0, totalCount: 2 } });
-    await assert.rejects(curseforgeFiles('123', 'read-key'), /Incomplete CurseForge/);
-    response = Response.json({ data: [{ displayName: 'not-a-filename' }], pagination: { index: 0, resultCount: 1, totalCount: 1 } });
-    await assert.rejects(curseforgeFiles('123', 'read-key'), /Invalid CurseForge/);
-    response = Response.json({ data: [], pagination: { index: 0, resultCount: 0, totalCount: 0 } });
-    assert.deepEqual(await curseforgeFiles('123', 'read-key'), new Set());
+    git(checkout, ['remote', 'set-url', 'origin', path.join(checkout, 'missing.git')]);
+    assert.throws(() => recordedCurseforgeFiles('123', 'v1.0.0', checkout), /Cannot read CurseForge upload receipts.*no upload will be attempted/);
 });
 
 test('GitHub lists all asset pages, uses stored digests and downloads legacy files without forwarding credentials', async t => {
