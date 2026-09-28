@@ -1,3 +1,3 @@
-# Compose MC 0.1.0
+# Compose MC 0.1.1
 
-The first release.
+- A new Compose MC logo, shown in the in-game mod list.
