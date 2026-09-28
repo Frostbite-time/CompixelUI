@@ -13,6 +13,12 @@ const errors = [];
 const usedImages = new Set();
 const content = new Map(files.map(file => [file, fs.readFileSync(path.join(root, file), 'utf8')]));
 const error = (file, message) => errors.push(`${file}: ${message}`);
+// The mod page is pasted into download sites such as CurseForge, so it is English-only and every link is absolute.
+// 模组页面会粘贴到 CurseForge 等下载站，因此只用英文，所有链接都用绝对地址。
+const modPage = 'docs/mod-page.md';
+// Absolute links into this repository must still name an existing file.
+// 指向本仓库的绝对链接同样必须指向存在的文件。
+const repositoryUrl = /^https:\/\/(?:github\.com\/Frostbite-time\/compose-mc\/(?:blob|tree)\/main|raw\.githubusercontent\.com\/Frostbite-time\/compose-mc\/main)\/([^?]+)$/;
 
 function prose(text) {
     let fence = null;
@@ -59,16 +65,24 @@ for (const [file, text] of content) {
         const [, image, label, raw] = match;
         const href = raw.replace(/^<|>$/g, '');
         if (image && !label.trim()) error(file, 'Image needs alternative text / 图片缺少替代文字');
-        if (/^(https?:|mailto:)/i.test(href)) continue;
-        if (/^[a-z][a-z\d+.-]*:/i.test(href) || href.startsWith('/') || href.includes('\\')) {
-            error(file, `Use a repository-relative URL / 请使用仓库相对链接: ${href}`);
-            continue;
+        const inRepository = repositoryUrl.exec(href)?.[1];
+        if (!inRepository) {
+            if (/^(https?:|mailto:)/i.test(href)) continue;
+            if (file === modPage) {
+                error(file, `Use an absolute URL / 请使用绝对链接: ${href}`);
+                continue;
+            }
+            if (/^[a-z][a-z\d+.-]*:/i.test(href) || href.startsWith('/') || href.includes('\\')) {
+                error(file, `Use a repository-relative URL / 请使用仓库相对链接: ${href}`);
+                continue;
+            }
         }
         links++;
         let destination, fragment;
-        try { [destination, fragment] = href.split('#').map(decodeURIComponent); }
+        try { [destination, fragment] = (inRepository ?? href).split('#').map(decodeURIComponent); }
         catch { error(file, `Malformed URL / 链接编码错误: ${href}`); continue; }
-        const target = destination ? path.posix.normalize(path.posix.join(path.posix.dirname(file), destination)) : file;
+        const base = inRepository ? '' : path.posix.dirname(file);
+        const target = destination ? path.posix.normalize(path.posix.join(base, destination)) : file;
         if (target === '..' || target.startsWith('../') || !exactPath(target)) {
             error(file, `Missing target or case mismatch / 目标缺失或大小写不符: ${href}`);
             continue;
@@ -90,7 +104,7 @@ for (const file of files) {
         if (!content.has(counterpart)) error(file, `Missing translation / 缺少翻译: ${counterpart}`);
         const expected = path.posix.relative(path.posix.dirname(file), counterpart);
         if (!content.get(file).includes(`](${expected})`)) error(file, 'Missing language switch / 缺少语言切换链接');
-    } else if (!/[\u3400-\u9fff]/.test(prose(content.get(file))) || !/[A-Za-z]{3}/.test(prose(content.get(file)))) {
+    } else if (file !== modPage && (!/[\u3400-\u9fff]/.test(prose(content.get(file))) || !/[A-Za-z]{3}/.test(prose(content.get(file))))) {
         error(file, 'Standalone page must include English and Chinese / 单页文档需要中英文内容');
     }
 }
