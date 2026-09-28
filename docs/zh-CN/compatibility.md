@@ -8,15 +8,15 @@
 
 | Minecraft | 加载器 | Java | 图形后端 |
 | --- | --- | --- | --- |
-| 1.20.1 | Forge 47.4.23 | 17 | OpenGL |
-| 1.21.1 | NeoForge 21.1.250 | 21 | OpenGL |
-| 26.1.2 | NeoForge 26.1.2.109 | 25 | OpenGL |
-| 26.2 | NeoForge 26.2.0.88 | 25 | OpenGL、Vulkan |
-| 26.3 | NeoForge 26.3.0.6-beta | 25 | OpenGL、Vulkan |
+| 1.20.1 | Forge 47.2.18 及以上 | 17 | OpenGL |
+| 1.21.1 | NeoForge 21.1.1 及以上 | 21 | OpenGL |
+| 26.1.2 | NeoForge 26.1.2.0-beta 及以上 | 25 | OpenGL |
+| 26.2 | NeoForge 26.2.0.0-beta 及以上 | 25 | OpenGL、Vulkan |
+| 26.3 | NeoForge 26.3.0.0-beta 及以上 | 25 | OpenGL、Vulkan |
 
 每个 Minecraft 版本都有单独构建的 Compose MC，请使用与之对应的那一份。各版本的 API 包名和类名相同（包括 `dev.composemc.forge`），不同的只是周边的 Minecraft 与加载器类型。
 
-Compose MC 使用 Kotlin 2.4.10 和 Compose 1.12.0 构建。
+表中的加载器版本是经过验证的最低版本。Compose MC 的日常开发和测试使用 Forge 47.4.23，以及 NeoForge 21.1.250、26.1.2.109、26.2.0.88 和 26.3.0.6-beta，并使用 Kotlin 2.4.10 和 Compose 1.12.0 构建。
 
 ## Maven 坐标
 

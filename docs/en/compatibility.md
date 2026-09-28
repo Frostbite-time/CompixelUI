@@ -8,15 +8,15 @@ This page describes Compose MC **0.1.0-alpha.38**.
 
 | Minecraft | Loader | Java | Graphics |
 | --- | --- | --- | --- |
-| 1.20.1 | Forge 47.4.23 | 17 | OpenGL |
-| 1.21.1 | NeoForge 21.1.250 | 21 | OpenGL |
-| 26.1.2 | NeoForge 26.1.2.109 | 25 | OpenGL |
-| 26.2 | NeoForge 26.2.0.88 | 25 | OpenGL, Vulkan |
-| 26.3 | NeoForge 26.3.0.6-beta | 25 | OpenGL, Vulkan |
+| 1.20.1 | Forge 47.2.18 or newer | 17 | OpenGL |
+| 1.21.1 | NeoForge 21.1.1 or newer | 21 | OpenGL |
+| 26.1.2 | NeoForge 26.1.2.0-beta or newer | 25 | OpenGL |
+| 26.2 | NeoForge 26.2.0.0-beta or newer | 25 | OpenGL, Vulkan |
+| 26.3 | NeoForge 26.3.0.0-beta or newer | 25 | OpenGL, Vulkan |
 
 Each Minecraft version has its own build of Compose MC, so use the one that matches. The API has the same package and class names on every version, `dev.composemc.forge` included; only the Minecraft and loader types around it differ.
 
-Compose MC is built with Kotlin 2.4.10 and Compose 1.12.0.
+The loader versions are the oldest builds Compose MC has been verified with. It is developed and tested against Forge 47.4.23 and NeoForge 21.1.250, 26.1.2.109, 26.2.0.88 and 26.3.0.6-beta, and built with Kotlin 2.4.10 and Compose 1.12.0.
 
 ## Maven coordinates
 

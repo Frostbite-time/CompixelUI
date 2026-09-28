@@ -34,7 +34,7 @@ def artifacts = configureMinecraftArtifacts(
     playerWithKotlinJarJar: JarJar.registerWithConfiguration(project, 'playerWithKotlinJarJar'),
     loader: 'forge', runtime: runtimeBundle, rendererFixtures: rendererFixtures,
     metadataPath: 'META-INF/mods.toml',
-    metadataValues: [forge_version: forge_version],
+    metadataValues: [forge_version_range: forge_version_range],
     release: tasks.named('reobfJar'),
     remapArchive: { archive, sources -> obfuscation.reobfuscate(archive, sources) })
 

@@ -48,11 +48,11 @@ Minecraft.getInstance().setScreen(ComposeScreen(Component.literal("计数器")) 
 
 | Minecraft | 加载器 | 图形后端 |
 | --- | --- | --- |
-| 1.20.1 | Forge 47.4.23 | OpenGL |
-| 1.21.1 | NeoForge 21.1.250 | OpenGL |
-| 26.1.2 | NeoForge 26.1.2.109 | OpenGL |
-| 26.2 | NeoForge 26.2.0.88 | OpenGL、Vulkan |
-| 26.3 | NeoForge 26.3.0.6-beta | OpenGL、Vulkan |
+| 1.20.1 | Forge 47.2.18 及以上 | OpenGL |
+| 1.21.1 | NeoForge 21.1.1 及以上 | OpenGL |
+| 26.1.2 | NeoForge 26.1.2.0-beta 及以上 | OpenGL |
+| 26.2 | NeoForge 26.2.0.0-beta 及以上 | OpenGL、Vulkan |
+| 26.3 | NeoForge 26.3.0.0-beta 及以上 | OpenGL、Vulkan |
 
 最新版本：**0.1.0-alpha.38**。Alpha 阶段的 API 仍可能变化。
 
