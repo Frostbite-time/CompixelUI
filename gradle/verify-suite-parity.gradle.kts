@@ -9,7 +9,7 @@ val suiteDirectories: Map<String, File> =
     suiteTargets.getProperty("targets").split(",").associateWith { target ->
         rootProject.file(
             requireNotNull(suiteTargets.getProperty("$target.project")) { "Missing project directory for $target" } +
-                "/src/development/kotlin/dev/composemc/development"
+                "/src/development/kotlin/dev/compixel/development"
         )
     }
 val identicalSuiteFiles =

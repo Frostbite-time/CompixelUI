@@ -21,7 +21,7 @@ export class IncompletePublicationError extends Error {}
 function publication(artifact, version, suffixes) {
     return {
         artifact, version,
-        directory: `dev/composemc/${artifact}/${version}`,
+        directory: `dev/compixel/${artifact}/${version}`,
         files: suffixes.map(suffix => `${artifact}-${version}${suffix}`),
     };
 }
@@ -29,7 +29,7 @@ function publication(artifact, version, suffixes) {
 export function runtimePublication(bundle, version) {
     if (!['standard', 'vulkan', 'kotlin'].includes(bundle)) throw new Error(`Unknown bundle: ${bundle}`);
     if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(version ?? '')) throw new Error(`Invalid runtime version: ${version}`);
-    const artifact = bundle === 'kotlin' ? 'composemc-kotlin' : `composemc-runtime-${bundle}`;
+    const artifact = bundle === 'kotlin' ? 'compixel-kotlin' : `compixel-runtime-${bundle}`;
     return publication(artifact, version, ['.jar', '.pom', '-sources.jar', '-javadoc.jar']);
 }
 
@@ -37,7 +37,7 @@ export function runtimePublication(bundle, version) {
 export function adapterPublications(adapter, version) {
     if (!/^(forge|neoforge)-[0-9.]+$/.test(adapter ?? '')) throw new Error(`Invalid adapter: ${adapter}`);
     if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(version ?? '')) throw new Error(`Invalid mod version: ${version}`);
-    const artifact = `composemc-${adapter}`;
+    const artifact = `compixel-${adapter}`;
     const task = name => `:minecraft:${adapter}:publish${name}PublicationToWintercogsRepository`;
     return [
         { ...publication(artifact, version, ['.jar', '.pom', '-sources.jar', '-javadoc.jar', '-development.jar']), task: task('Library') },

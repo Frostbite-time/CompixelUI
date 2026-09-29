@@ -54,7 +54,7 @@ For larger inventories, pass `nativeItemOptions = NativeItemOptions(cacheCapacit
 | `ComposeScreen` | Screens without a menu |
 | `ComposeMenuScreen` | Server menus without slots |
 | `ComposeInventoryScreen` | Menus with slots |
-| `SlotBehaviorScreen` | Container screens you draw natively, with Compose MC's slot rules |
+| `SlotBehaviorScreen` | Container screens you draw natively, with CompixelUI's slot rules |
 
 ## Change what a click does
 

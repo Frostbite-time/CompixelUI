@@ -44,15 +44,15 @@ jobs:
       - name: Verify core without Minecraft projects
         if: matrix.target == 'core'
         env:
-          COMPOSEMC_JDK17: ${{ steps.java17.outputs.path }}
-          COMPOSEMC_JDK21: ${{ steps.java21.outputs.path }}
-          COMPOSEMC_JDK25: ${{ steps.java25.outputs.path }}
-        run: bash gradlew -PcomposemcTargets=none checkCore --console=plain
+          COMPIXEL_JDK17: ${{ steps.java17.outputs.path }}
+          COMPIXEL_JDK21: ${{ steps.java21.outputs.path }}
+          COMPIXEL_JDK25: ${{ steps.java25.outputs.path }}
+        run: bash gradlew -PcompixelTargets=none checkCore --console=plain
       - name: Build the selected adapter and universal runtime
         if: matrix.target != 'core'
         env:
-          COMPOSEMC_JDK17: ${{ steps.java17.outputs.path }}
-          COMPOSEMC_JDK21: ${{ steps.java21.outputs.path }}
-          COMPOSEMC_JDK25: ${{ steps.java25.outputs.path }}
-        run: bash gradlew -PcomposemcTargets=${{ matrix.target }} :minecraft:${{ matrix.loader || 'neoforge' }}-${{ matrix.target }}:build --console=plain
+          COMPIXEL_JDK17: ${{ steps.java17.outputs.path }}
+          COMPIXEL_JDK21: ${{ steps.java21.outputs.path }}
+          COMPIXEL_JDK25: ${{ steps.java25.outputs.path }}
+        run: bash gradlew -PcompixelTargets=${{ matrix.target }} :minecraft:${{ matrix.loader || 'neoforge' }}-${{ matrix.target }}:build --console=plain
 # Real GPU acceptance uses the Windows isolated-desktop launcher on a GPU host.

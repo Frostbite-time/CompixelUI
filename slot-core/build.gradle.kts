@@ -1,6 +1,6 @@
 plugins {
     `java-library`
-    id("composemc.testing")
+    id("compixel.testing")
 }
 
 java.toolchain.languageVersion.set(JavaLanguageVersion.of(17))

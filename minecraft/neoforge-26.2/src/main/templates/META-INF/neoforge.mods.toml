@@ -5,14 +5,14 @@ issueTrackerURL="${mod_issues_url}"
 showAsResourcePack=false
 
 [[mixins]]
-config="composemc.mixins.json"
+config="compixel.mixins.json"
 
 [[mods]]
 modId="${mod_id}"
 version="${mod_version}"
 displayName="${mod_name}"
 displayURL="${mod_url}"
-logoFile="composemc-logo.png"
+logoFile="compixel-logo.png"
 authors="${mod_authors}"
 description='''Standalone Compose Multiplatform library for NeoForge 26.2, with OpenGL and Vulkan rendering.'''
 

@@ -22,8 +22,8 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
         archives.each { archive -> inputs.file archive.flatMap { it.archiveFile } }
         doLast {
             def profile = artifacts.runtime.runtime_profile
-            def runtimeBundle = [artifact: "composemc-runtime-$profile".toString(), version: artifacts.runtime.version.toString()]
-            def kotlinBundle = [artifact: 'composemc-kotlin', version: artifacts.kotlinRuntime.version.toString()]
+            def runtimeBundle = [artifact: "compixel-runtime-$profile".toString(), version: artifacts.runtime.version.toString()]
+            def kotlinBundle = [artifact: 'compixel-kotlin', version: artifacts.kotlinRuntime.version.toString()]
             def mavenEntries = null
             archives.eachWithIndex { archive, index ->
                 def file = archive.get().archiveFile.get().asFile
@@ -38,24 +38,24 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
                     } else {
                         def jars = new groovy.json.JsonSlurper().parseText(zip.getInputStream(zip.getEntry('META-INF/jarjar/metadata.json')).getText('UTF-8')).jars
                         def embedded = jars.collect { [artifact: it.identifier.artifact, version: it.version.artifactVersion] }
-                        if (embedded.toSet() != expectedBundles.toSet() || jars.any { it.identifier.group != 'dev.composemc' || zip.getEntry(it.path) == null })
+                        if (embedded.toSet() != expectedBundles.toSet() || jars.any { it.identifier.group != 'dev.compixel' || zip.getEntry(it.path) == null })
                             throw new GradleException("Incorrect embedded bundles in ${file.name}: $embedded, expected $expectedBundles")
                         if (own != mavenEntries)
                             throw new GradleException("${file.name} differs from the Maven JAR outside META-INF/jarjar: ${(own - mavenEntries) + (mavenEntries - own)}")
                     }
-                    verifyLicenseGroups(zip, 'META-INF/composemc-third-party/licenses', ['common', 'runtime'])
-                    ['META-INF/composemc/runtime.properties', 'dev/composemc/platform/ComposeRuntime.class', 'dev/composemc/host/UiSession.class',
-                     'dev/composemc/render/gl/OpenGlFrameRenderer.class', 'dev/composemc/ui/ore/Monocraft-LICENSE.txt'].each {
-                        if (zip.getEntry(it) == null) throw new GradleException("Missing Compose MC module entry in ${file.name}: $it")
+                    verifyLicenseGroups(zip, 'META-INF/compixel-third-party/licenses', ['common', 'runtime'])
+                    ['META-INF/compixel/runtime.properties', 'dev/compixel/platform/ComposeRuntime.class', 'dev/compixel/host/UiSession.class',
+                     'dev/compixel/render/gl/OpenGlFrameRenderer.class', 'dev/compixel/ui/ore/Monocraft-LICENSE.txt'].each {
+                        if (zip.getEntry(it) == null) throw new GradleException("Missing CompixelUI module entry in ${file.name}: $it")
                     }
-                    if ((zip.getEntry('dev/composemc/render/vulkan/VulkanFrameRenderer.class') != null) != (profile == 'vulkan'))
+                    if ((zip.getEntry('dev/compixel/render/vulkan/VulkanFrameRenderer.class') != null) != (profile == 'vulkan'))
                         throw new GradleException("Incorrect backend contents for the $profile profile in ${file.name}")
-                    if (entries.any { it.startsWith('androidx/') || it.startsWith('org/jetbrains/skia') || it.startsWith('dev/composemc/runtime/') ||
+                    if (entries.any { it.startsWith('androidx/') || it.startsWith('org/jetbrains/skia') || it.startsWith('dev/compixel/runtime/') ||
                         it.endsWith('.dll') || it.endsWith('.so') || it.endsWith('.dylib') })
                         throw new GradleException("Runtime bundle classes leaked into the mod JAR ${file.name}")
                     if (zip.entries().any { it.name.startsWith('kotlin/') || it.name.startsWith('kotlinx/') || it.name.startsWith('thedarkcolour/') })
                         throw new GradleException('Kotlin provider classes leaked into outer mod')
-                    ['META-INF/composemc/LICENSE', 'META-INF/composemc-third-party/THIRD-PARTY-NOTICES.md'].each {
+                    ['META-INF/compixel/LICENSE', 'META-INF/compixel-third-party/THIRD-PARTY-NOTICES.md'].each {
                         if (zip.getEntry(it) == null) throw new GradleException("Missing release license notice: $it")
                     }
                     def actualMixins = zip.entries().findAll { !it.directory && it.name.toLowerCase(java.util.Locale.ROOT).contains('mixin') }
@@ -64,17 +64,17 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
                         throw new GradleException("Unexpected Mixin contents: $actualMixins, expected $expectedMixins")
                     if (!expectedMixins.empty) {
                         def mixinConfig = new groovy.json.JsonSlurper().parseText(
-                            zip.getInputStream(zip.getEntry('composemc.mixins.json')).getText('UTF-8'))
-                        if (mixinConfig.package != 'dev.composemc.forge.mixin' ||
+                            zip.getInputStream(zip.getEntry('compixel.mixins.json')).getText('UTF-8'))
+                        if (mixinConfig.package != 'dev.compixel.forge.mixin' ||
                             mixinConfig.client != ['GuiRendererMixin'] || mixinConfig.mixins || mixinConfig.server ||
                             mixinConfig.required != true || mixinConfig.injectors?.defaultRequire != 1)
                             throw new GradleException('Unexpected native GUI Mixin configuration')
                     }
                     def bad = zip.entries().findAll { entry ->
                         def name = entry.name.toLowerCase(java.util.Locale.ROOT)
-                        name.startsWith('dev/composemc/development/') || name.startsWith('dev/composemc/demo/') ||
-                            name.startsWith('dev/composemc/testing/') || name.startsWith('dev/composemc/render/gl/testing/') ||
-                            name.startsWith('dev/composemc/render/vulkan/testing/') ||
+                        name.startsWith('dev/compixel/development/') || name.startsWith('dev/compixel/demo/') ||
+                            name.startsWith('dev/compixel/testing/') || name.startsWith('dev/compixel/render/gl/testing/') ||
+                            name.startsWith('dev/compixel/render/vulkan/testing/') ||
                             ['acceptanceprobe', 'benchmarkprobe', 'tooltipprobe', 'composepreviewscreen', 'suitesession', 'suiteplatform']
                                 .any { name.contains(it) }
                     }.collect { it.name }
@@ -83,7 +83,7 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
                     if (!metadata.contains('license="MIT"')) throw new GradleException('Incorrect project license in mod metadata')
                     def registrations = (metadata =~ /(?m)^\s*\[\[mixins\]\]\s*\R\s*config\s*=\s*"([^"]+)"/)
                         .collect { it[1] }.toSet()
-                    def expectedRegistrations = expectedMixins.empty ? [] as Set : ['composemc.mixins.json'] as Set
+                    def expectedRegistrations = expectedMixins.empty ? [] as Set : ['compixel.mixins.json'] as Set
                     if (registrations != expectedRegistrations || metadata.findAll(/\[\[mixins\]\]/).size() != expectedRegistrations.size())
                         throw new GradleException("Unexpected Mixin registrations: $registrations")
                     if (expectedTransforms != null) {
@@ -102,21 +102,21 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
         dependsOn artifacts.development
         doLast {
             new java.util.zip.ZipFile(artifacts.development.get().archiveFile.get().asFile).withCloseable { zip ->
-                verifyLicenseGroups(zip, 'META-INF/composemc-third-party/licenses', ['common', 'runtime'])
-                if (zip.getEntry('dev/composemc/development/ComposeMcDevelopment.class') == null)
+                verifyLicenseGroups(zip, 'META-INF/compixel-third-party/licenses', ['common', 'runtime'])
+                if (zip.getEntry('dev/compixel/development/CompixelDevelopment.class') == null)
                     throw new GradleException('Missing development mod entry point')
-                if (zip.getEntry('dev/composemc/render/gl/testing/OpenGlRendererProbe.class') == null)
+                if (zip.getEntry('dev/compixel/render/gl/testing/OpenGlRendererProbe.class') == null)
                     throw new GradleException('Missing shared OpenGL probe fixture')
-                if (zip.getEntry('dev/composemc/testing/render/RendererAcceptance.class') == null)
+                if (zip.getEntry('dev/compixel/testing/render/RendererAcceptance.class') == null)
                     throw new GradleException('Missing common renderer acceptance scenarios')
-                def hasVulkanProbe = zip.getEntry('dev/composemc/render/vulkan/testing/VulkanRendererProbe.class') != null
+                def hasVulkanProbe = zip.getEntry('dev/compixel/render/vulkan/testing/VulkanRendererProbe.class') != null
                 if (hasVulkanProbe != (artifacts.runtime.runtime_profile == 'vulkan'))
                     throw new GradleException('Incorrect Vulkan probe contents for this adapter')
-                if (zip.getEntry('dev/composemc/render/gl/GlStateSnapshot.class') != null)
+                if (zip.getEntry('dev/compixel/render/gl/GlStateSnapshot.class') != null)
                     throw new GradleException('Development artifact embedded renderer implementation')
                 if (zip.entries().findAll { it.name.startsWith('androidx/') || it.name.startsWith('kotlin/') ||
                     it.name.startsWith('org/jetbrains/skiko/') || it.name.startsWith('org/jetbrains/skia/') ||
-                    it.name.startsWith('dev/composemc/forge/') })
+                    it.name.startsWith('dev/compixel/forge/') })
                     throw new GradleException('Development artifact embedded runtime/production adapter classes')
             }
         }
@@ -128,9 +128,9 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
         doLast {
             def api = artifacts.apiDocs
             new java.util.zip.ZipFile(api.sources.get().archiveFile.get().asFile).withCloseable { zip ->
-                ['dev/composemc/host/UiBinding.kt', 'dev/composemc/ui/ore/button/OreButton.kt',
-                 'dev/composemc/sync/state/SyncSchema.java', 'dev/composemc/slots/SlotBehavior.java',
-                 'dev/composemc/forge/ComposeScreen.kt', 'META-INF/composemc/LICENSE'].each {
+                ['dev/compixel/host/UiBinding.kt', 'dev/compixel/ui/ore/button/OreButton.kt',
+                 'dev/compixel/sync/state/SyncSchema.java', 'dev/compixel/slots/SlotBehavior.java',
+                 'dev/compixel/forge/ComposeScreen.kt', 'META-INF/compixel/LICENSE'].each {
                     if (zip.getEntry(it) == null) throw new GradleException("Missing library source: $it")
                 }
                 def checkout = [:]
@@ -139,12 +139,12 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
                         checkout[root.toPath().relativize(source.toPath()).toString().replace('\\', '/')] = source
                     }
                 }
-                // Every adapter shares the dev.composemc.forge package, so adapter sources must come from this checkout's roots.
+                // Every adapter shares the dev.compixel.forge package, so adapter sources must come from this checkout's roots.
                 def forbidden = zip.entries().findAll {
-                    it.name.startsWith('dev/composemc/development/') || it.name.startsWith('dev/composemc/demo/') ||
-                        it.name.startsWith('dev/composemc/testing/') ||
+                    it.name.startsWith('dev/compixel/development/') || it.name.startsWith('dev/compixel/demo/') ||
+                        it.name.startsWith('dev/compixel/testing/') ||
                         it.name.startsWith('net/minecraft/') || it.name.startsWith('androidx/') || it.name.startsWith('kotlin/') ||
-                        it.name.startsWith('dev/composemc/forge/') && !it.directory && !checkout.containsKey(it.name) ||
+                        it.name.startsWith('dev/compixel/forge/') && !it.directory && !checkout.containsKey(it.name) ||
                         it.name.endsWith('.class') || it.name.endsWith('Test.kt') || it.name.endsWith('Test.java')
                 }
                 if (!forbidden.empty) throw new GradleException("Unexpected sources in published API: ${forbidden*.name}")
@@ -157,11 +157,11 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
             }
             new java.util.zip.ZipFile(api.documentation.get().archiveFile.get().asFile).withCloseable { zip ->
                 verifyLicenseGroups(zip, 'third-party', ['common', 'javadoc'])
-                ['index.html', 'scripts/pages.json', 'META-INF/composemc/LICENSE',
-                 "${api.moduleName}/dev.composemc.host/-ui-binding/index.html",
-                 "${api.moduleName}/dev.composemc.sync.state/-sync-schema/index.html",
-                 "${api.moduleName}/dev.composemc.forge/-compose-screen/index.html",
-                 "${api.moduleName}/dev.composemc.ui.ore.button/-ore-button.html"].each {
+                ['index.html', 'scripts/pages.json', 'META-INF/compixel/LICENSE',
+                 "${api.moduleName}/dev.compixel.host/-ui-binding/index.html",
+                 "${api.moduleName}/dev.compixel.sync.state/-sync-schema/index.html",
+                 "${api.moduleName}/dev.compixel.forge/-compose-screen/index.html",
+                 "${api.moduleName}/dev.compixel.ui.ore.button/-ore-button.html"].each {
                     if (zip.getEntry(it.toString()) == null) throw new GradleException("Missing generated API page: $it")
                 }
                 def index = zip.getInputStream(zip.getEntry('index.html')).getText('UTF-8')
@@ -170,7 +170,7 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
                 zip.entries().findAll { it.name.endsWith('.html') || it.name.endsWith('.json') }.each { entry ->
                     def text = zip.getInputStream(entry).getText('UTF-8')
                     if (text.contains(rootProject.rootDir.absolutePath) || text.contains(rootProject.rootDir.toURI().toString()) ||
-                        text.contains('file:///') || text.contains('dev.composemc.development'))
+                        text.contains('file:///') || text.contains('dev.compixel.development'))
                         throw new GradleException("Private build paths or development APIs leaked into ${entry.name}")
                 }
             }

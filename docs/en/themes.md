@@ -6,7 +6,7 @@ Ore screens take their colors from a theme. Resource packs can recolor them with
 
 ## Built-in themes
 
-Compose MC comes with three complete color schemes.
+CompixelUI comes with three complete color schemes.
 
 | Theme | Look |
 | --- | --- |
@@ -48,7 +48,7 @@ The value names a built-in scheme; it isn't a file path, a mod ID or a theme ID.
 
 ### `palette`: recolor a family of controls
 
-Give one base color and Compose MC derives the rest: the normal, hover and pressed faces, the edge, and a readable text and icon color.
+Give one base color and CompixelUI derives the rest: the normal, hover and pressed faces, the edge, and a readable text and icon color.
 
 | Name | Used for | Also changes |
 | --- | --- | --- |
@@ -118,31 +118,31 @@ your-resource-pack/
 ├── pack.mcmeta
 └── assets/
     └── examplemod/
-        └── composemc/
+        └── compixel/
             └── ore_themes/
                 └── storage.json
 ```
 
-Replace `examplemod` and `storage` with the ID the mod publishes; `assets`, `composemc` and `ore_themes` stay as they are. IDs are lower case, and a `/` in a theme name becomes a subfolder.
+Replace `examplemod` and `storage` with the ID the mod publishes; `assets`, `compixel` and `ore_themes` stay as they are. IDs are lower case, and a `/` in a theme name becomes a subfolder.
 
 | To change | Put the file at |
 | --- | --- |
-| Every Ore screen | `assets/composemc/composemc/ore_themes/default.json` |
-| Every screen of one mod | `assets/examplemod/composemc/ore_themes/default.json` |
-| One theme | `assets/examplemod/composemc/ore_themes/storage.json` |
-| The built-in light theme | `assets/composemc/composemc/ore_themes/light.json` |
-| The built-in twilight theme | `assets/composemc/composemc/ore_themes/twilight.json` |
+| Every Ore screen | `assets/compixel/compixel/ore_themes/default.json` |
+| Every screen of one mod | `assets/examplemod/compixel/ore_themes/default.json` |
+| One theme | `assets/examplemod/compixel/ore_themes/storage.json` |
+| The built-in light theme | `assets/compixel/compixel/ore_themes/light.json` |
+| The built-in twilight theme | `assets/compixel/compixel/ore_themes/twilight.json` |
 
-A file only affects screens that use its exact theme ID. `storage.json` does nothing unless a screen uses `examplemod:storage`, so look up the IDs in the mod's resource-pack notes rather than guessing from the mod name. Mods may share one theme between screens or use the `composemc` namespace.
+A file only affects screens that use its exact theme ID. `storage.json` does nothing unless a screen uses `examplemod:storage`, so look up the IDs in the mod's resource-pack notes rather than guessing from the mod name. Mods may share one theme between screens or use the `compixel` namespace.
 
 ## How files stack
 
 For `examplemod:storage`, colors are built up in this order:
 
 1. The built-in default scheme.
-2. `assets/composemc/composemc/ore_themes/default.json`, for every screen.
-3. `assets/examplemod/composemc/ore_themes/default.json`, for the mod.
-4. `assets/examplemod/composemc/ore_themes/storage.json`, for the theme.
+2. `assets/compixel/compixel/ore_themes/default.json`, for every screen.
+3. `assets/examplemod/compixel/ore_themes/default.json`, for the mod.
+4. `assets/examplemod/compixel/ore_themes/storage.json`, for the theme.
 
 Missing files are skipped. When several resource packs contain the same file, all of them apply, from the lowest-priority pack to the highest, after the mod's own bundled copy. Each file changes only the fields it contains, except that `preset` resets every color and `palette` regenerates its whole family.
 
@@ -226,7 +226,7 @@ A file with an unknown field, an invalid color, an unknown preset or broken JSON
 Give each screen a theme ID so resource packs can target it:
 
 ```kotlin
-import dev.composemc.ui.ore.theme.OreThemeId
+import dev.compixel.ui.ore.theme.OreThemeId
 
 ComposeScreen(
     Component.literal("Storage"),
@@ -236,8 +236,8 @@ ComposeScreen(
 }
 ```
 
-- Publish your screens' theme IDs and their file paths in your mod's documentation, for example "Storage: `examplemod:storage`, `assets/examplemod/composemc/ore_themes/storage.json`". To ship your own colors, put a file at the same path under `src/main/resources`; resource packs can still override it.
-- `ComposeMenuScreen`, `ComposeInventoryScreen`, `ComposeHudLayer` and `ComposeConfigScreen` take `theme` too. Screens default to `composemc:default`, and config screens to `<modid>:default` for the mod they edit.
+- Publish your screens' theme IDs and their file paths in your mod's documentation, for example "Storage: `examplemod:storage`, `assets/examplemod/compixel/ore_themes/storage.json`". To ship your own colors, put a file at the same path under `src/main/resources`; resource packs can still override it.
+- `ComposeMenuScreen`, `ComposeInventoryScreen`, `ComposeHudLayer` and `ComposeConfigScreen` take `theme` too. Screens default to `compixel:default`, and config screens to `<modid>:default` for the mod they edit.
 - Pass `OreThemeId.Light` or `OreThemeId.Twilight` to use a built-in theme.
 - Dialogs, menus and Compose tooltips inherit the screen's theme. To theme part of a screen differently, wrap it in `OreTheme(id = OreThemeId("examplemod", "inspector")) { … }`.
 - `OreTheme(colors = …)` applies fixed colors that resource packs can't change. Hosts outside Minecraft can supply their own `OreThemeCatalog` through `OreThemeResources`.

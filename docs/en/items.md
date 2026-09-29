@@ -2,7 +2,7 @@
 
 [简体中文](../zh-CN/items.md) · [All guides](../README.md)
 
-Compose MC draws real Minecraft items inside Compose, with the same models, animations and enchantment glint as an inventory, plus the game's own item tooltips.
+CompixelUI draws real Minecraft items inside Compose, with the same models, animations and enchantment glint as an inventory, plus the game's own item tooltips.
 
 ![An item catalog with the tooltip of an enchanted sword](../assets/items-en.png)
 
@@ -31,7 +31,7 @@ fun openItemCatalog(stacks: List<ItemStack>) {
 - `MinecraftItemTooltip` shows the tooltip after the pointer rests for 500 ms, drawn by Minecraft itself, so lines added by other mods appear too.
 - An icon holds its own copy of the stack. Reuse it while the stack stays the same, and take a new snapshot when it changes.
 
-The types are in `dev.composemc.forge.item`.
+The types are in `dev.compixel.forge.item`.
 
 ## Animation
 
@@ -75,7 +75,7 @@ ComposeInventoryScreen(
 }
 ```
 
-`NativeItemOptions` is in `dev.composemc.forge.item`.
+`NativeItemOptions` is in `dev.compixel.forge.item`.
 
 | Option | Default | Range | Meaning |
 | --- | --- | --- | --- |

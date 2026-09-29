@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="docs/assets/logo/composemc-logo-transparent.svg" width="160" alt="Compose MC 标志">
+<img src="docs/assets/logo/compixel-logo-transparent.svg" width="160" alt="CompixelUI 标志">
 
-# Compose MC
+# CompixelUI
 
 **用 Jetpack Compose 构建 Minecraft 模组界面。**
 
@@ -10,9 +10,9 @@
 
 </div>
 
-![用 Compose MC 在 Minecraft 中构建的路径点浏览界面：地点预览网格与详情面板](docs/assets/hero-zh-CN.png)
+![用 CompixelUI 在 Minecraft 中构建的路径点浏览界面：地点预览网格与详情面板](docs/assets/hero-zh-CN.png)
 
-Compose MC 把 Jetpack Compose 带进 Minecraft Java 版。用声明式 Kotlin 编写界面、容器界面和 HUD，配上 Minecraft 风格的控件，再放入真实的物品图标与物品提示，全部在游戏内由 GPU 绘制。
+CompixelUI 把 Jetpack Compose 带进 Minecraft Java 版。用声明式 Kotlin 编写界面、容器界面和 HUD，配上 Minecraft 风格的控件，再放入真实的物品图标与物品提示，全部在游戏内由 GPU 绘制。
 
 | Ore UI 控件 | 物品与提示 |
 | --- | --- |
@@ -58,7 +58,7 @@ Minecraft.getInstance().setScreen(ComposeScreen(Component.literal("计数器")) 
 
 ## 玩家须知
 
-Compose MC 是前置库，当你玩的模组需要它时再安装。在 [Releases](https://github.com/Frostbite-time/compose-mc/releases) 下载对应 Minecraft 版本的文件：
+CompixelUI 是前置库，当你玩的模组需要它时再安装。在 [Releases](https://github.com/Frostbite-time/CompixelUI/releases) 下载对应 Minecraft 版本的文件：
 
 - `…-with-kotlin.jar` 可以单独使用。
 - 不带后缀的 `.jar` 更小，但需要 [Kotlin for Forge](https://modrinth.com/mod/kotlin-for-forge)。
@@ -74,6 +74,6 @@ Compose MC 是前置库，当你玩的模组需要它时再安装。在 [Release
 
 ## 许可
 
-Compose MC 以 [MIT 许可证](LICENSE)发布。随附的库保留各自的许可，见[第三方声明](THIRD-PARTY-NOTICES.md)。界面文字使用 Idrees Hassan 的 [Monocraft](https://github.com/IdreesInc/Monocraft) 字体，遵循 [SIL 开放字体许可证 1.1](ui-ore/src/main/resources/dev/composemc/ui/ore/Monocraft-LICENSE.txt)。
+CompixelUI 以 [MIT 许可证](LICENSE)发布。随附的库保留各自的许可，见[第三方声明](THIRD-PARTY-NOTICES.md)。界面文字使用 Idrees Hassan 的 [Monocraft](https://github.com/IdreesInc/Monocraft) 字体，遵循 [SIL 开放字体许可证 1.1](ui-ore/src/main/resources/dev/compixel/ui/ore/Monocraft-LICENSE.txt)。
 
-Compose MC 不是 Minecraft 官方产品，与 Mojang 和 Microsoft 无关。
+CompixelUI 不是 Minecraft 官方产品，与 Mojang 和 Microsoft 无关。

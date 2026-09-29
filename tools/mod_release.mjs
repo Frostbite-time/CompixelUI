@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { annotate, properties } from './maven_publication.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const outputDelimiter = 'COMPOSEMC_OUTPUT';
+const outputDelimiter = 'COMPIXEL_OUTPUT';
 
 export function releaseMetadata(directory = root) {
     const version = properties(path.join(directory, 'gradle.properties')).mod_version;
@@ -28,7 +28,7 @@ export function releaseMetadata(directory = root) {
     if (!targets.length || new Set(targets.map(target => target.adapter)).size !== targets.length) throw new Error('Empty or duplicate targets');
     const uploads = targets.flatMap(target => ['standard', 'with-kotlin'].map(variant => ({
         ...target, variant,
-        file: `composemc-${target.adapter}-${version}${variant === 'standard' ? '' : '-with-kotlin'}.jar`,
+        file: `compixel-${target.adapter}-${version}${variant === 'standard' ? '' : '-with-kotlin'}.jar`,
         dependencies: variant === 'standard' && target.provider ? `${target.provider}(required)` : '',
         installation: variant === 'with-kotlin'
             ? 'Includes Kotlin. Install only this variant; do not combine it with KFF or another Kotlin runtime.'
@@ -45,7 +45,7 @@ export function releaseChangelog(version, directory = root) {
     const text = fs.readFileSync(path.join(directory, 'docs/CHANGELOG.md'), 'utf8').replace(/\r\n/g, '\n').trim();
     const [heading, ...body] = text.split('\n');
     const title = /^# (.+)$/.exec(heading)?.[1].trim();
-    if (!title) throw new Error('docs/CHANGELOG.md must start with a "# Compose MC <version>" heading');
+    if (!title) throw new Error('docs/CHANGELOG.md must start with a "# CompixelUI <version>" heading');
     if (title.split(/\s+/).at(-1) !== version) {
         throw new Error(`docs/CHANGELOG.md describes "${title}", not ${version}. Update it before publishing.`);
     }

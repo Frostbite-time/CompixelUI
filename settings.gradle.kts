@@ -25,7 +25,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "compose-mc"
+rootProject.name = "CompixelUI"
 
 include("platform", "render", "render-gl", "render-vulkan", "compose-bridge", "host", "demo", "desktop", "testing")
 
@@ -33,14 +33,14 @@ include("ui-ore", "menu-sync", "slot-core", "runtime-standard", "runtime-vulkan"
 
 val targets = Properties().apply { file("gradle/minecraft-targets.properties").reader().use { load(it) } }
 val supported = targets.getProperty("targets").split(",")
-val selection = providers.gradleProperty("composemcTargets").orElse("all").get()
+val selection = providers.gradleProperty("compixelTargets").orElse("all").get()
 val enabled =
     when (selection) {
         "all" -> supported
         "none" -> emptyList()
         else ->
             selection.split(",").map(String::trim).distinct().also {
-                require(it.all(supported::contains)) { "Unknown composemcTargets=$selection; supported: $supported" }
+                require(it.all(supported::contains)) { "Unknown compixelTargets=$selection; supported: $supported" }
             }
     }
 

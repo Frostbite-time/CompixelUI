@@ -2,7 +2,7 @@
 
 [简体中文](../zh-CN/compatibility.md) · [All guides](../README.md)
 
-This page describes Compose MC **0.1.2**.
+This page describes CompixelUI **0.1.2**.
 
 ## Minecraft versions
 
@@ -14,16 +14,16 @@ This page describes Compose MC **0.1.2**.
 | 26.2 | NeoForge 26.2.0.0-beta or newer | 25 | OpenGL, Vulkan |
 | 26.3 | NeoForge 26.3.0.0-beta or newer | 25 | OpenGL, Vulkan |
 
-Each Minecraft version has its own build of Compose MC, so use the one that matches. The API has the same package and class names on every version, `dev.composemc.forge` included; only the Minecraft and loader types around it differ.
+Each Minecraft version has its own build of CompixelUI, so use the one that matches. The API has the same package and class names on every version, `dev.compixel.forge` included; only the Minecraft and loader types around it differ.
 
-The loader versions are the oldest builds Compose MC has been verified with. It is developed and tested against Forge 47.4.23 and NeoForge 21.1.250, 26.1.2.109, 26.2.0.88 and 26.3.0.6-beta, and built with Kotlin 2.4.10 and Compose 1.12.0.
+The loader versions are the oldest builds CompixelUI has been verified with. It is developed and tested against Forge 47.4.23 and NeoForge 21.1.250, 26.1.2.109, 26.2.0.88 and 26.3.0.6-beta, and built with Kotlin 2.4.10 and Compose 1.12.0.
 
 ## Maven coordinates
 
 | Coordinate | Contents |
 | --- | --- |
-| `dev.composemc:composemc-<loader>-<minecraft>` | The library; Gradle adds the Compose runtime it needs |
-| `dev.composemc:composemc-<loader>-<minecraft>-with-kotlin` | The same, plus the Kotlin libraries |
+| `dev.compixel:compixel-<loader>-<minecraft>` | The library; Gradle adds the Compose runtime it needs |
+| `dev.compixel:compixel-<loader>-<minecraft>-with-kotlin` | The same, plus the Kotlin libraries |
 
 The loader is `forge` for 1.20.1 and `neoforge` for the others. The 1.20.1 artifact uses SRG names; add it through your toolchain's remapping configuration, as with other Forge mods. Each version also publishes `sources`, `javadoc` and `development` (the F8 preview) classifiers.
 
@@ -40,7 +40,7 @@ Tested Kotlin for Forge versions: 4.12.0 on 1.20.1, 5.12.0 on 1.21.1, and 6.3.0 
 
 ## Graphics
 
-Compose MC draws with the same graphics API as the game: OpenGL, or Vulkan when Minecraft 26.2 or 26.3 runs on Vulkan. Set `-Dcomposemc.backend` to `opengl`, `vulkan` or `cpu` to override it; `cpu` is a slow reference renderer for troubleshooting.
+CompixelUI draws with the same graphics API as the game: OpenGL, or Vulkan when Minecraft 26.2 or 26.3 runs on Vulkan. Set `-Dcompixel.backend` to `opengl`, `vulkan` or `cpu` to override it; `cpu` is a slow reference renderer for troubleshooting.
 
 Each file contains the native libraries for Windows, Linux and macOS on x64 and arm64. Testing on real hardware has so far covered Windows x64 with NVIDIA graphics. Other systems, graphics drivers and shader mods are expected to work but have not been verified.
 

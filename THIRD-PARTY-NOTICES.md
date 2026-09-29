@@ -1,8 +1,8 @@
 # Third-party notices / 第三方许可声明
 
-Compose MC uses the following third-party libraries and fonts. Their uses and applicable licenses are listed below. Included components may differ by distribution and platform.
+CompixelUI uses the following third-party libraries and fonts. Their uses and applicable licenses are listed below. Included components may differ by distribution and platform.
 
-Compose MC 使用下列第三方库和字体，其用途及适用许可列于下文。不同发行包和平台所包含的组件可能有所不同。
+CompixelUI 使用下列第三方库和字体，其用途及适用许可列于下文。不同发行包和平台所包含的组件可能有所不同。
 
 ## JVM libraries / JVM 库
 
@@ -53,6 +53,6 @@ Skiko 原生库包含 Skia 及辅助组件，适用许可如下。
 
 ## Font / 字体
 
-Compose MC uses the unmodified **Monocraft** font by Idrees Hassan for Ore-style interface text, under the **SIL Open Font License 1.1**. Its full license and copyright notice accompany the font as `Monocraft-LICENSE.txt`.
+CompixelUI uses the unmodified **Monocraft** font by Idrees Hassan for Ore-style interface text, under the **SIL Open Font License 1.1**. Its full license and copyright notice accompany the font as `Monocraft-LICENSE.txt`.
 
-Compose MC 使用 Idrees Hassan 创作的 **Monocraft** 字体显示 Ore 风格界面文字，字体未经修改，适用 **SIL Open Font License 1.1**。完整许可及版权声明随字体附于 `Monocraft-LICENSE.txt`。
+CompixelUI 使用 Idrees Hassan 创作的 **Monocraft** 字体显示 Ore 风格界面文字，字体未经修改，适用 **SIL Open Font License 1.1**。完整许可及版权声明随字体附于 `Monocraft-LICENSE.txt`。

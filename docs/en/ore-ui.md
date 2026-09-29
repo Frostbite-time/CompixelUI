@@ -2,13 +2,13 @@
 
 [简体中文](../zh-CN/ore-ui.md) · [All guides](../README.md)
 
-Ore UI is Compose MC's set of Minecraft-styled components: pixel text, beveled buttons, inset fields and dark stone panels. Compose MC screens apply the theme for you, and standard Compose layouts, state and modifiers work alongside it.
+Ore UI is CompixelUI's set of Minecraft-styled components: pixel text, beveled buttons, inset fields and dark stone panels. CompixelUI screens apply the theme for you, and standard Compose layouts, state and modifiers work alongside it.
 
 Like other Compose components, controls take a value and a callback, and your code owns the state.
 
 ## Components
 
-Each package below is under `dev.composemc.ui.ore`.
+Each package below is under `dev.compixel.ui.ore`.
 
 | Package | Components |
 | --- | --- |
@@ -196,7 +196,7 @@ Tree rows are created lazily, so ten thousand entries scroll smoothly. For flat 
 Add the development artifact to your run, launch the game and press **F8**:
 
 ```groovy
-localRuntime "dev.composemc:composemc-neoforge-1.21.1:${composemc_version}:development"
+localRuntime "dev.compixel:compixel-neoforge-1.21.1:${compixel_version}:development"
 ```
 
 ![The F8 component preview in Minecraft](../assets/preview-en.png)

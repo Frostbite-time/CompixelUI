@@ -55,7 +55,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Verify and publish bundles still missing
         env:
-          COMPOSEMC_JDK17: ${{ steps.java17.outputs.path }}
+          COMPIXEL_JDK17: ${{ steps.java17.outputs.path }}
           ORG_GRADLE_PROJECT_wintercogsUsername: ${{ secrets.REPOSILITE_TOKEN_NAME }}
           ORG_GRADLE_PROJECT_wintercogsPassword: ${{ secrets.REPOSILITE_TOKEN_SECRET }}
         run: |
@@ -66,11 +66,11 @@ jobs:
               echo "::notice title=Already published::The $bundle runtime bundle is already in the repository; skipped it."
               continue
             fi
-            bash gradlew -PcomposemcTargets=none --console=plain ":runtime-$bundle:check" \
+            bash gradlew -PcompixelTargets=none --console=plain ":runtime-$bundle:check" \
               ":runtime-$bundle:sourcesJar" ":runtime-$bundle:javadocJar"
             missing=$(node tools/maven_publication.mjs runtime "$bundle")
             if [ -n "$missing" ]; then
-              bash gradlew -PcomposemcTargets=none --console=plain ":runtime-$bundle:publishRuntimePublicationToWintercogsRepository"
+              bash gradlew -PcompixelTargets=none --console=plain ":runtime-$bundle:publishRuntimePublicationToWintercogsRepository"
             else
               echo "::notice title=Already published::The $bundle runtime bundle was published during this build; skipped it."
             fi
@@ -124,10 +124,10 @@ jobs:
       - name: Build and verify
         if: steps.missing.outputs.tasks != ''
         env:
-          COMPOSEMC_JDK17: ${{ steps.java17.outputs.path }}
-          COMPOSEMC_JDK21: ${{ steps.java21.outputs.path }}
-          COMPOSEMC_JDK25: ${{ steps.java25.outputs.path }}
-        run: bash gradlew -PcomposemcTargets=${{ matrix.target }} :minecraft:$ADAPTER:build --console=plain
+          COMPIXEL_JDK17: ${{ steps.java17.outputs.path }}
+          COMPIXEL_JDK21: ${{ steps.java21.outputs.path }}
+          COMPIXEL_JDK25: ${{ steps.java25.outputs.path }}
+        run: bash gradlew -PcompixelTargets=${{ matrix.target }} :minecraft:$ADAPTER:build --console=plain
       - name: Recheck immediately before publishing
         if: steps.missing.outputs.tasks != ''
         id: upload
@@ -135,13 +135,13 @@ jobs:
       - name: Publish
         if: steps.upload.outputs.tasks != ''
         env:
-          COMPOSEMC_JDK17: ${{ steps.java17.outputs.path }}
-          COMPOSEMC_JDK21: ${{ steps.java21.outputs.path }}
-          COMPOSEMC_JDK25: ${{ steps.java25.outputs.path }}
+          COMPIXEL_JDK17: ${{ steps.java17.outputs.path }}
+          COMPIXEL_JDK21: ${{ steps.java21.outputs.path }}
+          COMPIXEL_JDK25: ${{ steps.java25.outputs.path }}
           ORG_GRADLE_PROJECT_wintercogsUsername: ${{ secrets.REPOSILITE_TOKEN_NAME }}
           ORG_GRADLE_PROJECT_wintercogsPassword: ${{ secrets.REPOSILITE_TOKEN_SECRET }}
           TASKS: ${{ steps.upload.outputs.tasks }}
-        run: bash gradlew -PcomposemcTargets=${{ matrix.target }} --console=plain $TASKS
+        run: bash gradlew -PcompixelTargets=${{ matrix.target }} --console=plain $TASKS
       - name: Check that the publications are complete
         if: steps.missing.outputs.tasks != ''
         run: node tools/maven_publication.mjs adapter "$ADAPTER" --require-complete

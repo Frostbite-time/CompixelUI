@@ -2,7 +2,7 @@
 
 [简体中文](../zh-CN/configuration.md) · [All guides](../README.md)
 
-Compose MC includes a ready-made editor for your mod's config files. Players get a tab per file, search, value checks, defaults, undo and saving; you keep your normal config spec.
+CompixelUI includes a ready-made editor for your mod's config files. Players get a tab per file, search, value checks, defaults, undo and saving; you keep your normal config spec.
 
 ![The config screen of an example mod](../assets/config-en.png)
 

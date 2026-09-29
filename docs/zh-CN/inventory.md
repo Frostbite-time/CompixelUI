@@ -54,7 +54,7 @@ Forge 1.20.1 请在 `FMLClientSetupEvent.enqueueWork` 中用 `MenuScreens.regist
 | `ComposeScreen` | 没有菜单的界面 |
 | `ComposeMenuScreen` | 没有槽位的服务端菜单 |
 | `ComposeInventoryScreen` | 带槽位的菜单 |
-| `SlotBehaviorScreen` | 原生绘制、但使用 Compose MC 槽位规则的容器界面 |
+| `SlotBehaviorScreen` | 原生绘制、但使用 CompixelUI 槽位规则的容器界面 |
 
 ## 修改点击行为
 

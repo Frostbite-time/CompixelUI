@@ -1,7 +1,7 @@
 import net.neoforged.moddevgradle.tasks.JarJar
 
 plugins {
-    id 'composemc.jvm-library'
+    id 'compixel.jvm-library'
     id 'org.jetbrains.kotlin.plugin.compose'
     id 'net.neoforged.moddev'
 }
@@ -9,7 +9,7 @@ plugins {
 // This adapter owns its loader/toolchain, runtime, local sources and native run options.
 kotlin.jvmToolchain(java_version as int)
 ext.skiko_version = libs.versions.skiko.standard.get()
-apply plugin: 'composemc.skiko-profile'
+apply plugin: 'compixel.skiko-profile'
 def runtimeBundle = project(':runtime-standard')
 
 repositories {
@@ -34,7 +34,7 @@ def artifacts = configureMinecraftArtifacts(
     metadataValues: [neo_version_range: neo_version_range],
     release: tasks.named('jar'))
 
-def requestedBackend = providers.gradleProperty('composemcBackend').orElse('auto').get()
+def requestedBackend = providers.gradleProperty('compixelBackend').orElse('auto').get()
 if (!(requestedBackend in ['auto', 'cpu'] + minecraft_backends.split(',').toList()))
     throw new GradleException('Unsupported backend for neoforge 1.21.1: ' + requestedBackend)
 def backend = requestedBackend == 'auto' ? 'opengl' : requestedBackend
@@ -51,7 +51,7 @@ neoForge {
     addModdingDependenciesTo sourceSets.development
     ideSyncTask artifacts.metadata
     runs {
-        configureEach { systemProperty 'composemc.backend', backend }
+        configureEach { systemProperty 'compixel.backend', backend }
         client {
             client()
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
@@ -60,12 +60,12 @@ neoForge {
         benchmark { client(); configureSuiteRun(delegate, runSettings, 'benchmark') }
     }
     mods {
-        composemc {
+        compixel {
             sourceSet sourceSets.main
-            // The Compose MC modules of the mod JAR; the runtime bundles stay separate libraries.
+            // The CompixelUI modules of the mod JAR; the runtime bundles stay separate libraries.
             artifacts.libraryModules.each { sourceSet it.sourceSets.main }
         }
-        composemc_development {
+        compixel_development {
             sourceSet sourceSets.development
             sourceSet project(':demo').sourceSets.main
             rendererFixtures.each { sourceSet it }
@@ -87,10 +87,10 @@ dependencies {
     testImplementation project(':menu-sync')
     // Development launches load both bundles as FML libraries, as the with-kotlin player JAR does.
     runtimeOnly(runtimeBundle) {
-        capabilities { requireCapability('dev.composemc:composemc-runtime-standard') }
+        capabilities { requireCapability('dev.compixel:compixel-runtime-standard') }
     }
     runtimeOnly(project(':runtime-kotlin')) {
-        capabilities { requireCapability('dev.composemc:composemc-kotlin') }
+        capabilities { requireCapability('dev.compixel:compixel-kotlin') }
     }
 }
 

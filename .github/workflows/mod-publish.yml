@@ -66,12 +66,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Build and verify the adapter
         env:
-          COMPOSEMC_JDK17: ${{ steps.java17.outputs.path }}
-          COMPOSEMC_JDK21: ${{ steps.java21.outputs.path }}
-          COMPOSEMC_JDK25: ${{ steps.java25.outputs.path }}
+          COMPIXEL_JDK17: ${{ steps.java17.outputs.path }}
+          COMPIXEL_JDK21: ${{ steps.java21.outputs.path }}
+          COMPIXEL_JDK25: ${{ steps.java25.outputs.path }}
           MC_TARGET: ${{ matrix.target }}
           ADAPTER: ${{ matrix.adapter }}
-        run: bash gradlew "-PcomposemcTargets=$MC_TARGET" ":minecraft:$ADAPTER:build" --console=plain
+        run: bash gradlew "-PcompixelTargets=$MC_TARGET" ":minecraft:$ADAPTER:build" --console=plain
       - name: Stage both player JARs and checksums
         shell: bash
         env:
@@ -79,7 +79,7 @@ jobs:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           mkdir -p dist
-          stem="composemc-$ADAPTER-$VERSION"
+          stem="compixel-$ADAPTER-$VERSION"
           cp "minecraft/$ADAPTER/build/release/$stem.jar" "dist/$stem.jar"
           cp "minecraft/$ADAPTER/build/release/$stem-with-kotlin.jar" "dist/$stem-with-kotlin.jar"
           node tools/mod_release.mjs checksums "$ADAPTER"
@@ -136,7 +136,7 @@ jobs:
           curseforge-id: ${{ secrets.CURSEFORGE_ID }}
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           files: dist/${{ matrix.file }}
-          name: Compose MC ${{ needs.prepare.outputs.version }} / ${{ matrix.adapter }} / ${{ matrix.variant }}
+          name: CompixelUI ${{ needs.prepare.outputs.version }} / ${{ matrix.adapter }} / ${{ matrix.variant }}
           version: ${{ needs.prepare.outputs.version }}
           version-type: ${{ needs.prepare.outputs.type }}
           changelog: |
@@ -198,7 +198,7 @@ jobs:
           github-tag: ${{ needs.prepare.outputs.tag }}
           github-commitish: ${{ github.sha }}
           files: ${{ steps.assets.outputs.files }}
-          name: Compose MC ${{ needs.prepare.outputs.version }}
+          name: CompixelUI ${{ needs.prepare.outputs.version }}
           version: ${{ needs.prepare.outputs.version }}
           version-type: ${{ needs.prepare.outputs.type }}
           changelog: |

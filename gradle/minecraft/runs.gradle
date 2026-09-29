@@ -6,21 +6,21 @@ ext.minecraftRunSettings = { String backend ->
         if (!(value in ['true', 'false'])) throw new GradleException("$name must be true or false")
         value
     }
-    def label = providers.gradleProperty('composemcLabel').orElse('baseline').get()
-    if (!(label ==~ /[a-zA-Z0-9_-]+/)) throw new GradleException('composemcLabel may only contain letters, digits, _ and -')
-    def frames = providers.gradleProperty('composemcBenchmarkFrames').orElse('360').get()
-    def repeats = providers.gradleProperty('composemcBenchmarkRepeats').orElse('2').get()
-    if (!(frames ==~ /\d+/) || !(frames.toInteger() in 120..1500)) throw new GradleException('composemcBenchmarkFrames must be 120..1500')
-    if (!(repeats ==~ /\d+/) || !(repeats.toInteger() in 1..5)) throw new GradleException('composemcBenchmarkRepeats must be 1..5')
-    def background = flag('composemcBackground')
+    def label = providers.gradleProperty('compixelLabel').orElse('baseline').get()
+    if (!(label ==~ /[a-zA-Z0-9_-]+/)) throw new GradleException('compixelLabel may only contain letters, digits, _ and -')
+    def frames = providers.gradleProperty('compixelBenchmarkFrames').orElse('360').get()
+    def repeats = providers.gradleProperty('compixelBenchmarkRepeats').orElse('2').get()
+    if (!(frames ==~ /\d+/) || !(frames.toInteger() in 120..1500)) throw new GradleException('compixelBenchmarkFrames must be 120..1500')
+    if (!(repeats ==~ /\d+/) || !(repeats.toInteger() in 1..5)) throw new GradleException('compixelBenchmarkRepeats must be 1..5')
+    def background = flag('compixelBackground')
     def window = background == 'true' ? 'background' : 'foreground'
-    def settings = [backend: backend, background: background, isolated: flag('composemcIsolatedDesktop'),
-        control: flag('composemcBenchmarkControl'), frames: frames, repeats: repeats, label: label,
+    def settings = [backend: backend, background: background, isolated: flag('compixelIsolatedDesktop'),
+        control: flag('compixelBenchmarkControl'), frames: frames, repeats: repeats, label: label,
         directories: [acceptance: "acceptance-$backend-$window", benchmark: "benchmark-$backend-$window-$label"]]
-    def kotlinMode = providers.gradleProperty('composemcKotlinMode').orElse('bundled').get()
-    if (!(kotlinMode in ['bundled', 'external'])) throw new GradleException('composemcKotlinMode must be bundled or external')
-    def providerJar = providers.gradleProperty('composemcKotlinProviderJar').orNull
-    if (kotlinMode == 'bundled' && providerJar) throw new GradleException('A Kotlin provider is only used with composemcKotlinMode=external')
+    def kotlinMode = providers.gradleProperty('compixelKotlinMode').orElse('bundled').get()
+    if (!(kotlinMode in ['bundled', 'external'])) throw new GradleException('compixelKotlinMode must be bundled or external')
+    def providerJar = providers.gradleProperty('compixelKotlinProviderJar').orNull
+    if (kotlinMode == 'bundled' && providerJar) throw new GradleException('A Kotlin provider is only used with compixelKotlinMode=external')
     // Both suites load the player archive plus the separate development archive. On NeoForge that is the
     // release archive itself; Forge 1.20.1 releases it after SRG remapping, which tools/run_forge_production.ps1 covers.
     settings.directories.each { suite, directory ->
@@ -40,16 +40,16 @@ ext.configureSuiteRun = { run, Map settings, String suite ->
     run.sourceSet = sourceSets.packagedRun
     run.loadedMods = []
     run.gameDirectory = project.file('build/' + settings.directories[suite])
-    run.systemProperty 'composemc.suite', suite
-    run.systemProperty 'composemc.suite.background', settings.background
-    run.systemProperty 'composemc.suite.isolated', settings.isolated
+    run.systemProperty 'compixel.suite', suite
+    run.systemProperty 'compixel.suite.background', settings.background
+    run.systemProperty 'compixel.suite.isolated', settings.isolated
     if (suite == 'benchmark') {
-        run.systemProperty 'composemc.benchmark.control', settings.control
-        run.systemProperty 'composemc.benchmark.label', settings.label
-        run.systemProperty 'composemc.benchmark.frames', settings.frames
-        run.systemProperty 'composemc.benchmark.repeats', settings.repeats
-        run.systemProperty 'composemc.profile', 'true'
-        run.systemProperty 'composemc.allocations', 'true'
+        run.systemProperty 'compixel.benchmark.control', settings.control
+        run.systemProperty 'compixel.benchmark.label', settings.label
+        run.systemProperty 'compixel.benchmark.frames', settings.frames
+        run.systemProperty 'compixel.benchmark.repeats', settings.repeats
+        run.systemProperty 'compixel.profile', 'true'
+        run.systemProperty 'compixel.allocations', 'true'
     }
     run.programArguments.addAll '--width', '1280', '--height', '960'
     run.taskBefore tasks.named("stage${suite.capitalize()}")
@@ -62,7 +62,7 @@ ext.configureSuiteRun = { run, Map settings, String suite ->
 ext.verifyMinecraftRuns = { Map settings, String windowConfig, boolean vulkanValidation = false, Set<String> vulkanDiagnostics = [] as Set ->
     // At 60 FPS a case is about (136 + frames) / 60 seconds; allow half again for world, warmup and startup.
     def benchmarkMinutes = 12 + (int) Math.ceil(25 * settings.repeats.toInteger() * (136 + settings.frames.toInteger()) / 3600.0 * 1.5)
-    [acceptance: [report: 'composemc-acceptance.txt', minutes: 25], benchmark: [report: 'composemc-benchmark.txt', minutes: benchmarkMinutes]]
+    [acceptance: [report: 'compixel-acceptance.txt', minutes: 25], benchmark: [report: 'compixel-benchmark.txt', minutes: benchmarkMinutes]]
         .each { suite, options ->
             def directory = settings.directories[suite]
             def name = suite.capitalize()

@@ -2,7 +2,7 @@
 
 [简体中文](../zh-CN/menu-sync.md) · [All guides](../README.md)
 
-Menu sync keeps the state of a server-side menu on the client, and carries typed requests from the client back to the server. Compose MC batches, splits and acknowledges the traffic; your menu keeps its own rules about who may change what.
+Menu sync keeps the state of a server-side menu on the client, and carries typed requests from the client back to the server. CompixelUI batches, splits and acknowledges the traffic; your menu keeps its own rules about who may change what.
 
 ```mermaid
 sequenceDiagram
@@ -16,7 +16,7 @@ sequenceDiagram
     S-->>C: Result: applied, rejected, …
 ```
 
-Install Compose MC on both the server and the client, and declare the dependency with `side = "BOTH"`. Menu sync has no UI code, so it runs on a dedicated server.
+Install CompixelUI on both the server and the client, and declare the dependency with `side = "BOTH"`. Menu sync has no UI code, so it runs on a dedicated server.
 
 ## Declare the state
 
@@ -57,7 +57,7 @@ abstract class PowerMenu extends AbstractContainerMenu implements SyncedMenu {
 - On the client, call `requestEnabled` from the game thread, for example while draining a `UiBinding`. `true` means the request was queued, not that it succeeded.
 - The action handler runs on the server. Check permissions there, then change the machine.
 
-Imports are in `dev.composemc.sync.state` (schemas and codecs), `dev.composemc.sync.action` and `dev.composemc.forge.sync` (menu binding).
+Imports are in `dev.compixel.sync.state` (schemas and codecs), `dev.compixel.sync.action` and `dev.compixel.forge.sync` (menu binding).
 
 ## Values
 

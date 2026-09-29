@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="docs/assets/logo/composemc-logo-transparent.svg" width="160" alt="Compose MC logo">
+<img src="docs/assets/logo/compixel-logo-transparent.svg" width="160" alt="CompixelUI logo">
 
-# Compose MC
+# CompixelUI
 
 **Build Minecraft mod interfaces with Jetpack Compose.**
 
@@ -10,9 +10,9 @@ English · [简体中文](README.zh-CN.md)
 
 </div>
 
-![A waypoint browser built with Compose MC in Minecraft: a grid of location previews and a details panel](docs/assets/hero-en.png)
+![A waypoint browser built with CompixelUI in Minecraft: a grid of location previews and a details panel](docs/assets/hero-en.png)
 
-Compose MC brings Jetpack Compose to Minecraft Java Edition. Write screens, inventories and HUDs as declarative Kotlin, style them with Minecraft-flavored controls, and mix in real item icons and tooltips, all drawn on the GPU inside the game.
+CompixelUI brings Jetpack Compose to Minecraft Java Edition. Write screens, inventories and HUDs as declarative Kotlin, style them with Minecraft-flavored controls, and mix in real item icons and tooltips, all drawn on the GPU inside the game.
 
 | Ore UI controls | Items and tooltips |
 | --- | --- |
@@ -58,7 +58,7 @@ Latest version: **0.1.2**.
 
 ## For players
 
-Compose MC is a library. Install it when a mod you play asks for it: download the file for your Minecraft version from [Releases](https://github.com/Frostbite-time/compose-mc/releases).
+CompixelUI is a library. Install it when a mod you play asks for it: download the file for your Minecraft version from [Releases](https://github.com/Frostbite-time/CompixelUI/releases).
 
 - `…-with-kotlin.jar` works on its own.
 - The plain `.jar` is smaller and needs [Kotlin for Forge](https://modrinth.com/mod/kotlin-for-forge).
@@ -74,6 +74,6 @@ Install one of the two, not both.
 
 ## License
 
-Compose MC is released under the [MIT License](LICENSE). Bundled libraries keep their own licenses; see [third-party notices](THIRD-PARTY-NOTICES.md). Text uses the [Monocraft](https://github.com/IdreesInc/Monocraft) font by Idrees Hassan, under the [SIL Open Font License 1.1](ui-ore/src/main/resources/dev/composemc/ui/ore/Monocraft-LICENSE.txt).
+CompixelUI is released under the [MIT License](LICENSE). Bundled libraries keep their own licenses; see [third-party notices](THIRD-PARTY-NOTICES.md). Text uses the [Monocraft](https://github.com/IdreesInc/Monocraft) font by Idrees Hassan, under the [SIL Open Font License 1.1](ui-ore/src/main/resources/dev/compixel/ui/ore/Monocraft-LICENSE.txt).
 
-Compose MC is not an official Minecraft product and is not associated with Mojang or Microsoft.
+CompixelUI is not an official Minecraft product and is not associated with Mojang or Microsoft.

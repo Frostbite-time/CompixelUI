@@ -19,7 +19,7 @@ val sharedDependencies =
 val sharedProjects = sharedDependencies.keys.map(rootProject::project)
 val forbiddenSource =
     Regex(
-        """\b(?:net\s*\.\s*(?:minecraft(?:forge)?|neoforged|fabricmc)|com\s*\.\s*mojang|org\s*\.\s*spongepowered\s*\.\s*asm|dev\s*\.\s*composemc\s*\.\s*(?:neoforge|forge|minecraft))\b"""
+        """\b(?:net\s*\.\s*(?:minecraft(?:forge)?|neoforged|fabricmc)|com\s*\.\s*mojang|org\s*\.\s*spongepowered\s*\.\s*asm|dev\s*\.\s*compixel\s*\.\s*(?:neoforge|forge|minecraft))\b"""
     )
 val lwjglSource = Regex("""\borg\s*\.\s*lwjgl\b""")
 val clientRuntimeSource =

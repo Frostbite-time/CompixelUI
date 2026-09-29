@@ -51,7 +51,7 @@ test('downloaded release artifacts reject corruption and stray JARs', t => {
 
 function temporaryDirectory(t) {
     const temporaryRoot = fs.realpathSync(os.tmpdir());
-    const directory = fs.mkdtempSync(path.join(temporaryRoot, 'composemc-release-'));
+    const directory = fs.mkdtempSync(path.join(temporaryRoot, 'compixel-release-'));
     t.after(() => {
         assert.equal(path.dirname(fs.realpathSync(directory)), temporaryRoot);
         fs.rmSync(directory, { recursive: true, force: true });
@@ -63,13 +63,13 @@ test('the changelog describes exactly the version being released', t => {
     const directory = temporaryDirectory(t);
     fs.mkdirSync(path.join(directory, 'docs'));
     const changelog = text => fs.writeFileSync(path.join(directory, 'docs/CHANGELOG.md'), text);
-    changelog('# Compose MC 1.2.3\r\n\r\n- Faster tooltips.\r\n- Fewer allocations.\r\n');
+    changelog('# CompixelUI 1.2.3\r\n\r\n- Faster tooltips.\r\n- Fewer allocations.\r\n');
     assert.equal(releaseChangelog('1.2.3', directory), '- Faster tooltips.\n- Fewer allocations.');
-    assert.throws(() => releaseChangelog('1.2.4', directory), /describes "Compose MC 1\.2\.3", not 1\.2\.4/);
+    assert.throws(() => releaseChangelog('1.2.4', directory), /describes "CompixelUI 1\.2\.3", not 1\.2\.4/);
     assert.throws(() => releaseChangelog('1.2', directory), /not 1\.2\./);
     changelog('- Faster tooltips.\n');
     assert.throws(() => releaseChangelog('1.2.3', directory), /must start with/);
-    changelog('# Compose MC 1.2.3\n\n');
+    changelog('# CompixelUI 1.2.3\n\n');
     assert.throws(() => releaseChangelog('1.2.3', directory), /no release notes/);
     // A version bump must come with this version's notes.
     assert.ok(releaseChangelog(releaseMetadata().version).length > 0);
@@ -105,14 +105,14 @@ test('a release keeps the files it already has and lists the files it ends up wi
 
 test('the refs of earlier CurseForge uploads name the files to skip', () => {
     const refs = [
-        `${'a'.repeat(40)}\trefs/curseforge/123/v1.0.0/composemc-neoforge-1.21.1-1.0.0.jar`,
-        `${'b'.repeat(40)}\trefs/curseforge/123/v1.0.0/composemc-neoforge-1.21.1-1.0.0-with-kotlin.jar`,
-        `${'c'.repeat(40)}\trefs/curseforge/123/v1.0.1/composemc-neoforge-1.21.1-1.0.1.jar`,
+        `${'a'.repeat(40)}\trefs/curseforge/123/v1.0.0/compixel-neoforge-1.21.1-1.0.0.jar`,
+        `${'b'.repeat(40)}\trefs/curseforge/123/v1.0.0/compixel-neoforge-1.21.1-1.0.0-with-kotlin.jar`,
+        `${'c'.repeat(40)}\trefs/curseforge/123/v1.0.1/compixel-neoforge-1.21.1-1.0.1.jar`,
         `${'d'.repeat(40)}\trefs/curseforge/456/v1.0.0/other-project.jar`,
         '',
     ].join('\n');
     assert.deepEqual([...curseforgeUploads(refs, '123', 'v1.0.0')],
-        ['composemc-neoforge-1.21.1-1.0.0.jar', 'composemc-neoforge-1.21.1-1.0.0-with-kotlin.jar']);
+        ['compixel-neoforge-1.21.1-1.0.0.jar', 'compixel-neoforge-1.21.1-1.0.0-with-kotlin.jar']);
     assert.equal(curseforgeUploads('', '123', 'v1.0.0').size, 0);
 });
 

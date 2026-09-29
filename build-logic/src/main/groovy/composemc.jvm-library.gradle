@@ -1,8 +1,0 @@
-plugins { id 'composemc.testing' }
-pluginManager.apply('org.jetbrains.kotlin.jvm')
-
-def javaVersion = project.hasProperty('java_version') ? project.java_version as int :
-    providers.gradleProperty('core_java_version').get() as int
-kotlin.jvmToolchain(javaVersion)
-def versions = rootProject.extensions.getByType(org.gradle.api.artifacts.VersionCatalogsExtension).named('libs')
-dependencies { testImplementation "org.jetbrains.kotlin:kotlin-test:${versions.findVersion('kotlin').get().requiredVersion}" }

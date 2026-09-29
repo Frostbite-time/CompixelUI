@@ -2,7 +2,7 @@
 
 [English](../en/items.md) · [全部指南](../README.md)
 
-Compose MC 能在 Compose 中绘制真实的 Minecraft 物品：模型、动画和附魔光效与物品栏里完全一致，还能显示游戏原版的物品提示。
+CompixelUI 能在 Compose 中绘制真实的 Minecraft 物品：模型、动画和附魔光效与物品栏里完全一致，还能显示游戏原版的物品提示。
 
 ![物品目录，显示一把附魔钻石剑的提示](../assets/items-zh-CN.png)
 
@@ -31,7 +31,7 @@ fun openItemCatalog(stacks: List<ItemStack>) {
 - 指针停留 500 毫秒后，`MinecraftItemTooltip` 显示物品提示。提示由 Minecraft 自己绘制，其他模组添加的提示行也会出现。
 - 图标持有物品堆的一份副本。物品不变时重复使用同一个图标，变化后再拍新的快照。
 
-这些类型位于 `dev.composemc.forge.item`。
+这些类型位于 `dev.compixel.forge.item`。
 
 ## 动画
 
@@ -75,7 +75,7 @@ ComposeInventoryScreen(
 }
 ```
 
-`NativeItemOptions` 位于 `dev.composemc.forge.item`。
+`NativeItemOptions` 位于 `dev.compixel.forge.item`。
 
 | 参数 | 默认值 | 范围 | 含义 |
 | --- | --- | --- | --- |

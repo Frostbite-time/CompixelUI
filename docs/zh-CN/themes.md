@@ -6,7 +6,7 @@ Ore 界面的颜色来自主题。资源包只需几个 JSON 文件就能给界�
 
 ## 内置主题
 
-Compose MC 自带三套完整配色：
+CompixelUI 自带三套完整配色：
 
 | 主题 | 外观 |
 | --- | --- |
@@ -48,7 +48,7 @@ Compose MC 自带三套完整配色：
 
 ### `palette`：一次改好一类控件
 
-只需给出一个基准色，Compose MC 会自动推算出其余颜色：常态、悬停和按下时的底色、边框，以及看得清的文字和图标颜色。
+只需给出一个基准色，CompixelUI 会自动推算出其余颜色：常态、悬停和按下时的底色、边框，以及看得清的文字和图标颜色。
 
 | 名称 | 用于 | 顺带改变 |
 | --- | --- | --- |
@@ -118,31 +118,31 @@ Compose MC 自带三套完整配色：
 ├── pack.mcmeta
 └── assets/
     └── examplemod/
-        └── composemc/
+        └── compixel/
             └── ore_themes/
                 └── storage.json
 ```
 
-把 `examplemod` 和 `storage` 换成模组公布的 ID；`assets`、`composemc` 和 `ore_themes` 保持不变。ID 一律小写，主题名里的 `/` 对应一层子文件夹。
+把 `examplemod` 和 `storage` 换成模组公布的 ID；`assets`、`compixel` 和 `ore_themes` 保持不变。ID 一律小写，主题名里的 `/` 对应一层子文件夹。
 
 | 想改的范围 | 文件位置 |
 | --- | --- |
-| 所有 Ore 界面 | `assets/composemc/composemc/ore_themes/default.json` |
-| 某个模组的所有界面 | `assets/examplemod/composemc/ore_themes/default.json` |
-| 某一个主题 | `assets/examplemod/composemc/ore_themes/storage.json` |
-| 内置浅色主题 | `assets/composemc/composemc/ore_themes/light.json` |
-| 内置暮光主题 | `assets/composemc/composemc/ore_themes/twilight.json` |
+| 所有 Ore 界面 | `assets/compixel/compixel/ore_themes/default.json` |
+| 某个模组的所有界面 | `assets/examplemod/compixel/ore_themes/default.json` |
+| 某一个主题 | `assets/examplemod/compixel/ore_themes/storage.json` |
+| 内置浅色主题 | `assets/compixel/compixel/ore_themes/light.json` |
+| 内置暮光主题 | `assets/compixel/compixel/ore_themes/twilight.json` |
 
-文件只对使用了对应主题 ID 的界面生效。只有用到 `examplemod:storage` 的界面才会读取 `storage.json`，所以主题 ID 请查阅模组的资源包说明，不要凭模组名去猜。模组也可能让几个界面共用一个主题，或者使用 `composemc` 命名空间。
+文件只对使用了对应主题 ID 的界面生效。只有用到 `examplemod:storage` 的界面才会读取 `storage.json`，所以主题 ID 请查阅模组的资源包说明，不要凭模组名去猜。模组也可能让几个界面共用一个主题，或者使用 `compixel` 命名空间。
 
 ## 多个文件如何叠加
 
 以 `examplemod:storage` 为例，颜色按以下顺序逐层叠加：
 
 1. 内置默认配色。
-2. `assets/composemc/composemc/ore_themes/default.json`，作用于所有界面。
-3. `assets/examplemod/composemc/ore_themes/default.json`，作用于这个模组。
-4. `assets/examplemod/composemc/ore_themes/storage.json`，作用于这个主题。
+2. `assets/compixel/compixel/ore_themes/default.json`，作用于所有界面。
+3. `assets/examplemod/compixel/ore_themes/default.json`，作用于这个模组。
+4. `assets/examplemod/compixel/ore_themes/storage.json`，作用于这个主题。
 
 缺少的文件直接跳过。如果多个资源包里有同一个文件，它们会全部生效：先应用模组自带的那份，再按资源包优先级从低到高依次应用。每个文件只改动自己写出的字段，但 `preset` 会重置所有颜色，`palette` 会重新生成它负责的整套颜色。
 
@@ -226,7 +226,7 @@ Compose MC 自带三套完整配色：
 为每个界面指定主题 ID，资源包才能针对它换色：
 
 ```kotlin
-import dev.composemc.ui.ore.theme.OreThemeId
+import dev.compixel.ui.ore.theme.OreThemeId
 
 ComposeScreen(
     Component.literal("仓储"),
@@ -236,8 +236,8 @@ ComposeScreen(
 }
 ```
 
-- 在模组文档里公布各个界面的主题 ID 和文件路径，例如"仓储：`examplemod:storage`，`assets/examplemod/composemc/ore_themes/storage.json`"。想自带一套配色，就把文件放在 `src/main/resources` 下的同一路径，资源包仍然可以覆盖它。
-- `ComposeMenuScreen`、`ComposeInventoryScreen`、`ComposeHudLayer` 和 `ComposeConfigScreen` 同样接受 `theme` 参数。界面默认使用 `composemc:default`，配置界面默认使用所编辑模组的 `<modid>:default`。
+- 在模组文档里公布各个界面的主题 ID 和文件路径，例如"仓储：`examplemod:storage`，`assets/examplemod/compixel/ore_themes/storage.json`"。想自带一套配色，就把文件放在 `src/main/resources` 下的同一路径，资源包仍然可以覆盖它。
+- `ComposeMenuScreen`、`ComposeInventoryScreen`、`ComposeHudLayer` 和 `ComposeConfigScreen` 同样接受 `theme` 参数。界面默认使用 `compixel:default`，配置界面默认使用所编辑模组的 `<modid>:default`。
 - 传入 `OreThemeId.Light` 或 `OreThemeId.Twilight` 即可使用内置主题。
 - 对话框、菜单和 Compose 提示框会沿用界面的主题。想让界面的某一部分使用别的主题，用 `OreTheme(id = OreThemeId("examplemod", "inspector")) { … }` 包起来即可。
 - `OreTheme(colors = …)` 使用固定颜色，资源包无法修改。Minecraft 之外的宿主可以通过 `OreThemeResources` 提供自己的 `OreThemeCatalog`。

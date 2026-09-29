@@ -50,7 +50,7 @@ test('retries observe current remote state and skip a completed bundle', async t
 test('a POM is insufficient when an attachment or checksum is missing', async t => {
     for (const suffix of ['-sources.jar', '-javadoc.jar.sha256', '.jar']) {
         const entries = complete();
-        const missing = `composemc-runtime-standard-1.0.0${suffix}`;
+        const missing = `compixel-runtime-standard-1.0.0${suffix}`;
         entries.delete(missing);
         const url = await repository(t, entries);
         await assert.rejects(inspectPublication(url, publication), error =>
@@ -83,17 +83,17 @@ test('malformed checksum is not a complete publication', async t => {
 });
 
 test('the Kotlin bundle uses its separate coordinate and invalid input is rejected', () => {
-    assert.equal(runtimePublication('kotlin', '1.2.3').artifact, 'composemc-kotlin');
+    assert.equal(runtimePublication('kotlin', '1.2.3').artifact, 'compixel-kotlin');
     assert.throws(() => runtimePublication('unknown', '1.0.0'), /Unknown bundle/);
     assert.throws(() => runtimePublication('standard', '../1.0.0'), /Invalid runtime version/);
 });
 
 test('an adapter has a library with its attachments and a POM-only Kotlin selection', () => {
     const [library, withKotlin] = adapterPublications('neoforge-1.21.1', '1.0.0');
-    const stem = 'composemc-neoforge-1.21.1-1.0.0';
+    const stem = 'compixel-neoforge-1.21.1-1.0.0';
     assert.deepEqual(library.files, [`${stem}.jar`, `${stem}.pom`, `${stem}-sources.jar`, `${stem}-javadoc.jar`, `${stem}-development.jar`]);
     assert.equal(library.task, ':minecraft:neoforge-1.21.1:publishLibraryPublicationToWintercogsRepository');
-    assert.deepEqual(withKotlin.files, ['composemc-neoforge-1.21.1-with-kotlin-1.0.0.pom']);
+    assert.deepEqual(withKotlin.files, ['compixel-neoforge-1.21.1-with-kotlin-1.0.0.pom']);
     assert.equal(withKotlin.task, ':minecraft:neoforge-1.21.1:publishLibraryWithKotlinPublicationToWintercogsRepository');
     assert.throws(() => adapterPublications('fabric-1.21.1', '1.0.0'), /Invalid adapter/);
     assert.throws(() => adapterPublications('neoforge-1.21.1', '../1.0.0'), /Invalid mod version/);

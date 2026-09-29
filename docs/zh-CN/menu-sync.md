@@ -2,7 +2,7 @@
 
 [English](../en/menu-sync.md) · [全部指南](../README.md)
 
-菜单同步把服务端菜单的状态保持在客户端，并把客户端的类型化请求送回服务端。分批、分片和确认都由 Compose MC 处理；谁能修改什么，仍由你的菜单决定。
+菜单同步把服务端菜单的状态保持在客户端，并把客户端的类型化请求送回服务端。分批、分片和确认都由 CompixelUI 处理；谁能修改什么，仍由你的菜单决定。
 
 ```mermaid
 sequenceDiagram
@@ -16,7 +16,7 @@ sequenceDiagram
     S-->>C: 结果：已应用、已拒绝……
 ```
 
-服务端和客户端都要安装 Compose MC，依赖声明使用 `side = "BOTH"`。菜单同步不含任何界面代码，可以在专用服务器上运行。
+服务端和客户端都要安装 CompixelUI，依赖声明使用 `side = "BOTH"`。菜单同步不含任何界面代码，可以在专用服务器上运行。
 
 ## 声明状态
 
@@ -57,7 +57,7 @@ abstract class PowerMenu extends AbstractContainerMenu implements SyncedMenu {
 - 客户端：在游戏线程调用 `requestEnabled`，例如在处理 `UiBinding` 的动作时。返回 `true` 只表示请求已排队，不代表已经成功。
 - 动作处理器在服务端运行。先在那里检查权限，再修改机器。
 
-相关类型位于 `dev.composemc.sync.state`（结构与编解码器）、`dev.composemc.sync.action` 和 `dev.composemc.forge.sync`（菜单绑定）。
+相关类型位于 `dev.compixel.sync.state`（结构与编解码器）、`dev.compixel.sync.action` 和 `dev.compixel.forge.sync`（菜单绑定）。
 
 ## 取值
 

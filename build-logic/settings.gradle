@@ -1,4 +1,4 @@
-rootProject.name = 'composemc-build-logic'
+rootProject.name = 'compixel-build-logic'
 dependencyResolutionManagement {
     repositories { mavenCentral(); gradlePluginPortal() }
     versionCatalogs { libs { from(files('../gradle/libs.versions.toml')) } }

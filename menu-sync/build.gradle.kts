@@ -1,7 +1,7 @@
 // Protocol code deliberately uses only java.*; servers never need the UI runtime to execute it.
 plugins {
     `java-library`
-    id("composemc.testing")
+    id("compixel.testing")
 }
 
 java.toolchain.languageVersion.set(JavaLanguageVersion.of(17))
@@ -31,7 +31,7 @@ for (variant in listOf("Collection", "Map")) {
         description = "Measure immutable $variant updates in an isolated JVM; not a CI timing gate."
         dependsOn(tasks.testClasses)
         classpath = sourceSets.test.get().runtimeClasspath
-        mainClass.set("dev.composemc.sync.SyncMapPerformance")
+        mainClass.set("dev.compixel.sync.SyncMapPerformance")
         jvmArgs("-Xms256m", "-Xmx512m")
         args(
             variant.lowercase(),

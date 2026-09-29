@@ -2,7 +2,7 @@
 
 [简体中文](../zh-CN/architecture.md) · [All guides](../README.md)
 
-Compose MC is a single Gradle build. Shared modules hold everything that doesn't depend on Minecraft, and one adapter per Minecraft version connects them to the game.
+CompixelUI is a single Gradle build. Shared modules hold everything that doesn't depend on Minecraft, and one adapter per Minecraft version connects them to the game.
 
 ```mermaid
 flowchart TB
@@ -65,8 +65,8 @@ GPU images that Compose draws, such as item icon pages, belong to the render thr
 
 ## Packaging
 
-- The mod JAR contains every Compose MC module and no third-party code.
-- Compose, Skiko and Kotlin are packaged as runtime bundles: `composemc-runtime-standard`, `composemc-runtime-vulkan` for 26.2 and 26.3, and `composemc-kotlin`. Skiko includes natives for Windows, Linux and macOS on x64 and arm64.
+- The mod JAR contains every CompixelUI module and no third-party code.
+- Compose, Skiko and Kotlin are packaged as runtime bundles: `compixel-runtime-standard`, `compixel-runtime-vulkan` for 26.2 and 26.3, and `compixel-kotlin`. Skiko includes natives for Windows, Linux and macOS on x64 and arm64.
 - Each bundle has its own version, and `bundle.lock` records exactly what that version contains.
 - Player files embed the bundles through Jar-in-Jar. Maven users get them as dependencies.
 - At startup, Java code checks that the expected runtime and Kotlin libraries are present before any Kotlin runs, and names whatever is missing.

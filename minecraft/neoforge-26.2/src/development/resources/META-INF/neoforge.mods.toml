@@ -4,15 +4,15 @@ license="${mod_license}"
 issueTrackerURL="${mod_issues_url}"
 
 [[mods]]
-modId="composemc_development"
+modId="compixel_development"
 version="${mod_version}"
-displayName="Compose MC Development Tools"
+displayName="CompixelUI Development Tools"
 displayURL="${mod_url}"
 authors="${mod_authors}"
-description="Optional preview and validation tools. Requires the separately installed composemc runtime."
+description="Optional preview and validation tools. Requires the separately installed compixel runtime."
 
-[[dependencies.composemc_development]]
-modId="composemc"
+[[dependencies.compixel_development]]
+modId="compixel"
 type="required"
 versionRange="[${mod_version}]"
 ordering="AFTER"

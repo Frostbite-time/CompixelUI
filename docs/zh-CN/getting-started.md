@@ -2,7 +2,7 @@
 
 [English](../en/getting-started.md) · [全部指南](../README.md)
 
-本指南为一个 NeoForge 1.21.1 模组接入 Compose MC，并打开第一个界面。其他 Minecraft 版本的步骤相同，差异见[兼容性](compatibility.md)。
+本指南为一个 NeoForge 1.21.1 模组接入 CompixelUI，并打开第一个界面。其他 Minecraft 版本的步骤相同，差异见[兼容性](compatibility.md)。
 
 ## 1. 添加依赖
 
@@ -17,13 +17,13 @@ plugins {
 repositories {
     maven {
         url = 'https://maven.wintercogs.com/releases'
-        content { includeGroup 'dev.composemc' }
+        content { includeGroup 'dev.compixel' }
     }
 }
 
 dependencies {
-    compileOnly "dev.composemc:composemc-neoforge-1.21.1-with-kotlin:${composemc_version}"
-    localRuntime "dev.composemc:composemc-neoforge-1.21.1-with-kotlin:${composemc_version}"
+    compileOnly "dev.compixel:compixel-neoforge-1.21.1-with-kotlin:${compixel_version}"
+    localRuntime "dev.compixel:compixel-neoforge-1.21.1-with-kotlin:${compixel_version}"
 }
 
 kotlin { jvmToolchain(21) }
@@ -32,13 +32,13 @@ kotlin { jvmToolchain(21) }
 在 `gradle.properties` 中：
 
 ```properties
-composemc_version=0.1.2
+compixel_version=0.1.2
 kotlin.stdlib.default.dependency=false
 ```
 
-`-with-kotlin` 坐标会一并带上 Kotlin 库。如果你的模组本来就依赖 Kotlin for Forge，两行都改用 `composemc-neoforge-1.21.1`，由 KFF 提供 Kotlin。
+`-with-kotlin` 坐标会一并带上 Kotlin 库。如果你的模组本来就依赖 Kotlin for Forge，两行都改用 `compixel-neoforge-1.21.1`，由 KFF 提供 Kotlin。
 
-Compose MC 作为独立模组安装，不要用 Jar-in-Jar 打进你的 JAR。
+CompixelUI 作为独立模组安装，不要用 Jar-in-Jar 打进你的 JAR。
 
 ## 2. 声明依赖
 
@@ -46,7 +46,7 @@ Compose MC 作为独立模组安装，不要用 Jar-in-Jar 打进你的 JAR。
 
 ```toml
 [[dependencies.examplemod]]
-modId = "composemc"
+modId = "compixel"
 type = "required"
 versionRange = "[0.1.2]"
 ordering = "AFTER"
@@ -60,10 +60,10 @@ side = "CLIENT"
 ```kotlin
 import androidx.compose.runtime.*
 import androidx.compose.ui.unit.dp
-import dev.composemc.forge.ComposeScreen
-import dev.composemc.ui.ore.button.OreButton
-import dev.composemc.ui.ore.display.OreText
-import dev.composemc.ui.ore.layout.OreScreen
+import dev.compixel.forge.ComposeScreen
+import dev.compixel.ui.ore.button.OreButton
+import dev.compixel.ui.ore.display.OreText
+import dev.compixel.ui.ore.layout.OreScreen
 import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.Component
 
@@ -84,7 +84,7 @@ fun openCounterScreen() {
 
 ## 4. 显示游戏数据
 
-Compose 运行在自己的线程上。请在游戏线程读取游戏数据，再通过 `dev.composemc.host` 中的 `UiBinding` 把不可变快照交给 Compose；按钮也通过它把动作发回来：
+Compose 运行在自己的线程上。请在游戏线程读取游戏数据，再通过 `dev.compixel.host` 中的 `UiBinding` 把不可变快照交给 Compose；按钮也通过它把动作发回来：
 
 ```kotlin
 data class HeldItem(val name: String, val count: Int)
@@ -125,14 +125,14 @@ fun openHandScreen() {
 
 ## 5. 发布
 
-玩家把 Compose MC 和你的模组装在一起。每个 Minecraft 版本有两个文件，玩家选其一：
+玩家把 CompixelUI 和你的模组装在一起。每个 Minecraft 版本有两个文件，玩家选其一：
 
 | 文件 | 适用于 |
 | --- | --- |
-| `composemc-neoforge-1.21.1-0.1.2-with-kotlin.jar` | 所有玩家，已包含 Kotlin |
-| `composemc-neoforge-1.21.1-0.1.2.jar` | 已安装 Kotlin for Forge 的玩家 |
+| `compixel-neoforge-1.21.1-0.1.2-with-kotlin.jar` | 所有玩家，已包含 Kotlin |
+| `compixel-neoforge-1.21.1-0.1.2.jar` | 已安装 Kotlin for Forge 的玩家 |
 
-两个文件都可以在 [Releases](https://github.com/Frostbite-time/compose-mc/releases) 页面下载。
+两个文件都可以在 [Releases](https://github.com/Frostbite-time/CompixelUI/releases) 页面下载。
 
 ## 下一步
 

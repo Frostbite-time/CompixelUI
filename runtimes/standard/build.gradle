@@ -1,1 +1,1 @@
-plugins { id 'composemc.runtime-bundle' }
+plugins { id 'compixel.runtime-bundle' }

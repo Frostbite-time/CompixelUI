@@ -2,7 +2,7 @@
 
 [简体中文](../zh-CN/getting-started.md) · [All guides](../README.md)
 
-This guide adds Compose MC to a NeoForge 1.21.1 mod and opens a first screen. Other Minecraft versions follow the same steps; [Compatibility](compatibility.md) lists what differs.
+This guide adds CompixelUI to a NeoForge 1.21.1 mod and opens a first screen. Other Minecraft versions follow the same steps; [Compatibility](compatibility.md) lists what differs.
 
 ## 1. Add the dependency
 
@@ -17,13 +17,13 @@ plugins {
 repositories {
     maven {
         url = 'https://maven.wintercogs.com/releases'
-        content { includeGroup 'dev.composemc' }
+        content { includeGroup 'dev.compixel' }
     }
 }
 
 dependencies {
-    compileOnly "dev.composemc:composemc-neoforge-1.21.1-with-kotlin:${composemc_version}"
-    localRuntime "dev.composemc:composemc-neoforge-1.21.1-with-kotlin:${composemc_version}"
+    compileOnly "dev.compixel:compixel-neoforge-1.21.1-with-kotlin:${compixel_version}"
+    localRuntime "dev.compixel:compixel-neoforge-1.21.1-with-kotlin:${compixel_version}"
 }
 
 kotlin { jvmToolchain(21) }
@@ -32,13 +32,13 @@ kotlin { jvmToolchain(21) }
 And in `gradle.properties`:
 
 ```properties
-composemc_version=0.1.2
+compixel_version=0.1.2
 kotlin.stdlib.default.dependency=false
 ```
 
-The `-with-kotlin` coordinate brings the Kotlin libraries along. If your mod already depends on Kotlin for Forge, use `composemc-neoforge-1.21.1` on both lines instead and let KFF supply Kotlin.
+The `-with-kotlin` coordinate brings the Kotlin libraries along. If your mod already depends on Kotlin for Forge, use `compixel-neoforge-1.21.1` on both lines instead and let KFF supply Kotlin.
 
-Compose MC is installed as its own mod, so don't include it in your JAR through Jar-in-Jar.
+CompixelUI is installed as its own mod, so don't include it in your JAR through Jar-in-Jar.
 
 ## 2. Declare the dependency
 
@@ -46,7 +46,7 @@ In `src/main/resources/META-INF/neoforge.mods.toml`, with your own mod ID:
 
 ```toml
 [[dependencies.examplemod]]
-modId = "composemc"
+modId = "compixel"
 type = "required"
 versionRange = "[0.1.2]"
 ordering = "AFTER"
@@ -60,10 +60,10 @@ Use `side = "BOTH"` if you use [menu synchronization](menu-sync.md), which also 
 ```kotlin
 import androidx.compose.runtime.*
 import androidx.compose.ui.unit.dp
-import dev.composemc.forge.ComposeScreen
-import dev.composemc.ui.ore.button.OreButton
-import dev.composemc.ui.ore.display.OreText
-import dev.composemc.ui.ore.layout.OreScreen
+import dev.compixel.forge.ComposeScreen
+import dev.compixel.ui.ore.button.OreButton
+import dev.compixel.ui.ore.display.OreText
+import dev.compixel.ui.ore.layout.OreScreen
 import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.Component
 
@@ -84,7 +84,7 @@ Call `openCounterScreen()` from client code, such as a key mapping handler. `Com
 
 ## 4. Show game data
 
-Compose runs on its own thread. Read the game on the game thread, and pass Compose an immutable snapshot through a `UiBinding` from `dev.composemc.host`. Buttons send actions back the same way:
+Compose runs on its own thread. Read the game on the game thread, and pass Compose an immutable snapshot through a `UiBinding` from `dev.compixel.host`. Buttons send actions back the same way:
 
 ```kotlin
 data class HeldItem(val name: String, val count: Int)
@@ -125,14 +125,14 @@ Don't touch players, item stacks or other game objects inside composables, and n
 
 ## 5. Ship it
 
-Players install Compose MC next to your mod. Each Minecraft version has two files; players pick one:
+Players install CompixelUI next to your mod. Each Minecraft version has two files; players pick one:
 
 | File | For |
 | --- | --- |
-| `composemc-neoforge-1.21.1-0.1.2-with-kotlin.jar` | Everyone; Kotlin included |
-| `composemc-neoforge-1.21.1-0.1.2.jar` | Players who already have Kotlin for Forge |
+| `compixel-neoforge-1.21.1-0.1.2-with-kotlin.jar` | Everyone; Kotlin included |
+| `compixel-neoforge-1.21.1-0.1.2.jar` | Players who already have Kotlin for Forge |
 
-Both are on the [Releases](https://github.com/Frostbite-time/compose-mc/releases) page.
+Both are on the [Releases](https://github.com/Frostbite-time/CompixelUI/releases) page.
 
 ## Next steps
 

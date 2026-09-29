@@ -62,7 +62,7 @@ function Allowed($rules) {
 if (!$SkipBuild) {
     Push-Location $repo
     try {
-        & .\gradlew.bat '-PcomposemcTargets=1.20.1' "${adapterProject}:build" "${adapterProject}:downloadAssets" --console=plain
+        & .\gradlew.bat '-PcompixelTargets=1.20.1' "${adapterProject}:build" "${adapterProject}:downloadAssets" --console=plain
         if ($LASTEXITCODE -ne 0) { throw 'Forge production build failed' }
     } finally { Pop-Location }
 }
@@ -130,8 +130,8 @@ New-Item -ItemType Directory -Force $mods,(Join-Path $game 'config') | Out-Null
 foreach ($old in Get-ChildItem -LiteralPath $mods -File -Filter '*.jar') { Remove-Item -LiteralPath $old.FullName }
 $librarySuffix = if ($KotlinMode -eq 'bundled') { '-with-kotlin' } else { '' }
 # Player JARs are in build/release; the development mod is published with the Maven artifacts in build/libs.
-foreach ($archive in @("release/composemc-forge-1.20.1-$($properties.mod_version)$librarySuffix.jar",
-        "libs/composemc-forge-1.20.1-$($properties.mod_version)-development.jar")) {
+foreach ($archive in @("release/compixel-forge-1.20.1-$($properties.mod_version)$librarySuffix.jar",
+        "libs/compixel-forge-1.20.1-$($properties.mod_version)-development.jar")) {
     Copy-Item -LiteralPath (Join-Path $repo "$adapterDirectory/build/$archive") -Destination $mods
 }
 if ($KotlinProviderJar) { Copy-Item -LiteralPath (Resolve-Path -LiteralPath $KotlinProviderJar).Path -Destination $mods -Force }
@@ -141,7 +141,7 @@ $substitutions = @{
     assets_root=$assets;assets_index_name=$vanilla.assetIndex.id
     auth_uuid='d399082ec2044e01b4bc916b6f344f97';auth_access_token='0';clientid='0';auth_xuid='0'
     user_type='legacy';version_type='release';resolution_width='1280';resolution_height='960'
-    natives_directory=$natives;launcher_name='composemc-validation';launcher_version='1'
+    natives_directory=$natives;launcher_name='compixel-validation';launcher_version='1'
     classpath=($classpath -join [IO.Path]::PathSeparator);library_directory=$libraryRoot;classpath_separator=[IO.Path]::PathSeparator
 }
 function Arguments($items) {
@@ -155,22 +155,22 @@ function Arguments($items) {
         }
     }
 }
-$suiteArguments = @("-Dcomposemc.suite=$Suite", '-Dcomposemc.suite.background=true', '-Dcomposemc.suite.isolated=true',
-    '-Dcomposemc.suite.production=true', '-Dcomposemc.backend=opengl')
+$suiteArguments = @("-Dcompixel.suite=$Suite", '-Dcompixel.suite.background=true', '-Dcompixel.suite.isolated=true',
+    '-Dcompixel.suite.production=true', '-Dcompixel.backend=opengl')
 if ($Suite -eq 'benchmark') {
-    $suiteArguments += '-Dcomposemc.profile=true', '-Dcomposemc.allocations=true', "-Dcomposemc.benchmark.frames=$Frames",
-        "-Dcomposemc.benchmark.repeats=$Repeats", "-Dcomposemc.benchmark.label=$Label"
+    $suiteArguments += '-Dcompixel.profile=true', '-Dcompixel.allocations=true', "-Dcompixel.benchmark.frames=$Frames",
+        "-Dcompixel.benchmark.repeats=$Repeats", "-Dcompixel.benchmark.label=$Label"
 }
 $arguments = @('-Xmx3G') + $suiteArguments +
     @(Arguments $vanilla.arguments.jvm) + @(Arguments $forge.arguments.jvm) + @($forge.mainClass) +
     @(Arguments $vanilla.arguments.game) + @(Arguments $forge.arguments.game)
 $argumentFile = Join-Path $game 'production.args'
 [IO.File]::WriteAllLines($argumentFile, @($arguments | ForEach-Object { '"' + $_.Replace('\','/').Replace('"','\"') + '"' }), [Text.UTF8Encoding]::new($false))
-$resultFile = Join-Path $game "composemc-$Suite.txt"
+$resultFile = Join-Path $game "compixel-$Suite.txt"
 if (Test-Path -LiteralPath $resultFile) { Remove-Item -LiteralPath $resultFile }
 $log = Join-Path $repo ".work/forge-production-$Suite-$Label.log"
 . (Join-Path $PSScriptRoot 'windows_isolated_desktop.ps1')
-$desktopName='composemc-isolated-'+[Guid]::NewGuid().ToString('N')
+$desktopName='compixel-isolated-'+[Guid]::NewGuid().ToString('N')
 $command='"'+$env:ComSpec+'" /d /s /c ""'+$java+'" @"'+$argumentFile+'" > "'+$log+'" 2>&1"'
 $timeout = if ($Suite -eq 'benchmark') { 15 + [Math]::Ceiling(25 * $Repeats * (136 + $Frames) / 3600.0 * 1.5) } else { 30 }
 Write-Output "Running the $Suite suite in installed Forge $forgeCoordinate on an isolated desktop. Log: $log"

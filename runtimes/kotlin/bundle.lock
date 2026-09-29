@@ -1,4 +1,4 @@
-# Dependencies of composemc-kotlin 1.0.0. Raise runtime_kotlin_version when they change.
+# Dependencies of compixel-kotlin 1.0.0. Raise runtime_kotlin_version when they change.
 version=1.0.0
 org.jetbrains.kotlin:kotlin-stdlib:2.4.10
 org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2

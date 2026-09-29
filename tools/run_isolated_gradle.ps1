@@ -33,7 +33,7 @@ exit $LASTEXITCODE
 . (Join-Path $PSScriptRoot 'windows_isolated_desktop.ps1')
 $taskPowerShell = (Get-Process -Id $PID).Path
 $taskCommand = '"' + $taskPowerShell + '" -NoLogo -NoProfile -NonInteractive -File "' + $taskRunner + '" -Configuration "' + $taskConfiguration + '"'
-$taskDesktop = 'composemc-isolated-' + $taskId
+$taskDesktop = 'compixel-isolated-' + $taskId
 Write-Output "Starting isolated Gradle run on $taskDesktop. Log: $taskLog"
 $taskCode = [ComposeIsolatedDesktop]::Run($taskPowerShell, $taskCommand, $taskProject, $taskDesktop, $TimeoutMinutes)
 Get-Content -LiteralPath $taskLog -Tail 35

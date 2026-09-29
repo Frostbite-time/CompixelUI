@@ -1,4 +1,4 @@
-# Compose MC documentation · 文档
+# CompixelUI documentation · 文档
 
 [Project home](../README.md) · [项目首页](../README.zh-CN.md)
 
@@ -18,6 +18,6 @@
 | Building and testing · 构建与测试 | [Contributing](en/contributing.md) | [参与开发](zh-CN/contributing.md) |
 | How the code is organized · 代码结构 | [Architecture](en/architecture.md) | [架构](zh-CN/architecture.md) |
 
-New to Compose MC? Start with Getting started, then pick the guides you need. Each release also ships an API reference as its `javadoc` JAR.
+New to CompixelUI? Start with Getting started, then pick the guides you need. Each release also ships an API reference as its `javadoc` JAR.
 
 第一次使用请从快速开始读起，再按需阅读其他指南。每个版本还附带 `javadoc` JAR 形式的 API 参考。

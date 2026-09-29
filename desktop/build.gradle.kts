@@ -13,7 +13,7 @@ dependencies {
     implementation(compose.desktop.currentOs)
 }
 
-application { mainClass.set("dev.composemc.desktop.MainKt") }
+application { mainClass.set("dev.compixel.desktop.MainKt") }
 
 // JetBrains relay artifacts and AndroidX implementations may have identical filenames.
 // Preserve both and use the same qualified names in the distribution and launch scripts.

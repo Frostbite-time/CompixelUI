@@ -79,17 +79,17 @@ try {
     foreach ($version in $versions) {
         $adapterDirectory = $targets["$version.project"]
         $adapter = ':' + $adapterDirectory.Replace('/', ':')
-        $arguments = @("${adapter}:$task", '--console=plain', "-PcomposemcTargets=$version", "-PcomposemcBackend=$Backend",
-            '-PcomposemcBackground=true', '-PcomposemcIsolatedDesktop=true', "-PcomposemcKotlinMode=$KotlinMode")
-        if ($KotlinProviderJar) { $arguments += '-PcomposemcKotlinProviderJar=' + (Resolve-Path -LiteralPath $KotlinProviderJar).Path }
-        if ($ValidationLayerPath) { $arguments += '-PcomposemcVulkanValidation=true' }
+        $arguments = @("${adapter}:$task", '--console=plain', "-PcompixelTargets=$version", "-PcompixelBackend=$Backend",
+            '-PcompixelBackground=true', '-PcompixelIsolatedDesktop=true', "-PcompixelKotlinMode=$KotlinMode")
+        if ($KotlinProviderJar) { $arguments += '-PcompixelKotlinProviderJar=' + (Resolve-Path -LiteralPath $KotlinProviderJar).Path }
+        if ($ValidationLayerPath) { $arguments += '-PcompixelVulkanValidation=true' }
         if ($Suite -eq 'benchmark') {
-            $arguments += "-PcomposemcLabel=$Label", "-PcomposemcBenchmarkFrames=$Frames", "-PcomposemcBenchmarkRepeats=$Repeats"
-            if ($Control) { $arguments += '-PcomposemcBenchmarkControl=true' }
+            $arguments += "-PcompixelLabel=$Label", "-PcompixelBenchmarkFrames=$Frames", "-PcompixelBenchmarkRepeats=$Repeats"
+            if ($Control) { $arguments += '-PcompixelBenchmarkControl=true' }
         }
         $name = if ($Suite -eq 'benchmark') { "$Suite-$version-$Backend-$Label" } else { "$Suite-$version-$Backend" }
         $log = Join-Path $logs "$name.log"
-        $report = Join-Path $repo "$adapterDirectory/build/$directory/composemc-$Suite.txt"
+        $report = Join-Path $repo "$adapterDirectory/build/$directory/compixel-$Suite.txt"
         # A build failure before the run must not leave a previous run's report as this run's summary.
         Remove-Item -LiteralPath $report -Force -ErrorAction SilentlyContinue
         $failure = $null

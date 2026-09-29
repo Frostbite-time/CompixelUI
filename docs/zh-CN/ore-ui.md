@@ -2,13 +2,13 @@
 
 [English](../en/ore-ui.md) · [全部指南](../README.md)
 
-Ore UI 是 Compose MC 的 Minecraft 风格组件集：像素字体、立体按钮、内嵌输入框和深色石质面板。Compose MC 的界面会自动套用它的主题，标准的 Compose 布局、状态和修饰符照常使用。
+Ore UI 是 CompixelUI 的 Minecraft 风格组件集：像素字体、立体按钮、内嵌输入框和深色石质面板。CompixelUI 的界面会自动套用它的主题，标准的 Compose 布局、状态和修饰符照常使用。
 
 和其他 Compose 组件一样，控件接收值和回调，状态由你的代码持有。
 
 ## 组件一览
 
-下列包都位于 `dev.composemc.ui.ore` 之下。
+下列包都位于 `dev.compixel.ui.ore` 之下。
 
 | 包 | 组件 |
 | --- | --- |
@@ -196,7 +196,7 @@ fun SettingsTree() {
 把开发产物加入运行配置，启动游戏后按 **F8**：
 
 ```groovy
-localRuntime "dev.composemc:composemc-neoforge-1.21.1:${composemc_version}:development"
+localRuntime "dev.compixel:compixel-neoforge-1.21.1:${compixel_version}:development"
 ```
 
 ![游戏中的 F8 组件预览](../assets/preview-zh-CN.png)

@@ -21,11 +21,11 @@ ext.configureMinecraftApiDocs = { runtime ->
     def roots = sourceProjects.collectMany { owner ->
         [owner.file('src/main/java'), owner.file('src/main/kotlin')]
     }
-    def apiModuleName = "composemc-${project.name}"
+    def apiModuleName = "compixel-${project.name}"
     def overview = tasks.register('prepareApiOverview', Copy) {
         inputs.property('apiModuleName', apiModuleName)
         from(rootProject.file('docs/api-overview.md')) {
-            filter { line -> line == '# Module Compose MC' ? "# Module $apiModuleName" : line }
+            filter { line -> line == '# Module CompixelUI' ? "# Module $apiModuleName" : line }
         }
         into layout.buildDirectory.dir('generated/api-overview')
     }

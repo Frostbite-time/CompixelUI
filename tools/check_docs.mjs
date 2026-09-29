@@ -19,7 +19,7 @@ const error = (file, message) => errors.push(`${file}: ${message}`);
 const externalPages = new Set(['docs/mod-page.md', 'docs/CHANGELOG.md']);
 // Absolute links into this repository must still name an existing file.
 // 指向本仓库的绝对链接同样必须指向存在的文件。
-const repositoryUrl = /^https:\/\/(?:github\.com\/Frostbite-time\/compose-mc\/(?:blob|tree)\/main|raw\.githubusercontent\.com\/Frostbite-time\/compose-mc\/main)\/([^?]+)$/;
+const repositoryUrl = /^https:\/\/(?:github\.com\/Frostbite-time\/CompixelUI\/(?:blob|tree)\/main|raw\.githubusercontent\.com\/Frostbite-time\/CompixelUI\/main)\/([^?]+)$/;
 
 function prose(text) {
     let fence = null;
