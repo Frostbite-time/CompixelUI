@@ -67,6 +67,59 @@ fun NativeItemVisualScene(model: NativeItemVisualModel, item: @Composable (Modif
     }
 }
 
+/** The two colors the ticking icon of the partial redraw scene alternates between, one per drawing. */
+val NATIVE_PARTIAL_TICKING: List<Int> = listOf(0xFF2BB673.toInt(), 0xFF2B7CE8.toInt())
+/** The colors of the partial redraw scene's still icons. */
+val NATIVE_PARTIAL_STILL: List<Int> = listOf(0xFFE8C22B.toInt(), 0xFFB62BE8.toInt(), 0xFFE86A2B.toInt())
+
+/**
+ * One ticking icon first, then the still ones, so that on a 2x2 atlas page the ticking icon's row and column neighbours
+ * are still icons: a redraw that cleared any cell but its own would erase one of them.
+ */
+@Composable
+fun NativeItemPartialScene(model: NativeItemVisualModel, items: List<@Composable (Modifier) -> Unit>) {
+    require(items.size == 1 + NATIVE_PARTIAL_STILL.size)
+    Row(
+        Modifier.fillMaxSize().background(Color(0xFF172023)).padding(30.dp),
+        horizontalArrangement = Arrangement.spacedBy(28.dp),
+    ) {
+        items.forEachIndexed { index, item ->
+            Box(Modifier.size(64.dp).background(background).then(model.record("partial-$index"))) {
+                item(Modifier.fillMaxSize())
+            }
+        }
+    }
+}
+
+/** The ticking icon shows one whole drawing, and every still icon keeps its full cell. */
+fun verifyNativeItemPartialPixels(bounds: Map<String, Rect>, width: Int, height: Int, pixel: (Int, Int) -> Int) {
+    val points = listOf(0.5f to 0.5f, 0.1f to 0.1f, 0.9f to 0.1f, 0.1f to 0.9f, 0.9f to 0.9f)
+    fun samples(name: String): List<Int> {
+        val area = checkNotNull(bounds[name]) { "Missing native partial bounds: $name" }
+        return points.map { (x, y) ->
+            val px = (area.left + area.width * x).toInt()
+            val py = (area.top + area.height * y).toInt()
+            check(px in 0 until width && py in 0 until height) { "Native partial sample outside frame: $name" }
+            pixel(px, py)
+        }
+    }
+    val ticking = samples("partial-0")
+    check(NATIVE_PARTIAL_TICKING.any { color -> ticking.all { delta(it, color) <= 8 } }) {
+        "The ticking icon does not show one whole drawing: ${ticking.map(Integer::toHexString)}"
+    }
+    NATIVE_PARTIAL_STILL.forEachIndexed { index, color ->
+        val still = samples("partial-${index + 1}")
+        check(still.all { delta(it, color) <= 8 }) {
+            "Still icon ${index + 1} lost pixels while the ticking icon redrew: ${still.map(Integer::toHexString)}"
+        }
+    }
+}
+
+private fun delta(a: Int, b: Int): Int =
+    (0..2).maxOf { channel ->
+        abs((a ushr (channel * 8) and 255) - (b ushr (channel * 8) and 255))
+    }
+
 /** Sample stable interiors, allowing a few color levels for backend rounding. */
 fun verifyNativeItemVisualPixels(bounds: Map<String, Rect>, width: Int, height: Int, pixel: (Int, Int) -> Int) {
     fun sample(name: String, x: Float = 0.5f, y: Float = 0.5f): Int {
@@ -76,10 +129,6 @@ fun verifyNativeItemVisualPixels(bounds: Map<String, Rect>, width: Int, height: 
         check(px in 0 until width && py in 0 until height) { "Native visual sample outside frame: $name" }
         return pixel(px, py)
     }
-    fun delta(a: Int, b: Int): Int =
-        (0..2).maxOf { channel ->
-            abs((a ushr (channel * 8) and 255) - (b ushr (channel * 8) and 255))
-        }
     val base = sample("base")
     val opaque = sample("opaque")
     val half = sample("half")

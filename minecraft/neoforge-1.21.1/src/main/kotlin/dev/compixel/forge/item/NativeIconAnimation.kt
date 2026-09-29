@@ -18,14 +18,14 @@ internal class NativeIconAnimation {
         if (icon.refresh !== IconRefresh.AUTO) return icon.refresh
         if (icon.stack.isEmpty) return IconRefresh.GAME_TICK // An opaque custom drawing has no model to inspect.
         val stack = icon.stack
+        // Glint and custom renderers animate continuously; like animated sprites, they redraw once per game tick.
         if (
             stack.hasFoil() || Minecraft.getInstance().itemRenderer.itemModelShaper.getItemModel(stack).isCustomRenderer
         )
-            return IconRefresh.FRAME
+            return IconRefresh.GAME_TICK
         // Model overrides, such as compass and clock angles, are followed through appearance().
         for (pass in model(stack).getRenderPasses(stack, true)) {
-            if (pass.isCustomRenderer) return IconRefresh.FRAME
-            if (animated(pass.particleIcon)) return IconRefresh.GAME_TICK
+            if (pass.isCustomRenderer || animated(pass.particleIcon)) return IconRefresh.GAME_TICK
             for (face in Direction.entries + listOf(null)) {
                 random.setSeed(42)
                 if (pass.getQuads(null, face, random).any { animated(it.sprite) }) return IconRefresh.GAME_TICK

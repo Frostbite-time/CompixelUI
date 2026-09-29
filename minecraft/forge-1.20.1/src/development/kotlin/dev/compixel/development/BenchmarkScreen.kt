@@ -25,7 +25,6 @@ import dev.compixel.forge.item.IconRefresh
 import dev.compixel.forge.item.ItemIcon
 import dev.compixel.forge.item.MinecraftItemIcon
 import dev.compixel.forge.item.MinecraftItemTooltip
-import dev.compixel.forge.item.NativeItemOptions
 import dev.compixel.testing.suite.BenchmarkCase
 import dev.compixel.testing.suite.BenchmarkKind
 import net.minecraft.core.registries.BuiltInRegistries
@@ -56,9 +55,6 @@ private constructor(
 ) :
     ComposeScreen(
         Component.literal("CompixelUI benchmark"),
-        nativeItemOptions =
-            if (fixture.kind == BenchmarkKind.NATIVE_ANIMATED) NativeItemOptions(cacheCapacity = 512)
-            else NativeItemOptions(),
         content = { BenchmarkContent(fixture, model, icons, samples) },
     ),
     BenchmarkTarget {
@@ -92,9 +88,13 @@ private constructor(
     ) : this(
         fixture,
         ComposeThread.call { BenchmarkModel() },
-        // Glint makes AUTO resolve to per-frame refresh, like enchanted items in real inventories.
+        // Glint makes AUTO refresh every game tick, like enchanted items in real inventories.
         if (fixture.kind == BenchmarkKind.NATIVE_ANIMATED)
             benchmarkIcons(IconRefresh.AUTO) { enchant(Enchantments.UNBREAKING, 1) }
+        // One enchanted item among static icons on the same atlas page.
+        else if (fixture.kind == BenchmarkKind.NATIVE_MIXED)
+            benchmarkIcons(IconRefresh.STATIC).take(fixture.count - 1) +
+                ItemIcon.snapshot(ItemStack(Items.DIAMOND_SWORD).apply { enchant(Enchantments.UNBREAKING, 1) })
         else if (
             fixture.kind in setOf(BenchmarkKind.NATIVE_STATIC, BenchmarkKind.NATIVE_SCROLL, BenchmarkKind.TOOLTIP) ||
                 fixture.kind == BenchmarkKind.ORE_COMPONENTS &&
@@ -241,7 +241,7 @@ private fun BenchmarkContent(
                     }
                 }
             }
-            // 256 distinct animated icons on one page; every one must get and refresh its image.
+            // 256 distinct animated icons, more than the default cache holds; every one must get and refresh its image.
             BenchmarkKind.NATIVE_ANIMATED ->
                 LazyVerticalGrid(
                     GridCells.Fixed(20),
@@ -252,6 +252,15 @@ private fun BenchmarkContent(
                     items(fixture.count, key = { it }) { index ->
                         MinecraftItemIcon(icons[index % icons.size], Modifier.size(20.dp))
                     }
+                }
+            BenchmarkKind.NATIVE_MIXED ->
+                LazyVerticalGrid(
+                    GridCells.Fixed(16),
+                    Modifier.fillMaxWidth().weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    items(icons.size, key = { it }) { index -> MinecraftItemIcon(icons[index], Modifier.size(20.dp)) }
                 }
             BenchmarkKind.TOOLTIP ->
                 Box(Modifier.fillMaxSize()) {

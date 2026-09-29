@@ -14,6 +14,7 @@ enum class BenchmarkKind {
     NATIVE_STATIC,
     NATIVE_SCROLL,
     NATIVE_ANIMATED,
+    NATIVE_MIXED,
     TOOLTIP,
     HUD_STATIC,
     HUD_ANIMATED,
@@ -47,6 +48,7 @@ object BenchmarkPlan {
             BenchmarkCase("native-static", BenchmarkKind.NATIVE_STATIC, 1000),
             BenchmarkCase("native-scroll-10k", BenchmarkKind.NATIVE_SCROLL, 10000),
             BenchmarkCase("native-animated", BenchmarkKind.NATIVE_ANIMATED, 1000),
+            BenchmarkCase("native-mixed", BenchmarkKind.NATIVE_MIXED, 64),
             BenchmarkCase("rich-tooltip", BenchmarkKind.TOOLTIP),
             BenchmarkCase("hud-static", BenchmarkKind.HUD_STATIC),
             BenchmarkCase("hud-animated", BenchmarkKind.HUD_ANIMATED),
@@ -94,8 +96,8 @@ object BenchmarkValidity {
         check(rows.size == samples) { "Incomplete samples for ${case.name}: ${rows.size}/$samples" }
         check(rows.all { it.missingGpuResults == 0 }) { "GPU results did not drain; ${case.name} is incomplete" }
         check(rows.maxOf { it.recordings } <= 2) { "${case.name} recorded more than twice in one frame" }
-        check(rows.maxOf { it.cachedItems } <= if (case.kind == BenchmarkKind.NATIVE_ANIMATED) 512 else 128) {
-            "${case.name} exceeded its native item cache"
+        check(rows.maxOf { it.cachedItems } <= if (case.kind == BenchmarkKind.NATIVE_ANIMATED) 256 else 128) {
+            "${case.name} showed more native icons than its fixture"
         }
         if (case.kind in setOf(BenchmarkKind.STATIC, BenchmarkKind.NATIVE_STATIC, BenchmarkKind.HUD_STATIC))
             check(rows.none { it.rendered }) { "Static fixture ${case.name} kept repainting" }
@@ -118,6 +120,15 @@ object BenchmarkValidity {
             }
             check(refreshesDuringSamples >= activeVariants) {
                 "Animated icons stopped refreshing: $refreshesDuringSamples refreshes"
+            }
+        }
+        if (case.kind == BenchmarkKind.NATIVE_MIXED) {
+            // One enchanted item shares an atlas page with static icons and is the only one that refreshes.
+            check(activeVariants == case.count && dynamicVariants == 1) {
+                "Mixed icons were not all prepared: active=$activeVariants dynamic=$dynamicVariants"
+            }
+            check(refreshesDuringSamples >= samples / 6) {
+                "The enchanted icon stopped refreshing: $refreshesDuringSamples refreshes"
             }
         }
         if (case.kind == BenchmarkKind.TOOLTIP)

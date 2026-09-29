@@ -45,7 +45,7 @@ modBus.addListener { event: RegisterMenuScreensEvent ->
 
 Forge 1.20.1 请在 `FMLClientSetupEvent.enqueueWork` 中用 `MenuScreens.register` 注册。
 
-大型容器可以给 `ComposeInventoryScreen` 传入 `nativeItemOptions = NativeItemOptions(cacheCapacity = 1024)`。默认容量为 256 个图标句柄，覆盖整个界面，包括玩家背包和合成区。各参数及每帧准备上限见[大量物品](items.md#大量物品)。
+大型容器的每个槽位都会显示图标，无需额外设置。`ComposeInventoryScreen` 在整个界面范围内最多缓存 256 个图标，包括玩家背包和合成区。调整缓存和每帧绘制上限见[大量物品](items.md#大量物品)。
 
 ## 选择界面类
 

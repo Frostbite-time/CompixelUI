@@ -39,13 +39,13 @@ Icons follow the game on their own: enchantment glint, animated textures, compas
 
 | Policy | Redraws the icon |
 | --- | --- |
-| `IconRefresh.AUTO` (default) | When the item's look changes |
+| `IconRefresh.AUTO` (default) | Every game tick while the item animates, as with glint or animated textures; otherwise when its look changes |
 | `IconRefresh.GAME_TICK` | Every game tick |
 | `IconRefresh.FRAME` | Every frame |
 | `IconRefresh.every(ms)` | At a fixed interval, 16 to 60,000 ms |
 | `IconRefresh.STATIC` | Never; the first image stays |
 
-Choose `GAME_TICK` or `FRAME` for items whose custom renderer animates without changing its model.
+Animated icons redraw once per game tick, the rate at which Minecraft animates its textures. Choose `GAME_TICK` for items whose custom renderer animates without changing its model, and `FRAME` only for drawings that must move faster.
 
 ## Draw your own icons
 
@@ -61,7 +61,9 @@ The drawing runs on the render thread and repeats every game tick unless you pas
 
 ## Large grids
 
-A screen keeps up to 128 prepared icons by default; `ComposeInventoryScreen` defaults to 256. Set `nativeItemOptions` when creating a `ComposeScreen`, `ComposeMenuScreen`, `ComposeInventoryScreen` or `ComposeHudLayer` to choose its own cache capacity:
+Every icon on screen gets its image, however many there are. Icons are drawn into atlas pages of up to 64 icons each. A page redraws only its due icons, so an animated item doesn't redraw the icons beside it. Pages are added as more icons appear, and discarded once their icons are gone.
+
+Set `nativeItemOptions` when creating a `ComposeScreen`, `ComposeMenuScreen`, `ComposeInventoryScreen` or `ComposeHudLayer` to tune this for that screen or layer:
 
 ```kotlin
 ComposeScreen(title, nativeItemOptions = NativeItemOptions(cacheCapacity = 512)) { … }
@@ -79,11 +81,11 @@ ComposeInventoryScreen(
 
 | Option | Default | Range | Meaning |
 | --- | --- | --- | --- |
-| `cacheCapacity` | 128; 256 for inventory screens | 1–1024 | Total number of cached icon handles across all atlas pages in this screen or HUD layer |
-| `preparationsPerFrame` | 64 | 1–64 | Maximum number of icons prepared in one frame |
-| `imageSize` | 64 | 16–256 | Pixel size used to prepare each 16×16 icon |
+| `cacheCapacity` | 128; 256 for inventory screens | 1–1024 | Icons kept while fewer are on screen. An icon that scrolls out of view stays cached while it fits, and returns without being drawn again |
+| `preparationsPerFrame` | 64 | 1–64 | Maximum number of icons drawn in one frame, and the number of icons on one atlas page |
+| `imageSize` | 64 | 16–256 | Pixel size used to draw each 16×16 icon |
 
-Increasing `cacheCapacity` keeps the per-frame preparation limit unchanged. Pages are prepared over several frames and consume more GPU memory as the cache fills. Size the cache for every simultaneously active icon, including player inventory, crafting and carried items, and leave room for lazy-layout prefetch. Reusing the same `ItemIcon` handle shares one cache entry; separately created handles use separate entries even for identical stacks. When all cached entries are still active, extra icons remain pending until an entry becomes available; waiting alone does not make an oversized grid complete.
+A screen that shows more icons than `preparationsPerFrame` fills in over a few frames. A page of 64 icons at the default image size takes about 4 MB of GPU memory. Reusing the same `ItemIcon` handle shares one image; separately created handles get separate images, even for identical stacks.
 
 ## See also
 

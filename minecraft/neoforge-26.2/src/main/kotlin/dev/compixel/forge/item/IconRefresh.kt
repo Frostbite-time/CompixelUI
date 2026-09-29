@@ -15,13 +15,14 @@ class IconRefresh private constructor(internal val kind: Kind, internal val mill
 
     companion object {
         /**
-         * Inspect item models: glint refreshes every frame, animated sprites every game tick, and other items whenever
-         * their resolved model or cooldown overlay changes.
+         * Inspect item models: glint and animated sprites refresh every game tick, and other items whenever their
+         * resolved model or cooldown overlay changes.
          */
         @JvmField val AUTO = IconRefresh(Kind.AUTO)
         @JvmField val STATIC = IconRefresh(Kind.STATIC)
         /** Follows Minecraft texture ticks, including paused-world and frozen-tick behavior. */
         @JvmField val GAME_TICK = IconRefresh(Kind.GAME_TICK)
+        /** Redraws every frame, within the frame budget; only for drawings that must move faster than game ticks. */
         @JvmField val FRAME = IconRefresh(Kind.FRAME)
 
         @JvmStatic

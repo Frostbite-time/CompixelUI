@@ -5,7 +5,6 @@ import dev.compixel.bridge.ComposeThread
 import dev.compixel.bridge.NativeIconAtlas
 import dev.compixel.bridge.NativeImageRegion
 import dev.compixel.forge.render.ScreenFrameRenderer
-import dev.compixel.render.gl.OpenGlDestination
 import net.minecraft.client.Minecraft
 import org.jetbrains.skia.Image
 
@@ -18,12 +17,16 @@ data class NativeItemStatistics(
     val lastRequestGeneration: Long = 0,
     val dynamicVariants: Int = 0,
     val animationRefreshes: Long = 0,
+    /** Atlas pages currently holding icons. */
+    val pages: Int = 0,
+    /** Icons drawn into their cells; a page redraws only its due icons. */
+    val drawnIcons: Long = 0,
 )
 
 /**
- * Draws the shared [NativeIconAtlas] schedule into one native GUI page per host frame and copies that page once: on the
- * GPU with OpenGL, by readback with the CPU reference renderer. Native model access, preparation and image retirement
- * stay on the render thread.
+ * Draws the shared [NativeIconAtlas] schedule into one native GUI target per page, which keeps the pixels of icons that
+ * are not due, and copies a page once after each draw: on the GPU with OpenGL, by readback with the CPU reference
+ * renderer. Native model access, preparation and image retirement stay on the render thread.
  */
 internal class NativeItemAtlas(
     private val backend: ScreenFrameRenderer,
@@ -31,9 +34,8 @@ internal class NativeItemAtlas(
     options: NativeItemOptions,
 ) : AutoCloseable {
     private val animations = NativeIconAnimation()
-    private val target = NativeGuiRenderTarget(backend)
+    private val targets = ArrayList<NativeGuiRenderTarget?>()
     private val atlas = NativeIconAtlas(options.cacheCapacity, options.preparationsPerFrame, options.imageSize, Pages())
-    private var page: OpenGlDestination? = null
     private var generation = 0L
 
     val statistics
@@ -48,6 +50,8 @@ internal class NativeItemAtlas(
                     generation,
                     it.dynamicVariants,
                     it.animationRefreshes,
+                    it.pages,
+                    it.drawnIcons,
                 )
             }
 
@@ -73,8 +77,8 @@ internal class NativeItemAtlas(
         try {
             atlas.close()
         } finally {
-            page = null
-            target.close()
+            targets.forEach { it?.close() }
+            targets.clear()
         }
     }
 
@@ -88,39 +92,49 @@ internal class NativeItemAtlas(
 
         override fun appearance(icon: ItemIcon) = animations.appearance(icon)
 
-        override fun draw(buffer: Int, icons: List<NativeIconAtlas.Placement<ItemIcon>>) {
+        override fun draw(page: Int, buffer: Int, icons: List<NativeIconAtlas.Placement<ItemIcon>>) {
+            while (targets.size <= page) targets += null
+            val target = targets[page] ?: NativeGuiRenderTarget(backend).also { targets[page] = it }
             val font = Minecraft.getInstance().font
-            page =
-                target
-                    .draw(atlas.width, atlas.height, atlas.guiWidth.toFloat(), atlas.guiHeight.toFloat()) { graphics ->
-                        icons.forEach { placement ->
-                            val icon = placement.icon
-                            if (icon.drawing == null) {
-                                // Held by the local player, as in a container slot; compass and clock models need a
-                                // holder.
-                                graphics.renderItem(icon.stack, placement.x, placement.y)
-                                graphics.renderItemDecorations(font, icon.stack, placement.x, placement.y)
-                            } else {
-                                graphics.pose().pushPose()
-                                try {
-                                    graphics.pose().translate(placement.x.toFloat(), placement.y.toFloat(), 0f)
-                                    icon.drawing.accept(graphics)
-                                } finally {
-                                    graphics.pose().popPose()
-                                }
-                            }
+            target.draw(
+                atlas.width,
+                atlas.height,
+                atlas.guiWidth.toFloat(),
+                atlas.guiHeight.toFloat(),
+                cells = icons.map(atlas::cell),
+            ) { graphics ->
+                icons.forEach { placement ->
+                    val icon = placement.icon
+                    if (icon.drawing == null) {
+                        // Held by the local player, as in a container slot; compass and clock models need a holder.
+                        graphics.renderItem(icon.stack, placement.x, placement.y)
+                        graphics.renderItemDecorations(font, icon.stack, placement.x, placement.y)
+                    } else {
+                        graphics.pose().pushPose()
+                        try {
+                            graphics.pose().translate(placement.x.toFloat(), placement.y.toFloat(), 0f)
+                            icon.drawing.accept(graphics)
+                        } finally {
+                            graphics.pose().popPose()
                         }
                     }
-                    .first
+                }
+            }
         }
 
-        override fun snapshot(buffer: Int) = backend.copyNativeImage(checkNotNull(page), atlas.width, atlas.height)
+        override fun snapshot(page: Int, buffer: Int) =
+            backend.copyNativeImage(checkNotNull(targets[page]?.destination), atlas.width, atlas.height)
 
         override fun release(image: Image) = backend.releaseNativeImage(image)
 
-        override fun publish(regions: Map<Long, NativeImageRegion>, removed: Set<Long>) {
+        override fun discard(page: Int) {
+            targets.getOrNull(page)?.close()
+            if (page < targets.size) targets[page] = null
+        }
+
+        override fun publish(regions: Map<Long, NativeImageRegion>, changed: Set<Long>, removed: Set<Long>) {
             mailbox.removeAtlas(removed)
-            mailbox.publishAtlas(regions)
+            mailbox.publishAtlas(regions, changed)
         }
 
         override fun clear() = mailbox.clear()

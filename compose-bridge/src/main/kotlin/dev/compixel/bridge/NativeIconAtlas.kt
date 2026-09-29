@@ -1,7 +1,9 @@
 package dev.compixel.bridge
 
 import kotlin.math.ceil
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
+import org.jetbrains.skia.IRect
 import org.jetbrains.skia.Image
 import org.jetbrains.skia.Rect
 
@@ -33,15 +35,21 @@ class NativeIconRefresh private constructor(val kind: Kind, val intervalMillis: 
 }
 
 /**
- * Schedules native icons into small atlas pages; the [Host] owns every Minecraft and GPU operation.
+ * Schedules native icons into atlas pages; the [Host] owns every Minecraft and GPU operation.
  *
- * Slots remain stable while their icons are cached. Each [prepare] redraws at most one page of up to
- * `preparationsPerFrame` icons: the page whose visible, due icon has waited longest. One snapshot then replaces that
- * page's image. A deferred host publishes a page on a later frame, once its copy is complete, and alternates two
- * buffers. Call every member on the render thread; publication runs on the Compose thread.
+ * Every demanded icon gets a slot, and pages are added as demand grows. The atlas keeps `cacheCapacity` icons, or every
+ * demanded icon when more are demanded: icons no longer demanded stay cached while they fit, so they return without
+ * drawing, and otherwise the least recently demanded give up their slots. A page without icons is discarded. Slots
+ * remain stable while their icons are cached.
+ *
+ * The host keeps every page's pixels. Each [prepare] draws only the due icons of one page into their own cells, at most
+ * `preparationsPerFrame` of them, choosing the page whose due icon has waited longest. One snapshot then replaces that
+ * page's image: its other icons move to the snapshot with the same pixels, and only the drawn ones are reported as
+ * changed. A deferred host publishes a page on a later frame, once its copy is complete, and alternates two buffers.
+ * Call every member on the render thread; publication runs on the Compose thread.
  */
 class NativeIconAtlas<I : Any>(
-    cacheCapacity: Int,
+    private val cacheCapacity: Int,
     preparationsPerFrame: Int,
     imageSize: Int,
     private val host: Host<I>,
@@ -61,11 +69,15 @@ class NativeIconAtlas<I : Any>(
          */
         fun appearance(icon: I): Any? = null
 
-        /** Clears page [buffer] and draws [icons], mapping the page GUI area onto its pixels. */
-        fun draw(buffer: Int, icons: List<Placement<I>>)
+        /**
+         * Draws [icons] into [page], mapping the page GUI area onto its pixels. Only their cells ([cell]) are cleared
+         * first; the rest of the page keeps its pixels. A page drawn for the first time, or again after [discard],
+         * starts transparent. A deferred host also starts copying the page for [snapshot] through [buffer].
+         */
+        fun draw(page: Int, buffer: Int, icons: List<Placement<I>>)
 
-        /** Copies page [buffer] into an immutable image; a deferred host returns null until its copy completes. */
-        fun snapshot(buffer: Int): Image?
+        /** Copies [page] into an immutable image; a deferred host returns null until its copy through [buffer] ends. */
+        fun snapshot(page: Int, buffer: Int): Image?
 
         /**
          * The atlas no longer publishes [image], but pictures Compose recorded earlier may still draw it. A GPU host
@@ -73,14 +85,21 @@ class NativeIconAtlas<I : Any>(
          */
         fun release(image: Image)
 
-        /** Runs on the Compose thread. */
-        fun publish(regions: Map<Long, NativeImageRegion>, removed: Set<Long>)
+        /** [page] holds no icons any more; free its pixels. */
+        fun discard(page: Int)
+
+        /**
+         * Runs on the Compose thread. [regions] replace the regions of their icons. Only the icons in [changed] have
+         * different pixels; the others moved to a newer image with the same pixels, so drawing recorded from their
+         * previous region stays correct.
+         */
+        fun publish(regions: Map<Long, NativeImageRegion>, changed: Set<Long>, removed: Set<Long>)
 
         /** Runs on the Compose thread and forgets every published region. */
         fun clear()
     }
 
-    /** An icon and its top-left corner in page GUI units. */
+    /** An icon and the top-left corner of its [SLOT_UNITS]-square cell in page GUI units. */
     class Placement<I : Any>(val icon: I, val x: Int, val y: Int)
 
     data class Statistics(
@@ -91,9 +110,20 @@ class NativeIconAtlas<I : Any>(
         val retiredImages: Long,
         val dynamicVariants: Int,
         val animationRefreshes: Long,
+        /** Pages currently holding icons. */
+        val pages: Int,
+        /** Icons drawn into their cells since the atlas opened. */
+        val drawnIcons: Long,
     )
 
-    private class Entry<I : Any>(val icon: I, val id: Long, val slot: Int, val refresh: NativeIconRefresh) {
+    private class Entry<I : Any>(
+        val icon: I,
+        val id: Long,
+        val page: Int,
+        val slot: Int,
+        val refresh: NativeIconRefresh,
+    ) {
+        var demandedFrame = 0L
         var drawnFrame = 0L
         var drawnAt = 0L
         var tick = 0L
@@ -104,18 +134,20 @@ class NativeIconAtlas<I : Any>(
         var drawnAppearance: Any? = null
     }
 
-    private class Page {
+    private class Page<I : Any>(capacity: Int) {
+        val slots = arrayOfNulls<Entry<I>>(capacity)
+        var used = 0
         var image: Image? = null
-        var published = emptySet<Long>()
     }
 
     private class Pending<I : Any>(val buffer: Int, val page: Int, val entries: List<Entry<I>>)
 
     init {
-        require(cacheCapacity > 0 && preparationsPerFrame > 0 && imageSize > 0)
+        require(cacheCapacity >= 0 && preparationsPerFrame > 0 && imageSize > 0)
     }
 
-    val pageCapacity = minOf(cacheCapacity, preparationsPerFrame)
+    /** Slots per page. A page never holds more icons than one frame may draw. */
+    val pageCapacity = preparationsPerFrame
     private val columns = ceil(sqrt(pageCapacity.toDouble())).toInt()
     private val rows = (pageCapacity + columns - 1) / columns
     /** The GUI area of one page, drawn onto [width] x [height] pixels. */
@@ -123,13 +155,12 @@ class NativeIconAtlas<I : Any>(
     val guiHeight = rows * SLOT_UNITS
     val width = ceil(guiWidth * imageSize / 16.0).toInt()
     val height = ceil(guiHeight * imageSize / 16.0).toInt()
-    /** Page buffers the host must provide. */
+    /** Copy buffers a deferred host must provide. */
     val buffers = if (host.immediate) 1 else 2
 
     private val scaleX = width.toFloat() / guiWidth
     private val scaleY = height.toFloat() / guiHeight
-    private val pages = Array((cacheCapacity + pageCapacity - 1) / pageCapacity) { Page() }
-    private val slots = arrayOfNulls<Entry<I>>(cacheCapacity)
+    private val pages = ArrayList<Page<I>?>()
     private val byId = HashMap<Long, Entry<I>>()
     private var visible = LinkedHashMap<Long, I>()
     private var pending: Pending<I>? = null
@@ -138,6 +169,7 @@ class NativeIconAtlas<I : Any>(
     private var prepared = 0L
     private var retired = 0L
     private var animationRefreshes = 0L
+    private var drawnIcons = 0L
     private var closed = false
 
     val statistics
@@ -153,51 +185,54 @@ class NativeIconAtlas<I : Any>(
                         byId[id]?.let { it.hasImage && it.refresh.kind != NativeIconRefresh.Kind.STATIC } == true
                     },
                 animationRefreshes = animationRefreshes,
+                pages = pages.count { it != null },
+                drawnIcons = drawnIcons,
             )
+
+    /**
+     * The page pixels of [placement]'s cell, with a top-left origin. Neighbouring cells share their edges, so clearing
+     * one never touches another.
+     */
+    fun cell(placement: Placement<*>): IRect =
+        IRect.makeLTRB(
+            (placement.x * scaleX).roundToInt(),
+            (placement.y * scaleY).roundToInt(),
+            ((placement.x + SLOT_UNITS) * scaleX).roundToInt(),
+            ((placement.y + SLOT_UNITS) * scaleY).roundToInt(),
+        )
 
     /** Replaces the demanded icons, typically after each recorded Compose frame. */
     fun recorded(icons: List<I>) {
         visible = icons.associateByTo(LinkedHashMap()) { host.id(it) }
     }
 
-    /** Prepares at most one page. Returns true when published regions changed. */
+    /** Draws the due icons of at most one page. Returns true when published regions changed. */
     fun prepare(now: Long, tick: Long, guiScale: Double): Boolean {
         check(!closed)
         frame++
         var changed = false
         pending?.let {
-            // The pending buffer is not redrawn until its copy completes, possibly several frames later.
+            // The pending page is not redrawn until its copy completes, possibly several frames later.
             if (!publish(it)) return false
             pending = null
             changed = true
         }
-        for ((id, icon) in visible) {
-            if (id in byId) continue
-            val free = slots.indexOfFirst { it == null }
-            val index = if (free >= 0) free else slots.indexOfFirst { it!!.id !in visible }
-            if (index < 0) break // All cached slots are pinned by visible icons.
-            slots[index]?.let {
-                evict(it)
-                changed = true
-            }
-            val entry = Entry(icon, id, index, host.refresh(icon))
-            slots[index] = entry
-            byId[id] = entry
+        for (id in visible.keys) byId[id]?.demandedFrame = frame
+        val removed = HashSet<Long>()
+        trim(removed)
+        for ((id, icon) in visible) if (id !in byId) place(id, icon, removed)
+        discardEmptyPages()
+        if (removed.isNotEmpty()) {
+            ComposeThread.call { host.publish(emptyMap(), emptySet(), removed) }
+            changed = true
         }
-        val duePage =
-            pages.indices
-                .filter { page ->
-                    pageEntries(page).any { it.id in visible && due(it, now, tick, guiScale) }
-                }
-                .minByOrNull { page ->
-                    pageEntries(page)
-                        .filter { it.id in visible && due(it, now, tick, guiScale) }
-                        .minOf { it.drawnFrame }
-                } ?: return changed
 
-        val entries = pageEntries(duePage)
+        val index = duePage(now, tick, guiScale) ?: return changed
+        val entries =
+            checkNotNull(pages[index]).slots.filterNotNull().filter { it.id in visible && due(it, now, tick, guiScale) }
         buffer = (buffer + 1) % buffers
-        host.draw(buffer, entries.map { Placement(it.icon, x(it.slot), y(it.slot)) })
+        host.draw(index, buffer, entries.map { Placement(it.icon, x(it.slot), y(it.slot)) })
+        drawnIcons += entries.size
         entries.forEach { entry ->
             if (entry.hasImage && entry.refresh.kind != NativeIconRefresh.Kind.STATIC) animationRefreshes++
             entry.drawnFrame = frame
@@ -206,13 +241,33 @@ class NativeIconAtlas<I : Any>(
             entry.guiScale = guiScale
             if (entry.refresh.kind == NativeIconRefresh.Kind.ON_CHANGE) entry.drawnAppearance = appearance(entry, tick)
         }
-        val next = Pending(buffer, duePage, entries)
+        val next = Pending(buffer, index, entries)
         if (host.immediate) {
             check(publish(next)) { "An immediate host must copy its page in the frame that drew it" }
             return true
         }
         pending = next
         return changed
+    }
+
+    /** The page whose due, demanded icon was drawn longest ago. */
+    private fun duePage(now: Long, tick: Long, guiScale: Double): Int? {
+        var best = -1
+        var bestFrame = Long.MAX_VALUE
+        pages.forEachIndexed { index, page ->
+            page?.slots?.forEach { entry ->
+                if (
+                    entry != null &&
+                        entry.drawnFrame < bestFrame &&
+                        entry.id in visible &&
+                        due(entry, now, tick, guiScale)
+                ) {
+                    best = index
+                    bestFrame = entry.drawnFrame
+                }
+            }
+        }
+        return best.takeIf { it >= 0 }
     }
 
     private fun due(entry: Entry<I>, now: Long, tick: Long, guiScale: Double): Boolean {
@@ -234,21 +289,85 @@ class NativeIconAtlas<I : Any>(
         return entry.appearance
     }
 
-    private fun pageEntries(page: Int): List<Entry<I>> =
-        (page * pageCapacity until minOf((page + 1) * pageCapacity, slots.size)).mapNotNull { slots[it] }
+    /** Evicts the least recently demanded hidden icons beyond the cache, or beyond the demand when that is larger. */
+    private fun trim(removed: MutableSet<Long>) {
+        val excess = byId.size - maxOf(cacheCapacity, visible.size)
+        if (excess <= 0) return
+        byId.values
+            .filter { it.id !in visible }
+            .sortedBy { it.demandedFrame }
+            .take(excess)
+            .forEach { evict(it, removed) }
+    }
 
-    private fun x(slot: Int) = slot % pageCapacity % columns * SLOT_UNITS
+    /** A free slot first, then a hidden icon's once the cache is full, and otherwise a new page. */
+    private fun place(id: Long, icon: I, removed: MutableSet<Long>) {
+        var index = pages.indexOfFirst { it != null && it.used < pageCapacity }
+        if (index < 0 && byId.size >= maxOf(cacheCapacity, visible.size)) {
+            byId.values
+                .filter { it.id !in visible }
+                .minByOrNull { it.demandedFrame }
+                ?.let {
+                    evict(it, removed)
+                    index = it.page
+                }
+        }
+        if (index < 0) {
+            index = pages.indexOfFirst { it == null }
+            if (index < 0) {
+                index = pages.size
+                pages += null
+            }
+            pages[index] = Page(pageCapacity)
+        }
+        val page = checkNotNull(pages[index])
+        val slot = page.slots.indexOfFirst { it == null }
+        val entry = Entry(icon, id, index, slot, host.refresh(icon)).also { it.demandedFrame = frame }
+        page.slots[slot] = entry
+        page.used++
+        byId[id] = entry
+    }
 
-    private fun y(slot: Int) = slot % pageCapacity / columns * SLOT_UNITS
+    private fun evict(entry: Entry<I>, removed: MutableSet<Long>) {
+        byId.remove(entry.id)
+        val page = checkNotNull(pages[entry.page])
+        page.slots[entry.slot] = null
+        page.used--
+        if (entry.hasImage) removed += entry.id
+    }
+
+    private fun discardEmptyPages() {
+        pages.forEachIndexed { index, page ->
+            if (page == null || page.used > 0) return@forEachIndexed
+            page.image?.let {
+                host.release(it)
+                retired++
+            }
+            pages[index] = null
+            host.discard(index)
+        }
+        while (pages.isNotEmpty() && pages.last() == null) pages.removeAt(pages.lastIndex)
+    }
+
+    private fun x(slot: Int) = slot % columns * SLOT_UNITS
+
+    private fun y(slot: Int) = slot / columns * SLOT_UNITS
 
     /** False while a deferred host is still copying [result]. */
     private fun publish(result: Pending<I>): Boolean {
-        val copy = host.snapshot(result.buffer) ?: return false
+        val page = checkNotNull(pages[result.page]) { "A page with a pending copy was discarded" }
+        val copy = host.snapshot(result.page, result.buffer) ?: return false
         prepared++
-        val page = pages[result.page]
-        val regions = HashMap<Long, NativeImageRegion>(result.entries.size * 2)
+        val changed = HashSet<Long>()
         result.entries.forEach { entry ->
-            if (slots[entry.slot] !== entry) return@forEach
+            if (page.slots[entry.slot] !== entry) return@forEach
+            entry.hasImage = true
+            changed += entry.id
+        }
+        // The page kept the pixels of every other icon, so all of them move to the new copy.
+        val regions = HashMap<Long, NativeImageRegion>()
+        page.slots.forEach { entry ->
+            if (entry == null || !entry.hasImage) return@forEach
             regions[entry.id] =
                 NativeImageRegion(
                     copy,
@@ -259,11 +378,8 @@ class NativeIconAtlas<I : Any>(
                         ICON_UNITS * scaleY,
                     ),
                 )
-            entry.hasImage = true
         }
-        val removed = page.published - regions.keys
-        ComposeThread.call { host.publish(regions, removed) }
-        page.published = regions.keys
+        ComposeThread.call { host.publish(regions, changed, emptySet()) }
         page.image?.let {
             host.release(it)
             retired++
@@ -272,31 +388,21 @@ class NativeIconAtlas<I : Any>(
         return true
     }
 
-    private fun evict(entry: Entry<I>) {
-        byId.remove(entry.id)
-        slots[entry.slot] = null
-        val page = pages[entry.slot / pageCapacity]
-        if (entry.id in page.published) {
-            ComposeThread.call { host.publish(emptyMap(), setOf(entry.id)) }
-            page.published = page.published - entry.id
-        }
-    }
-
-    /** Forgets every slot and releases page images, for example after a resource reload. */
+    /** Forgets every slot, releases page images and discards pages, for example after a resource reload. */
     fun reset() {
         pending = null
-        slots.fill(null)
         byId.clear()
         buffer = -1
         ComposeThread.call { host.clear() }
-        pages.forEach { page ->
+        pages.forEachIndexed { index, page ->
+            if (page == null) return@forEachIndexed
             page.image?.let {
                 host.release(it)
                 retired++
             }
-            page.image = null
-            page.published = emptySet()
+            host.discard(index)
         }
+        pages.clear()
     }
 
     override fun close() {
@@ -306,9 +412,9 @@ class NativeIconAtlas<I : Any>(
         closed = true
     }
 
-    private companion object {
-        /** 16 GUI units per icon plus a gutter for stack counts and shadows. */
+    companion object {
+        /** GUI units of one cell: 16 for the icon plus a gutter for stack counts and shadows. */
         const val SLOT_UNITS = 18
-        const val ICON_UNITS = 16f
+        private const val ICON_UNITS = 16f
     }
 }

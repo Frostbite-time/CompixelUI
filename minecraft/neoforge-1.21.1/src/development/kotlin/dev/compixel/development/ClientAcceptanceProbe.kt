@@ -1,6 +1,7 @@
 package dev.compixel.development
 
 import dev.compixel.bridge.ComposeThread
+import dev.compixel.development.render.NativeItemPartialScreen
 import dev.compixel.development.render.NativeItemVisualScreen
 import dev.compixel.development.render.PortValidationScreen
 import dev.compixel.development.render.verifyRenderer
@@ -96,6 +97,7 @@ internal class ClientAcceptanceProbe {
                 log.pass(AcceptanceStep.CONFIG, ConfigAcceptance.verify())
                 port()
                 nativeVisual()
+                nativePartial()
                 hud.schedule()
                 preview.schedule()
                 scripted = true
@@ -180,6 +182,39 @@ internal class ClientAcceptanceProbe {
         }
         script.until("the native visual capture") { session.capturesIdle }
         script.act("record ${AcceptanceStep.NATIVE_VISUAL}") { log.pass(AcceptanceStep.NATIVE_VISUAL) }
+    }
+
+    private fun nativePartial() {
+        lateinit var partial: NativeItemPartialScreen
+        var drawn = 0L
+        var refreshed = 0L
+        script.act("open the native partial redraw fixture") {
+            partial = NativeItemPartialScreen()
+            session.open(partial)
+        }
+        script.until("native partial images prepared", 20_000) {
+            partial.rendererStatistics.renderedFrames > 0 &&
+                partial.nativeItemStatistics.let { it.cachedImages == 4 && it.pendingImages == 0 }
+        }
+        script.act("remember native partial drawing") {
+            drawn = partial.nativeItemStatistics.drawnIcons
+            refreshed = partial.nativeItemStatistics.animationRefreshes
+        }
+        script.until("the ticking icon redrew", 20_000) {
+            partial.nativeItemStatistics.animationRefreshes >= refreshed + 6
+        }
+        script.act("capture the native partial redraw fixture") {
+            val items = partial.nativeItemStatistics
+            check(items.pages == 1 && items.drawnIcons - drawn == items.animationRefreshes - refreshed) {
+                "The atlas page redrew icons that were not due: $items"
+            }
+            val bounds = partial.bounds()
+            session.capture("native-partial") { partial.verifyPixels(it, bounds) }
+        }
+        script.until("the native partial capture") { session.capturesIdle }
+        script.act("record ${AcceptanceStep.NATIVE_PARTIAL}") {
+            log.pass(AcceptanceStep.NATIVE_PARTIAL, partial.nativeItemStatistics.toString())
+        }
     }
 
     private fun finish() {

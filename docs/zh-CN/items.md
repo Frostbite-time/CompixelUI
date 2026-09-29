@@ -39,13 +39,13 @@ fun openItemCatalog(stacks: List<ItemStack>) {
 
 | 策略 | 何时重绘 |
 | --- | --- |
-| `IconRefresh.AUTO`（默认） | 物品外观变化时 |
+| `IconRefresh.AUTO`（默认） | 物品有动画（如附魔光效、动态纹理）时每个游戏刻；否则在外观变化时 |
 | `IconRefresh.GAME_TICK` | 每个游戏刻 |
 | `IconRefresh.FRAME` | 每一帧 |
 | `IconRefresh.every(ms)` | 固定间隔，16 到 60,000 毫秒 |
 | `IconRefresh.STATIC` | 从不，保留第一帧画面 |
 
-如果某个物品的自定义渲染器在模型不变的情况下播放动画，请使用 `GAME_TICK` 或 `FRAME`。
+有动画的图标每个游戏刻重绘一次，与 Minecraft 播放纹理动画的频率相同。如果某个物品的自定义渲染器在模型不变的情况下播放动画，请使用 `GAME_TICK`；只有需要比这更快变化的绘制才使用 `FRAME`。
 
 ## 自绘图标
 
@@ -61,7 +61,9 @@ val water = ItemIcon.drawn("水", { graphics ->
 
 ## 大量物品
 
-普通界面默认最多缓存 128 个图标，`ComposeInventoryScreen` 默认缓存 256 个。创建 `ComposeScreen`、`ComposeMenuScreen`、`ComposeInventoryScreen` 或 `ComposeHudLayer` 时，可以通过 `nativeItemOptions` 为它单独设置总缓存容量：
+界面上的每个图标都会显示，不论数量多少。图标绘制在图集页中，每页最多 64 个。一页只重绘到期的图标，所以一个有动画的物品不会连带重绘旁边的图标。显示的图标增多时会添加新页，页中图标都不再使用后，该页随之释放。
+
+创建 `ComposeScreen`、`ComposeMenuScreen`、`ComposeInventoryScreen` 或 `ComposeHudLayer` 时，可以通过 `nativeItemOptions` 为该界面或 HUD 层单独调整：
 
 ```kotlin
 ComposeScreen(title, nativeItemOptions = NativeItemOptions(cacheCapacity = 512)) { … }
@@ -79,11 +81,11 @@ ComposeInventoryScreen(
 
 | 参数 | 默认值 | 范围 | 含义 |
 | --- | --- | --- | --- |
-| `cacheCapacity` | 128；容器界面为 256 | 1–1024 | 当前界面或 HUD 层所有图集页合计可缓存的图标句柄数量 |
-| `preparationsPerFrame` | 64 | 1–64 | 每帧最多准备的图标数量 |
-| `imageSize` | 64 | 16–256 | 每个 16×16 图标准备时使用的像素尺寸 |
+| `cacheCapacity` | 128；容器界面为 256 | 1–1024 | 屏幕上的图标少于此数量时保留的图标数。滚出视野的图标在容量内继续缓存，滚回时无需重绘 |
+| `preparationsPerFrame` | 64 | 1–64 | 每帧最多绘制的图标数量，也是一个图集页容纳的图标数量 |
+| `imageSize` | 64 | 16–256 | 每个 16×16 图标绘制时使用的像素尺寸 |
 
-增大 `cacheCapacity` 不会提高每帧准备上限。图集会分几帧准备，随着缓存填充占用更多显存。容量应覆盖同时处于使用状态的所有图标，包括玩家物品栏、合成区和手持物品，并为惰性布局预取留出余量。重复使用同一个 `ItemIcon` 句柄只占一个缓存条目；分别创建的句柄即使物品相同，也各占一个条目。如果缓存中的图标都还在使用，额外图标会一直等待，直到有条目可回收；超出容量的网格不会仅靠等待几帧就显示完整。
+界面显示的图标多于 `preparationsPerFrame` 时，会在几帧内陆续显示完整。默认图像尺寸下，一页 64 个图标约占 4 MB 显存。重复使用同一个 `ItemIcon` 句柄共用一份图像；分别创建的句柄即使物品相同，也各占一份。
 
 ## 另见
 

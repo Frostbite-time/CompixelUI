@@ -22,12 +22,17 @@ data class NativeItemStatistics(
     val lastRequestGeneration: Long = 0,
     val dynamicVariants: Int = 0,
     val animationRefreshes: Long = 0,
+    /** Atlas pages currently holding icons. */
+    val pages: Int = 0,
+    /** Icons drawn into their cells; a page redraws only its due icons. */
+    val drawnIcons: Long = 0,
 )
 
 /**
- * Draws the shared [NativeIconAtlas] schedule into native GUI pages. With [snapshots], each page is copied to a Skia
- * image on the GPU: Vulkan publishes it on the next frame, OpenGL immediately. The CPU reference renderer has no
- * snapshots; it reads each page back and publishes it once the copy arrives.
+ * Draws the shared [NativeIconAtlas] schedule into native GUI pages, which keep the pixels of icons that are not due.
+ * With [snapshots], each page is copied to a Skia image on the GPU: OpenGL copies the page immediately, while Vulkan
+ * first copies it into a buffer, because its snapshot consumes the source, and publishes it on the next frame. The CPU
+ * reference renderer has no snapshots; it reads each page back and publishes it once the copy arrives.
  */
 internal class NativeItemAtlas(
     private val mailbox: ItemImageMailbox,
@@ -57,6 +62,8 @@ internal class NativeItemAtlas(
                     generation,
                     it.dynamicVariants,
                     it.animationRefreshes,
+                    it.pages,
+                    it.drawnIcons,
                 )
             }
 
@@ -76,10 +83,10 @@ internal class NativeItemAtlas(
         requested = 0
         readbacks.clear()
         try {
-            capture?.close()
-        } finally {
-            capture = null
             atlas.reset()
+        } finally {
+            capture?.close()
+            capture = null
         }
     }
 
@@ -88,10 +95,10 @@ internal class NativeItemAtlas(
         requested = 0
         readbacks.clear()
         try {
-            capture?.close()
-        } finally {
-            capture = null
             atlas.close()
+        } finally {
+            capture?.close()
+            capture = null
         }
     }
 
@@ -105,10 +112,10 @@ internal class NativeItemAtlas(
 
         override fun appearance(icon: ItemIcon) = animations.appearance(icon)
 
-        override fun draw(buffer: Int, icons: List<NativeIconAtlas.Placement<ItemIcon>>) {
+        override fun draw(page: Int, buffer: Int, icons: List<NativeIconAtlas.Placement<ItemIcon>>) {
             val target = capture ?: NativeGuiCapture(atlas.width, atlas.height, atlas.buffers).also { capture = it }
             val font = Minecraft.getInstance().font
-            target.render(buffer, atlas.guiWidth, atlas.guiHeight) { graphics ->
+            target.renderPage(page, icons.map(atlas::cell), atlas.guiWidth, atlas.guiHeight) { graphics ->
                 icons.forEach { placement ->
                     val icon = placement.icon
                     val drawing = icon.drawing
@@ -126,20 +133,25 @@ internal class NativeItemAtlas(
                         }
                     }
                 }
-                true
             }
-            if (snapshots == null) {
-                val request = ++requests
-                requested = request
-                target.readback(buffer) { pixels, width, height ->
-                    readbacks.add(Readback(request, pixels, width, height))
+            when {
+                snapshots == null -> {
+                    val request = ++requests
+                    requested = request
+                    target.readbackPage(page) { pixels, width, height ->
+                        readbacks.add(Readback(request, pixels, width, height))
+                    }
                 }
+                !snapshots.immediate -> target.copyPage(page, buffer)
             }
         }
 
-        override fun snapshot(buffer: Int): Image? {
-            if (snapshots != null)
-                return snapshots.snapshot(checkNotNull(capture).texture(buffer), atlas.width, atlas.height)
+        override fun snapshot(page: Int, buffer: Int): Image? {
+            val target = checkNotNull(capture)
+            if (snapshots != null) {
+                val texture = if (snapshots.immediate) target.pageTexture(page) else target.texture(buffer)
+                return snapshots.snapshot(texture, atlas.width, atlas.height)
+            }
             while (true) {
                 val copy = readbacks.poll() ?: return null
                 if (copy.request == requested)
@@ -155,9 +167,13 @@ internal class NativeItemAtlas(
             if (snapshots != null) snapshots.release(image) else FrameRetirement.afterFrame { image.close() }
         }
 
-        override fun publish(regions: Map<Long, NativeImageRegion>, removed: Set<Long>) {
+        override fun discard(page: Int) {
+            capture?.discardPage(page)
+        }
+
+        override fun publish(regions: Map<Long, NativeImageRegion>, changed: Set<Long>, removed: Set<Long>) {
             mailbox.removeAtlas(removed)
-            mailbox.publishAtlas(regions)
+            mailbox.publishAtlas(regions, changed)
         }
 
         override fun clear() = mailbox.clear()

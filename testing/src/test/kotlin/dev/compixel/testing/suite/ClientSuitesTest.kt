@@ -135,6 +135,37 @@ class ClientSuitesTest {
     }
 
     @Test
+    fun `the mixed native case needs one refreshing icon among static ones`() {
+        val mixed = BenchmarkPlan.cases.single { it.kind == BenchmarkKind.NATIVE_MIXED }
+        val rows =
+            (1L..120L).map { id ->
+                UiFrameProfile(
+                    id,
+                    id * 16_000_000L,
+                    1_000L,
+                    CpuPhase.entries.associateWith { 0L },
+                    CpuDetail.entries.associateWith { 0L },
+                    GpuPhase.entries.associateWith { null },
+                    GpuPhase.entries.associateWith { 0 },
+                    missingGpuResults = 0,
+                    renderThreadBytes = null,
+                    composeThreadBytes = null,
+                    composeCalls = 1,
+                    recordings = if (id % 3 == 0L) 1 else 0,
+                    rendered = id % 3 == 0L,
+                    generation = id,
+                    activeItems = mixed.count,
+                    cachedItems = mixed.count,
+                    pendingItems = 0,
+                    tooltipVisible = false,
+                )
+            }
+        BenchmarkValidity.check(mixed, rows, 120, mixed.count, 1, 40)
+        assertFailsWith<IllegalStateException> { BenchmarkValidity.check(mixed, rows, 120, mixed.count, 2, 40) }
+        assertFailsWith<IllegalStateException> { BenchmarkValidity.check(mixed, rows, 120, mixed.count, 1, 19) }
+    }
+
+    @Test
     fun `preview comparison tolerates one percent of small differences`() {
         val reference = IntArray(1000) { 0xFF804020.toInt() }
         val drifted = reference.copyOf().also { for (index in 0 until 10) it[index] = 0xFF904020.toInt() }

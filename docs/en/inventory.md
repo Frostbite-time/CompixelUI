@@ -45,7 +45,7 @@ modBus.addListener { event: RegisterMenuScreensEvent ->
 
 On Forge 1.20.1, register the screen with `MenuScreens.register` inside `FMLClientSetupEvent.enqueueWork`.
 
-For larger inventories, pass `nativeItemOptions = NativeItemOptions(cacheCapacity = 1024)` to `ComposeInventoryScreen`. Its default capacity is 256 icon handles; the limit covers the entire screen, including player inventory and crafting icons. See [Large grids](items.md#large-grids) for the options and per-frame preparation budget.
+Every slot of a large inventory gets its icon without further setup. `ComposeInventoryScreen` keeps up to 256 icons cached across the whole screen, including the player inventory and crafting slots. See [Large grids](items.md#large-grids) to tune the cache and the per-frame drawing budget.
 
 ## Choose a screen class
 

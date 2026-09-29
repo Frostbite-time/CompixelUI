@@ -11,6 +11,7 @@ import dev.compixel.render.gl.OpenGlDestination
 import dev.compixel.render.measureDetail
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphics
+import org.jetbrains.skia.IRect
 import org.joml.Matrix4f
 import org.lwjgl.opengl.GL33C.*
 
@@ -18,12 +19,22 @@ import org.lwjgl.opengl.GL33C.*
 internal class NativeGuiRenderTarget(private val backend: ScreenFrameRenderer) : AutoCloseable {
     private var target: TextureTarget? = null
 
+    /** The pixels of the last draw, for copies. */
+    var destination: OpenGlDestination? = null
+        private set
+
+    /**
+     * Draws [content] over the GUI area mapped onto [width] x [height] pixels. Without [cells], the whole target is
+     * cleared first; with them, only those pixel rectangles (top-left origin) are, and the rest keeps its pixels. A
+     * target created by this call starts transparent either way.
+     */
     fun <T> draw(
         width: Int,
         height: Int,
         guiWidth: Float,
         guiHeight: Float,
         phase: GpuPhase = GpuPhase.ITEMS,
+        cells: List<IRect>? = null,
         content: (GuiGraphics) -> T,
     ): Pair<OpenGlDestination, T> {
         RenderSystem.assertOnRenderThread()
@@ -62,14 +73,24 @@ internal class NativeGuiRenderTarget(private val backend: ScreenFrameRenderer) :
                     RenderSystem.disableScissor()
                     RenderSystem.colorMask(true, true, true, true)
                     RenderSystem.depthMask(true)
-                    if (target?.width != width || target?.height != height) {
+                    val created = target?.width != width || target?.height != height
+                    if (created) {
                         target?.destroyBuffers()
                         target = null
+                        destination = null
                         target = TextureTarget(width, height, true, Minecraft.ON_OSX)
                     }
                     val output = checkNotNull(target)
                     output.setClearColor(0f, 0f, 0f, 0f)
-                    output.clear(Minecraft.ON_OSX)
+                    if (created || cells == null) output.clear(Minecraft.ON_OSX)
+                    else {
+                        // A scissored clear leaves the other cells; GL scissor boxes start at the bottom-left corner.
+                        cells.forEach { cell ->
+                            RenderSystem.enableScissor(cell.left, height - cell.bottom, cell.width, cell.height)
+                            output.clear(Minecraft.ON_OSX)
+                        }
+                        RenderSystem.disableScissor()
+                    }
                     output.bindWrite(true)
                     RenderSystem.setProjectionMatrix(
                         Matrix4f().setOrtho(0f, guiWidth, guiHeight, 0f, 1000f, 21000f),
@@ -83,7 +104,9 @@ internal class NativeGuiRenderTarget(private val backend: ScreenFrameRenderer) :
                     val graphics = GuiGraphics(minecraft, minecraft.renderBuffers().bufferSource())
                     val result = content(graphics)
                     graphics.flush()
-                    OpenGlDestination(output.frameBufferId, width, height) to result
+                    val drawn = OpenGlDestination(output.frameBufferId, width, height)
+                    destination = drawn
+                    drawn to result
                 }
             }
         } finally {
@@ -120,6 +143,7 @@ internal class NativeGuiRenderTarget(private val backend: ScreenFrameRenderer) :
             target?.destroyBuffers()
         } finally {
             target = null
+            destination = null
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, drawFbo)
             glBindFramebuffer(GL_READ_FRAMEBUFFER, readFbo)
         }

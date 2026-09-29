@@ -11,8 +11,8 @@ internal class NativeIconAnimation {
     fun resolve(icon: ItemIcon): IconRefresh {
         if (icon.refresh !== IconRefresh.AUTO) return icon.refresh
         if (icon.stack.isEmpty) return IconRefresh.GAME_TICK // An opaque custom drawing has no model to inspect.
-        // Glint also marks the render state animated, so it is checked first.
-        if (icon.stack.hasFoil()) return IconRefresh.FRAME
+        // Glint animates continuously; like animated sprites, it redraws once per game tick.
+        if (icon.stack.hasFoil()) return IconRefresh.GAME_TICK
         return if (resolved(icon.stack).isAnimated) IconRefresh.GAME_TICK else IconRefresh.ON_CHANGE
     }
 

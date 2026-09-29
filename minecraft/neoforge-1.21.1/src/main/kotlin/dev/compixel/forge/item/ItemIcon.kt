@@ -2,7 +2,8 @@ package dev.compixel.forge.item
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.MutableIntState
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -59,6 +60,14 @@ private constructor(
     }
 }
 
+/**
+ * Native icon rendering for one screen or HUD layer. Every displayed icon gets its image, however many there are.
+ *
+ * @param imageSize pixels drawn for an icon's 16 GUI units.
+ * @param cacheCapacity icons kept while fewer are displayed: an icon that leaves the screen stays cached while it fits,
+ *   so it returns without drawing again.
+ * @param preparationsPerFrame icons drawn in one frame at most, which is also the size of one atlas page.
+ */
 data class NativeItemOptions(
     val imageSize: Int = 64,
     val cacheCapacity: Int = 128,
@@ -98,44 +107,52 @@ fun MinecraftItemIcon(icon: ItemIcon, modifier: Modifier = Modifier) {
 internal val LocalItemImages = staticCompositionLocalOf<ItemImageMailbox?> { null }
 
 /** Only the EDT accesses this mailbox. It never reads the native ItemStack. */
-internal class ItemImageMailbox(private val requestLimit: Int) {
+internal class ItemImageMailbox {
     private data class Request(val icon: ItemIcon, var users: Int)
 
-    // Atlas regions invalidate only the icons they replace.
-    private val atlas = mutableStateMapOf<Long, NativeImageRegion>()
+    // Drawing observes only an icon's revision. A region moved to a newer page image keeps its pixels, so drawing
+    // recorded from the older image stays correct; changed pixels invalidate just the icons that show them.
+    private val regions = HashMap<Long, NativeImageRegion>()
+    private val revisions = HashMap<Long, MutableIntState>()
     private val requests = linkedMapOf<Long, Request>()
 
     fun retain(icon: ItemIcon) {
         val existing = requests[icon.id]
-        if (existing != null) existing.users++
-        else {
-            check(requests.size < requestLimit) {
-                "Too many active native icon variants; increase nativeItemOptions.cacheCapacity"
-            }
-            requests[icon.id] = Request(icon, 1)
-        }
+        if (existing != null) existing.users++ else requests[icon.id] = Request(icon, 1)
+        revisions.getOrPut(icon.id) { mutableIntStateOf(0) }
     }
 
     fun release(icon: ItemIcon) {
         val request = checkNotNull(requests[icon.id])
-        if (--request.users == 0) requests.remove(icon.id)
+        if (--request.users > 0) return
+        requests.remove(icon.id)
+        if (icon.id !in regions) revisions.remove(icon.id)
     }
 
-    fun request(icon: ItemIcon): NativeImageRegion? = atlas[icon.id]
+    fun request(icon: ItemIcon): NativeImageRegion? {
+        revisions.getOrPut(icon.id) { mutableIntStateOf(0) }.intValue
+        return regions[icon.id]
+    }
 
     // Draw callbacks can be skipped when Compose replays a cached layer. Composition lifetime
     // preserves demand across those frames and includes the bounded Lazy layout prefetch window.
     fun activeRequests(): List<ItemIcon> = requests.values.map { it.icon }
 
-    fun publishAtlas(regions: Map<Long, NativeImageRegion>) {
-        atlas.putAll(regions)
+    fun publishAtlas(regions: Map<Long, NativeImageRegion>, changed: Set<Long>) {
+        this.regions.putAll(regions)
+        changed.forEach { revisions[it]?.let { revision -> revision.intValue++ } }
     }
 
     fun removeAtlas(ids: Collection<Long>) {
-        ids.forEach(atlas::remove)
+        ids.forEach { id ->
+            regions.remove(id)
+            if (id in requests) revisions[id]?.let { it.intValue++ } else revisions.remove(id)
+        }
     }
 
     fun clear() {
-        atlas.clear()
+        regions.clear()
+        revisions.values.forEach { it.intValue++ }
+        revisions.keys.retainAll(requests.keys)
     }
 }

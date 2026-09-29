@@ -65,7 +65,7 @@ internal class ComposeLayer(
     private val pendingOreFeedback = AtomicBoolean()
     private val oreFeedback = OreFeedback { pendingOreFeedback.set(true) }
     private var renderer: ScreenFrameRenderer? = null
-    private val itemMailbox = ComposeThread.call { ItemImageMailbox(nativeItemOptions.cacheCapacity * 4) }
+    private val itemMailbox = ComposeThread.call { ItemImageMailbox() }
     private val tooltipMailbox = ComposeThread.call { ItemTooltipMailbox() }
     private var nativeItems: NativeItemAtlas? = null
     private var nativeTooltips: NativeTooltipRenderer? = null
