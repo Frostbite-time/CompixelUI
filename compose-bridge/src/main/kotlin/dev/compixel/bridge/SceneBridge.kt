@@ -189,6 +189,9 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
             recomposer.performFrame(timeNanos)
             scene.measureAndLayout()
         }
+        // State applied by this frame invalidated drawing while it recomposed and laid out; the drawing below includes
+        // those changes. Work still pending afterwards shows in hasPendingWork() and the scene's pending flags.
+        dirty.set(false)
         PictureRecorder().use { recorder ->
             val canvas = recorder.beginRecording(Rect.makeWH(viewport.width.toFloat(), viewport.height.toFloat()))
             // Geometry and drawing stay on the EDT. The adapter may prepare native images

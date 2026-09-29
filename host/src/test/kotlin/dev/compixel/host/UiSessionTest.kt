@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.TextRange
@@ -58,6 +59,25 @@ class UiSessionTest {
                 )
                 session.resize(Viewport(120, 80))
                 assertEquals(0xff00ff00.toInt(), pixel(62, 42, 2_000_000), "Resize exposed the old layout for a frame")
+            }
+    }
+
+    @Test
+    fun aStateReadWhileDrawingRecordsOneFrame() {
+        val color = ComposeThread.call { mutableStateOf(Color.Red) }
+        UiSession(Viewport(32, 32)) { Box(Modifier.fillMaxSize().drawBehind { drawRect(color.value) }) }
+            .use { session ->
+                session.frame(1_000_000)?.close()
+                session.frame(2_000_000)?.close()
+                assertNull(session.frame(3_000_000), "An unchanged scene recorded again")
+                ComposeThread.call { color.value = Color.Blue }
+                checkNotNull(session.frame(4_000_000)) { "The changed state recorded no frame" }
+                    .use { frame ->
+                        val image = javax.imageio.ImageIO.read(java.io.ByteArrayInputStream(frame.encodePng()))
+                        assertEquals(0xff0000ff.toInt(), image.getRGB(16, 16), "The frame drew the previous state")
+                    }
+                // The draw invalidation that frame applied must not request another one.
+                assertNull(session.frame(5_000_000), "One state change recorded a second frame")
             }
     }
 
