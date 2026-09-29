@@ -2,7 +2,7 @@
 
 [English](../en/compatibility.md) · [全部指南](../README.md)
 
-本页说明 CompixelUI **0.1.2** 的兼容情况。
+本页说明 CompixelUI **0.1.3** 的兼容情况。
 
 ## Minecraft 版本
 
