@@ -13,10 +13,16 @@ class FramePresentationTest {
         for (scale in 1..9) {
             val windows = sizes + (0 until scale).map { 960 + it to 720 + (scale - 1 - it) }
             for ((width, height) in windows) {
-                val metrics = ScreenMetrics(
-                    width, height, (width + scale - 1) / scale, (height + scale - 1) / scale,
-                    scale.toFloat(), 0.5f, minimumUiDensity = 2f,
-                )
+                val metrics =
+                    ScreenMetrics(
+                        width,
+                        height,
+                        (width + scale - 1) / scale,
+                        (height + scale - 1) / scale,
+                        scale.toFloat(),
+                        0.5f,
+                        minimumUiDensity = 2f,
+                    )
                 val pose = PoseStack()
                 withFramebufferPixels(pose, metrics) {
                     for (x in listOf(0f, 0.5f, width / 2f, width - 0.5f, width.toFloat())) {

@@ -4,8 +4,8 @@ import com.mojang.blaze3d.platform.NativeImage
 import com.mojang.blaze3d.systems.RenderSystem
 import dev.compixel.render.*
 import java.util.concurrent.atomic.AtomicLong
-import net.minecraft.client.renderer.texture.DynamicTexture
 import net.minecraft.client.renderer.RenderPipelines
+import net.minecraft.client.renderer.texture.DynamicTexture
 import net.minecraft.resources.Identifier
 
 /** Explicit CPU/PNG reference presenter, independent of the active Minecraft graphics API. */

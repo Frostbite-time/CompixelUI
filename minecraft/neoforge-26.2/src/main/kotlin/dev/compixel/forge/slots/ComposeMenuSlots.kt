@@ -412,7 +412,12 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
             val id = slotAt(x.toDouble(), y.toDouble())
             val rendered = renderPoint(x.toDouble(), y.toDouble())
             menu.slots.getOrNull(id)?.let {
-                adapter.tooltip(graphics, it, kotlin.math.round(rendered.x).toInt(), kotlin.math.round(rendered.y).toInt())
+                adapter.tooltip(
+                    graphics,
+                    it,
+                    kotlin.math.round(rendered.x).toInt(),
+                    kotlin.math.round(rendered.y).toInt(),
+                )
             }
         }
     }

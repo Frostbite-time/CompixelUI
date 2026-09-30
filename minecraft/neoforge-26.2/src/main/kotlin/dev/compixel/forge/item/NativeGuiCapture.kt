@@ -3,13 +3,13 @@ package dev.compixel.forge.item
 import com.mojang.blaze3d.GpuFormat
 import com.mojang.blaze3d.pipeline.TextureTarget
 import com.mojang.blaze3d.systems.RenderSystem
-import com.mojang.blaze3d.textures.GpuTexture
 import com.mojang.blaze3d.textures.FilterMode
+import com.mojang.blaze3d.textures.GpuTexture
 import dev.compixel.forge.render.FrameRetirement
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
-import net.minecraft.client.gui.render.GuiRenderer
 import net.minecraft.client.gui.render.GuiItemAtlas
+import net.minecraft.client.gui.render.GuiRenderer
 import net.minecraft.client.gui.render.TextureSetup
 import net.minecraft.client.renderer.RenderPipelines
 import net.minecraft.client.renderer.state.gui.BlitRenderState
@@ -230,8 +230,7 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
             if (previous != null && previous.tryPrepareFor(models)) previous
             else {
                 val textureSize = GuiItemAtlas.computeTextureSizeFor(imageSize, models.size)
-                val fresh =
-                    GuiItemAtlas(minecraft.gameRenderer.featureRenderDispatcher(), textureSize, imageSize)
+                val fresh = GuiItemAtlas(minecraft.gameRenderer.featureRenderDispatcher(), textureSize, imageSize)
                 itemAtlases[imageSize] = fresh
                 previous?.let { FrameRetirement.afterFrame { it.close() } }
                 fresh

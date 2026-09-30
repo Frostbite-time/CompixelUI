@@ -19,23 +19,32 @@ class NativeItemGuiRenderStateTest {
         selectNode(state, item)
         state.itemModelIdentities.let { (it as MutableSet<Any>).add(item.itemStackRenderState().modelIdentity) }
         val current = GuiRenderState::class.java.getDeclaredField("current").apply { isAccessible = true }.get(state)
-        current.javaClass.getDeclaredMethod("addItem", GuiItemRenderState::class.java).apply { isAccessible = true }
+        current.javaClass
+            .getDeclaredMethod("addItem", GuiItemRenderState::class.java)
+            .apply { isAccessible = true }
             .invoke(current, item)
     }
 
     private fun selectNode(state: GuiRenderState, area: net.minecraft.client.renderer.state.gui.ScreenArea) {
-        val select = GuiRenderState::class.java
-            .getDeclaredMethod("findAppropriateNode", net.minecraft.client.renderer.state.gui.ScreenArea::class.java)
-            .apply { isAccessible = true }
+        val select =
+            GuiRenderState::class
+                .java
+                .getDeclaredMethod(
+                    "findAppropriateNode",
+                    net.minecraft.client.renderer.state.gui.ScreenArea::class.java,
+                )
+                .apply { isAccessible = true }
         assertEquals(true, select.invoke(state, area))
     }
 
     private fun item(id: String, oversized: Boolean = false): GuiItemRenderState {
         val model =
-            if (oversized) object : TrackingItemStackRenderState() {
-                override fun isOversizedInGui() = true
-                override fun getModelBoundingBox() = AABB(-1.0, -1.0, -1.0, 1.0, 1.0, 1.0)
-            }
+            if (oversized)
+                object : TrackingItemStackRenderState() {
+                    override fun isOversizedInGui() = true
+
+                    override fun getModelBoundingBox() = AABB(-1.0, -1.0, -1.0, 1.0, 1.0, 1.0)
+                }
             else TrackingItemStackRenderState()
         model.appendModelIdentityElement(id)
         return GuiItemRenderState(Matrix3x2f(), model, 0, 0, null)
@@ -45,14 +54,22 @@ class NativeItemGuiRenderStateTest {
         BlitRenderState(
             RenderPipelines.GUI_TEXTURED_PREMULTIPLIED_ALPHA,
             TextureSetup.noTexture(),
-            item.pose(), item.x(), item.y(), item.x() + 16, item.y() + 16,
-            0f, pixels / 256f, 1f, 1f - pixels / 256f, color, item.scissorArea(),
+            item.pose(),
+            item.x(),
+            item.y(),
+            item.x() + 16,
+            item.y() + 16,
+            0f,
+            pixels / 256f,
+            1f,
+            1f - pixels / 256f,
+            color,
+            item.scissorArea(),
         )
 
-    private fun elements(state: GuiRenderState): List<BlitRenderState> =
-        buildList {
-            state.forEachElement({ if (it is BlitRenderState) add(it) }, GuiRenderState.TraverseRange.ALL)
-        }
+    private fun elements(state: GuiRenderState): List<BlitRenderState> = buildList {
+        state.forEachElement({ if (it is BlitRenderState) add(it) }, GuiRenderState.TraverseRange.ALL)
+    }
 
     @Test
     fun `ordinary models bypass integer-scale caches at every demanded size`() {
@@ -66,11 +83,17 @@ class NativeItemGuiRenderStateTest {
             state.prepareItems(pixels) { size, models ->
                 preparations++
                 assertEquals(pixels, size, "Rasterization must not round up to a multiple of sixteen")
-                assertEquals(setOf(first.itemStackRenderState().modelIdentity, second.itemStackRenderState().modelIdentity), models)
+                assertEquals(
+                    setOf(first.itemStackRenderState().modelIdentity, second.itemStackRenderState().modelIdentity),
+                    models,
+                )
                 return@prepareItems { item -> blit(item, -1, size) }
             }
             assertEquals(1, preparations)
-            assertTrue(state.itemModelIdentities.isEmpty(), "GuiRenderer must not allocate or sample its integer-size cache")
+            assertTrue(
+                state.itemModelIdentities.isEmpty(),
+                "GuiRenderer must not allocate or sample its integer-size cache",
+            )
             var vanillaItems = 0
             state.forEachItem(Consumer { vanillaItems++ })
             assertEquals(0, vanillaItems, "Ordinary models must not be drawn twice")

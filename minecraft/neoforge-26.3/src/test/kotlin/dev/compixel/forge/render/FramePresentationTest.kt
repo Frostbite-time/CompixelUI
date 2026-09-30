@@ -23,18 +23,26 @@ class FramePresentationTest {
             // Include every possible rounding remainder in each axis.
             val windows = sizes + (0 until scale).map { 960 + it to 720 + (scale - 1 - it) }
             for ((width, height) in windows) {
-                val metrics = ScreenMetrics(
-                    width, height, (width + scale - 1) / scale, (height + scale - 1) / scale,
-                    scale.toFloat(), 0.5f, minimumUiDensity = 2f,
-                )
+                val metrics =
+                    ScreenMetrics(
+                        width,
+                        height,
+                        (width + scale - 1) / scale,
+                        (height + scale - 1) / scale,
+                        scale.toFloat(),
+                        0.5f,
+                        minimumUiDensity = 2f,
+                    )
                 val state = blit(metrics)
                 for (x in listOf(0f, 0.5f, width / 2f, width - 0.5f, width.toFloat())) {
                     for (y in listOf(0f, 0.5f, height / 2f, height - 0.5f, height.toFloat())) {
                         // Interpolate the submitted quad at a source texel, then apply Minecraft's exact projection.
                         val u = x / width
                         val v = y / height
-                        val localX = state.x0() + (u - state.u0()) / (state.u1() - state.u0()) * (state.x1() - state.x0())
-                        val localY = state.y0() + (v - state.v0()) / (state.v1() - state.v0()) * (state.y1() - state.y0())
+                        val localX =
+                            state.x0() + (u - state.u0()) / (state.u1() - state.u0()) * (state.x1() - state.x0())
+                        val localY =
+                            state.y0() + (v - state.v0()) / (state.v1() - state.v0()) * (state.y1() - state.y0())
                         val gui = state.pose().transformPosition(localX, localY, Vector2f())
                         assertEquals(x, gui.x * scale, 0.001f, "$width x $height scale $scale x")
                         assertEquals(y, gui.y * scale, 0.001f, "$width x $height scale $scale y")

@@ -10,10 +10,15 @@ class MenuCoordinateTest {
     fun `native slot geometry and input bounds meet at the same physical pixels`() {
         for ((width, height) in listOf(1927 to 1447, 2560 to 1440, 1920 to 1080)) {
             for (scale in 1..9) {
-                val metrics = ScreenMetrics(
-                    width, height, (width + scale - 1) / scale, (height + scale - 1) / scale,
-                    scale.toFloat(), 1f,
-                )
+                val metrics =
+                    ScreenMetrics(
+                        width,
+                        height,
+                        (width + scale - 1) / scale,
+                        (height + scale - 1) / scale,
+                        scale.toFloat(),
+                        1f,
+                    )
                 val pixels = Rect(width - 96f, height - 96f, width - 32f, height - 32f)
                 val input = menuInputBounds(pixels, metrics.guiWidth, metrics.guiHeight, width, height)
                 val rendered = menuRenderBounds(pixels, metrics.guiScale)
