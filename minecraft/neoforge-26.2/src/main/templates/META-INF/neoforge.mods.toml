@@ -13,6 +13,8 @@ version="${mod_version}"
 displayName="${mod_name}"
 displayURL="${mod_url}"
 logoFile="compixel-logo.png"
+bannerFile="compixel-logo.png"
+iconFile="compixel-logo.png"
 authors="${mod_authors}"
 description='''Standalone Compose Multiplatform library for NeoForge 26.2, with OpenGL and Vulkan rendering.'''
 
