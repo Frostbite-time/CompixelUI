@@ -273,7 +273,7 @@ public final class ConfigEditor {
 
         void rebaseUnchanged() {
             var current = config.getConfigData();
-            if (spec == null) return;
+            if (current == loaded && context == contextOf(config) || spec == null) return;
             if (current == null || !spec.isLoaded()) {
                 if (changes() == 0 && current == null)
                     try {
@@ -282,9 +282,6 @@ public final class ConfigEditor {
                     }
                 return;
             }
-            if (current == loaded
-                    && context == contextOf(config)
-                    && entries.values().stream().allMatch(e -> Objects.equals(e.base, e.raw()))) return;
             if (changes() > 0 && (!Objects.equals(path, pathOf(config)) || context != contextOf(config))) return;
             var pending = new LinkedHashMap<String, Object>();
             try {
