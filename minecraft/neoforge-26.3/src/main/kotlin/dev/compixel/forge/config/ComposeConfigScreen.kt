@@ -258,12 +258,12 @@ private constructor(
 
     override fun tick() {
         super.tick()
-        controller.tick { Minecraft.getInstance().setScreenAndShow(parent) }
+        controller.tick { Minecraft.getInstance().gui.setScreen(parent) }
     }
 
     override fun onClose() {
         if (controller.editor.changes() > 0) controller.local.confirmClose = true
-        else Minecraft.getInstance().setScreenAndShow(parent)
+        else Minecraft.getInstance().gui.setScreen(parent)
     }
 
     override fun removed() {

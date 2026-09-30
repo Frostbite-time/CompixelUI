@@ -63,10 +63,11 @@ internal object DevelopmentClientBootstrap {
     }
 
     private fun onClientTick(event: ClientTickEvent.Post) {
+        val minecraft = Minecraft.getInstance()
         acceptance?.tick()
         benchmark?.tick()
         while (openPreview.consumeClick()) {
-            Minecraft.getInstance().setScreenAndShow(ComposePreviewScreen())
+            if (minecraft.gui.screen() == null) minecraft.gui.setScreen(ComposePreviewScreen())
         }
     }
 
@@ -80,7 +81,7 @@ internal object DevelopmentClientBootstrap {
     private fun onScreenKey(event: ScreenEvent.KeyPressed.Pre) {
         if (openPreview.matches(event.keyEvent)) {
             if (event.screen is ComposePreviewScreen) event.screen.onClose()
-            else Minecraft.getInstance().setScreenAndShow(ComposePreviewScreen(event.screen))
+            else Minecraft.getInstance().gui.setScreen(ComposePreviewScreen(event.screen))
             event.isCanceled = true
         }
     }
