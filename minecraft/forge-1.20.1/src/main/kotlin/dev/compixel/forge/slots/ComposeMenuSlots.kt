@@ -37,6 +37,23 @@ data class MenuSlotVisual(
 
 data class MenuSlotBounds(val left: Double, val top: Double, val right: Double, val bottom: Double)
 
+/** Mouse events use rounded GUI dimensions; native rendering uses the exact GUI scale. */
+internal fun menuInputBounds(pixels: Rect, guiWidth: Int, guiHeight: Int, pixelWidth: Int, pixelHeight: Int) =
+    MenuSlotBounds(
+        pixels.left.toDouble() * guiWidth / pixelWidth,
+        pixels.top.toDouble() * guiHeight / pixelHeight,
+        pixels.right.toDouble() * guiWidth / pixelWidth,
+        pixels.bottom.toDouble() * guiHeight / pixelHeight,
+    )
+
+internal fun menuRenderBounds(pixels: Rect, guiScale: Float) =
+    MenuSlotBounds(
+        pixels.left.toDouble() / guiScale,
+        pixels.top.toDouble() / guiScale,
+        pixels.right.toDouble() / guiScale,
+        pixels.bottom.toDouble() / guiScale,
+    )
+
 /** Public game-thread extension point for item/resource snapshots and the consumer's existing protocol. */
 interface MenuSlotAdapter {
     fun visual(slot: Slot, previous: MenuSlotVisual?): MenuSlotVisual
@@ -152,6 +169,7 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
     private var guiHeight = 1
     private var pixelWidth = 1
     private var pixelHeight = 1
+    private var guiScale = 1f
     private var cursor = ItemStack.EMPTY
     private var cursorIcon: ItemIcon? = null
     private var closed = false
@@ -230,23 +248,33 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
         }
     }
 
-    internal fun viewport(guiWidth: Int, guiHeight: Int, pixelWidth: Int, pixelHeight: Int) {
+    internal fun viewport(guiWidth: Int, guiHeight: Int, pixelWidth: Int, pixelHeight: Int, guiScale: Float) {
         checkOwner()
         if (
             this.guiWidth != guiWidth ||
                 this.guiHeight != guiHeight ||
                 this.pixelWidth != pixelWidth ||
-                this.pixelHeight != pixelHeight
+                this.pixelHeight != pixelHeight ||
+                this.guiScale != guiScale
         )
             reset()
         this.guiWidth = guiWidth
         this.guiHeight = guiHeight
         this.pixelWidth = pixelWidth
         this.pixelHeight = pixelHeight
+        this.guiScale = guiScale
     }
 
     private fun point(x: Double, y: Double) =
         Offset((x * pixelWidth / guiWidth).toFloat(), (y * pixelHeight / guiHeight).toFloat())
+
+    internal fun renderPoint(x: Double, y: Double): Offset = point(x, y) / guiScale
+
+    internal fun renderBounds(slotId: Int): MenuSlotBounds? =
+        currentLayout[slotId]?.let { menuRenderBounds(it, guiScale) }
+
+    internal fun renderAreaBounds(): MenuSlotBounds? =
+        synchronized(layoutLock) { area }?.let { menuRenderBounds(it, guiScale) }
 
     fun slotAt(x: Double, y: Double): Int =
         currentLayout.entries.firstOrNull { it.value.contains(point(x, y)) }?.key ?: -1
@@ -254,23 +282,13 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
     /** Clipped visible bounds in Minecraft GUI units, for integrations and input/accessibility hosts. */
     fun bounds(slotId: Int): MenuSlotBounds? =
         currentLayout[slotId]?.let {
-            MenuSlotBounds(
-                it.left.toDouble() * guiWidth / pixelWidth,
-                it.top.toDouble() * guiHeight / pixelHeight,
-                it.right.toDouble() * guiWidth / pixelWidth,
-                it.bottom.toDouble() * guiHeight / pixelHeight,
-            )
+            menuInputBounds(it, guiWidth, guiHeight, pixelWidth, pixelHeight)
         }
 
     fun areaBounds(): MenuSlotBounds? =
         synchronized(layoutLock) { area }
             ?.let {
-                MenuSlotBounds(
-                    it.left.toDouble() * guiWidth / pixelWidth,
-                    it.top.toDouble() * guiHeight / pixelHeight,
-                    it.right.toDouble() * guiWidth / pixelWidth,
-                    it.bottom.toDouble() * guiHeight / pixelHeight,
-                )
+                menuInputBounds(it, guiWidth, guiHeight, pixelWidth, pixelHeight)
             }
 
     internal fun move(x: Double, y: Double): Boolean {
@@ -406,7 +424,15 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
             }
         } else if (!interacting) {
             val id = slotAt(x.toDouble(), y.toDouble())
-            menu.slots.getOrNull(id)?.let { adapter.tooltip(graphics, it, x, y) }
+            val rendered = renderPoint(x.toDouble(), y.toDouble())
+            menu.slots.getOrNull(id)?.let {
+                adapter.tooltip(
+                    graphics,
+                    it,
+                    kotlin.math.round(rendered.x).toInt(),
+                    kotlin.math.round(rendered.y).toInt(),
+                )
+            }
         }
     }
 

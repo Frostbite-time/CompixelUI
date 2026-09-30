@@ -103,6 +103,7 @@ open class ComposeInventoryScreen<M : AbstractContainerMenu>(
             height.coerceAtLeast(1),
             window.width.coerceAtLeast(1),
             window.height.coerceAtLeast(1),
+            window.guiScale.toFloat(),
         )
     }
 
@@ -144,8 +145,10 @@ open class ComposeInventoryScreen<M : AbstractContainerMenu>(
         mouseY: Int,
     ) {} // Drawn by composeRenderable.
 
+    // Native slot and container coordinates are drawn at exactly guiScale pixels per GUI unit, like the frame. Mouse
+    // tests keep Minecraft's rounded mapping: isHovering and hasClickedOutside compare with inventory.bounds.
     private fun updateSlotCoordinates() {
-        inventory.areaBounds()?.let { bounds ->
+        inventory.renderAreaBounds()?.let { bounds ->
             leftPos = floor(bounds.left).toInt()
             topPos = floor(bounds.top).toInt()
             imageWidth = ceil(bounds.right - bounds.left).toInt()
@@ -153,7 +156,7 @@ open class ComposeInventoryScreen<M : AbstractContainerMenu>(
         }
         val positions = HashMap<Pair<Int, Int>, Int>(inventory.visibleSlotIds.size)
         for (slot in container.slots) {
-            val bounds = inventory.bounds(slot.index)
+            val bounds = inventory.renderBounds(slot.index)
             if (bounds == null) {
                 slot.x = -10000
                 slot.y = -10000
@@ -181,6 +184,11 @@ open class ComposeInventoryScreen<M : AbstractContainerMenu>(
             return mouseX >= bounds.left && mouseX < bounds.right && mouseY >= bounds.top && mouseY < bounds.bottom
         }
         return super.isHovering(x, y, w, h, mouseX, mouseY)
+    }
+
+    override fun hasClickedOutside(mouseX: Double, mouseY: Double, left: Int, top: Int, button: Int): Boolean {
+        val bounds = inventory.areaBounds() ?: return super.hasClickedOutside(mouseX, mouseY, left, top, button)
+        return mouseX < bounds.left || mouseX >= bounds.right || mouseY < bounds.top || mouseY >= bounds.bottom
     }
 
     override fun mouseClicked(x: Double, y: Double, button: Int): Boolean {
