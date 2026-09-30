@@ -6,7 +6,7 @@ import com.mojang.blaze3d.vertex.PoseStack
 internal inline fun withFramebufferPixels(pose: PoseStack, metrics: ScreenMetrics, draw: () -> Unit) {
     pose.pushPose()
     try {
-        val scale = 1f / metrics.guiScale
+        val scale = metrics.renderCoordinate(1f)
         pose.scale(scale, scale, 1f)
         draw()
     } finally {

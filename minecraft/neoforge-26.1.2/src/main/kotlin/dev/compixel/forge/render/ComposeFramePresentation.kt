@@ -64,7 +64,7 @@ internal fun frameBlitRenderState(
         texture,
         // Minecraft projects GUI units at exactly guiScale pixels, not framebufferWidth / guiWidth.
         // Submit pixel dimensions and cancel that scale so rounded GUI sizes cannot stretch the frame.
-        Matrix3x2f(pose).scale(1f / metrics.guiScale),
+        Matrix3x2f(pose).scale(metrics.renderCoordinate(1f)),
         0,
         0,
         metrics.framebufferWidth,

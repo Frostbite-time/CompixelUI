@@ -16,6 +16,7 @@ import dev.compixel.bridge.ComposeThread
 import dev.compixel.forge.item.IconRefresh
 import dev.compixel.forge.item.ItemIcon
 import dev.compixel.forge.item.MinecraftItemIcon
+import dev.compixel.forge.render.ScreenMetrics
 import dev.compixel.slots.*
 import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.inventory.OreSlot
@@ -38,20 +39,20 @@ data class MenuSlotVisual(
 data class MenuSlotBounds(val left: Double, val top: Double, val right: Double, val bottom: Double)
 
 /** Mouse events use rounded GUI dimensions; native rendering uses the exact GUI scale. */
-internal fun menuInputBounds(pixels: Rect, guiWidth: Int, guiHeight: Int, pixelWidth: Int, pixelHeight: Int) =
+internal fun menuInputBounds(pixels: Rect, metrics: ScreenMetrics) =
     MenuSlotBounds(
-        pixels.left.toDouble() * guiWidth / pixelWidth,
-        pixels.top.toDouble() * guiHeight / pixelHeight,
-        pixels.right.toDouble() * guiWidth / pixelWidth,
-        pixels.bottom.toDouble() * guiHeight / pixelHeight,
+        metrics.inputX(pixels.left),
+        metrics.inputY(pixels.top),
+        metrics.inputX(pixels.right),
+        metrics.inputY(pixels.bottom),
     )
 
-internal fun menuRenderBounds(pixels: Rect, guiScale: Float) =
+internal fun menuRenderBounds(pixels: Rect, metrics: ScreenMetrics) =
     MenuSlotBounds(
-        pixels.left.toDouble() / guiScale,
-        pixels.top.toDouble() / guiScale,
-        pixels.right.toDouble() / guiScale,
-        pixels.bottom.toDouble() / guiScale,
+        metrics.renderCoordinate(pixels.left.toDouble()),
+        metrics.renderCoordinate(pixels.top.toDouble()),
+        metrics.renderCoordinate(pixels.right.toDouble()),
+        metrics.renderCoordinate(pixels.bottom.toDouble()),
     )
 
 /** Public game-thread extension point for item/resource snapshots and the consumer's existing protocol. */
@@ -165,11 +166,7 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
     private val visuals = mutableStateMapOf<Int, MenuSlotVisual>()
     private val snapshots = mutableMapOf<Int, MenuSlotVisual>()
     private val shown = mutableMapOf<Int, MenuSlotVisual>()
-    private var guiWidth = 1
-    private var guiHeight = 1
-    private var pixelWidth = 1
-    private var pixelHeight = 1
-    private var guiScale = 1f
+    private var metrics = ScreenMetrics(1, 1, 1, 1, 1f, 1f)
     private var cursor = ItemStack.EMPTY
     private var cursorIcon: ItemIcon? = null
     private var closed = false
@@ -248,33 +245,22 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
         }
     }
 
-    internal fun viewport(guiWidth: Int, guiHeight: Int, pixelWidth: Int, pixelHeight: Int, guiScale: Float) {
+    internal fun viewport(metrics: ScreenMetrics) {
         checkOwner()
-        if (
-            this.guiWidth != guiWidth ||
-                this.guiHeight != guiHeight ||
-                this.pixelWidth != pixelWidth ||
-                this.pixelHeight != pixelHeight ||
-                this.guiScale != guiScale
-        )
-            reset()
-        this.guiWidth = guiWidth
-        this.guiHeight = guiHeight
-        this.pixelWidth = pixelWidth
-        this.pixelHeight = pixelHeight
-        this.guiScale = guiScale
+        if (this.metrics != metrics) reset()
+        this.metrics = metrics
     }
 
-    private fun point(x: Double, y: Double) =
-        Offset((x * pixelWidth / guiWidth).toFloat(), (y * pixelHeight / guiHeight).toFloat())
+    private fun point(x: Double, y: Double) = Offset(metrics.pixelX(x), metrics.pixelY(y))
 
-    internal fun renderPoint(x: Double, y: Double): Offset = point(x, y) / guiScale
+    internal fun renderPoint(x: Double, y: Double): Offset =
+        Offset(metrics.renderCoordinate(metrics.pixelX(x)), metrics.renderCoordinate(metrics.pixelY(y)))
 
     internal fun renderBounds(slotId: Int): MenuSlotBounds? =
-        currentLayout[slotId]?.let { menuRenderBounds(it, guiScale) }
+        currentLayout[slotId]?.let { menuRenderBounds(it, metrics) }
 
     internal fun renderAreaBounds(): MenuSlotBounds? =
-        synchronized(layoutLock) { area }?.let { menuRenderBounds(it, guiScale) }
+        synchronized(layoutLock) { area }?.let { menuRenderBounds(it, metrics) }
 
     fun slotAt(x: Double, y: Double): Int =
         currentLayout.entries.firstOrNull { it.value.contains(point(x, y)) }?.key ?: -1
@@ -282,13 +268,13 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
     /** Clipped visible bounds in Minecraft GUI units, for integrations and input/accessibility hosts. */
     fun bounds(slotId: Int): MenuSlotBounds? =
         currentLayout[slotId]?.let {
-            menuInputBounds(it, guiWidth, guiHeight, pixelWidth, pixelHeight)
+            menuInputBounds(it, metrics)
         }
 
     fun areaBounds(): MenuSlotBounds? =
         synchronized(layoutLock) { area }
             ?.let {
-                menuInputBounds(it, guiWidth, guiHeight, pixelWidth, pixelHeight)
+                menuInputBounds(it, metrics)
             }
 
     internal fun move(x: Double, y: Double): Boolean {

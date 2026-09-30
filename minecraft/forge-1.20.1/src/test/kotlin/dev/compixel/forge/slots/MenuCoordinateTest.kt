@@ -21,8 +21,8 @@ class MenuCoordinateTest {
                         1f,
                     )
                 val pixels = Rect(width - 96f, height - 96f, width - 32f, height - 32f)
-                val input = menuInputBounds(pixels, metrics.guiWidth, metrics.guiHeight, width, height)
-                val rendered = menuRenderBounds(pixels, metrics.guiScale)
+                val input = menuInputBounds(pixels, metrics)
+                val rendered = menuRenderBounds(pixels, metrics)
                 assertEquals(pixels.left, metrics.pixelX(input.left), 0.001f)
                 assertEquals(pixels.top, metrics.pixelY(input.top), 0.001f)
                 assertEquals(pixels.right, metrics.pixelX(input.right), 0.001f)
@@ -40,8 +40,9 @@ class MenuCoordinateTest {
         // 1366 px at GUI scale 3 rounds up to 456 units. A dp-aligned slot at 1200 px is exactly GUI 400, while
         // the rounded mouse mapping gives 400.6, which would move its native slot one unit (3 px) to the right.
         val pixels = Rect(1176f, 300f, 1224f, 348f)
-        val rendered = menuRenderBounds(pixels, 3f)
-        val input = menuInputBounds(pixels, 456, 256, 1366, 768)
+        val metrics = ScreenMetrics(1366, 768, 456, 256, 3f, 1f)
+        val rendered = menuRenderBounds(pixels, metrics)
+        val input = menuInputBounds(pixels, metrics)
         assertEquals(MenuSlotBounds(392.0, 100.0, 408.0, 116.0), rendered)
         assertEquals(400, ((rendered.left + rendered.right) / 2).roundToInt())
         assertEquals(401, ((input.left + input.right) / 2).roundToInt())

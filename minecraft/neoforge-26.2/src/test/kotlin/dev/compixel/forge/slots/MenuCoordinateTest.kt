@@ -20,8 +20,8 @@ class MenuCoordinateTest {
                         1f,
                     )
                 val pixels = Rect(width - 96f, height - 96f, width - 32f, height - 32f)
-                val input = menuInputBounds(pixels, metrics.guiWidth, metrics.guiHeight, width, height)
-                val rendered = menuRenderBounds(pixels, metrics.guiScale)
+                val input = menuInputBounds(pixels, metrics)
+                val rendered = menuRenderBounds(pixels, metrics)
                 assertEquals(pixels.left, metrics.pixelX(input.left), 0.001f)
                 assertEquals(pixels.top, metrics.pixelY(input.top), 0.001f)
                 assertEquals(pixels.right, metrics.pixelX(input.right), 0.001f)
@@ -37,8 +37,9 @@ class MenuCoordinateTest {
     @Test
     fun `odd-window render bounds do not reuse rounded mouse coordinates`() {
         val pixels = Rect(1800f, 1320f, 1864f, 1384f)
-        val rendered = menuRenderBounds(pixels, 4f)
-        val input = menuInputBounds(pixels, 482, 362, 1927, 1447)
+        val metrics = ScreenMetrics(1927, 1447, 482, 362, 4f, 1f)
+        val rendered = menuRenderBounds(pixels, metrics)
+        val input = menuInputBounds(pixels, metrics)
         assertEquals(MenuSlotBounds(450.0, 330.0, 466.0, 346.0), rendered)
         assertNotEquals(rendered, input)
     }

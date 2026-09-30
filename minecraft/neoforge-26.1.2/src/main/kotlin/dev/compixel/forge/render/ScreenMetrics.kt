@@ -21,7 +21,18 @@ internal data class ScreenMetrics(
 
     val viewport = Viewport(framebufferWidth, framebufferHeight, maxOf(guiScale * guiUnitsPerDp, minimumUiDensity))
 
+    /** Mouse/input GUI coordinates use the rounded GUI dimensions. */
     fun pixelX(guiX: Double): Float = (guiX * framebufferWidth / guiWidth).toFloat()
 
     fun pixelY(guiY: Double): Float = (guiY * framebufferHeight / guiHeight).toFloat()
+
+    /** Framebuffer pixels to mouse/input GUI coordinates, inverse to [pixelX] and [pixelY]. */
+    fun inputX(pixelX: Float): Double = pixelX.toDouble() * guiWidth / framebufferWidth
+
+    fun inputY(pixelY: Float): Double = pixelY.toDouble() * guiHeight / framebufferHeight
+
+    /** Framebuffer pixels to render GUI coordinates, using the exact projection scale on both axes. */
+    fun renderCoordinate(pixels: Double): Double = pixels / guiScale
+
+    fun renderCoordinate(pixels: Float): Float = renderCoordinate(pixels.toDouble()).toFloat()
 }

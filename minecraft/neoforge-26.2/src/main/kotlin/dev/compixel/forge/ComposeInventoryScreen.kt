@@ -94,14 +94,7 @@ open class ComposeInventoryScreen<M : AbstractContainerMenu>(
     }
 
     private fun updateViewport() {
-        val window = Minecraft.getInstance().window
-        inventory.viewport(
-            width.coerceAtLeast(1),
-            height.coerceAtLeast(1),
-            window.width.coerceAtLeast(1),
-            window.height.coerceAtLeast(1),
-            window.guiScale.toFloat(),
-        )
+        inventory.viewport(layer.currentMetrics(width, height))
     }
 
     private fun cancelInteraction() {

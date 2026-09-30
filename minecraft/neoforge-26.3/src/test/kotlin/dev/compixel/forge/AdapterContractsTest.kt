@@ -29,6 +29,20 @@ class AdapterContractsTest {
         val metrics = ScreenMetrics(1001, 721, 334, 241, 3f, 1f)
         assertEquals(1001f, metrics.pixelX(334.0))
         assertEquals(721f, metrics.pixelY(241.0))
+        assertEquals(334.0, metrics.inputX(1001f))
+        assertEquals(241.0, metrics.inputY(721f))
+    }
+
+    @Test
+    fun `render coordinates ignore rounded GUI dimensions and Compose density`() {
+        val metrics = ScreenMetrics(1927, 1447, 482, 362, 4f, 1f)
+        val changed = metrics.copy(guiWidth = 483, guiHeight = 363, guiUnitsPerDp = 0.5f, minimumUiDensity = 3f)
+        assertNotEquals(metrics.inputX(1919.5f), changed.inputX(1919.5f))
+        assertNotEquals(metrics.inputY(1439.5f), changed.inputY(1439.5f))
+        for (current in listOf(metrics, changed)) {
+            assertEquals(479.875f, current.renderCoordinate(1919.5f))
+            assertEquals(359.875, current.renderCoordinate(1439.5))
+        }
     }
 
     @Test

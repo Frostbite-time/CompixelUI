@@ -394,7 +394,7 @@ internal class ComposeLayer(
         clipboard.takeWrite()?.let { Minecraft.getInstance().keyboardHandler.clipboard = it }
     }
 
-    private fun currentMetrics(width: Int, height: Int): ScreenMetrics {
+    fun currentMetrics(width: Int, height: Int): ScreenMetrics {
         val window = Minecraft.getInstance().window
         return ScreenMetrics(
             window.width.coerceAtLeast(1),
