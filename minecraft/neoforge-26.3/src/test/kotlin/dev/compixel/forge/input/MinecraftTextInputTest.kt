@@ -22,4 +22,13 @@ class MinecraftTextInputTest {
         val metrics = ScreenMetrics(1920, 1080, 640, 360, 3f, 1f)
         assertEquals(GuiTextInputArea(10, 20, 14, 27), guiTextInputArea(TextInputArea(31f, 60f, 40f, 79f), metrics))
     }
+
+    @Test
+    fun `odd-window candidate rectangles enclose the physical caret without stretching`() {
+        val metrics = ScreenMetrics(1927, 1447, 482, 362, 4f, 1f)
+        assertEquals(
+            GuiTextInputArea(479, 359, 480, 360),
+            guiTextInputArea(TextInputArea(1919.5f, 1439.5f, 1920f, 1440f), metrics),
+        )
+    }
 }

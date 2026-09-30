@@ -57,8 +57,9 @@ internal data class GuiTextInputArea(val left: Int, val top: Int, val right: Int
 /** [area], given in framebuffer pixels, in GUI units rounded outwards. */
 internal fun guiTextInputArea(area: TextInputArea, metrics: ScreenMetrics) =
     GuiTextInputArea(
-        floor(area.left * metrics.guiWidth / metrics.framebufferWidth).toInt(),
-        floor(area.top * metrics.guiHeight / metrics.framebufferHeight).toInt(),
-        ceil(area.right * metrics.guiWidth / metrics.framebufferWidth).toInt(),
-        ceil(area.bottom * metrics.guiHeight / metrics.framebufferHeight).toInt(),
+        // TextInputManager multiplies these coordinates by guiScale; it does not use mouse scaling.
+        floor(area.left / metrics.guiScale).toInt(),
+        floor(area.top / metrics.guiScale).toInt(),
+        ceil(area.right / metrics.guiScale).toInt(),
+        ceil(area.bottom / metrics.guiScale).toInt(),
     )

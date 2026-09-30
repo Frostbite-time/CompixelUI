@@ -2,14 +2,17 @@ package dev.compixel.forge.render
 
 import com.mojang.blaze3d.pipeline.BlendFunction
 import com.mojang.blaze3d.pipeline.ColorTargetState
+import com.mojang.blaze3d.pipeline.RenderPipeline
 import com.mojang.blaze3d.platform.BlendFactor
 import com.mojang.blaze3d.textures.GpuSampler
 import com.mojang.blaze3d.textures.GpuTextureView
 import net.minecraft.client.gui.render.TextureSetup
+import net.minecraft.client.gui.navigation.ScreenRectangle
 import net.minecraft.client.renderer.RenderPipelines
 import net.minecraft.client.renderer.state.gui.BlitRenderState
 import net.minecraft.resources.Identifier
 import org.joml.Matrix3x2f
+import org.joml.Matrix3x2fc
 
 // Skia stores premultiplied RGBA. The ordinary GUI blend multiplies RGB by alpha
 // again, darkening translucent controls and text edges.
@@ -26,22 +29,51 @@ internal fun presentPremultiplied(
     sampler: GpuSampler,
     flipY: Boolean,
 ) {
+    presentFrame(destination, composePipeline, view, sampler, flipY)
+}
+
+internal fun presentFrame(
+    destination: ScreenRenderDestination,
+    pipeline: RenderPipeline,
+    view: GpuTextureView,
+    sampler: GpuSampler,
+    flipY: Boolean,
+) {
     val graphics = destination.graphics
     graphics.submitGuiElementRenderState(
-        BlitRenderState(
-            composePipeline,
+        frameBlitRenderState(
+            destination.metrics,
+            graphics.pose(),
+            pipeline,
             TextureSetup.singleTexture(view, sampler),
-            Matrix3x2f(graphics.pose()),
-            0,
-            0,
-            destination.metrics.guiWidth,
-            destination.metrics.guiHeight,
-            0f,
-            1f,
-            if (flipY) 1f else 0f,
-            if (flipY) 0f else 1f,
-            -1,
             graphics.peekScissorStack(),
+            flipY,
         )
     )
 }
+
+internal fun frameBlitRenderState(
+    metrics: ScreenMetrics,
+    pose: Matrix3x2fc,
+    pipeline: RenderPipeline,
+    texture: TextureSetup,
+    scissor: ScreenRectangle?,
+    flipY: Boolean,
+): BlitRenderState =
+    BlitRenderState(
+        pipeline,
+        texture,
+        // Minecraft projects GUI units at exactly guiScale pixels, not framebufferWidth / guiWidth.
+        // Submit pixel dimensions and cancel that scale so rounded GUI sizes cannot stretch the frame.
+        Matrix3x2f(pose).scale(1f / metrics.guiScale),
+        0,
+        0,
+        metrics.framebufferWidth,
+        metrics.framebufferHeight,
+        0f,
+        1f,
+        if (flipY) 1f else 0f,
+        if (flipY) 0f else 1f,
+        -1,
+        scissor,
+    )

@@ -5,6 +5,7 @@ import com.mojang.blaze3d.systems.RenderSystem
 import dev.compixel.render.*
 import java.util.concurrent.atomic.AtomicLong
 import net.minecraft.client.renderer.texture.DynamicTexture
+import net.minecraft.client.renderer.RenderPipelines
 import net.minecraft.resources.Identifier
 
 /** Explicit CPU/PNG reference presenter, independent of the active Minecraft graphics API. */
@@ -68,20 +69,13 @@ internal class CpuScreenFrameRenderer(override val profiler: UiFrameProfiler?) :
     override fun present(destination: ScreenRenderDestination) {
         checkOpen()
         if (!hasFrame || texture == null) return
-        val graphics = destination.graphics
-        val metrics = destination.metrics
         val current = checkNotNull(texture)
-        graphics.blit(
+        presentFrame(
+            destination,
+            RenderPipelines.GUI_TEXTURED,
             checkNotNull(current.textureView) { "Dynamic texture has no GPU view" },
             checkNotNull(current.sampler) { "Dynamic texture has no sampler" },
-            0,
-            0,
-            metrics.guiWidth,
-            metrics.guiHeight,
-            0f,
-            1f,
-            0f,
-            1f,
+            flipY = false,
         )
     }
 

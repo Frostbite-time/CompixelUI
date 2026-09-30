@@ -100,6 +100,7 @@ open class ComposeInventoryScreen<M : AbstractContainerMenu>(
             height.coerceAtLeast(1),
             window.width.coerceAtLeast(1),
             window.height.coerceAtLeast(1),
+            window.guiScale.toFloat(),
         )
     }
 
@@ -145,7 +146,7 @@ open class ComposeInventoryScreen<M : AbstractContainerMenu>(
     }
 
     private fun updateSlotCoordinates() {
-        inventory.areaBounds()?.let { bounds ->
+        inventory.renderAreaBounds()?.let { bounds ->
             leftPos = floor(bounds.left).toInt()
             topPos = floor(bounds.top).toInt()
             imageWidth = ceil(bounds.right - bounds.left).toInt()
@@ -153,7 +154,7 @@ open class ComposeInventoryScreen<M : AbstractContainerMenu>(
         }
         val positions = HashMap<Pair<Int, Int>, Int>(inventory.visibleSlotIds.size)
         for (slot in container.slots) {
-            val bounds = inventory.bounds(slot.index)
+            val bounds = inventory.renderBounds(slot.index)
             if (bounds == null) {
                 slot.x = -10000
                 slot.y = -10000
@@ -176,6 +177,27 @@ open class ComposeInventoryScreen<M : AbstractContainerMenu>(
     override fun extractSlotHighlightFront(graphics: GuiGraphicsExtractor) {}
 
     override fun extractLabels(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int) {}
+
+    override fun extractCarriedItem(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int) {
+        val rendered = inventory.renderPoint(mouseX.toDouble(), mouseY.toDouble())
+        graphics.pose().pushMatrix()
+        try {
+            graphics.pose().translate(rendered.x - mouseX, rendered.y - mouseY)
+            super.extractCarriedItem(graphics, mouseX, mouseY)
+        } finally {
+            graphics.pose().popMatrix()
+        }
+    }
+
+    override fun extractTooltip(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int) {
+        val rendered = inventory.renderPoint(mouseX.toDouble(), mouseY.toDouble())
+        super.extractTooltip(graphics, rendered.x.roundToInt(), rendered.y.roundToInt())
+    }
+
+    override fun hasClickedOutside(mouseX: Double, mouseY: Double, left: Int, top: Int): Boolean {
+        val bounds = inventory.areaBounds() ?: return super.hasClickedOutside(mouseX, mouseY, left, top)
+        return mouseX < bounds.left || mouseX >= bounds.right || mouseY < bounds.top || mouseY >= bounds.bottom
+    }
 
     override fun isHovering(x: Int, y: Int, w: Int, h: Int, mouseX: Double, mouseY: Double): Boolean {
         val id = if (w == 16 && h == 16) nativeCoordinates[x to y] else null

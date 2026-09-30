@@ -151,19 +151,21 @@ private class CpuScreenFrameRenderer(override val profiler: UiFrameProfiler?) : 
         RenderSystem.enableBlend()
         RenderSystem.defaultBlendFunc()
         try {
-            graphics.blit(
-                textureId,
-                0,
-                0,
-                metrics.guiWidth,
-                metrics.guiHeight,
-                0f,
-                0f,
-                metrics.framebufferWidth,
-                metrics.framebufferHeight,
-                metrics.framebufferWidth,
-                metrics.framebufferHeight,
-            )
+            withFramebufferPixels(graphics.pose(), metrics) {
+                graphics.blit(
+                    textureId,
+                    0,
+                    0,
+                    metrics.framebufferWidth,
+                    metrics.framebufferHeight,
+                    0f,
+                    0f,
+                    metrics.framebufferWidth,
+                    metrics.framebufferHeight,
+                    metrics.framebufferWidth,
+                    metrics.framebufferHeight,
+                )
+            }
             graphics.flush()
         } finally {
             RenderSystem.blendFuncSeparate(blend[0], blend[1], blend[2], blend[3])
