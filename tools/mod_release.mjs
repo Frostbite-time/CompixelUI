@@ -64,7 +64,7 @@ export function assertTagCommit(remoteRefs, tag, sha) {
     if (commit && commit !== sha) throw new Error(`${tag} already points to ${commit}, not the selected commit ${sha}`);
 }
 
-function verifyTag(metadata) {
+export function verifyTag(metadata) {
     if (!/^[0-9a-f]{40}$/.test(process.env.GITHUB_SHA ?? '')) throw new Error('GITHUB_SHA is required to check the release tag');
     const refs = execFileSync('git', ['ls-remote', '--tags', 'origin', `refs/tags/${metadata.tag}`, `refs/tags/${metadata.tag}^{}`],
         { cwd: root, encoding: 'utf8', timeout: 60_000 });
@@ -202,7 +202,20 @@ export async function releaseAssets(repository, tag, token) {
     }
 }
 
-function githubOutput(values) {
+export async function githubReleaseFiles(metadata, directory, repository, token) {
+    const built = new Map(metadata.uploads.map(({ file }) => [file, sha256(fs.readFileSync(path.join(directory, file)))]));
+    const plan = planReleaseAssets(metadata, built, await releaseAssets(repository, metadata.tag, token));
+    fs.writeFileSync(path.join(directory, 'SHA256SUMS'), plan.manifest);
+    for (const { file, differs } of plan.kept) {
+        annotate('notice', 'Already on GitHub', `${file} is already attached to the ${metadata.tag} release; skipped it` +
+            `${differs ? ' and kept the published file, which differs from this build' : ''}.`);
+    }
+    if (plan.replacesSums) annotate('notice', 'Checksums updated', `SHA256SUMS no longer matched the ${metadata.tag} release files; replacing it.`);
+    console.log(`Release files to upload: ${plan.upload.join(', ') || 'none'}`);
+    return plan.upload.map(file => path.posix.join(directory, file));
+}
+
+export function githubOutput(values) {
     if (!process.env.GITHUB_OUTPUT) throw new Error('GITHUB_OUTPUT is required');
     for (const [key, value] of Object.entries(values)) {
         fs.appendFileSync(process.env.GITHUB_OUTPUT, `${key}<<${outputDelimiter}\n${value}\n${outputDelimiter}\n`);
@@ -244,16 +257,7 @@ async function main() {
         githubOutput({ uploaded });
     } else if (command === 'github-assets') {
         requireGitHub();
-        const built = new Map(metadata.uploads.map(({ file }) => [file, sha256(fs.readFileSync(path.join(directory, file)))]));
-        const plan = planReleaseAssets(metadata, built, await releaseAssets(repository, metadata.tag, token));
-        fs.writeFileSync(path.join(directory, 'SHA256SUMS'), plan.manifest);
-        for (const { file, differs } of plan.kept) {
-            annotate('notice', 'Already on GitHub', `${file} is already attached to the ${metadata.tag} release; skipped it` +
-                `${differs ? ' and kept the published file, which differs from this build' : ''}.`);
-        }
-        if (plan.replacesSums) annotate('notice', 'Checksums updated', `SHA256SUMS no longer matched the ${metadata.tag} release files; replacing it.`);
-        githubOutput({ files: plan.upload.map(file => path.posix.join(directory, file)).join('\n') });
-        console.log(`Release files to upload: ${plan.upload.join(', ') || 'none'}`);
+        githubOutput({ files: (await githubReleaseFiles(metadata, directory, repository, token)).join('\n') });
     } else if (command === 'tag') {
         verifyTag(metadata);
     } else if (command === 'checksums') {

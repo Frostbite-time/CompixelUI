@@ -1,0 +1,92 @@
+name: mod-build
+run-name: Build player archives for release ${{ inputs.release_run }}
+# Invoked by the approved publisher. This workflow builds the specified commit and has no publishing environment or secrets.
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Exact release commit to build
+        required: true
+        type: string
+      targets:
+        description: Comma-separated Minecraft targets selected by the release preflight
+        required: true
+        type: string
+      release_run:
+        description: Parent release run ID and attempt
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      builds: ${{ steps.targets.outputs.builds }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.revision }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Resolve the selected targets at the release commit
+        id: targets
+        env:
+          REVISION: ${{ inputs.revision }}
+          TARGETS: ${{ inputs.targets }}
+        run: node tools/mod_builds.mjs matrix
+
+  build:
+    name: Build ${{ matrix.adapter }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.builds) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.revision }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-java@v4
+        id: java17
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-java@v4
+        id: java21
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-java@v4
+        id: java25
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build and verify the adapter
+        env:
+          COMPIXEL_JDK17: ${{ steps.java17.outputs.path }}
+          COMPIXEL_JDK21: ${{ steps.java21.outputs.path }}
+          COMPIXEL_JDK25: ${{ steps.java25.outputs.path }}
+          MC_TARGET: ${{ matrix.target }}
+          ADAPTER: ${{ matrix.adapter }}
+        run: bash gradlew "-PcompixelTargets=$MC_TARGET" ":minecraft:$ADAPTER:build" --console=plain
+      - name: Stage both player variants and checksums
+        env:
+          ADAPTER: ${{ matrix.adapter }}
+        run: node tools/mod_publish.mjs stage "$ADAPTER"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.adapter }}
+          path: dist/${{ matrix.adapter }}/*
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: true
