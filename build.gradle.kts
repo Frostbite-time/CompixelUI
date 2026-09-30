@@ -116,30 +116,32 @@ apply(from = "gradle/verify-core-boundary.gradle.kts")
 
 apply(from = "gradle/verify-suite-parity.gradle.kts")
 
-// One formatter setup for the repository: `spotlessApply` rewrites. Only `checkCore` runs `spotlessCheck`;
-// `check` and `build` skip it because formatting the whole repository is slow.
+// One formatter setup for the repository: `spotlessApply` rewrites. Only `checkCore` runs `spotlessCheck`.
 spotless {
     isEnforceCheck = false
-    val outputs = listOf("**/build/**", "**/run/**", ".work/**")
+    val outputs = listOf("**/build/**", "**/run/**", ".work/**", ".gradle/**", ".git/**")
+    // Exclude during traversal. targetExclude subtracts another file tree, which scans the output directories first.
+    fun formatTargets(vararg patterns: String) =
+        rootProject.fileTree(rootDir) {
+            include(*patterns)
+            exclude(outputs)
+        }
+
     kotlin {
-        target("**/src/**/*.kt")
-        targetExclude(outputs)
+        target(formatTargets("**/src/**/*.kt"))
         ktfmt(libs.versions.ktfmt.get()).kotlinlangStyle().configure { it.setMaxWidth(120) }
     }
     kotlinGradle {
-        target("*.gradle.kts", "**/*.gradle.kts")
-        targetExclude(outputs)
+        target(formatTargets("*.gradle.kts", "**/*.gradle.kts"))
         ktfmt(libs.versions.ktfmt.get()).kotlinlangStyle().configure { it.setMaxWidth(120) }
     }
     java {
-        target("**/src/**/*.java")
-        targetExclude(outputs)
+        target(formatTargets("**/src/**/*.java"))
         palantirJavaFormat(libs.versions.palantir.java.format.get())
     }
     // Groovy build scripts only get whitespace rules.
     format("groovyGradle") {
-        target("*.gradle", "**/*.gradle")
-        targetExclude(outputs)
+        target(formatTargets("*.gradle", "**/*.gradle"))
         trimTrailingWhitespace()
         leadingTabsToSpaces(4)
         endWithNewline()
