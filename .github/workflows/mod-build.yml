@@ -38,7 +38,7 @@ jobs:
         env:
           REVISION: ${{ inputs.revision }}
           TARGETS: ${{ inputs.targets }}
-        run: node tools/mod_builds.mjs matrix
+        run: node tools/mod_publish.mjs matrix
 
   build:
     name: Build ${{ matrix.adapter }}

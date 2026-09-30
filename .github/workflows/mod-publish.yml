@@ -30,14 +30,14 @@ jobs:
         env:
           CURSEFORGE_ID: ${{ secrets.CURSEFORGE_ID }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node tools/mod_release.mjs prepare
+        run: node tools/mod_publish.mjs prepare
       - name: Build the required adapters on separate runners
         id: builds
         if: steps.release.outputs.build == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BUILDS: ${{ steps.release.outputs.builds }}
-        run: node tools/mod_builds.mjs dispatch
+        run: node tools/mod_publish.mjs dispatch
       - uses: actions/download-artifact@v4
         if: steps.release.outputs.build == 'true'
         with:
