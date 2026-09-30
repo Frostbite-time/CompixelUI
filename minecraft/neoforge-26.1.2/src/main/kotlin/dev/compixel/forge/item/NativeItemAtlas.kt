@@ -68,15 +68,18 @@ internal class NativeItemAtlas(
             }
 
     fun recorded(frameGeneration: Long) {
-        atlas.recorded(ComposeThread.call { mailbox.activeRequests() })
+        val requests = ComposeThread.call { mailbox.activeRequests() }
+        // A fixed image size draws each icon once; icons shown at other sizes resample that image.
+        atlas.recorded(
+            options.imageSize?.let { size -> requests.map { NativeIconAtlas.Request(it.icon, size) } } ?: requests
+        )
         generation = frameGeneration
     }
 
-    /** At most one bounded page is prepared per host frame; [density] gives the default image size. */
-    fun prepare(now: Long, density: Float): Boolean {
+    /** At most one bounded page is prepared per host frame. */
+    fun prepare(now: Long): Boolean {
         RenderSystem.assertOnRenderThread()
-        val imageSize = options.imageSize ?: NativeIconAtlas.imageSize(density)
-        return atlas.prepare(now, NativeIconClock.tick(), Minecraft.getInstance().window.guiScale.toDouble(), imageSize)
+        return atlas.prepare(now, NativeIconClock.tick(), Minecraft.getInstance().window.guiScale.toDouble())
     }
 
     fun reset() {
@@ -113,27 +116,33 @@ internal class NativeItemAtlas(
 
         override fun appearance(icon: ItemIcon) = animations.appearance(icon)
 
-        override fun draw(page: Int, buffer: Int, icons: List<NativeIconAtlas.Placement<ItemIcon>>) {
-            val target = capture ?: NativeGuiCapture(atlas.width, atlas.height, atlas.buffers).also { capture = it }
-            // Each page keeps its size until drawn again; the atlas redraws a page completely at a new size.
-            target.resize(atlas.width, atlas.height)
+        override fun draw(
+            page: Int,
+            buffer: Int,
+            imageSize: Int,
+            width: Int,
+            height: Int,
+            icons: List<NativeIconAtlas.Placement<ItemIcon>>,
+        ) {
+            val target = capture ?: NativeGuiCapture(width, height, atlas.buffers).also { capture = it }
+            // Pages of different image sizes share the capture; each page target keeps its own size.
+            target.resize(width, height)
             val font = Minecraft.getInstance().font
-            target.renderPage(page, icons.map(atlas::cell), atlas.guiWidth, atlas.guiHeight) { graphics ->
+            target.renderPage(page, icons.map { it.cell }, imageSize) { graphics ->
                 icons.forEach { placement ->
                     val icon = placement.icon
                     val drawing = icon.drawing
-                    if (drawing == null) {
-                        // Held by the local player, as in a container slot; compass and clock models need a holder.
-                        graphics.item(icon.stack, placement.x, placement.y)
-                        graphics.itemDecorations(font, icon.stack, placement.x, placement.y)
-                    } else {
-                        graphics.pose().pushMatrix()
-                        try {
-                            graphics.pose().translate(placement.x.toFloat(), placement.y.toFloat())
-                            drawing.accept(graphics)
-                        } finally {
-                            graphics.pose().popMatrix()
-                        }
+                    graphics.pose().pushMatrix()
+                    try {
+                        // The placement starts on a pixel, where the game draws its own items too.
+                        graphics.pose().translate(placement.x, placement.y)
+                        if (drawing == null) {
+                            // Held by the local player, as in a container slot; compass and clock models need a holder.
+                            graphics.item(icon.stack, 0, 0)
+                            graphics.itemDecorations(font, icon.stack, 0, 0)
+                        } else drawing.accept(graphics)
+                    } finally {
+                        graphics.pose().popMatrix()
                     }
                 }
             }
@@ -149,11 +158,11 @@ internal class NativeItemAtlas(
             }
         }
 
-        override fun snapshot(page: Int, buffer: Int): Image? {
+        override fun snapshot(page: Int, buffer: Int, width: Int, height: Int): Image? {
             val target = checkNotNull(capture)
             if (snapshots != null) {
                 val texture = if (snapshots.immediate) target.pageTexture(page) else target.texture(buffer)
-                return snapshots.snapshot(texture, atlas.width, atlas.height)
+                return snapshots.snapshot(texture, width, height)
             }
             while (true) {
                 val copy = readbacks.poll() ?: return null
@@ -174,7 +183,11 @@ internal class NativeItemAtlas(
             capture?.discardPage(page)
         }
 
-        override fun publish(regions: Map<Long, NativeImageRegion>, changed: Set<Long>, removed: Set<Long>) {
+        override fun publish(
+            regions: Map<NativeIconAtlas.Variant, NativeImageRegion>,
+            changed: Set<NativeIconAtlas.Variant>,
+            removed: Set<NativeIconAtlas.Variant>,
+        ) {
             mailbox.removeAtlas(removed)
             mailbox.publishAtlas(regions, changed)
         }

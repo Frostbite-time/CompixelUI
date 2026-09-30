@@ -56,15 +56,18 @@ internal class NativeItemAtlas(
             }
 
     fun recorded(frameGeneration: Long) {
-        atlas.recorded(ComposeThread.call { mailbox.activeRequests() })
+        val requests = ComposeThread.call { mailbox.activeRequests() }
+        // A fixed image size draws each icon once; icons shown at other sizes resample that image.
+        atlas.recorded(
+            options.imageSize?.let { size -> requests.map { NativeIconAtlas.Request(it.icon, size) } } ?: requests
+        )
         generation = frameGeneration
     }
 
-    /** At most one bounded page is prepared per host frame; [density] gives the default image size. */
-    fun prepare(now: Long, density: Float): Boolean {
+    /** At most one bounded page is prepared per host frame. */
+    fun prepare(now: Long): Boolean {
         RenderSystem.assertOnRenderThread()
-        val imageSize = options.imageSize ?: NativeIconAtlas.imageSize(density)
-        return atlas.prepare(now, NativeIconClock.tick(), Minecraft.getInstance().window.guiScale, imageSize)
+        return atlas.prepare(now, NativeIconClock.tick(), Minecraft.getInstance().window.guiScale)
     }
 
     fun reset() {
@@ -93,38 +96,39 @@ internal class NativeItemAtlas(
 
         override fun appearance(icon: ItemIcon) = animations.appearance(icon)
 
-        override fun draw(page: Int, buffer: Int, icons: List<NativeIconAtlas.Placement<ItemIcon>>) {
+        override fun draw(
+            page: Int,
+            buffer: Int,
+            imageSize: Int,
+            width: Int,
+            height: Int,
+            icons: List<NativeIconAtlas.Placement<ItemIcon>>,
+        ) {
             while (targets.size <= page) targets += null
             val target = targets[page] ?: NativeGuiRenderTarget(backend).also { targets[page] = it }
             val font = Minecraft.getInstance().font
-            target.draw(
-                atlas.width,
-                atlas.height,
-                atlas.guiWidth.toFloat(),
-                atlas.guiHeight.toFloat(),
-                cells = icons.map(atlas::cell),
-            ) { graphics ->
+            val units = 16f / imageSize
+            target.draw(width, height, width * units, height * units, cells = icons.map { it.cell }) { graphics ->
                 icons.forEach { placement ->
                     val icon = placement.icon
-                    if (icon.drawing == null) {
-                        // Held by the local player, as in a container slot; compass and clock models need a holder.
-                        graphics.renderItem(icon.stack, placement.x, placement.y)
-                        graphics.renderItemDecorations(font, icon.stack, placement.x, placement.y)
-                    } else {
-                        graphics.pose().pushPose()
-                        try {
-                            graphics.pose().translate(placement.x.toFloat(), placement.y.toFloat(), 0f)
-                            icon.drawing.accept(graphics)
-                        } finally {
-                            graphics.pose().popPose()
-                        }
+                    graphics.pose().pushPose()
+                    try {
+                        // The placement starts on a pixel, where the game draws its own items too.
+                        graphics.pose().translate(placement.x, placement.y, 0f)
+                        if (icon.drawing == null) {
+                            // Held by the local player, as in a container slot; compass and clock models need a holder.
+                            graphics.renderItem(icon.stack, 0, 0)
+                            graphics.renderItemDecorations(font, icon.stack, 0, 0)
+                        } else icon.drawing.accept(graphics)
+                    } finally {
+                        graphics.pose().popPose()
                     }
                 }
             }
         }
 
-        override fun snapshot(page: Int, buffer: Int) =
-            backend.copyNativeImage(checkNotNull(targets[page]?.destination), atlas.width, atlas.height)
+        override fun snapshot(page: Int, buffer: Int, width: Int, height: Int) =
+            backend.copyNativeImage(checkNotNull(targets[page]?.destination), width, height)
 
         override fun release(image: Image) = backend.releaseNativeImage(image)
 
@@ -133,7 +137,11 @@ internal class NativeItemAtlas(
             if (page < targets.size) targets[page] = null
         }
 
-        override fun publish(regions: Map<Long, NativeImageRegion>, changed: Set<Long>, removed: Set<Long>) {
+        override fun publish(
+            regions: Map<NativeIconAtlas.Variant, NativeImageRegion>,
+            changed: Set<NativeIconAtlas.Variant>,
+            removed: Set<NativeIconAtlas.Variant>,
+        ) {
             mailbox.removeAtlas(removed)
             mailbox.publishAtlas(regions, changed)
         }

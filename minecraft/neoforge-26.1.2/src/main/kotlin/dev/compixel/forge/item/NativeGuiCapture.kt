@@ -11,8 +11,9 @@ import net.minecraft.client.renderer.state.gui.GuiRenderState
 import org.jetbrains.skia.IRect
 
 /**
- * Draws native GUI command streams into owned image targets; one renderer serves every buffer and page. Buffers are
- * redrawn completely, while pages keep their pixels between draws.
+ * Draws native GUI command streams into owned image targets, with one renderer for each GUI scale drawn, so none of
+ * them discards its item cache for a different scale. Buffers are redrawn completely, while pages keep their pixels
+ * between draws.
  */
 internal class NativeGuiCapture(private var imageWidth: Int, private var imageHeight: Int, buffers: Int = 1) :
     AutoCloseable {
@@ -24,14 +25,7 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
 
     private val minecraft = Minecraft.getInstance()
     private val state = GuiRenderState()
-    private val renderer =
-        GuiRenderer(
-            state,
-            minecraft.renderBuffers().bufferSource(),
-            minecraft.gameRenderer.submitNodeStorage,
-            minecraft.gameRenderer.featureRenderDispatcher,
-            emptyList(),
-        )
+    private val renderers = HashMap<Int, GuiRenderer>()
     private val targets = arrayOfNulls<TextureTarget>(buffers)
     private val pages = ArrayList<TextureTarget?>()
     private var closed = false
@@ -124,38 +118,53 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
 
     /**
      * Draws into [page], an image-sized target that keeps its pixels: only [cells], pixel rectangles with a top-left
-     * origin, are cleared first. A new page starts transparent.
+     * origin, are cleared first. A new page starts transparent. [draw] shows 16 GUI units with [imageSize] pixels.
      */
-    fun renderPage(
-        page: Int,
-        cells: List<IRect>,
-        logicalWidth: Int,
-        logicalHeight: Int,
-        draw: (GuiGraphicsExtractor) -> Unit,
-    ) {
+    fun renderPage(page: Int, cells: List<IRect>, imageSize: Int, draw: (GuiGraphicsExtractor) -> Unit) {
         RenderSystem.assertOnRenderThread()
         check(!closed)
-        renderInto(
-            logicalWidth,
-            logicalHeight,
-            { graphics ->
-                draw(graphics)
-                true
-            },
-        ) {
-            while (pages.size <= page) pages += null
-            val previous = pages[page]
-            val existing = previous?.takeIf {
-                it.colorTexture?.getWidth(0) == imageWidth && it.colorTexture?.getHeight(0) == imageHeight
+        // The renderer projects the window and caches items at 16 pixels per GUI scale step. For a page it projects the
+        // page, at the smallest scale whose cached items have at least the page's pixels: at 16 times that scale, items
+        // match the game's own exactly; other sizes sample them down, as the game samples an item it draws scaled.
+        val scale = (imageSize + 15) / 16
+        val window = minecraft.gameRenderer.gameRenderState.windowRenderState
+        val windowWidth = window.width
+        val windowHeight = window.height
+        val windowScale = window.guiScale
+        window.width = imageWidth
+        window.height = imageHeight
+        window.guiScale = scale
+        try {
+            val units = imageSize / (16f * scale)
+            renderInto(
+                renderer(scale),
+                units,
+                units,
+                { graphics ->
+                    draw(graphics)
+                    true
+                },
+            ) {
+                while (pages.size <= page) pages += null
+                val previous = pages[page]
+                val existing = previous?.takeIf {
+                    it.colorTexture?.getWidth(0) == imageWidth && it.colorTexture?.getHeight(0) == imageHeight
+                }
+                if (existing == null && previous != null) FrameRetirement.afterFrame { previous.destroyBuffers() }
+                val output = existing ?: newTarget(imageWidth, imageHeight).also { pages[page] = it }
+                if (existing == null) clear(output)
+                else {
+                    // GUI targets are drawn bottom-up, so a cell's region starts at its bottom edge.
+                    cells.forEach { cell ->
+                        clear(output, cell.left, imageHeight - cell.bottom, cell.width, cell.height)
+                    }
+                }
+                output
             }
-            if (existing == null && previous != null) FrameRetirement.afterFrame { previous.destroyBuffers() }
-            val output = existing ?: newTarget(imageWidth, imageHeight).also { pages[page] = it }
-            if (existing == null) clear(output)
-            else {
-                // GUI targets are drawn bottom-up, so a cell's region starts at its bottom edge.
-                cells.forEach { cell -> clear(output, cell.left, imageHeight - cell.bottom, cell.width, cell.height) }
-            }
-            output
+        } finally {
+            window.width = windowWidth
+            window.height = windowHeight
+            window.guiScale = windowScale
         }
     }
 
@@ -243,29 +252,45 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
         logicalHeight: Int,
         size: (T) -> Pair<Int, Int>,
         draw: (GuiGraphicsExtractor) -> T?,
-    ): T? =
-        renderInto(logicalWidth, logicalHeight, draw) { result ->
+    ): T? {
+        require(logicalWidth > 0 && logicalHeight > 0)
+        // GuiRenderer projects against the window; map the local GUI area onto this target.
+        return renderInto(
+            renderer(minecraft.gameRenderer.gameRenderState.windowRenderState.guiScale),
+            minecraft.window.guiScaledWidth / logicalWidth.toFloat(),
+            minecraft.window.guiScaledHeight / logicalHeight.toFloat(),
+            draw,
+        ) { result ->
             val dimensions = size(result)
             target(buffer, dimensions.first, dimensions.second).also(::clear)
         }
+    }
 
-    /** Extracts [draw], then renders it into the target [output] selects and prepares. */
+    private fun renderer(guiScale: Int) =
+        renderers.getOrPut(guiScale) {
+            GuiRenderer(
+                state,
+                minecraft.renderBuffers().bufferSource(),
+                minecraft.gameRenderer.submitNodeStorage,
+                minecraft.gameRenderer.featureRenderDispatcher,
+                emptyList(),
+            )
+        }
+
+    /**
+     * Extracts [draw] with GUI coordinates scaled by [scaleX] x [scaleY], then renders it with [renderer] into the
+     * target [output] selects and prepares.
+     */
     private fun <T : Any> renderInto(
-        logicalWidth: Int,
-        logicalHeight: Int,
+        renderer: GuiRenderer,
+        scaleX: Float,
+        scaleY: Float,
         draw: (GuiGraphicsExtractor) -> T?,
         output: (T) -> TextureTarget,
     ): T? {
-        require(logicalWidth > 0 && logicalHeight > 0)
         try {
             val graphics = GuiGraphicsExtractor(minecraft, state, 0, 0)
-            // GuiRenderer projects against the window; map the local GUI area onto this target.
-            graphics
-                .pose()
-                .scale(
-                    minecraft.window.guiScaledWidth / logicalWidth.toFloat(),
-                    minecraft.window.guiScaledHeight / logicalHeight.toFloat(),
-                )
+            graphics.pose().scale(scaleX, scaleY)
             val result = draw(graphics)
             if (result != null) {
                 val target = output(result)
@@ -285,7 +310,7 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
         if (closed) return
         closed = true
         FrameRetirement.afterFrame {
-            renderer.close()
+            renderers.values.forEach { it.close() }
             targets.forEach { it?.destroyBuffers() }
             pages.forEach { it?.destroyBuffers() }
         }
