@@ -36,13 +36,13 @@ data class NativeItemStatistics(
  */
 internal class NativeItemAtlas(
     private val mailbox: ItemImageMailbox,
-    options: NativeItemOptions,
+    private val options: NativeItemOptions,
     private val snapshots: NativeSnapshots?,
 ) : AutoCloseable {
     private class Readback(val request: Long, val pixels: ByteArray, val width: Int, val height: Int)
 
     private val animations = NativeIconAnimation()
-    private val atlas = NativeIconAtlas(options.cacheCapacity, options.preparationsPerFrame, options.imageSize, Pages())
+    private val atlas = NativeIconAtlas(options.cacheCapacity, options.preparationsPerFrame, Pages())
     private var capture: NativeGuiCapture? = null
     private var generation = 0L
     // Copies may complete on another thread. At most one page is pending, so any other copy is stale.
@@ -72,10 +72,11 @@ internal class NativeItemAtlas(
         generation = frameGeneration
     }
 
-    /** At most one bounded page is prepared per host frame. */
-    fun prepare(now: Long): Boolean {
+    /** At most one bounded page is prepared per host frame; [density] gives the default image size. */
+    fun prepare(now: Long, density: Float): Boolean {
         RenderSystem.assertOnRenderThread()
-        return atlas.prepare(now, NativeIconClock.tick(), Minecraft.getInstance().window.guiScale.toDouble())
+        val imageSize = options.imageSize ?: NativeIconAtlas.imageSize(density)
+        return atlas.prepare(now, NativeIconClock.tick(), Minecraft.getInstance().window.guiScale.toDouble(), imageSize)
     }
 
     fun reset() {
@@ -114,6 +115,8 @@ internal class NativeItemAtlas(
 
         override fun draw(page: Int, buffer: Int, icons: List<NativeIconAtlas.Placement<ItemIcon>>) {
             val target = capture ?: NativeGuiCapture(atlas.width, atlas.height, atlas.buffers).also { capture = it }
+            // Each page keeps its size until drawn again; the atlas redraws a page completely at a new size.
+            target.resize(atlas.width, atlas.height)
             val font = Minecraft.getInstance().font
             target.renderPage(page, icons.map(atlas::cell), atlas.guiWidth, atlas.guiHeight) { graphics ->
                 icons.forEach { placement ->

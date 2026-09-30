@@ -83,9 +83,9 @@ ComposeInventoryScreen(
 | --- | --- | --- | --- |
 | `cacheCapacity` | 128; 256 for inventory screens | 1–1024 | Icons kept while fewer are on screen. An icon that scrolls out of view stays cached while it fits, and returns without being drawn again |
 | `preparationsPerFrame` | 64 | 1–64 | Maximum number of icons drawn in one frame, and the number of icons on one atlas page |
-| `imageSize` | 64 | 16–256 | Pixel size used to draw each 16×16 icon |
+| `imageSize` | The screen pixels of a 16 dp icon (16 × GUI scale) | 16–256 | Pixel size used to draw each 16×16 icon. The default follows the GUI scale, so an icon shown at 16 dp matches Minecraft's own item rendering pixel for pixel; a fixed size resamples it |
 
-A screen that shows more icons than `preparationsPerFrame` fills in over a few frames. A page of 64 icons at the default image size takes about 4 MB of GPU memory. Reusing the same `ItemIcon` handle shares one image; separately created handles get separate images, even for identical stacks.
+A screen that shows more icons than `preparationsPerFrame` fills in over a few frames. A page of 64 icons takes about 4 MB of GPU memory at GUI scale 4, about 1 MB at scale 2 and about 9 MB at scale 6. Reusing the same `ItemIcon` handle shares one image; separately created handles get separate images, even for identical stacks.
 
 ## See also
 

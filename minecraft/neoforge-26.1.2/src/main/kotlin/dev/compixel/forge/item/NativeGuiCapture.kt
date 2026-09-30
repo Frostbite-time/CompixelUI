@@ -14,7 +14,7 @@ import org.jetbrains.skia.IRect
  * Draws native GUI command streams into owned image targets; one renderer serves every buffer and page. Buffers are
  * redrawn completely, while pages keep their pixels between draws.
  */
-internal class NativeGuiCapture(private val imageWidth: Int, private val imageHeight: Int, buffers: Int = 1) :
+internal class NativeGuiCapture(private var imageWidth: Int, private var imageHeight: Int, buffers: Int = 1) :
     AutoCloseable {
     constructor(imageSize: Int) : this(imageSize, imageSize)
 
@@ -144,7 +144,11 @@ internal class NativeGuiCapture(private val imageWidth: Int, private val imageHe
             },
         ) {
             while (pages.size <= page) pages += null
-            val existing = pages[page]
+            val previous = pages[page]
+            val existing = previous?.takeIf {
+                it.colorTexture?.getWidth(0) == imageWidth && it.colorTexture?.getHeight(0) == imageHeight
+            }
+            if (existing == null && previous != null) FrameRetirement.afterFrame { previous.destroyBuffers() }
             val output = existing ?: newTarget(imageWidth, imageHeight).also { pages[page] = it }
             if (existing == null) clear(output)
             else {
@@ -153,6 +157,16 @@ internal class NativeGuiCapture(private val imageWidth: Int, private val imageHe
             }
             output
         }
+    }
+
+    /**
+     * Sets the image size of later draws. A page keeps its pixels at its previous size until it is drawn again; that
+     * draw starts it over, transparent, at the new size.
+     */
+    fun resize(width: Int, height: Int) {
+        require(width > 0 && height > 0)
+        imageWidth = width
+        imageHeight = height
     }
 
     fun pageTexture(page: Int): GpuTexture = checkNotNull(pages.getOrNull(page)?.colorTexture)

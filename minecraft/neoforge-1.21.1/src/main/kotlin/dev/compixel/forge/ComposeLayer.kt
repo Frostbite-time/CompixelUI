@@ -241,7 +241,8 @@ internal class ComposeLayer(
             // A container first learns its visible slots during layout. Publish their values
             // before image preparation and presentation, including newly scrolled-in slots.
             if (frameProfiler.measureCpu(CpuPhase.HOST) { prepareFrameContent() }) replaceFrame()
-            val itemsChanged = frameProfiler.measureCpu(CpuPhase.ITEMS) { items.prepare(System.nanoTime()) }
+            val itemsChanged =
+                frameProfiler.measureCpu(CpuPhase.ITEMS) { items.prepare(System.nanoTime(), current.viewport.density) }
             val tooltipChanged =
                 frameProfiler.measureCpu(CpuPhase.TOOLTIP) { tooltips.prepare(System.nanoTime(), current) }
             if (itemsChanged || tooltipChanged) replaceFrame()

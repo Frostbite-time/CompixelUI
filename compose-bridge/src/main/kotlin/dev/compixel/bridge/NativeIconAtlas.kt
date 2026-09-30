@@ -46,12 +46,15 @@ class NativeIconRefresh private constructor(val kind: Kind, val intervalMillis: 
  * `preparationsPerFrame` of them, choosing the page whose due icon has waited longest. One snapshot then replaces that
  * page's image: its other icons move to the snapshot with the same pixels, and only the drawn ones are reported as
  * changed. A deferred host publishes a page on a later frame, once its copy is complete, and alternates two buffers.
+ *
+ * Pages are drawn at the pixel size [prepare] asks for, normally the on-screen size of a 16 dp icon, so that icon is
+ * sampled pixel for pixel. A page drawn at another size is redrawn completely at the new one, one page per frame, and
+ * its icons keep their previous image until then; its hidden icons give up their pixels until they are demanded again.
  * Call every member on the render thread; publication runs on the Compose thread.
  */
 class NativeIconAtlas<I : Any>(
     private val cacheCapacity: Int,
     preparationsPerFrame: Int,
-    imageSize: Int,
     private val host: Host<I>,
 ) : AutoCloseable {
     interface Host<I : Any> {
@@ -70,9 +73,10 @@ class NativeIconAtlas<I : Any>(
         fun appearance(icon: I): Any? = null
 
         /**
-         * Draws [icons] into [page], mapping the page GUI area onto its pixels. Only their cells ([cell]) are cleared
-         * first; the rest of the page keeps its pixels. A page drawn for the first time, or again after [discard],
-         * starts transparent. A deferred host also starts copying the page for [snapshot] through [buffer].
+         * Draws [icons] into [page], mapping the page GUI area onto [width] x [height] pixels. Only their cells
+         * ([cell]) are cleared first; the rest of the page keeps its pixels. A page drawn for the first time, again
+         * after [discard], or at another size than its previous draw starts transparent. A deferred host also starts
+         * copying the page for [snapshot] through [buffer].
          */
         fun draw(page: Int, buffer: Int, icons: List<Placement<I>>)
 
@@ -138,12 +142,14 @@ class NativeIconAtlas<I : Any>(
         val slots = arrayOfNulls<Entry<I>>(capacity)
         var used = 0
         var image: Image? = null
+        /** The image size its pixels were drawn at; 0 before its first draw. */
+        var imageSize = 0
     }
 
     private class Pending<I : Any>(val buffer: Int, val page: Int, val entries: List<Entry<I>>)
 
     init {
-        require(cacheCapacity >= 0 && preparationsPerFrame > 0 && imageSize > 0)
+        require(cacheCapacity >= 0 && preparationsPerFrame > 0)
     }
 
     /** Slots per page. A page never holds more icons than one frame may draw. */
@@ -153,13 +159,20 @@ class NativeIconAtlas<I : Any>(
     /** The GUI area of one page, drawn onto [width] x [height] pixels. */
     val guiWidth = columns * SLOT_UNITS
     val guiHeight = rows * SLOT_UNITS
-    val width = ceil(guiWidth * imageSize / 16.0).toInt()
-    val height = ceil(guiHeight * imageSize / 16.0).toInt()
+    /** Pixels drawn for an icon's 16 GUI units, as the latest [prepare] asked. */
+    var imageSize = 0
+        private set
+
+    /** A page's pixels at the current [imageSize]. */
+    val width
+        get() = pixels(guiWidth, imageSize)
+
+    val height
+        get() = pixels(guiHeight, imageSize)
+
     /** Copy buffers a deferred host must provide. */
     val buffers = if (host.immediate) 1 else 2
 
-    private val scaleX = width.toFloat() / guiWidth
-    private val scaleY = height.toFloat() / guiHeight
     private val pages = ArrayList<Page<I>?>()
     private val byId = HashMap<Long, Entry<I>>()
     private var visible = LinkedHashMap<Long, I>()
@@ -193,22 +206,29 @@ class NativeIconAtlas<I : Any>(
      * The page pixels of [placement]'s cell, with a top-left origin. Neighbouring cells share their edges, so clearing
      * one never touches another.
      */
-    fun cell(placement: Placement<*>): IRect =
-        IRect.makeLTRB(
+    fun cell(placement: Placement<*>): IRect {
+        val scaleX = width.toFloat() / guiWidth
+        val scaleY = height.toFloat() / guiHeight
+        return IRect.makeLTRB(
             (placement.x * scaleX).roundToInt(),
             (placement.y * scaleY).roundToInt(),
             ((placement.x + SLOT_UNITS) * scaleX).roundToInt(),
             ((placement.y + SLOT_UNITS) * scaleY).roundToInt(),
         )
+    }
 
     /** Replaces the demanded icons, typically after each recorded Compose frame. */
     fun recorded(icons: List<I>) {
         visible = icons.associateByTo(LinkedHashMap()) { host.id(it) }
     }
 
-    /** Draws the due icons of at most one page. Returns true when published regions changed. */
-    fun prepare(now: Long, tick: Long, guiScale: Double): Boolean {
+    /**
+     * Draws the due icons of at most one page, [imageSize] pixels for each icon's 16 GUI units. Returns true when
+     * published regions changed.
+     */
+    fun prepare(now: Long, tick: Long, guiScale: Double, imageSize: Int): Boolean {
         check(!closed)
+        require(imageSize in IMAGE_SIZES)
         frame++
         var changed = false
         pending?.let {
@@ -217,19 +237,33 @@ class NativeIconAtlas<I : Any>(
             pending = null
             changed = true
         }
+        this.imageSize = imageSize
         for (id in visible.keys) byId[id]?.demandedFrame = frame
         val removed = HashSet<Long>()
         trim(removed)
         for ((id, icon) in visible) if (id !in byId) place(id, icon, removed)
         discardEmptyPages()
+        val index = duePage(now, tick, guiScale)
+        val page = index?.let { checkNotNull(pages[it]) }
+        val entries =
+            page?.slots?.filterNotNull()?.filter { it.id in visible && due(it, now, tick, guiScale) }.orEmpty()
+        if (page != null && page.imageSize != imageSize) {
+            // The page starts over at the new size: icons not drawn now lose their pixels until they are due again.
+            val drawn = entries.mapTo(HashSet()) { it.id }
+            page.slots.forEach { entry ->
+                if (entry != null && entry.hasImage && entry.id !in drawn) {
+                    entry.hasImage = false
+                    removed += entry.id
+                }
+            }
+            page.imageSize = imageSize
+        }
         if (removed.isNotEmpty()) {
             ComposeThread.call { host.publish(emptyMap(), emptySet(), removed) }
             changed = true
         }
+        if (index == null) return changed
 
-        val index = duePage(now, tick, guiScale) ?: return changed
-        val entries =
-            checkNotNull(pages[index]).slots.filterNotNull().filter { it.id in visible && due(it, now, tick, guiScale) }
         buffer = (buffer + 1) % buffers
         host.draw(index, buffer, entries.map { Placement(it.icon, x(it.slot), y(it.slot)) })
         drawnIcons += entries.size
@@ -271,7 +305,7 @@ class NativeIconAtlas<I : Any>(
     }
 
     private fun due(entry: Entry<I>, now: Long, tick: Long, guiScale: Double): Boolean {
-        if (!entry.hasImage || entry.guiScale != guiScale) return true
+        if (!entry.hasImage || entry.guiScale != guiScale || pages[entry.page]?.imageSize != imageSize) return true
         return when (entry.refresh.kind) {
             NativeIconRefresh.Kind.STATIC -> false
             NativeIconRefresh.Kind.GAME_TICK -> entry.tick != tick
@@ -364,7 +398,9 @@ class NativeIconAtlas<I : Any>(
             entry.hasImage = true
             changed += entry.id
         }
-        // The page kept the pixels of every other icon, so all of them move to the new copy.
+        // The page kept the pixels of every other icon, so all of them move to the new copy, at the size it was drawn.
+        val scaleX = pixels(guiWidth, page.imageSize).toFloat() / guiWidth
+        val scaleY = pixels(guiHeight, page.imageSize).toFloat() / guiHeight
         val regions = HashMap<Long, NativeImageRegion>()
         page.slots.forEach { entry ->
             if (entry == null || !entry.hasImage) return@forEach
@@ -416,5 +452,15 @@ class NativeIconAtlas<I : Any>(
         /** GUI units of one cell: 16 for the icon plus a gutter for stack counts and shadows. */
         const val SLOT_UNITS = 18
         private const val ICON_UNITS = 16f
+        /** The image sizes an atlas accepts. */
+        val IMAGE_SIZES = 16..256
+
+        /**
+         * The on-screen pixels of a 16 dp icon at [density], within [IMAGE_SIZES]. Drawn at this size, the icon is
+         * sampled pixel for pixel, as the game draws its own items at the GUI scale.
+         */
+        fun imageSize(density: Float): Int = (16 * density).roundToInt().coerceIn(IMAGE_SIZES)
+
+        private fun pixels(guiUnits: Int, imageSize: Int) = ceil(guiUnits * imageSize / 16.0).toInt()
     }
 }

@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.dp
 import com.mojang.blaze3d.systems.RenderSystem
+import dev.compixel.bridge.NativeIconAtlas
 import dev.compixel.bridge.NativeImageRegion
 import dev.compixel.bridge.drawNativeImageRegion
 import java.util.concurrent.atomic.AtomicLong
@@ -63,18 +64,20 @@ private constructor(
 /**
  * Native icon rendering for one screen or HUD layer. Every displayed icon gets its image, however many there are.
  *
- * @param imageSize pixels drawn for an icon's 16 GUI units.
+ * @param imageSize pixels drawn for an icon's 16 GUI units. By default they follow the screen: the on-screen pixels of
+ *   a 16 dp icon, so icons are sampled pixel for pixel like the game's own item rendering. A fixed size resamples icons
+ *   shown at 16 dp; set one only for icons displayed at another size.
  * @param cacheCapacity icons kept while fewer are displayed: an icon that leaves the screen stays cached while it fits,
  *   so it returns without drawing again.
  * @param preparationsPerFrame icons drawn in one frame at most, which is also the size of one atlas page.
  */
 data class NativeItemOptions(
-    val imageSize: Int = 64,
+    val imageSize: Int? = null,
     val cacheCapacity: Int = 128,
     val preparationsPerFrame: Int = 64,
 ) {
     init {
-        require(imageSize in 16..256)
+        require(imageSize == null || imageSize in NativeIconAtlas.IMAGE_SIZES)
         require(cacheCapacity in 1..1024)
         require(preparationsPerFrame in 1..64)
     }

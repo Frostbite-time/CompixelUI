@@ -31,11 +31,11 @@ data class NativeItemStatistics(
 internal class NativeItemAtlas(
     private val backend: ScreenFrameRenderer,
     private val mailbox: ItemImageMailbox,
-    options: NativeItemOptions,
+    private val options: NativeItemOptions,
 ) : AutoCloseable {
     private val animations = NativeIconAnimation()
     private val targets = ArrayList<NativeGuiRenderTarget?>()
-    private val atlas = NativeIconAtlas(options.cacheCapacity, options.preparationsPerFrame, options.imageSize, Pages())
+    private val atlas = NativeIconAtlas(options.cacheCapacity, options.preparationsPerFrame, Pages())
     private var generation = 0L
 
     val statistics
@@ -60,10 +60,11 @@ internal class NativeItemAtlas(
         generation = frameGeneration
     }
 
-    /** At most one bounded page is prepared per host frame. */
-    fun prepare(now: Long): Boolean {
+    /** At most one bounded page is prepared per host frame; [density] gives the default image size. */
+    fun prepare(now: Long, density: Float): Boolean {
         RenderSystem.assertOnRenderThread()
-        return atlas.prepare(now, NativeIconClock.tick(), Minecraft.getInstance().window.guiScale)
+        val imageSize = options.imageSize ?: NativeIconAtlas.imageSize(density)
+        return atlas.prepare(now, NativeIconClock.tick(), Minecraft.getInstance().window.guiScale, imageSize)
     }
 
     fun reset() {
