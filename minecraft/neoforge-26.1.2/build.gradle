@@ -95,5 +95,7 @@ verifyMinecraftArtifacts(artifacts, [
     'public-f net.minecraft.world.inventory.Slot y',
     'protected-f net.minecraft.client.gui.screens.inventory.AbstractContainerScreen imageWidth',
     'protected-f net.minecraft.client.gui.screens.inventory.AbstractContainerScreen imageHeight',
+    'protected net.minecraft.client.gui.screens.inventory.AbstractContainerScreen extractSlotHighlightBack(Lnet/minecraft/client/gui/GuiGraphicsExtractor;)V',
+    'protected net.minecraft.client.gui.screens.inventory.AbstractContainerScreen extractSlotHighlightFront(Lnet/minecraft/client/gui/GuiGraphicsExtractor;)V',
 ] as Set, ['compixel.mixins.json', 'dev/compixel/forge/mixin/GuiRendererMixin.class'] as Set)
 verifyMinecraftRuns(runSettings, 'earlyWindowControl=false\n')

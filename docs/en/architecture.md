@@ -73,7 +73,7 @@ GPU images that Compose draws, such as item icon pages, belong to the render thr
 
 ## Hooks into the game
 
-Public loader APIs come first. Beyond them, each adapter declares small access transformers: slot coordinates on every version, plus the container size and GPU backend fields on 26.x. The 26.x adapters also contain one Mixin that sends `GuiRenderer` output to an offscreen target while item icons and tooltips are captured. Build checks reject anything not declared.
+Public loader APIs come first. Beyond them, each adapter declares small access transformers: slot coordinates on every version, plus the slot render hook on 1.20.1, and the container size, slot highlight methods and GPU backend fields on 26.x. The 26.x adapters also contain one Mixin that sends `GuiRenderer` output to an offscreen target while item icons and tooltips are captured. Build checks reject anything not declared.
 
 ## Adding a Minecraft version
 

@@ -170,6 +170,11 @@ open class ComposeInventoryScreen<M : AbstractContainerMenu>(
     // still owns menu extraction, recipe overlays and interaction state.
     override fun extractSlot(graphics: GuiGraphicsExtractor, slot: Slot, mouseX: Int, mouseY: Int) {}
 
+    // Compose slots draw their own hover state; the vanilla highlight would cover them and their icons.
+    override fun extractSlotHighlightBack(graphics: GuiGraphicsExtractor) {}
+
+    override fun extractSlotHighlightFront(graphics: GuiGraphicsExtractor) {}
+
     override fun extractLabels(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int) {}
 
     override fun isHovering(x: Int, y: Int, w: Int, h: Int, mouseX: Double, mouseY: Double): Boolean {
