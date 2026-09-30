@@ -23,7 +23,7 @@ internal class NativeItemGuiRenderState : GuiRenderState() {
 
     fun prepareItems(
         imageSize: Int,
-        prepare: (Int, Set<Any>) -> (GuiItemRenderState) -> BlitRenderState,
+        prepare: (Int, Set<Any>) -> (GuiItemRenderState) -> BlitRenderState?,
     ) {
         check(!preparedItems)
         require(imageSize in dev.compixel.bridge.NativeIconAtlas.IMAGE_SIZES)
@@ -36,7 +36,7 @@ internal class NativeItemGuiRenderState : GuiRenderState() {
             val blit = prepare(imageSize, models)
             // forEachItem selects the original item's layer before this blit is appended.
             super.forEachItem { item ->
-                if (item.oversizedItemBounds() == null) addBlitToCurrentLayer(blit(item))
+                if (item.oversizedItemBounds() == null) blit(item)?.let { addBlitToCurrentLayer(it) }
             }
         }
         preparedItems = true

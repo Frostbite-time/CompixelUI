@@ -2,6 +2,7 @@ package dev.compixel.forge.item
 
 import com.mojang.blaze3d.pipeline.TextureTarget
 import com.mojang.blaze3d.systems.RenderSystem
+import com.mojang.logging.LogUtils
 import com.mojang.renderpearl.api.GpuFormat
 import com.mojang.renderpearl.api.textures.FilterMode
 import com.mojang.renderpearl.api.textures.GpuTexture
@@ -29,6 +30,7 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
         require(imageWidth > 0 && imageHeight > 0 && buffers > 0)
     }
 
+    private val logger = LogUtils.getLogger()
     private val minecraft = Minecraft.getInstance()
     private val state = NativeItemGuiRenderState()
     private val renderers = HashMap<Int, GuiRenderer>()
@@ -224,7 +226,7 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
             itemAtlases.remove(imageSize)?.let { atlas -> FrameRetirement.afterFrame { atlas.close() } }
     }
 
-    private fun itemBlitter(imageSize: Int, models: Set<Any>): (GuiItemRenderState) -> BlitRenderState {
+    private fun itemBlitter(imageSize: Int, models: Set<Any>): (GuiItemRenderState) -> BlitRenderState? {
         val previous = itemAtlases[imageSize]
         val atlas =
             if (previous != null && previous.tryPrepareFor(models)) previous
@@ -236,8 +238,18 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
                 fresh
             }
         val sampler = RenderSystem.getSamplerCache().getRepeat(FilterMode.NEAREST)
-        return { item ->
-            val slot = checkNotNull(atlas.getOrUpdate(item.itemStackRenderState())) { "Native item atlas is full" }
+        return blit@{ item ->
+            // Match GuiRenderer: skip items that do not fit within the device's atlas size limit.
+            val slot = atlas.getOrUpdate(item.itemStackRenderState())
+            if (slot == null) {
+                logger.warn(
+                    "Native item atlas is full; skipping item (image size: {} px, atlas size: {} px, models: {})",
+                    imageSize,
+                    atlas.textureSize(),
+                    models.size,
+                )
+                return@blit null
+            }
             BlitRenderState(
                 RenderPipelines.GUI_TEXTURED_PREMULTIPLIED_ALPHA,
                 TextureSetup.singleTexture(slot.textureView(), sampler),

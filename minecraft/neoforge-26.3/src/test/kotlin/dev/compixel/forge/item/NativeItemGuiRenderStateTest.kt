@@ -142,6 +142,54 @@ class NativeItemGuiRenderStateTest {
     }
 
     @Test
+    fun `unavailable atlas slots skip only their items and preserve later GUI content`() {
+        val state = NativeItemGuiRenderState()
+        val first = item("first")
+        val unavailable = item("unavailable")
+        val last = item("last")
+        addItem(state, first)
+        addItem(state, unavailable)
+        val marker = blit(unavailable, 2)
+        selectNode(state, marker)
+        state.addBlitToCurrentLayer(marker)
+        addItem(state, last)
+        val attempted = mutableListOf<GuiItemRenderState>()
+        state.prepareItems(256) { _, _ ->
+            { item ->
+                attempted += item
+                if (item === unavailable) null else blit(item, if (item === first) 1 else 3)
+            }
+        }
+        assertEquals(listOf(first, unavailable, last), attempted)
+        assertEquals(listOf(1, 2, 3), elements(state).map { it.color() })
+        assertTrue(state.itemModelIdentities.isEmpty())
+        val remaining = mutableListOf<GuiItemRenderState>()
+        state.forEachItem(Consumer { remaining += it })
+        assertTrue(remaining.isEmpty(), "Skipped ordinary items must not fall back to the integer-size cache")
+    }
+
+    @Test
+    fun `unavailable ordinary items leave oversized rendering and next frame preparation intact`() {
+        val state = NativeItemGuiRenderState()
+        val ordinary = item("ordinary")
+        val oversized = item("oversized", oversized = true)
+        addItem(state, ordinary)
+        addItem(state, oversized)
+        state.prepareItems(256) { _, _ -> { null } }
+        assertTrue(elements(state).isEmpty())
+        assertEquals(setOf(oversized.itemStackRenderState().modelIdentity), state.itemModelIdentities)
+        val remaining = mutableListOf<GuiItemRenderState>()
+        state.forEachItem(Consumer { remaining += it })
+        assertEquals(listOf(oversized), remaining)
+
+        state.reset()
+        addItem(state, ordinary)
+        state.prepareItems(256) { _, _ -> { item -> blit(item, -1) } }
+        assertEquals(1, elements(state).size)
+        assertTrue(state.itemModelIdentities.isEmpty())
+    }
+
+    @Test
     fun `reset restores standard native rendering for tooltip captures`() {
         val state = NativeItemGuiRenderState()
         val icon = item("icon")
