@@ -4,11 +4,16 @@ import com.mojang.blaze3d.pipeline.TextureTarget
 import com.mojang.blaze3d.systems.RenderSystem
 import com.mojang.renderpearl.api.GpuFormat
 import com.mojang.renderpearl.api.textures.GpuTexture
+import com.mojang.renderpearl.api.textures.FilterMode
 import dev.compixel.forge.render.FrameRetirement
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.gui.render.GuiRenderer
-import net.minecraft.client.renderer.state.gui.GuiRenderState
+import net.minecraft.client.gui.render.GuiItemAtlas
+import net.minecraft.client.gui.render.TextureSetup
+import net.minecraft.client.renderer.RenderPipelines
+import net.minecraft.client.renderer.state.gui.BlitRenderState
+import net.minecraft.client.renderer.state.gui.GuiItemRenderState
 import org.jetbrains.skia.IRect
 
 /**
@@ -25,8 +30,10 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
     }
 
     private val minecraft = Minecraft.getInstance()
-    private val state = GuiRenderState()
+    private val state = NativeItemGuiRenderState()
     private val renderers = HashMap<Int, GuiRenderer>()
+    private val itemAtlases = HashMap<Int, GuiItemAtlas>()
+    private val pageItemSizes = HashMap<Int, Int>()
     private val targets = arrayOfNulls<TextureTarget>(buffers)
     private val pages = ArrayList<TextureTarget?>()
     private var closed = false
@@ -124,10 +131,11 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
     fun renderPage(page: Int, cells: List<IRect>, imageSize: Int, draw: (GuiGraphicsExtractor) -> Unit) {
         RenderSystem.assertOnRenderThread()
         check(!closed)
-        // The renderer projects the window and caches items at 16 pixels per GUI scale step. For a page it projects the
-        // page, at the smallest scale whose cached items have at least the page's pixels: at 16 times that scale, items
-        // match the game's own exactly; other sizes sample them down, as the game samples an item it draws scaled.
+        // The GUI projection still needs an integer scale, but ordinary models are rasterized into imageSize-pixel
+        // slots before the GUI renderer runs. Its 16 * scale cache would resample e.g. an 80-pixel model to 70 pixels.
         val scale = (imageSize + 15) / 16
+        val previousItemSize = pageItemSizes.put(page, imageSize)
+        if (previousItemSize != imageSize) retireUnusedItemSize(previousItemSize)
         val window = minecraft.gameRenderer.gameRenderState().windowRenderState
         val windowWidth = window.width
         val windowHeight = window.height
@@ -145,6 +153,7 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
                     draw(graphics)
                     true
                 },
+                itemSize = imageSize,
             ) {
                 while (pages.size <= page) pages += null
                 val previous = pages[page]
@@ -204,9 +213,48 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
     /** Frees [page] once the queued work that uses it finished; drawing it again starts transparent. */
     fun discardPage(page: Int) {
         RenderSystem.assertOnRenderThread()
+        retireUnusedItemSize(pageItemSizes.remove(page))
         val target = pages.getOrNull(page) ?: return
         pages[page] = null
         FrameRetirement.afterFrame { target.destroyBuffers() }
+    }
+
+    private fun retireUnusedItemSize(imageSize: Int?) {
+        if (imageSize != null && imageSize !in pageItemSizes.values)
+            itemAtlases.remove(imageSize)?.let { atlas -> FrameRetirement.afterFrame { atlas.close() } }
+    }
+
+    private fun itemBlitter(imageSize: Int, models: Set<Any>): (GuiItemRenderState) -> BlitRenderState {
+        val previous = itemAtlases[imageSize]
+        val atlas =
+            if (previous != null && previous.tryPrepareFor(models)) previous
+            else {
+                val textureSize = GuiItemAtlas.computeTextureSizeFor(imageSize, models.size)
+                val fresh =
+                    GuiItemAtlas(minecraft.gameRenderer.featureRenderDispatcher(), textureSize, imageSize)
+                itemAtlases[imageSize] = fresh
+                previous?.let { FrameRetirement.afterFrame { it.close() } }
+                fresh
+            }
+        val sampler = RenderSystem.getSamplerCache().getRepeat(FilterMode.NEAREST)
+        return { item ->
+            val slot = checkNotNull(atlas.getOrUpdate(item.itemStackRenderState())) { "Native item atlas is full" }
+            BlitRenderState(
+                RenderPipelines.GUI_TEXTURED_PREMULTIPLIED_ALPHA,
+                TextureSetup.singleTexture(slot.textureView(), sampler),
+                item.pose(),
+                item.x(),
+                item.y(),
+                item.x() + 16,
+                item.y() + 16,
+                slot.u0(),
+                slot.u1(),
+                slot.v0(),
+                slot.v1(),
+                -1,
+                item.scissorArea(),
+            )
+        }
     }
 
     fun texture(buffer: Int): GpuTexture = checkNotNull(targets[buffer]?.colorTexture)
@@ -283,6 +331,7 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
         scaleX: Float,
         scaleY: Float,
         draw: (GuiGraphicsExtractor) -> T?,
+        itemSize: Int? = null,
         output: (T) -> TextureTarget,
     ): T? {
         try {
@@ -291,11 +340,15 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
             val result = draw(graphics)
             if (result != null) {
                 val target = output(result)
-                NativeGuiTargetScope.renderTo(renderer, target) { renderer.render() }
+                NativeGuiTargetScope.renderTo(renderer, target) {
+                    if (itemSize != null) state.prepareItems(itemSize, ::itemBlitter)
+                    renderer.render()
+                }
             }
             return result
         } finally {
             renderer.endFrame()
+            if (itemSize != null) itemAtlases[itemSize]?.endFrame()
             state.reset()
         }
     }
@@ -306,6 +359,7 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
         closed = true
         FrameRetirement.afterFrame {
             renderers.values.forEach { it.close() }
+            itemAtlases.values.forEach { it.close() }
             targets.forEach { it?.destroyBuffers() }
             pages.forEach { it?.destroyBuffers() }
         }
