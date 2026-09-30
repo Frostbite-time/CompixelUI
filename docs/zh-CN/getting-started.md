@@ -32,7 +32,7 @@ kotlin { jvmToolchain(21) }
 在 `gradle.properties` 中：
 
 ```properties
-compixel_version=0.1.3
+compixel_version=0.1.4
 kotlin.stdlib.default.dependency=false
 ```
 
@@ -48,7 +48,7 @@ CompixelUI 作为独立模组安装，不要用 Jar-in-Jar 打进你的 JAR。
 [[dependencies.examplemod]]
 modId = "compixel"
 type = "required"
-versionRange = "[0.1.3]"
+versionRange = "[0.1.4]"
 ordering = "AFTER"
 side = "CLIENT"
 ```
@@ -129,8 +129,8 @@ fun openHandScreen() {
 
 | 文件 | 适用于 |
 | --- | --- |
-| `compixel-neoforge-1.21.1-0.1.3-with-kotlin.jar` | 所有玩家，已包含 Kotlin |
-| `compixel-neoforge-1.21.1-0.1.3.jar` | 已安装 Kotlin for Forge 的玩家 |
+| `compixel-neoforge-1.21.1-0.1.4-with-kotlin.jar` | 所有玩家，已包含 Kotlin |
+| `compixel-neoforge-1.21.1-0.1.4.jar` | 已安装 Kotlin for Forge 的玩家 |
 
 两个文件都可以在 [Releases](https://github.com/Frostbite-time/CompixelUI/releases) 页面下载。
 

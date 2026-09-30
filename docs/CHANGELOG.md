@@ -1,7 +1,6 @@
-# CompixelUI 0.1.3
+# CompixelUI 0.1.4
 
-- Every item icon on screen is now shown, however many a screen displays. Icon atlas pages are added and released as icons appear and disappear, instead of stopping at a fixed cache. `cacheCapacity` now sets how many icons stay cached after they leave the screen.
-- An atlas page now redraws only its due icons. One animated item used to redraw all 64 icons on its page and invalidate the drawing of every icon on screen; now it redraws itself alone.
-- Enchantment glint and custom item renderers refresh once per game tick instead of every frame, the rate at which Minecraft animates its own textures. `IconRefresh.FRAME` remains available for drawings that must move faster.
-- A state change that a frame applies no longer makes the next frame record and render the same picture again. Each item icon refresh used to cost two frames of Compose work.
-- `NativeItemStatistics` reports `pages` and `drawnIcons`.
+- Item icons are drawn at the pixel size they are shown at, so they match Minecraft's own item rendering pixel for pixel at every GUI scale. They used to be drawn at 64 pixels and resampled, which left block items with jagged edges at every GUI scale except 4.
+- `NativeItemOptions.imageSize` is now nullable. The default, `null`, follows the screen: the on-screen pixels of a 16 dp icon, 16 times the GUI scale. A fixed size still applies, for icons displayed at other sizes.
+- When the GUI scale changes, icons are redrawn at the new size one atlas page per frame, and keep their previous image until then.
+- An icon atlas page now takes GPU memory in proportion to the GUI scale: about 1 MB at scale 2, 4 MB at scale 4 as before, and about 9 MB at scale 6.

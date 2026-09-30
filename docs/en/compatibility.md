@@ -2,7 +2,7 @@
 
 [简体中文](../zh-CN/compatibility.md) · [All guides](../README.md)
 
-This page describes CompixelUI **0.1.3**.
+This page describes CompixelUI **0.1.4**.
 
 ## Minecraft versions
 
