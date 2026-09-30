@@ -1,8 +1,7 @@
 name: mod-publish
-# Started by hand. docs/CHANGELOG.md, which describes only the version in gradle.properties, becomes the release
-# notes. Every player JAR is an independent CurseForge file and a GitHub release asset; files an earlier run already
-# published are skipped with a notice, and the others are still published. CurseForge uses per-file Git receipts;
-# GitHub checks its release assets. Manual CurseForge uploads need a receipt before running this workflow.
+# One environment-protected job covers preflight, builds and both destinations with one approval.
+# Each player JAR still has its own CurseForge receipt and GitHub release asset. Reruns read both
+# destinations again and skip completed files; manual CurseForge uploads need a receipt first.
 on: workflow_dispatch
 
 concurrency:
@@ -13,196 +12,103 @@ permissions:
   contents: read
 
 jobs:
-  prepare:
-    # The project ID is an environment secret, so preflight also follows its approval rules.
+  publish:
+    name: Publish player archives
     environment: mod-publish
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.release.outputs.version }}
-      tag: ${{ steps.release.outputs.tag }}
-      type: ${{ steps.release.outputs.type }}
-      builds: ${{ steps.release.outputs.builds }}
-      uploads: ${{ steps.release.outputs.uploads }}
-      upload_count: ${{ steps.release.outputs.upload_count }}
-      github: ${{ steps.release.outputs.github }}
-      build: ${{ steps.release.outputs.build }}
-      game_versions: ${{ steps.release.outputs.game_versions }}
-      changelog: ${{ steps.release.outputs.changelog }}
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Match the pinned mc-publish action's runtime for the per-file upload loop.
+          node-version: '24'
       - name: Read the target registry, the changelog and the release tag
         id: release
         env:
           CURSEFORGE_ID: ${{ secrets.CURSEFORGE_ID }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node tools/mod_release.mjs prepare
-
-  build:
-    name: Build ${{ matrix.adapter }}
-    needs: prepare
-    # Skipped when CurseForge and the GitHub release already have every file.
-    if: needs.prepare.outputs.build == 'true'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.prepare.outputs.builds) }}
-    steps:
-      - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
+        if: steps.release.outputs.build == 'true'
         id: java17
         with:
           distribution: temurin
           java-version: '17'
       - uses: actions/setup-java@v4
+        if: steps.release.outputs.build == 'true'
         id: java21
         with:
           distribution: temurin
           java-version: '21'
       - uses: actions/setup-java@v4
+        if: steps.release.outputs.build == 'true'
         id: java25
         with:
           distribution: temurin
           java-version: '25'
       - uses: gradle/actions/setup-gradle@v4
-      - name: Build and verify the adapter
+        if: steps.release.outputs.build == 'true'
+      - name: Build, verify and stage only the required adapters
+        if: steps.release.outputs.build == 'true'
         env:
           COMPIXEL_JDK17: ${{ steps.java17.outputs.path }}
           COMPIXEL_JDK21: ${{ steps.java21.outputs.path }}
           COMPIXEL_JDK25: ${{ steps.java25.outputs.path }}
-          MC_TARGET: ${{ matrix.target }}
-          ADAPTER: ${{ matrix.adapter }}
-        run: bash gradlew "-PcompixelTargets=$MC_TARGET" ":minecraft:$ADAPTER:build" --console=plain
-      - name: Stage both player JARs and checksums
-        shell: bash
-        env:
-          ADAPTER: ${{ matrix.adapter }}
-          VERSION: ${{ needs.prepare.outputs.version }}
-        run: |
-          mkdir -p dist
-          stem="compixel-$ADAPTER-$VERSION"
-          cp "minecraft/$ADAPTER/build/release/$stem.jar" "dist/$stem.jar"
-          cp "minecraft/$ADAPTER/build/release/$stem-with-kotlin.jar" "dist/$stem-with-kotlin.jar"
-          node tools/mod_release.mjs checksums "$ADAPTER"
-          node tools/mod_release.mjs verify "$ADAPTER"
+          BUILDS: ${{ steps.release.outputs.builds }}
+        run: node tools/mod_publish.mjs build
       - uses: actions/upload-artifact@v4
+        if: steps.release.outputs.build == 'true'
         with:
-          name: mod-${{ matrix.adapter }}
-          path: dist/*
+          name: mod-release-${{ github.run_attempt }}
+          path: dist/github/*
           if-no-files-found: error
           compression-level: 0
-
-  curseforge:
-    name: CurseForge ${{ matrix.adapter }} / ${{ matrix.variant }}
-    needs: [prepare, build]
-    # Only the files no earlier run uploaded.
-    if: needs.prepare.outputs.upload_count != '0'
-    environment: mod-publish
-    runs-on: ubuntu-latest
-    permissions:
-      # Records each uploaded file as a ref; see the first step.
-      contents: write
-    strategy:
-      fail-fast: false
-      max-parallel: 2
-      matrix: ${{ fromJSON(needs.prepare.outputs.uploads) }}
-    env:
-      FILE: ${{ matrix.file }}
-      UPLOADED: refs/curseforge/${{ secrets.CURSEFORGE_ID }}/${{ needs.prepare.outputs.tag }}/${{ matrix.file }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Skip a recorded upload
-        id: existing
-        # Recheck Git receipts on failed-job retries, including uploads still under review on CurseForge.
+      - name: Check out the pinned CurseForge publisher
+        id: publisher
+        if: steps.release.outputs.upload_count != '0'
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: Kir-Antipov/mc-publish
+          ref: 52307b03863581dec6b652b83e597aec02ebb075 # v3.3.1
+          path: .work/mc-publish
+          persist-credentials: false
+      - name: Publish missing CurseForge files and record each receipt
+        id: curseforge
+        if: steps.release.outputs.upload_count != '0' && steps.publisher.outcome == 'success'
+        # Try every file, then allow the independent GitHub release even if a CurseForge file failed.
+        continue-on-error: true
         env:
           CURSEFORGE_ID: ${{ secrets.CURSEFORGE_ID }}
-        run: node tools/mod_release.mjs curseforge-file "$FILE"
-      - uses: actions/download-artifact@v4
-        if: steps.existing.outputs.uploaded != 'true'
-        with:
-          name: mod-${{ matrix.adapter }}
-          path: dist
-      - name: Check the download and publishing credentials
-        if: steps.existing.outputs.uploaded != 'true'
-        env:
-          ADAPTER: ${{ matrix.adapter }}
           CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
+          UPLOADS: ${{ steps.release.outputs.uploads }}
+        run: node tools/mod_publish.mjs curseforge .work/mc-publish
+      - name: Verify the complete GitHub artifact set and release tag
+        if: steps.release.outputs.github == 'true'
         run: |
-          test -n "$CURSEFORGE_TOKEN" || { echo '::error::Set CURSEFORGE_TOKEN in the mod-publish environment'; exit 1; }
-          node tools/mod_release.mjs verify "$ADAPTER"
-      - name: Publish one independent CurseForge file
-        if: steps.existing.outputs.uploaded != 'true'
-        uses: Kir-Antipov/mc-publish@52307b03863581dec6b652b83e597aec02ebb075 # v3.3.1
-        with:
-          curseforge-id: ${{ secrets.CURSEFORGE_ID }}
-          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          files: dist/${{ matrix.file }}
-          name: CompixelUI ${{ needs.prepare.outputs.version }} / ${{ matrix.adapter }} / ${{ matrix.variant }}
-          version: ${{ needs.prepare.outputs.version }}
-          version-type: ${{ needs.prepare.outputs.type }}
-          changelog: |
-            ${{ needs.prepare.outputs.changelog }}
-
-            **Installation:** ${{ matrix.installation }}
-            [Runtime compatibility](https://github.com/${{ github.repository }}/blob/${{ github.sha }}/docs/en/compatibility.md)
-          loaders: ${{ matrix.loader }}
-          game-versions: ${{ matrix.target }}
-          game-version-filter: none
-          java: ${{ matrix.java }}
-          environment: client | server
-          dependencies: ${{ matrix.dependencies }}
-          # A lost upload response can mean the file exists. If CurseForge has it, create the ref before a retry.
-          retry-attempts: 1
-          fail-mode: fail
-      - name: Record the upload
-        if: steps.existing.outputs.uploaded != 'true'
-        run: |
-          for attempt in 1 2 3; do
-            if git push origin "$GITHUB_SHA:$UPLOADED"; then
-              echo "::notice title=CurseForge upload recorded::$FILE was uploaded and its receipt was recorded."
-              exit 0
-            fi
-            sleep 10
-          done
-          echo "::error::$FILE is on CurseForge, but $UPLOADED could not be created. Create it before retrying this job."
-          exit 1
-
-  github:
-    name: GitHub Release
-    needs: [prepare, build]
-    if: needs.prepare.outputs.github == 'true'
-    environment: mod-publish
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: mod-*
-          merge-multiple: true
-          path: dist
-      - name: Verify all ten player JARs and the release tag
-        run: |
-          node tools/mod_release.mjs verify all
+          node tools/mod_release.mjs verify all dist/github
           node tools/mod_release.mjs tag
-      - name: Skip the files the release already has
+      - name: Skip the files the GitHub release already has
         id: assets
+        if: steps.release.outputs.github == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node tools/mod_release.mjs github-assets
-      - name: Publish the player installation archives
+        run: node tools/mod_release.mjs github-assets dist/github
+      - name: Publish the player installation archives to GitHub
         if: steps.assets.outputs.files != ''
         uses: Kir-Antipov/mc-publish@52307b03863581dec6b652b83e597aec02ebb075 # v3.3.1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          github-tag: ${{ needs.prepare.outputs.tag }}
+          github-tag: ${{ steps.release.outputs.tag }}
           github-commitish: ${{ github.sha }}
           files: ${{ steps.assets.outputs.files }}
-          name: CompixelUI ${{ needs.prepare.outputs.version }}
-          version: ${{ needs.prepare.outputs.version }}
-          version-type: ${{ needs.prepare.outputs.type }}
+          name: CompixelUI ${{ steps.release.outputs.version }}
+          version: ${{ steps.release.outputs.version }}
+          version-type: ${{ steps.release.outputs.type }}
           changelog: |
-            ${{ needs.prepare.outputs.changelog }}
+            ${{ steps.release.outputs.changelog }}
 
             Choose the file matching your Minecraft version and loader. Install **one** variant only:
             - Standard: requires a compatible external Kotlin provider.
@@ -213,9 +119,14 @@ jobs:
           loaders: |
             forge
             neoforge
-          game-versions: ${{ needs.prepare.outputs.game_versions }}
+          game-versions: ${{ steps.release.outputs.game_versions }}
           game-version-filter: none
           environment: client | server
-          # On failure, rerun the job so github-assets checks each file again before mc-publish can replace it.
+          # Rerun the job to recheck each asset instead of blindly retrying an uncertain upload.
           retry-attempts: 1
           fail-mode: fail
+      - name: Report any CurseForge failures
+        if: ${{ !cancelled() && (steps.publisher.outcome == 'failure' || steps.curseforge.outcome == 'failure') }}
+        run: |
+          echo '::error::One or more CurseForge files failed. Inspect their upload logs and receipts before rerunning.'
+          exit 1

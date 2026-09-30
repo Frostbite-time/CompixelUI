@@ -71,7 +71,7 @@ function verifyTag(metadata) {
     assertTagCommit(refs, metadata.tag, process.env.GITHUB_SHA);
 }
 
-function checksumLines(metadata, adapter, directory) {
+export function checksumLines(metadata, adapter, directory) {
     const uploads = metadata.uploads.filter(upload => upload.adapter === adapter);
     if (uploads.length !== 2) throw new Error(`Unknown adapter: ${adapter}`);
     return uploads.map(({ file }) => {
