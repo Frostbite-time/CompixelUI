@@ -32,7 +32,7 @@ kotlin { jvmToolchain(21) }
 And in `gradle.properties`:
 
 ```properties
-compixel_version=0.1.5
+compixel_version=0.1.6
 kotlin.stdlib.default.dependency=false
 ```
 
@@ -48,7 +48,7 @@ In `src/main/resources/META-INF/neoforge.mods.toml`, with your own mod ID:
 [[dependencies.examplemod]]
 modId = "compixel"
 type = "required"
-versionRange = "[0.1.5]"
+versionRange = "[0.1.6]"
 ordering = "AFTER"
 side = "CLIENT"
 ```
@@ -129,8 +129,8 @@ Players install CompixelUI next to your mod. Each Minecraft version has two file
 
 | File | For |
 | --- | --- |
-| `compixel-neoforge-1.21.1-0.1.5-with-kotlin.jar` | Everyone; Kotlin included |
-| `compixel-neoforge-1.21.1-0.1.5.jar` | Players who already have Kotlin for Forge |
+| `compixel-neoforge-1.21.1-0.1.6-with-kotlin.jar` | Everyone; Kotlin included |
+| `compixel-neoforge-1.21.1-0.1.6.jar` | Players who already have Kotlin for Forge |
 
 Both are on the [Releases](https://github.com/Frostbite-time/CompixelUI/releases) page.
 
