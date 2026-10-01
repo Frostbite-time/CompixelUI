@@ -50,6 +50,7 @@ import dev.compixel.ui.ore.overlay.OreDialog
 import dev.compixel.ui.ore.overlay.OreMenu
 import dev.compixel.ui.ore.overlay.OreMenuItem
 import dev.compixel.ui.ore.overlay.OreTooltip
+import dev.compixel.ui.ore.overlay.OreTooltipMode
 import dev.compixel.ui.ore.overlay.OreWindow
 import dev.compixel.ui.ore.scroll.OreScrollTrack
 import dev.compixel.ui.ore.scroll.OreScrollbar
@@ -415,7 +416,7 @@ private fun ListsPage(model: DemoModel, label: (String, String) -> String) {
             }
             OreScrollbar(list, Modifier.align(Alignment.CenterEnd).fillMaxHeight())
         }
-        OreTooltip(label("Hover for a hint", "悬停查看提示")) {
+        OreTooltip(label("Hover for a hint", "悬停查看提示"), mode = OreTooltipMode.Immediate) {
             OreButton(label("Hover me", "悬停我"), {}, style = OreButtonStyle.Secondary)
         }
     }
@@ -784,11 +785,17 @@ private fun TreePage(model: DemoModel, label: (String, String) -> String) {
 @Composable
 private fun TooltipsPage(model: DemoModel, label: (String, String) -> String, item: (@Composable (Modifier) -> Unit)?) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        OreText(label("Explore nested hints", "探索多层提示"), style = OreTheme.typography.title)
+        OreText(label("Immediate and nested hints", "立即提示与多层提示"), style = OreTheme.typography.title)
+        OreTooltip(
+            label("This hint closes as soon as you leave the button.", "离开按钮时，这条提示立即关闭。"),
+            mode = OreTooltipMode.Immediate,
+        ) {
+            OreButton(label("Immediate hint", "立即提示"), {}, style = OreButtonStyle.Secondary)
+        }
         OreText(
             label(
-                "A hint appears immediately. Hold until the green line completes, then move into it.",
-                "提示立即出现。等待绿色进度线完成，再将鼠标移入提示。",
+                "A delayed hint locks when the green line completes, then you can move into it.",
+                "延迟提示在绿色进度线完成后锁定，随后可以将鼠标移入提示。",
             )
         )
         OreTooltip(

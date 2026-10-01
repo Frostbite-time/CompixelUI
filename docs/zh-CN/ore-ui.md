@@ -140,7 +140,17 @@ fun MendingHint() {
 }
 ```
 
-指针一到，提示立即出现。保持不动，等绿色进度线走完（600 毫秒）提示就会锁定，之后可以移入提示中点击按钮或打开下一层。提示里可以放任何可组合项，包括物品图标。
+`OreTooltip` 的文本重载和可组合内容重载都接受 `mode` 参数。默认的 `OreTooltipMode.Delayed` 在指针移入时立即显示；保持不动，等绿色进度线走完（`lockDelayMillis`，默认 600 毫秒）提示就会锁定，之后可以移入提示中点击按钮或打开下一层。锁定后，`exitDelayMillis`（默认 350 毫秒）为跨越间隙提供保留时间。提示里可以放任何可组合项，包括物品图标。
+
+只需跟随父组件显示的提示，使用 `OreTooltipMode.Immediate`：
+
+```kotlin
+OreTooltip("刷新列表", mode = OreTooltipMode.Immediate) {
+    OreButton("刷新", onClick = { refresh() })
+}
+```
+
+立即模式在指针移入父组件时显示，移出父组件时立即关闭，移入提示框本身也会关闭。底部使用普通边框，不显示锁定进度线，也不使用锁定和退出延迟。`OreIconButton` 的操作说明使用立即模式。
 
 ## 窗口与对话框
 

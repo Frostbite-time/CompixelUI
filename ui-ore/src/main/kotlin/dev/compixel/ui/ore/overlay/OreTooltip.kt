@@ -44,7 +44,14 @@ import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.layout.OreSurface
 import dev.compixel.ui.ore.theme.OreTheme
 
-/** Text convenience over the same interactive, nestable tooltip host. */
+enum class OreTooltipMode {
+    /** Closes as soon as the pointer leaves the trigger, without a lock or exit grace period. */
+    Immediate,
+    /** Shows immediately and permits entering the popup after the dwell progress completes. */
+    Delayed,
+}
+
+/** Text convenience over the same tooltip host. */
 @Composable
 fun OreTooltip(
     text: String,
@@ -52,6 +59,7 @@ fun OreTooltip(
     enabled: Boolean = true,
     lockDelayMillis: Long = 600,
     exitDelayMillis: Long = 350,
+    mode: OreTooltipMode = OreTooltipMode.Delayed,
     content: @Composable () -> Unit,
 ) =
     OreTooltip(
@@ -61,6 +69,7 @@ fun OreTooltip(
         lockDelayMillis = lockDelayMillis,
         exitDelayMillis = exitDelayMillis,
         maxWidth = 180.dp,
+        mode = mode,
         content = content,
     )
 
@@ -83,9 +92,10 @@ private class TooltipBranch {
 private val LocalTooltipBranch = staticCompositionLocalOf<TooltipBranch?> { null }
 
 /**
- * Immediate hover; the progress line locks the popup after a continuous dwell. An unlocked popup closes immediately on
- * exit. A locked popup permits crossing the gap, and remains alive while its body or any descendant popup is in use.
- * All content stays in the host Compose scene; arbitrary composables (including nested tooltips) are allowed.
+ * Both modes show on hover. [OreTooltipMode.Immediate] closes when the pointer leaves the trigger and has no progress
+ * line. The default [OreTooltipMode.Delayed] locks after [lockDelayMillis], permitting crossing the gap and retaining
+ * the popup while its body or any descendant popup is in use, with [exitDelayMillis] to cross between them. All content
+ * stays in the host Compose scene; arbitrary composables (including nested tooltips) are allowed.
  */
 @Composable
 fun OreTooltip(
@@ -95,6 +105,7 @@ fun OreTooltip(
     lockDelayMillis: Long = 600,
     exitDelayMillis: Long = 350,
     maxWidth: Dp = 220.dp,
+    mode: OreTooltipMode = OreTooltipMode.Delayed,
     content: @Composable () -> Unit,
 ) {
     require(lockDelayMillis in 0..60_000 && exitDelayMillis in 0..60_000 && maxWidth > 0.dp)
@@ -106,10 +117,12 @@ fun OreTooltip(
     val position = remember(density) { OrePopupPosition(gap = with(density) { 3.dp.roundToPx() }) }
     val canShow = enabled && window.isWindowFocused
     val keyboardFocused = branch.focused && !branch.pointerDriven
+    val delayed = mode == OreTooltipMode.Delayed
     LaunchedEffect(canShow) { if (!canShow) branch.close() }
-    LaunchedEffect(branch.open, branch.anchor, keyboardFocused) {
-        if (!branch.open) {
+    LaunchedEffect(branch.open, branch.anchor, keyboardFocused, delayed, lockDelayMillis) {
+        if (!branch.open || !delayed) {
             progress.snapTo(0f)
+            branch.locked = false
             return@LaunchedEffect
         }
         if (!branch.locked && (branch.anchor || keyboardFocused)) {
@@ -124,9 +137,18 @@ fun OreTooltip(
             branch.locked = true
         }
     }
-    LaunchedEffect(branch.open, branch.anchor, branch.body, keyboardFocused, branch.children, branch.locked) {
-        if (branch.open && !branch.anchor && !keyboardFocused && !branch.body && branch.children == 0) {
-            if (branch.locked && exitDelayMillis > 0) {
+    LaunchedEffect(
+        branch.open,
+        branch.anchor,
+        branch.body,
+        keyboardFocused,
+        branch.children,
+        branch.locked,
+        delayed,
+        exitDelayMillis,
+    ) {
+        if (branch.open && !branch.anchor && !keyboardFocused && (!delayed || (!branch.body && branch.children == 0))) {
+            if (delayed && branch.locked && exitDelayMillis > 0) {
                 val start = withFrameNanos { it }
                 do {
                     val elapsed = withFrameNanos { it } - start
@@ -148,7 +170,7 @@ fun OreTooltip(
             }
             .onPointerEvent(PointerEventType.Exit) {
                 branch.anchor = false
-                if (!branch.locked) branch.close()
+                if (!delayed || !branch.locked) branch.close()
             }
             .onPreviewKeyEvent {
                 if (
@@ -201,13 +223,15 @@ fun OreTooltip(
                                 verticalArrangement = Arrangement.spacedBy(4.dp),
                                 content = tooltip,
                             )
-                            val colors = OreTheme.colors
-                            Box(Modifier.fillMaxWidth().height(1.dp).background(colors.edge)) {
-                                Box(
-                                    Modifier.fillMaxWidth(if (branch.locked) 1f else progress.value)
-                                        .height(1.dp)
-                                        .background(colors.primary)
-                                )
+                            if (delayed) {
+                                val colors = OreTheme.colors
+                                Box(Modifier.fillMaxWidth().height(1.dp).background(colors.edge)) {
+                                    Box(
+                                        Modifier.fillMaxWidth(if (branch.locked) 1f else progress.value)
+                                            .height(1.dp)
+                                            .background(colors.primary)
+                                    )
+                                }
                             }
                         }
                     }

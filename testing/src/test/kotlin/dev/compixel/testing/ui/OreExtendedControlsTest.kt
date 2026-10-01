@@ -27,6 +27,7 @@ import dev.compixel.ui.ore.overlay.OreContextMenuArea
 import dev.compixel.ui.ore.overlay.OreMenu
 import dev.compixel.ui.ore.overlay.OreMenuItem
 import dev.compixel.ui.ore.overlay.OreTooltip
+import dev.compixel.ui.ore.overlay.OreTooltipMode
 import dev.compixel.ui.ore.overlay.OreWindow
 import dev.compixel.ui.ore.overlay.OreWindowState
 import dev.compixel.ui.ore.selection.OreCheckbox
@@ -360,6 +361,68 @@ class OreExtendedControlsTest {
                 assertTrue(maximum < 100, "Composed $maximum rows")
             }
         assertEquals(0, composed)
+    }
+
+    @Test
+    fun `immediate tooltip closes on trigger exit even after a long hover and clicked focus`() {
+        Fixture { b ->
+            OreTooltip(
+                tooltip = { OreText("Details", b("body")) },
+                modifier = b("anchor").size(100.dp, 24.dp),
+                lockDelayMillis = 40,
+                exitDelayMillis = 60_000,
+                mode = OreTooltipMode.Immediate,
+            ) {
+                OreButton("Hover", {})
+            }
+        }
+            .use { f ->
+                f.hover("anchor")
+                assertTrue(f.has("body"))
+                f.hoverAt(Offset(450f, 350f))
+                assertFalse(f.has("body"))
+                f.click("anchor")
+                f.advance(40)
+                assertTrue(f.has("body"))
+                f.hover("body")
+                assertFalse(f.has("body"))
+                f.advance(40)
+                assertFalse(f.has("body"))
+                f.hover("anchor")
+                assertTrue(f.has("body"))
+            }
+    }
+
+    @Test
+    fun `changing tooltip mode cancels retention and restarts delayed locking`() {
+        val mode = mutableStateOf(OreTooltipMode.Delayed)
+        Fixture { b ->
+            OreTooltip(
+                tooltip = { OreText("Details", b("body")) },
+                modifier = b("anchor").size(100.dp, 24.dp),
+                lockDelayMillis = 40,
+                exitDelayMillis = 60_000,
+                mode = mode.value,
+            ) {
+                OreText("Hover")
+            }
+        }
+            .use { f ->
+                f.hover("anchor")
+                f.advance(10)
+                f.hover("body")
+                assertTrue(f.has("body"))
+                ComposeThread.call { mode.value = OreTooltipMode.Immediate }
+                f.frame()
+                f.frame()
+                assertFalse(f.has("body"))
+                f.hover("anchor")
+                assertTrue(f.has("body"))
+                ComposeThread.call { mode.value = OreTooltipMode.Delayed }
+                f.advance(10)
+                f.hover("body")
+                assertTrue(f.has("body"))
+            }
     }
 
     @Test

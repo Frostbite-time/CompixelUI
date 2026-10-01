@@ -140,7 +140,17 @@ fun MendingHint() {
 }
 ```
 
-A tooltip opens as soon as the pointer arrives. Keep the pointer still until the green line fills (600 ms) and the tooltip locks; you can then move into it to click buttons or open the next layer. Tooltips can hold any composable, including item icons.
+`OreTooltip` accepts a `mode` in both its text and composable overloads. The default, `OreTooltipMode.Delayed`, opens as soon as the pointer arrives. Keep the pointer still until the green line fills (`lockDelayMillis`, 600 ms by default) and the tooltip locks; you can then move into it to click buttons or open the next layer. Once locked, `exitDelayMillis` (350 ms by default) gives you time to cross the gap. Tooltips can hold any composable, including item icons.
+
+For a hint that only follows its trigger, use `OreTooltipMode.Immediate`:
+
+```kotlin
+OreTooltip("Refresh the list", mode = OreTooltipMode.Immediate) {
+    OreButton("Refresh", onClick = { refresh() })
+}
+```
+
+Immediate hints open on hover and close as soon as the pointer leaves the trigger, including when moving into the hint itself. They have a regular bottom frame without a lock progress line and do not use the lock or exit delays. `OreIconButton` uses immediate hints for its action label.
 
 ## Windows and dialogs
 

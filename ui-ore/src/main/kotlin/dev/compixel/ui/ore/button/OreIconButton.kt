@@ -24,6 +24,7 @@ import dev.compixel.ui.ore.display.OreGlyph
 import dev.compixel.ui.ore.display.OreIcon
 import dev.compixel.ui.ore.internal.oreOutline
 import dev.compixel.ui.ore.overlay.OreTooltip
+import dev.compixel.ui.ore.overlay.OreTooltipMode
 import dev.compixel.ui.ore.theme.LocalOreContentColor
 import dev.compixel.ui.ore.theme.LocalOreFeedback
 import dev.compixel.ui.ore.theme.OreTheme
@@ -57,7 +58,7 @@ fun OreIconButton(
     style: OreButtonStyle = OreButtonStyle.Secondary,
     icon: @Composable (contentColor: Color) -> Unit,
 ) {
-    OreTooltip(contentDescription, enabled = enabled) {
+    OreTooltip(contentDescription, enabled = enabled, mode = OreTooltipMode.Immediate) {
         if (style == OreButtonStyle.Quiet) {
             val interactions = remember { MutableInteractionSource() }
             val hovered by interactions.collectIsHoveredAsState()

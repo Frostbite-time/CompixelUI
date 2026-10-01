@@ -4,9 +4,13 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
+import dev.compixel.bridge.ComposeThread
 import dev.compixel.host.UiSession
 import dev.compixel.platform.*
 import dev.compixel.ui.ore.button.OreButtonStyle
@@ -14,6 +18,8 @@ import dev.compixel.ui.ore.button.OreIconButton
 import dev.compixel.ui.ore.input.OreTextField
 import dev.compixel.ui.ore.layout.OreSurface
 import dev.compixel.ui.ore.layout.OreSurfaceStyle
+import dev.compixel.ui.ore.overlay.OreTooltip
+import dev.compixel.ui.ore.overlay.OreTooltipMode
 import dev.compixel.ui.ore.selection.OreRadioButton
 import dev.compixel.ui.ore.selection.OreTabButton
 import dev.compixel.ui.ore.theme.OreColors
@@ -28,6 +34,50 @@ import org.jetbrains.skia.Surface
 import org.junit.jupiter.api.Test
 
 class OreVisualFeedbackTest {
+    @Test
+    fun `immediate tooltip renders the bottom frame where delayed tooltip renders lock progress`() {
+        val colors = OreColors(frameEdge = Color.Magenta, primary = Color.Cyan)
+        for (mode in OreTooltipMode.entries) {
+            var body = Rect.Zero
+            UiSession(Viewport(200, 120)) {
+                    OreTheme(colors = colors) {
+                        OreTooltip(
+                            tooltip = {
+                                Box(Modifier.size(100.dp, 24.dp).onGloballyPositioned { body = it.boundsInWindow() })
+                            },
+                            mode = mode,
+                            lockDelayMillis = 40,
+                        ) {
+                            Box(Modifier.size(100.dp, 24.dp))
+                        }
+                    }
+                }
+                .use { session ->
+                    Surface.makeRasterN32Premul(200, 120).use { surface ->
+                        repeat(42) { frame ->
+                            if (frame == 2) session.pointer(PointerInput(PointerAction.MOVE, 50f, 12f))
+                            session.frame(1_000_000_000L + frame * 20_000_000L)?.use {
+                                surface.canvas.clear(0)
+                                it.draw(surface.canvas)
+                            }
+                        }
+                        val image =
+                            surface.makeImageSnapshot().use {
+                                it.encodeToData()!!.use { data -> ImageIO.read(ByteArrayInputStream(data.bytes)) }
+                            }
+                        val bounds = ComposeThread.call { body }
+                        assertTrue(bounds.height > 0, "Tooltip did not open: $mode")
+                        val expected = if (mode == OreTooltipMode.Immediate) colors.frameEdge else colors.primary
+                        assertEquals(
+                            expected.toArgb(),
+                            image.getRGB(bounds.center.x.toInt(), bounds.bottom.toInt() + 6),
+                            "Unexpected tooltip bottom: $mode",
+                        )
+                    }
+                }
+        }
+    }
+
     @Test
     fun `custom icon canvas renders with the themed foreground including disabled styles`() {
         val colors =
