@@ -1,6 +1,7 @@
 package dev.compixel.forge
 
 import androidx.compose.runtime.Composable
+import dev.compixel.forge.drawing.NativeDrawingOptions
 import dev.compixel.forge.item.NativeItemOptions
 import dev.compixel.forge.item.NativeItemStatistics
 import dev.compixel.forge.render.configuredRenderBackend
@@ -24,6 +25,7 @@ class ComposeHudLayer(
     private val guiUnitsPerDp: Float = 1f,
     val renderBackend: RenderBackend = configuredRenderBackend(),
     private val nativeItemOptions: NativeItemOptions = NativeItemOptions(),
+    private val nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
     private val minimumUiDensity: Float = 1f,
     private val theme: OreThemeId = OreThemeId.Default,
     private val content: @Composable () -> Unit,
@@ -32,6 +34,9 @@ class ComposeHudLayer(
     private var layer: ComposeLayer? = null
     internal val session: UiSession?
         get() = layer?.session
+
+    val nativeDrawingStatistics
+        get() = layer?.nativeDrawingStatistics ?: NativeImageStatistics()
 
     val nativeItemStatistics: NativeItemStatistics
         get() = layer?.nativeItemStatistics ?: NativeItemStatistics()
@@ -64,6 +69,7 @@ class ComposeHudLayer(
                         nativeItemOptions,
                         minimumUiDensity,
                         theme = theme,
+                        nativeDrawingOptions = nativeDrawingOptions,
                         // Without input the content never takes focus, or with it Minecraft's text input.
                         windowFocused = { false },
                         content = content,

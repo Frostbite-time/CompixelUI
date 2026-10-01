@@ -1,5 +1,6 @@
 package dev.compixel.forge.item
 
+import dev.compixel.forge.drawing.NativeRefresh
 import net.minecraft.client.Minecraft
 import net.minecraft.client.renderer.item.TrackingItemStackRenderState
 import net.minecraft.util.Mth
@@ -8,12 +9,12 @@ import net.minecraft.world.item.ItemStack
 
 /** Resolves AUTO for newly cached immutable item handles and reports their appearance. */
 internal class NativeIconAnimation {
-    fun resolve(icon: ItemIcon): IconRefresh {
-        if (icon.refresh !== IconRefresh.AUTO) return icon.refresh
-        if (icon.stack.isEmpty) return IconRefresh.GAME_TICK // An opaque custom drawing has no model to inspect.
+    fun resolve(icon: ItemIcon): NativeRefresh {
+        if (icon.refresh !== NativeRefresh.AUTO) return icon.refresh
+        if (icon.stack.isEmpty) return NativeRefresh.GAME_TICK // An opaque custom drawing has no model to inspect.
         // Glint animates continuously; like animated sprites, it redraws once per game tick.
-        if (icon.stack.hasFoil()) return IconRefresh.GAME_TICK
-        return if (resolved(icon.stack).isAnimated) IconRefresh.GAME_TICK else IconRefresh.ON_CHANGE
+        if (icon.stack.hasFoil()) return NativeRefresh.GAME_TICK
+        return if (resolved(icon.stack).isAnimated) NativeRefresh.GAME_TICK else NativeRefresh.ON_CHANGE
     }
 
     /**

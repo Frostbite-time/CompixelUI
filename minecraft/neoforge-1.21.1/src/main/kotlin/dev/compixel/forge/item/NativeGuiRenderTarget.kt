@@ -9,10 +9,14 @@ import dev.compixel.render.CpuDetail
 import dev.compixel.render.GpuPhase
 import dev.compixel.render.gl.OpenGlDestination
 import dev.compixel.render.measureDetail
+import kotlin.math.ceil
+import kotlin.math.floor
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphics
+import net.minecraft.client.gui.navigation.ScreenRectangle
 import org.jetbrains.skia.IRect
 import org.joml.Matrix4f
+import org.joml.Vector3f
 import org.lwjgl.opengl.GL33C.*
 
 /** An owned preparation target for native GUI content, used only on the render thread. */
@@ -100,7 +104,60 @@ internal class NativeGuiRenderTarget(private val backend: ScreenFrameRenderer) :
                     RenderSystem.applyModelViewMatrix()
                     RenderSystem.setShaderColor(1f, 1f, 1f, 1f)
                     Lighting.setupFor3DItems()
-                    val graphics = GuiGraphics(minecraft, minecraft.renderBuffers().bufferSource())
+                    // GuiGraphics normally scissors against the window. This viewport is an offscreen target.
+                    val graphics =
+                        object : GuiGraphics(minecraft, minecraft.renderBuffers().bufferSource()) {
+                            override fun guiWidth() = ceil(guiWidth).toInt()
+
+                            override fun guiHeight() = ceil(guiHeight).toInt()
+
+                            private val clips = ArrayDeque<ScreenRectangle>()
+
+                            override fun enableScissor(minX: Int, minY: Int, maxX: Int, maxY: Int) {
+                                val matrix = pose().last().pose()
+                                val corners =
+                                    arrayOf(
+                                        Vector3f(minX.toFloat(), minY.toFloat(), 0f),
+                                        Vector3f(maxX.toFloat(), minY.toFloat(), 0f),
+                                        Vector3f(minX.toFloat(), maxY.toFloat(), 0f),
+                                        Vector3f(maxX.toFloat(), maxY.toFloat(), 0f),
+                                    )
+                                corners.forEach { matrix.transformPosition(it) }
+                                val left = floor(corners.minOf { it.x }).toInt()
+                                val top = floor(corners.minOf { it.y }).toInt()
+                                val right = ceil(corners.maxOf { it.x }).toInt()
+                                val bottom = ceil(corners.maxOf { it.y }).toInt()
+                                val requested = ScreenRectangle(left, top, right - left, bottom - top)
+                                val parent = clips.lastOrNull()
+                                clips.addLast(
+                                    if (parent == null) requested
+                                    else parent.intersection(requested) ?: ScreenRectangle(0, 0, 0, 0)
+                                )
+                                applyClip()
+                            }
+
+                            override fun disableScissor() {
+                                check(clips.isNotEmpty()) { "Scissor stack underflow" }
+                                clips.removeLast()
+                                applyClip()
+                            }
+
+                            override fun containsPointInScissor(x: Int, y: Int): Boolean =
+                                clips.lastOrNull()?.containsPoint(x, y) ?: true
+
+                            private fun applyClip() {
+                                flush()
+                                val rectangle = clips.lastOrNull()
+                                if (rectangle == null) RenderSystem.disableScissor()
+                                else {
+                                    val left = (rectangle.left() * width / guiWidth).toInt().coerceIn(0, width)
+                                    val top = (rectangle.top() * height / guiHeight).toInt().coerceIn(0, height)
+                                    val right = (rectangle.right() * width / guiWidth).toInt().coerceIn(left, width)
+                                    val bottom = (rectangle.bottom() * height / guiHeight).toInt().coerceIn(top, height)
+                                    RenderSystem.enableScissor(left, height - bottom, right - left, bottom - top)
+                                }
+                            }
+                        }
                     val result = content(graphics)
                     graphics.flush()
                     val drawn = OpenGlDestination(output.frameBufferId, width, height)

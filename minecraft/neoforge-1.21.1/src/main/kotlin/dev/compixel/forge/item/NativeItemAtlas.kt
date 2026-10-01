@@ -2,9 +2,13 @@ package dev.compixel.forge.item
 
 import com.mojang.blaze3d.systems.RenderSystem
 import dev.compixel.bridge.ComposeThread
-import dev.compixel.bridge.NativeIconAtlas
+import dev.compixel.bridge.NativeImageAtlas
+import dev.compixel.bridge.NativeImageMailbox
 import dev.compixel.bridge.NativeImageRegion
+import dev.compixel.forge.drawing.NativeDrawingClock
+import dev.compixel.forge.drawing.scheduled
 import dev.compixel.forge.render.ScreenFrameRenderer
+import kotlin.math.ceil
 import net.minecraft.client.Minecraft
 import org.jetbrains.skia.Image
 
@@ -24,18 +28,18 @@ data class NativeItemStatistics(
 )
 
 /**
- * Draws the shared [NativeIconAtlas] schedule into one native GUI target per page, which keeps the pixels of icons that
- * are not due, and copies a page once after each draw: on the GPU with OpenGL, by readback with the CPU reference
+ * Draws the shared [NativeImageAtlas] schedule into one native GUI target per page, which keeps the pixels of icons
+ * that are not due, and copies a page once after each draw: on the GPU with OpenGL, by readback with the CPU reference
  * renderer. Native model access, preparation and image retirement stay on the render thread.
  */
 internal class NativeItemAtlas(
     private val backend: ScreenFrameRenderer,
-    private val mailbox: ItemImageMailbox,
+    private val mailbox: NativeImageMailbox<ItemIcon>,
     private val options: NativeItemOptions,
 ) : AutoCloseable {
     private val animations = NativeIconAnimation()
     private val targets = ArrayList<NativeGuiRenderTarget?>()
-    private val atlas = NativeIconAtlas(options.cacheCapacity, options.preparationsPerFrame, Pages())
+    private val atlas = NativeImageAtlas(options.cacheCapacity, options.preparationsPerFrame, Pages())
     private var generation = 0L
 
     val statistics
@@ -51,7 +55,7 @@ internal class NativeItemAtlas(
                     it.dynamicVariants,
                     it.animationRefreshes,
                     it.pages,
-                    it.drawnIcons,
+                    it.drawnImages,
                 )
             }
 
@@ -59,7 +63,9 @@ internal class NativeItemAtlas(
         val requests = ComposeThread.call { mailbox.activeRequests() }
         // A fixed image size draws each icon once; icons shown at other sizes resample that image.
         atlas.recorded(
-            options.imageSize?.let { size -> requests.map { NativeIconAtlas.Request(it.icon, size) } } ?: requests
+            options.imageSize?.let { size ->
+                requests.map { NativeImageAtlas.Request(it.icon, NativeImageAtlas.Size(size, size)) }
+            } ?: requests
         )
         generation = frameGeneration
     }
@@ -67,7 +73,7 @@ internal class NativeItemAtlas(
     /** At most one bounded page is prepared per host frame. */
     fun prepare(now: Long): Boolean {
         RenderSystem.assertOnRenderThread()
-        return atlas.prepare(now, NativeIconClock.tick(), Minecraft.getInstance().window.guiScale)
+        return atlas.prepare(now, NativeDrawingClock.tick(), Minecraft.getInstance().window.guiScale)
     }
 
     fun reset() {
@@ -86,9 +92,15 @@ internal class NativeItemAtlas(
         }
     }
 
-    private inner class Pages : NativeIconAtlas.Host<ItemIcon> {
+    private inner class Pages : NativeImageAtlas.Host<ItemIcon> {
         // Both renderers finish the copy before the host frame continues.
         override val immediate = true
+
+        override fun layout(size: NativeImageAtlas.Size, capacity: Int): NativeImageAtlas.Layout {
+            require(size.width == size.height)
+            val gutter = ceil(size.width / 8.0).toInt()
+            return NativeImageAtlas.Layout.grid(size, capacity, gutter, gutter)
+        }
 
         override fun id(icon: ItemIcon) = icon.id
 
@@ -99,14 +111,15 @@ internal class NativeItemAtlas(
         override fun draw(
             page: Int,
             buffer: Int,
-            imageSize: Int,
+            size: NativeImageAtlas.Size,
             width: Int,
             height: Int,
-            icons: List<NativeIconAtlas.Placement<ItemIcon>>,
+            icons: List<NativeImageAtlas.Placement<ItemIcon>>,
         ) {
             while (targets.size <= page) targets += null
             val target = targets[page] ?: NativeGuiRenderTarget(backend).also { targets[page] = it }
             val font = Minecraft.getInstance().font
+            val imageSize = size.width
             val units = 16f / imageSize
             target.draw(width, height, width * units, height * units, cells = icons.map { it.cell }) { graphics ->
                 icons.forEach { placement ->
@@ -114,7 +127,7 @@ internal class NativeItemAtlas(
                     graphics.pose().pushPose()
                     try {
                         // The placement starts on a pixel, where the game draws its own items too.
-                        graphics.pose().translate(placement.x, placement.y, 0f)
+                        graphics.pose().translate(placement.x * units, placement.y * units, 0f)
                         if (icon.drawing == null) {
                             // Held by the local player, as in a container slot; compass and clock models need a holder.
                             graphics.renderItem(icon.stack, 0, 0)
@@ -138,12 +151,11 @@ internal class NativeItemAtlas(
         }
 
         override fun publish(
-            regions: Map<NativeIconAtlas.Variant, NativeImageRegion>,
-            changed: Set<NativeIconAtlas.Variant>,
-            removed: Set<NativeIconAtlas.Variant>,
+            regions: Map<NativeImageAtlas.Variant, NativeImageRegion>,
+            changed: Set<NativeImageAtlas.Variant>,
+            removed: Set<NativeImageAtlas.Variant>,
         ) {
-            mailbox.removeAtlas(removed)
-            mailbox.publishAtlas(regions, changed)
+            mailbox.publish(regions, changed, removed)
         }
 
         override fun clear() = mailbox.clear()

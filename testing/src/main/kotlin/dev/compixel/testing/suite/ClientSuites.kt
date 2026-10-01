@@ -34,6 +34,9 @@ enum class AcceptanceStep(val report: String) {
     PORT_RELOAD("resource reload keeps rendered pixels correct"),
     NATIVE_VISUAL("native item alpha, rotation, shape clipping, occlusion and repeated placement"),
     NATIVE_PARTIAL("an atlas page redraws only its due icon; the cells around it keep their pixels"),
+    NATIVE_DRAWING(
+        "rectangular native drawing: exact layout pixels, native scissor, Compose clip/alpha, refresh, resize, reload and release"
+    ),
     HUD_RENDER(
         "HUD layer: Compose and native item pixels over the world, drawing on beneath a screen that takes the input"
     ),

@@ -26,7 +26,7 @@ internal class NativeItemGuiRenderState : GuiRenderState() {
         prepare: (Int, Set<Any>) -> (GuiItemRenderState) -> BlitRenderState?,
     ) {
         check(!preparedItems)
-        require(imageSize in dev.compixel.bridge.NativeIconAtlas.IMAGE_SIZES)
+        require(imageSize in NativeItemOptions.IMAGE_SIZES)
         val models = HashSet<Any>()
         super.forEachItem { item ->
             val identity = item.itemStackRenderState().modelIdentity

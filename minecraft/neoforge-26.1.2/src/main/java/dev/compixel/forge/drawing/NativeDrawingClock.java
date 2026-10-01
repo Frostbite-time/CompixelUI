@@ -1,4 +1,4 @@
-package dev.compixel.forge.item;
+package dev.compixel.forge.drawing;
 
 import net.minecraft.client.Minecraft;
 import net.neoforged.api.distmarker.Dist;
@@ -9,10 +9,10 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 
 /** Advances after TextureManager.tick, using the same running-level condition as Minecraft. */
 @EventBusSubscriber(modid = "compixel", value = Dist.CLIENT)
-public final class NativeIconClock {
+public final class NativeDrawingClock {
     private static long tick;
 
-    static long tick() {
+    public static long tick() {
         return tick;
     }
 

@@ -1,5 +1,6 @@
 package dev.compixel.bridge
 
+import dev.compixel.render.NativeImageStatistics
 import java.awt.EventQueue
 import kotlin.test.*
 import org.jetbrains.skia.IRect
@@ -7,29 +8,40 @@ import org.jetbrains.skia.Image
 import org.jetbrains.skia.Surface
 import org.junit.jupiter.api.Test
 
-class NativeIconAtlasTest {
-    private class Icon(val id: Long, val refresh: NativeIconRefresh = NativeIconRefresh.STATIC)
+class NativeImageAtlasTest {
+    private class Icon(val id: Long, val refresh: NativeImageRefresh = NativeImageRefresh.STATIC)
 
     private class Draw(
         val page: Int,
         val buffer: Int,
-        val imageSize: Int,
+        val size: NativeImageAtlas.Size,
         val width: Int,
         val height: Int,
-        val icons: List<NativeIconAtlas.Placement<Icon>>,
+        val icons: List<NativeImageAtlas.Placement<Icon>>,
     )
 
-    private class Host(override val immediate: Boolean = true) : NativeIconAtlas.Host<Icon> {
+    private class Host(override val immediate: Boolean = true, private val surfaces: Boolean = false) :
+        NativeImageAtlas.Host<Icon> {
         val draws = mutableListOf<Draw>()
         val snapshots = mutableListOf<Image>()
         /** Snapshot indices; closed Skia images compare equal, so identity is tracked here. */
         val released = mutableListOf<Int>()
         val discarded = mutableListOf<Int>()
-        val published = HashMap<NativeIconAtlas.Variant, NativeImageRegion>()
-        val changes = mutableListOf<Set<NativeIconAtlas.Variant>>()
+        val published = HashMap<NativeImageAtlas.Variant, NativeImageRegion>()
+        val changes = mutableListOf<Set<NativeImageAtlas.Variant>>()
         val appearances = HashMap<Long, Any>()
         val appearanceCalls = HashMap<Long, Int>()
         var copyReady = true
+
+        override fun layout(size: NativeImageAtlas.Size, capacity: Int) =
+            if (surfaces) NativeImageAtlas.Layout.single(size)
+            else
+                NativeImageAtlas.Layout.grid(
+                    size,
+                    capacity,
+                    kotlin.math.ceil(size.width / 8.0).toInt(),
+                    kotlin.math.ceil(size.height / 8.0).toInt(),
+                )
 
         override fun id(icon: Icon) = icon.id
 
@@ -43,12 +55,12 @@ class NativeIconAtlasTest {
         override fun draw(
             page: Int,
             buffer: Int,
-            imageSize: Int,
+            size: NativeImageAtlas.Size,
             width: Int,
             height: Int,
-            icons: List<NativeIconAtlas.Placement<Icon>>,
+            icons: List<NativeImageAtlas.Placement<Icon>>,
         ) {
-            draws += Draw(page, buffer, imageSize, width, height, icons)
+            draws += Draw(page, buffer, size, width, height, icons)
         }
 
         override fun snapshot(page: Int, buffer: Int, width: Int, height: Int): Image? {
@@ -72,9 +84,9 @@ class NativeIconAtlasTest {
         }
 
         override fun publish(
-            regions: Map<NativeIconAtlas.Variant, NativeImageRegion>,
-            changed: Set<NativeIconAtlas.Variant>,
-            removed: Set<NativeIconAtlas.Variant>,
+            regions: Map<NativeImageAtlas.Variant, NativeImageRegion>,
+            changed: Set<NativeImageAtlas.Variant>,
+            removed: Set<NativeImageAtlas.Variant>,
         ) {
             check(EventQueue.isDispatchThread())
             check(changed.all { it in regions }) { "A changed variant needs its new region" }
@@ -91,43 +103,46 @@ class NativeIconAtlasTest {
         fun drawnIds(draw: Int) = draws[draw].icons.map { it.icon.id }
 
         /** Published icon ids of one image size. */
-        fun ids(size: Int = 16) = published.keys.filter { it.imageSize == size }.mapTo(HashSet()) { it.id }
+        fun ids(size: Int = 16) =
+            published.keys.filter { it.size == NativeImageAtlas.Size(size, size) }.mapTo(HashSet()) { it.id }
 
         fun image(id: Long, size: Int = 16) = snapshots.indexOfFirst {
-            it === published.getValue(NativeIconAtlas.Variant(id, size)).image
+            it === published.getValue(NativeImageAtlas.Variant(id, NativeImageAtlas.Size(size, size))).image
         }
 
         fun region(id: Long, size: Int = 16) =
-            published.getValue(NativeIconAtlas.Variant(id, size)).source.let {
+            published.getValue(NativeImageAtlas.Variant(id, NativeImageAtlas.Size(size, size))).source.let {
                 listOf(it.left, it.top, it.right, it.bottom)
             }
 
         fun changedIds(change: Int) = changes[change].mapTo(HashSet()) { it.id }
     }
 
-    private fun icons(count: Int, refresh: NativeIconRefresh = NativeIconRefresh.STATIC) =
+    private fun icons(count: Int, refresh: NativeImageRefresh = NativeImageRefresh.STATIC) =
         List(count) { Icon(it.toLong(), refresh) }
 
-    private fun at(icons: List<Icon>, size: Int = 16) = icons.map { NativeIconAtlas.Request(it, size) }
+    private fun at(icons: List<Icon>, size: Int = 16) = icons.map {
+        NativeImageAtlas.Request(it, NativeImageAtlas.Size(size, size))
+    }
 
-    private fun NativeIconAtlas<Icon>.prepare(now: Long = 0, tick: Long = 0, guiScale: Double = 1.0) =
+    private fun NativeImageAtlas<Icon>.prepare(now: Long = 0, tick: Long = 0, guiScale: Double = 1.0) =
         prepare(now, tick, guiScale)
 
     @Test
     fun layoutFitsTheBudgetAndCellsShareTheirEdges() {
         val host = Host()
-        val atlas = NativeIconAtlas(128, 64, host)
+        val atlas = NativeImageAtlas(128, 64, host)
         assertEquals(64, atlas.pageCapacity)
         assertEquals(1, atlas.buffers)
         atlas.recorded(at(icons(2), 64))
         assertTrue(atlas.prepare())
-        assertEquals(64, host.draws[0].imageSize)
+        assertEquals(64, host.draws[0].size.width)
         assertEquals(576 to 576, host.draws[0].width to host.draws[0].height)
         assertEquals(IRect.makeLTRB(72, 0, 144, 72), host.draws[0].icons[1].cell)
-        assertEquals(18f to 0f, host.draws[0].icons[1].let { it.x to it.y })
+        assertEquals(72f to 0f, host.draws[0].icons[1].let { it.x to it.y })
         // The page size follows the frame budget, not the cache.
         val deferred = Host(immediate = false)
-        val small = NativeIconAtlas(1, 10, deferred)
+        val small = NativeImageAtlas(1, 10, deferred)
         assertEquals(10, small.pageCapacity)
         assertEquals(2, small.buffers)
         small.recorded(at(icons(10), 20))
@@ -139,7 +154,7 @@ class NativeIconAtlasTest {
         assertEquals(cells[0].bottom, cells[4].top)
         assertEquals(IRect.makeLTRB(69, 0, 92, 23), cells[3])
         assertEquals(69, cells[8].bottom)
-        assertEquals(18.4f to 18.4f, deferred.draws[0].icons[5].let { it.x to it.y })
+        assertEquals(23f to 23f, deferred.draws[0].icons[5].let { it.x to it.y })
         assertTrue(small.prepare())
         assertEquals(listOf(23f, 23f, 43f, 43f), deferred.region(5, 20))
         atlas.close()
@@ -149,11 +164,11 @@ class NativeIconAtlasTest {
     @Test
     fun everyVisibleIconGetsItsRegionAndStaticPagesAreDrawnOnce() {
         val host = Host()
-        val atlas = NativeIconAtlas(8, 4, host)
+        val atlas = NativeImageAtlas(8, 4, host)
         atlas.recorded(at(icons(6), 64))
         assertTrue(atlas.prepare(guiScale = 2.0))
         assertEquals(listOf(0L, 1, 2, 3), host.drawnIds(0))
-        assertEquals(listOf(0f to 0f, 18f to 0f, 0f to 18f, 18f to 18f), host.draws[0].icons.map { it.x to it.y })
+        assertEquals(listOf(0f to 0f, 72f to 0f, 0f to 72f, 72f to 72f), host.draws[0].icons.map { it.x to it.y })
         assertTrue(atlas.prepare(guiScale = 2.0))
         assertEquals(1, host.draws[1].page)
         assertEquals(listOf(4L, 5), host.drawnIds(1))
@@ -165,15 +180,15 @@ class NativeIconAtlasTest {
         assertEquals(0, host.image(3, 64))
         assertEquals(listOf(72f, 0f, 136f, 64f), host.region(5, 64))
         assertEquals(1, host.image(5, 64))
-        assertEquals(NativeIconAtlas.Statistics(6, 6, 0, 2, 0, 0, 0, 2, 6), atlas.statistics)
+        assertEquals(NativeImageStatistics(6, 6, 0, 2, 0, 0, 0, 2, 6), atlas.statistics)
         atlas.close()
     }
 
     @Test
     fun onlyDueIconsAreDrawnAndTheRestMoveToTheNewImage() {
         val host = Host()
-        val atlas = NativeIconAtlas(8, 4, host)
-        atlas.recorded(at(listOf(Icon(0, NativeIconRefresh.FRAME)) + icons(4).drop(1)))
+        val atlas = NativeImageAtlas(8, 4, host)
+        atlas.recorded(at(listOf(Icon(0, NativeImageRefresh.FRAME)) + icons(4).drop(1)))
         assertTrue(atlas.prepare())
         repeat(2) { assertTrue(atlas.prepare()) }
         assertEquals(listOf(listOf(0L, 1, 2, 3), listOf(0L), listOf(0L)), host.draws.indices.map(host::drawnIds))
@@ -181,15 +196,15 @@ class NativeIconAtlasTest {
         // Static icons keep their pixels on the page, so they follow each new image without changing.
         assertEquals((0L until 4).associateWith { 2 }, (0L until 4).associateWith { host.image(it) })
         assertEquals(listOf(0, 1), host.released)
-        assertEquals(NativeIconAtlas.Statistics(4, 4, 0, 3, 2, 1, 2, 1, 6), atlas.statistics)
+        assertEquals(NativeImageStatistics(4, 4, 0, 3, 2, 1, 2, 1, 6), atlas.statistics)
         atlas.close()
     }
 
     @Test
     fun animatedPagesRotateSoNoIconStarves() {
         val host = Host()
-        val atlas = NativeIconAtlas(16, 4, host)
-        atlas.recorded(at(icons(16, NativeIconRefresh.FRAME)))
+        val atlas = NativeImageAtlas(16, 4, host)
+        atlas.recorded(at(icons(16, NativeImageRefresh.FRAME)))
         repeat(12) { atlas.prepare() }
         val drawn = host.draws.flatMap { draw -> draw.icons.map { it.icon.id } }.groupingBy { it }.eachCount()
         assertEquals((0L until 16).associateWith { 3 }, drawn)
@@ -202,20 +217,20 @@ class NativeIconAtlasTest {
     @Test
     fun demandBeyondTheCacheAddsPages() {
         val host = Host()
-        val atlas = NativeIconAtlas(2, 2, host)
+        val atlas = NativeImageAtlas(2, 2, host)
         atlas.recorded(at(icons(5)))
         repeat(3) { assertTrue(atlas.prepare()) }
         assertFalse(atlas.prepare())
         assertEquals(listOf(0, 1, 2), host.draws.map { it.page })
         assertEquals((0L until 5).toSet(), host.ids())
-        assertEquals(NativeIconAtlas.Statistics(5, 5, 0, 3, 0, 0, 0, 3, 5), atlas.statistics)
+        assertEquals(NativeImageStatistics(5, 5, 0, 3, 0, 0, 0, 3, 5), atlas.statistics)
         atlas.close()
     }
 
     @Test
     fun hiddenIconsStayCachedUntilTheCacheIsFull() {
         val host = Host()
-        val atlas = NativeIconAtlas(2, 2, host)
+        val atlas = NativeImageAtlas(2, 2, host)
         val (a, b, c) = icons(3)
         atlas.recorded(at(listOf(a, b)))
         atlas.prepare()
@@ -240,7 +255,7 @@ class NativeIconAtlasTest {
     @Test
     fun trimmedPagesAreDiscardedAndReused() {
         val host = Host()
-        val atlas = NativeIconAtlas(2, 2, host)
+        val atlas = NativeImageAtlas(2, 2, host)
         atlas.recorded(at(icons(6)))
         repeat(3) { atlas.prepare() }
         // The atlas keeps as many icons as are demanded, or the cache's worth if fewer are.
@@ -268,8 +283,8 @@ class NativeIconAtlasTest {
     @Test
     fun deferredHostsPublishOnTheNextFrameAndAlternateBuffers() {
         val host = Host(immediate = false)
-        val atlas = NativeIconAtlas(4, 2, host)
-        atlas.recorded(at(icons(4, NativeIconRefresh.FRAME)))
+        val atlas = NativeImageAtlas(4, 2, host)
+        atlas.recorded(at(icons(4, NativeImageRefresh.FRAME)))
         assertFalse(atlas.prepare())
         assertTrue(host.published.isEmpty())
         assertTrue(atlas.prepare())
@@ -283,7 +298,7 @@ class NativeIconAtlasTest {
     @Test
     fun deferredCopiesHoldTheirPageUntilComplete() {
         val host = Host(immediate = false)
-        val atlas = NativeIconAtlas(4, 2, host)
+        val atlas = NativeImageAtlas(4, 2, host)
         atlas.recorded(at(icons(4)))
         assertFalse(atlas.prepare())
         host.copyReady = false
@@ -302,8 +317,8 @@ class NativeIconAtlasTest {
     @Test
     fun changedAppearancesRedrawOnlyTheirIconAndAreComparedOncePerTick() {
         val host = Host()
-        val atlas = NativeIconAtlas(8, 4, host)
-        val changing = icons(8, NativeIconRefresh.ON_CHANGE)
+        val atlas = NativeImageAtlas(8, 4, host)
+        val changing = icons(8, NativeImageRefresh.ON_CHANGE)
         changing.forEach { host.appearances[it.id] = "still" }
         atlas.recorded(at(changing))
         repeat(2) { assertTrue(atlas.prepare()) }
@@ -322,9 +337,9 @@ class NativeIconAtlasTest {
     @Test
     fun dueRulesFollowTicksIntervalsAndGuiScale() {
         val host = Host()
-        val atlas = NativeIconAtlas(3, 1, host)
-        val ticking = Icon(0, NativeIconRefresh.GAME_TICK)
-        val timed = Icon(1, NativeIconRefresh.every(100))
+        val atlas = NativeImageAtlas(3, 1, host)
+        val ticking = Icon(0, NativeImageRefresh.GAME_TICK)
+        val timed = Icon(1, NativeImageRefresh.every(100))
         val still = Icon(2)
         atlas.recorded(at(listOf(ticking, timed, still)))
         repeat(3) { atlas.prepare(0, 7, 2.0) }
@@ -344,7 +359,7 @@ class NativeIconAtlasTest {
     @Test
     fun eachImageSizeHasItsOwnPagesAndRegions() {
         val host = Host()
-        val atlas = NativeIconAtlas(8, 4, host)
+        val atlas = NativeImageAtlas(8, 4, host)
         val (a, b) = icons(2)
         // An icon shown at two sizes has two variants, each drawn at its own size.
         atlas.recorded(at(listOf(a, b), 32) + at(listOf(a), 48))
@@ -355,19 +370,19 @@ class NativeIconAtlasTest {
         assertEquals(listOf(0f, 0f, 32f, 32f), host.region(0, 32))
         assertEquals(listOf(36f, 0f, 68f, 32f), host.region(1, 32))
         assertEquals(listOf(0f, 0f, 48f, 48f), host.region(0, 48))
-        assertEquals(NativeIconAtlas.Statistics(3, 3, 0, 2, 0, 0, 0, 2, 3), atlas.statistics)
+        assertEquals(NativeImageStatistics(3, 3, 0, 2, 0, 0, 0, 2, 3), atlas.statistics)
         atlas.close()
     }
 
     @Test
     fun aNewSizeSettlesAndTheOldImageStaysUntilItIsDrawn() {
         val host = Host()
-        val atlas = NativeIconAtlas(1, 4, host)
+        val atlas = NativeImageAtlas(1, 4, host)
         val icon = Icon(0)
         atlas.recorded(at(listOf(icon), 32))
         assertTrue(atlas.prepare())
         atlas.recorded(at(listOf(icon), 48))
-        repeat(NativeIconAtlas.SETTLE_FRAMES) { assertFalse(atlas.prepare()) }
+        repeat(NativeImageAtlas.SETTLE_FRAMES) { assertFalse(atlas.prepare()) }
         assertEquals(1, host.draws.size)
         // Until the new size is drawn, the old image stays published, although the cache holds one variant.
         assertEquals(setOf(0L), host.ids(32))
@@ -386,7 +401,7 @@ class NativeIconAtlasTest {
     @Test
     fun aSizeThatChangesEveryFrameIsDrawnOnceItSettles() {
         val host = Host()
-        val atlas = NativeIconAtlas(8, 4, host)
+        val atlas = NativeImageAtlas(8, 4, host)
         val icon = Icon(0)
         atlas.recorded(at(listOf(icon), 32))
         assertTrue(atlas.prepare())
@@ -396,19 +411,18 @@ class NativeIconAtlasTest {
         }
         assertEquals(1, host.draws.size)
         // The last size has been demanded for one frame already.
-        repeat(NativeIconAtlas.SETTLE_FRAMES - 1) { assertFalse(atlas.prepare()) }
+        repeat(NativeImageAtlas.SETTLE_FRAMES - 1) { assertFalse(atlas.prepare()) }
         assertTrue(atlas.prepare())
         assertEquals(listOf(0L), host.drawnIds(1))
         assertEquals(setOf(0L), host.ids(40))
-        assertEquals(listOf(16, 40, 256), listOf(8, 40, 400).map { NativeIconAtlas.imageSize(it) })
         atlas.close()
     }
 
     @Test
     fun resetAndCloseReleaseEveryPageImage() {
         val host = Host()
-        val atlas = NativeIconAtlas(8, 4, host)
-        atlas.recorded(at(icons(8, NativeIconRefresh.FRAME)))
+        val atlas = NativeImageAtlas(8, 4, host)
+        atlas.recorded(at(icons(8, NativeImageRefresh.FRAME)))
         repeat(5) { atlas.prepare() }
         assertEquals(5, host.snapshots.size)
         assertEquals(listOf(0, 1, 2), host.released)
@@ -424,5 +438,68 @@ class NativeIconAtlasTest {
         assertEquals(listOf(0, 1, 0, 1), host.discarded)
         with(atlas.statistics) { assertEquals(preparedImages, retiredImages) }
         assertFailsWith<IllegalStateException> { atlas.prepare() }
+    }
+
+    @Test
+    fun rectangularSurfacesShareOneBudgetAndKeepTheirActualDimensions() {
+        val host = Host(surfaces = true)
+        val atlas = NativeImageAtlas(0, 3, host, pagesPerFrame = 3)
+        val dimensions = listOf(320 to 80, 80 to 320, 512 to 96, 100 to 40)
+        atlas.recorded(
+            dimensions.mapIndexed { index, (width, height) ->
+                NativeImageAtlas.Request(
+                    Icon(index.toLong(), NativeImageRefresh.FRAME),
+                    NativeImageAtlas.Size(width, height),
+                )
+            }
+        )
+        assertTrue(atlas.prepare())
+        assertEquals(3, host.draws.size)
+        assertEquals(3, host.draws.map { it.icons.single().icon.id }.toSet().size)
+        host.draws.forEach { drawing ->
+            assertEquals(drawing.size.width, drawing.width)
+            assertEquals(drawing.size.height, drawing.height)
+            assertEquals(0f to 0f, drawing.icons.single().let { it.x to it.y })
+        }
+        assertTrue(atlas.prepare())
+        assertEquals(6, host.draws.size)
+        assertTrue(host.draws.drop(3).any { it.icons.single().icon.id == 3L })
+        atlas.recorded(emptyList())
+        atlas.prepare()
+        assertTrue(host.published.isEmpty())
+        assertEquals(0, atlas.statistics.pages)
+        atlas.close()
+        assertEquals(atlas.statistics.preparedImages, atlas.statistics.retiredImages)
+    }
+
+    @Test
+    fun independentDeferredTargetsWaitForTheirCopiesAndRetireOnReset() {
+        val host = Host(immediate = false, surfaces = true)
+        val atlas = NativeImageAtlas(0, 2, host, pagesPerFrame = 2)
+        atlas.recorded(
+            listOf(
+                NativeImageAtlas.Request(Icon(1), NativeImageAtlas.Size(300, 90)),
+                NativeImageAtlas.Request(Icon(2), NativeImageAtlas.Size(90, 300)),
+            )
+        )
+        assertFalse(atlas.prepare())
+        assertEquals(2, host.draws.size)
+        host.copyReady = false
+        assertFalse(atlas.prepare())
+        assertEquals(2, host.draws.size)
+        host.copyReady = true
+        assertTrue(atlas.prepare())
+        assertEquals(
+            setOf(NativeImageAtlas.Size(300, 90), NativeImageAtlas.Size(90, 300)),
+            host.published.keys.map { it.size }.toSet(),
+        )
+        host.published.forEach { (variant, region) ->
+            assertEquals(variant.size.width.toFloat(), region.source.width)
+            assertEquals(variant.size.height.toFloat(), region.source.height)
+        }
+        atlas.reset()
+        assertTrue(host.published.isEmpty())
+        assertEquals(2, host.released.size)
+        atlas.close()
     }
 }

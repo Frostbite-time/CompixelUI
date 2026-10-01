@@ -23,6 +23,8 @@ val identicalSuiteFiles =
         "SuiteHud.kt",
         "ClientBenchmarkProbe.kt",
         "NativeTooltipProbe.kt",
+        "render/NativeDrawingVisualScreen.kt",
+        "render/NativeDrawingBenchmark.kt",
     )
 val adapterSuiteFiles =
     listOf(

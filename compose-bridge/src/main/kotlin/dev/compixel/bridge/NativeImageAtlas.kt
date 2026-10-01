@@ -1,5 +1,7 @@
 package dev.compixel.bridge
 
+import dev.compixel.render.NativeImageOwner
+import dev.compixel.render.NativeImageStatistics
 import kotlin.math.ceil
 import kotlin.math.sqrt
 import org.jetbrains.skia.IRect
@@ -10,7 +12,7 @@ import org.jetbrains.skia.Rect
 class NativeImageRegion(val image: Image, val source: Rect)
 
 /** A resolved redraw policy. Adapters resolve automatic policies before an icon is scheduled. */
-class NativeIconRefresh private constructor(val kind: Kind, val intervalMillis: Long) {
+class NativeImageRefresh private constructor(val kind: Kind, val intervalMillis: Long) {
     enum class Kind {
         STATIC,
         GAME_TICK,
@@ -19,53 +21,86 @@ class NativeIconRefresh private constructor(val kind: Kind, val intervalMillis: 
         ON_CHANGE,
     }
 
-    companion object {
-        val STATIC = NativeIconRefresh(Kind.STATIC, 0)
-        val GAME_TICK = NativeIconRefresh(Kind.GAME_TICK, 0)
-        val FRAME = NativeIconRefresh(Kind.FRAME, 0)
-        /** Redraws when [NativeIconAtlas.Host.appearance] changes, comparing it once per game tick. */
-        val ON_CHANGE = NativeIconRefresh(Kind.ON_CHANGE, 0)
+    /** Shared refresh decision; owners handle request/size/resource invalidation before consulting this policy. */
+    fun isDue(
+        now: Long,
+        drawnAt: Long,
+        tick: Long = 0,
+        drawnTick: Long = 0,
+        frame: Long = 0,
+        drawnFrame: Long = 0,
+        appearanceChanged: Boolean = false,
+    ): Boolean =
+        when (kind) {
+            Kind.STATIC -> false
+            Kind.GAME_TICK -> tick != drawnTick
+            Kind.FRAME -> frame != drawnFrame
+            Kind.INTERVAL -> now - drawnAt >= intervalMillis * 1_000_000L
+            Kind.ON_CHANGE -> appearanceChanged
+        }
 
-        fun every(millis: Long): NativeIconRefresh {
-            require(millis > 0) { "Icon refresh interval must be positive" }
-            return NativeIconRefresh(Kind.INTERVAL, millis)
+    companion object {
+        val STATIC = NativeImageRefresh(Kind.STATIC, 0)
+        val GAME_TICK = NativeImageRefresh(Kind.GAME_TICK, 0)
+        val FRAME = NativeImageRefresh(Kind.FRAME, 0)
+        /** Redraws when [NativeImageAtlas.Host.appearance] changes, comparing it once per game tick. */
+        val ON_CHANGE = NativeImageRefresh(Kind.ON_CHANGE, 0)
+
+        fun every(millis: Long): NativeImageRefresh {
+            require(millis > 0) { "Native refresh interval must be positive" }
+            return NativeImageRefresh(Kind.INTERVAL, millis)
         }
     }
 }
 
 /**
- * Schedules native icons into atlas pages; the [Host] owns every Minecraft and GPU operation.
- *
- * Icons are requested at an image size, the pixels drawn for their 16 GUI units: normally the pixels an icon occupies
- * on screen, so it is sampled pixel for pixel. An icon shown at two sizes has two variants, and a page holds variants
- * of one size. Every image starts on a whole page pixel, as the game's own items start on a screen pixel. A new size of
- * an icon that already has an image waits until it has been demanded for [SETTLE_FRAMES] frames, so a size that changes
- * every frame, as in an animation, is not drawn at every step. Until the new size is drawn, the icon's other images
- * stay cached, so the host can show the nearest one.
- *
- * Every demanded variant gets a slot, and pages are added as demand grows. The atlas keeps `cacheCapacity` variants, or
- * every demanded variant when more are demanded: variants no longer demanded stay cached while they fit, so they return
- * without drawing, and otherwise the least recently demanded give up their slots. A page without variants is discarded.
- * Slots remain stable while their variants are cached.
- *
- * The host keeps every page's pixels. Each [prepare] draws only the due variants of one page into their own cells, at
- * most `preparationsPerFrame` of them, choosing the page whose due variant has waited longest. One snapshot then
- * replaces that page's image: its other variants move to the snapshot with the same pixels, and only the drawn ones are
- * reported as changed. A deferred host publishes a page on a later frame, once its copy is complete, and alternates two
- * buffers. Call every member on the render thread; publication runs on the Compose thread.
+ * Bounded native-image scheduling, caching and publication. Adapters own native drawing and GPU operations. Requests
+ * carry physical width and height; the host chooses a grid or an independent target for each size. Only due cells are
+ * redrawn, and unchanged regions follow the new page snapshot without invalidating Compose. Visible content is retained
+ * regardless of cache capacity, which limits only inactive cached variants. A changed size settles for [SETTLE_FRAMES]
+ * frames while its nearest published image remains available. A bounded number of pages is drawn per prepare call;
+ * deferred snapshots are published before reusing their buffers. All scheduling and retirement runs on the owner
+ * thread; publication runs on the Compose thread.
  */
-class NativeIconAtlas<I : Any>(
+class NativeImageAtlas<I : Any>(
     private val cacheCapacity: Int,
     preparationsPerFrame: Int,
     private val host: Host<I>,
+    private val pagesPerFrame: Int = 1,
 ) : AutoCloseable {
-    /** An icon drawn with [imageSize] pixels for its 16 GUI units. */
-    data class Variant(val id: Long, val imageSize: Int)
-
-    /** [icon] demanded with [imageSize] pixels for its 16 GUI units. */
-    class Request<I : Any>(val icon: I, val imageSize: Int) {
+    /** Exact physical dimensions. Logical/native GUI coordinates belong to the adapter. */
+    data class Size(val width: Int, val height: Int) {
         init {
-            require(imageSize in IMAGE_SIZES)
+            require(width > 0 && height > 0)
+        }
+    }
+
+    data class Variant(val id: Long, val size: Size)
+
+    class Request<I : Any>(val icon: I, val size: Size)
+
+    /** Allocation policy: dense grids for icons, one target for content that requires its own viewport. */
+    class Layout(val columns: Int, val rows: Int, val cellWidth: Int, val cellHeight: Int, val capacity: Int) {
+        init {
+            require(columns > 0 && rows > 0 && cellWidth > 0 && cellHeight > 0 && capacity > 0)
+            require(capacity.toLong() <= columns.toLong() * rows)
+            require(columns.toLong() * cellWidth <= Int.MAX_VALUE && rows.toLong() * cellHeight <= Int.MAX_VALUE)
+        }
+
+        companion object {
+            fun grid(size: Size, capacity: Int, gutterX: Int = 0, gutterY: Int = 0): Layout {
+                require(capacity > 0 && gutterX >= 0 && gutterY >= 0)
+                val columns = ceil(sqrt(capacity.toDouble())).toInt()
+                return Layout(
+                    columns,
+                    (capacity + columns - 1) / columns,
+                    Math.addExact(size.width, gutterX),
+                    Math.addExact(size.height, gutterY),
+                    capacity,
+                )
+            }
+
+            fun single(size: Size) = Layout(1, 1, size.width, size.height, 1)
         }
     }
 
@@ -76,21 +111,18 @@ class NativeIconAtlas<I : Any>(
         fun id(icon: I): Long
 
         /** Resolves the redraw policy once, when [icon] receives a slot. */
-        fun refresh(icon: I): NativeIconRefresh
+        fun refresh(icon: I): NativeImageRefresh
+
+        fun layout(size: Size, capacity: Int): Layout
 
         /**
-         * For [NativeIconRefresh.ON_CHANGE] icons: a value that differs, by [Any.equals], whenever drawing [icon] would
-         * produce different pixels. Called at most once per game tick for each cached icon.
+         * For [NativeImageRefresh.ON_CHANGE] icons: a value that differs, by [Any.equals], whenever drawing [icon]
+         * would produce different pixels. Called at most once per game tick for each cached icon.
          */
         fun appearance(icon: I): Any? = null
 
-        /**
-         * Draws [icons] into [page], whose [width] x [height] pixels stay the same for the page's lifetime and show 16
-         * GUI units with [imageSize] pixels. Only their cells are cleared first; the rest of the page keeps its pixels.
-         * A page drawn for the first time, or again after [discard], starts transparent. A deferred host also starts
-         * copying the page for [snapshot] through [buffer].
-         */
-        fun draw(page: Int, buffer: Int, imageSize: Int, width: Int, height: Int, icons: List<Placement<I>>)
+        /** Draws due cells into a persistent page; placements and dimensions are framebuffer pixels. */
+        fun draw(page: Int, buffer: Int, size: Size, width: Int, height: Int, icons: List<Placement<I>>)
 
         /**
          * Copies the [width] x [height] pixels of [page] into an immutable image; a deferred host returns null until
@@ -118,33 +150,15 @@ class NativeIconAtlas<I : Any>(
         fun clear()
     }
 
-    /**
-     * An icon, the top-left corner of its image in page GUI units, which falls on a whole pixel, and its cell's page
-     * pixels with a top-left origin. A cell spans at least [SLOT_UNITS] GUI units, the image and a gutter for stack
-     * counts and shadows. Neighbouring cells share their edges, so clearing one never touches another.
-     */
+    /** An image, its top-left pixel origin and its exclusive allocation cell. */
     class Placement<I : Any>(val icon: I, val x: Float, val y: Float, val cell: IRect)
-
-    data class Statistics(
-        val activeVariants: Int,
-        val cachedImages: Int,
-        val pendingImages: Int,
-        val preparedImages: Long,
-        val retiredImages: Long,
-        val dynamicVariants: Int,
-        val animationRefreshes: Long,
-        /** Pages currently holding icons. */
-        val pages: Int,
-        /** Icons drawn into their cells since the atlas opened. */
-        val drawnIcons: Long,
-    )
 
     private class Entry<I : Any>(
         val icon: I,
         val variant: Variant,
         val page: Int,
         val slot: Int,
-        val refresh: NativeIconRefresh,
+        val refresh: NativeImageRefresh,
     ) {
         var demandedFrame = 0L
         var drawnFrame = 0L
@@ -157,22 +171,20 @@ class NativeIconAtlas<I : Any>(
         var drawnAppearance: Any? = null
     }
 
-    private class Page<I : Any>(capacity: Int, val imageSize: Int) {
-        val slots = arrayOfNulls<Entry<I>>(capacity)
+    private class Page<I : Any>(val size: Size, val layout: Layout, retire: (Image) -> Unit) {
+        val slots = arrayOfNulls<Entry<I>>(layout.capacity)
         var used = 0
-        var image: Image? = null
+        val owner = NativeImageOwner(retire)
     }
 
     private class Pending<I : Any>(val buffer: Int, val page: Int, val entries: List<Entry<I>>)
 
     init {
-        require(cacheCapacity >= 0 && preparationsPerFrame > 0)
+        require(cacheCapacity >= 0 && preparationsPerFrame > 0 && pagesPerFrame in 1..preparationsPerFrame)
     }
 
     /** Slots per page. A page never holds more icons than one frame may draw. */
     val pageCapacity = preparationsPerFrame
-    private val columns = ceil(sqrt(pageCapacity.toDouble())).toInt()
-    private val rows = (pageCapacity + columns - 1) / columns
     /** Copy buffers a deferred host must provide. */
     val buffers = if (host.immediate) 1 else 2
 
@@ -181,18 +193,18 @@ class NativeIconAtlas<I : Any>(
     private var visible = LinkedHashMap<Variant, I>()
     /** New sizes of icons that already have an image, and the frame since which each has been demanded. */
     private val settling = HashMap<Variant, Long>()
-    private var pending: Pending<I>? = null
+    private val pending = ArrayList<Pending<I>>()
     private var buffer = -1
     private var frame = 0L
     private var prepared = 0L
     private var retired = 0L
     private var animationRefreshes = 0L
-    private var drawnIcons = 0L
+    private var drawnImages = 0L
     private var closed = false
 
     val statistics
         get() =
-            Statistics(
+            NativeImageStatistics(
                 activeVariants = visible.size,
                 cachedImages = visible.keys.count { byVariant[it]?.hasImage == true },
                 pendingImages = visible.keys.count { byVariant[it]?.hasImage != true },
@@ -200,30 +212,36 @@ class NativeIconAtlas<I : Any>(
                 retiredImages = retired,
                 dynamicVariants =
                     visible.keys.count { variant ->
-                        byVariant[variant]?.let { it.hasImage && it.refresh.kind != NativeIconRefresh.Kind.STATIC } ==
+                        byVariant[variant]?.let { it.hasImage && it.refresh.kind != NativeImageRefresh.Kind.STATIC } ==
                             true
                     },
                 animationRefreshes = animationRefreshes,
                 pages = pages.count { it != null },
-                drawnIcons = drawnIcons,
+                drawnImages = drawnImages,
             )
 
     /** Replaces the demanded variants, typically after each recorded Compose frame. */
     fun recorded(requests: List<Request<I>>) {
-        visible = requests.associateByTo(LinkedHashMap(), { Variant(host.id(it.icon), it.imageSize) }, { it.icon })
+        visible = requests.associateByTo(LinkedHashMap(), { Variant(host.id(it.icon), it.size) }, { it.icon })
     }
 
-    /** Draws the due variants of at most one page. Returns true when published regions changed. */
+    /** Draws due variants within the image and page budgets. Returns true when published regions changed. */
     fun prepare(now: Long, tick: Long, guiScale: Double): Boolean {
         check(!closed)
         frame++
         var changed = false
-        pending?.let {
+        if (pending.isNotEmpty()) {
             // The pending page is not redrawn until its copy completes, possibly several frames later.
-            if (!publish(it)) return false
-            pending = null
-            changed = true
+            val iterator = pending.iterator()
+            while (iterator.hasNext()) {
+                if (publish(iterator.next())) {
+                    iterator.remove()
+                    changed = true
+                }
+            }
+            if (pending.isNotEmpty()) return changed
         }
+        if (visible.isEmpty() && byVariant.isEmpty()) return changed
         for (variant in visible.keys) byVariant[variant]?.demandedFrame = frame
         settling.keys.retainAll(visible.keys)
         // Icons still waiting for a demanded size keep their other images, which remain the nearest ones to show.
@@ -239,37 +257,49 @@ class NativeIconAtlas<I : Any>(
             changed = true
         }
 
-        val index = duePage(now, tick, guiScale) ?: return changed
-        val page = checkNotNull(pages[index])
-        val entries = page.slots.filterNotNull().filter { it.variant in visible && due(it, now, tick, guiScale) }
-        buffer = (buffer + 1) % buffers
-        val size = page.imageSize
-        host.draw(
-            index,
-            buffer,
-            size,
-            width(page),
-            height(page),
-            entries.map { entry ->
-                val cell = cell(page, entry.slot)
-                Placement(entry.icon, cell.left * ICON_UNITS / size, cell.top * ICON_UNITS / size, cell)
-            },
-        )
-        drawnIcons += entries.size
-        entries.forEach { entry ->
-            if (entry.hasImage && entry.refresh.kind != NativeIconRefresh.Kind.STATIC) animationRefreshes++
-            entry.drawnFrame = frame
-            entry.drawnAt = now
-            entry.tick = tick
-            entry.guiScale = guiScale
-            if (entry.refresh.kind == NativeIconRefresh.Kind.ON_CHANGE) entry.drawnAppearance = appearance(entry, tick)
+        var remaining = pageCapacity
+        repeat(pagesPerFrame) {
+            val index = duePage(now, tick, guiScale) ?: return changed
+            val page = checkNotNull(pages[index])
+            val entries =
+                page.slots
+                    .filterNotNull()
+                    .filter { it.variant in visible && due(it, now, tick, guiScale) }
+                    .take(remaining)
+            if (entries.isEmpty()) return changed
+            buffer = (buffer + 1) % buffers
+            val size = page.size
+            host.draw(
+                index,
+                buffer,
+                size,
+                width(page),
+                height(page),
+                entries.map { entry ->
+                    val cell = cell(page, entry.slot)
+                    Placement(entry.icon, cell.left.toFloat(), cell.top.toFloat(), cell)
+                },
+            )
+            drawnImages += entries.size
+            entries.forEach { entry ->
+                if (entry.hasImage && entry.refresh.kind != NativeImageRefresh.Kind.STATIC) animationRefreshes++
+                entry.drawnFrame = frame
+                entry.drawnAt = now
+                entry.tick = tick
+                entry.guiScale = guiScale
+                if (entry.refresh.kind == NativeImageRefresh.Kind.ON_CHANGE)
+                    entry.drawnAppearance = appearance(entry, tick)
+            }
+            val next = Pending(buffer, index, entries)
+            if (host.immediate) {
+                check(publish(next)) { "An immediate host must copy its page in the frame that drew it" }
+                changed = true
+            } else {
+                pending += next
+            }
+            remaining -= entries.size
+            if (remaining == 0) return changed
         }
-        val next = Pending(buffer, index, entries)
-        if (host.immediate) {
-            check(publish(next)) { "An immediate host must copy its page in the frame that drew it" }
-            return true
-        }
-        pending = next
         return changed
     }
 
@@ -287,6 +317,7 @@ class NativeIconAtlas<I : Any>(
         var best = -1
         var bestFrame = Long.MAX_VALUE
         pages.forEachIndexed { index, page ->
+            if (pending.any { it.page == index }) return@forEachIndexed
             page?.slots?.forEach { entry ->
                 if (
                     entry != null &&
@@ -304,13 +335,15 @@ class NativeIconAtlas<I : Any>(
 
     private fun due(entry: Entry<I>, now: Long, tick: Long, guiScale: Double): Boolean {
         if (!entry.hasImage || entry.guiScale != guiScale) return true
-        return when (entry.refresh.kind) {
-            NativeIconRefresh.Kind.STATIC -> false
-            NativeIconRefresh.Kind.GAME_TICK -> entry.tick != tick
-            NativeIconRefresh.Kind.FRAME -> entry.drawnFrame != frame
-            NativeIconRefresh.Kind.INTERVAL -> now - entry.drawnAt >= entry.refresh.intervalMillis * 1_000_000L
-            NativeIconRefresh.Kind.ON_CHANGE -> appearance(entry, tick) != entry.drawnAppearance
-        }
+        return entry.refresh.isDue(
+            now,
+            entry.drawnAt,
+            tick,
+            entry.tick,
+            frame,
+            entry.drawnFrame,
+            entry.refresh.kind == NativeImageRefresh.Kind.ON_CHANGE && appearance(entry, tick) != entry.drawnAppearance,
+        )
     }
 
     private fun appearance(entry: Entry<I>, tick: Long): Any? {
@@ -339,13 +372,13 @@ class NativeIconAtlas<I : Any>(
      * variant gives up its slot, which is reused when its page has the same size. Otherwise a new page.
      */
     private fun place(variant: Variant, icon: I, removed: MutableSet<Variant>, waiting: Set<Long>) {
-        var index = pages.indexOfFirst { it != null && it.imageSize == variant.imageSize && it.used < pageCapacity }
+        var index = pages.indexOfFirst { it != null && it.size == variant.size && it.used < it.layout.capacity }
         if (index < 0 && byVariant.size >= maxOf(cacheCapacity, visible.size)) {
             evictable(waiting)
                 .minByOrNull { it.demandedFrame }
                 ?.let {
                     evict(it, removed)
-                    if (checkNotNull(pages[it.page]).imageSize == variant.imageSize) index = it.page
+                    if (checkNotNull(pages[it.page]).size == variant.size) index = it.page
                 }
         }
         if (index < 0) {
@@ -354,7 +387,13 @@ class NativeIconAtlas<I : Any>(
                 index = pages.size
                 pages += null
             }
-            pages[index] = Page(pageCapacity, variant.imageSize)
+            val layout = host.layout(variant.size, pageCapacity)
+            require(
+                layout.capacity <= pageCapacity &&
+                    layout.cellWidth >= variant.size.width &&
+                    layout.cellHeight >= variant.size.height
+            )
+            pages[index] = Page(variant.size, layout, host::release)
         }
         val page = checkNotNull(pages[index])
         val slot = page.slots.indexOfFirst { it == null }
@@ -375,8 +414,8 @@ class NativeIconAtlas<I : Any>(
     private fun discardEmptyPages() {
         pages.forEachIndexed { index, page ->
             if (page == null || page.used > 0) return@forEachIndexed
-            page.image?.let {
-                host.release(it)
+            if (page.owner.image != null) {
+                page.owner.close()
                 retired++
             }
             pages[index] = null
@@ -385,13 +424,18 @@ class NativeIconAtlas<I : Any>(
         while (pages.isNotEmpty() && pages.last() == null) pages.removeAt(pages.lastIndex)
     }
 
-    private fun width(page: Page<*>) = columns * pitch(page.imageSize)
+    private fun width(page: Page<*>) = page.layout.columns * page.layout.cellWidth
 
-    private fun height(page: Page<*>) = rows * pitch(page.imageSize)
+    private fun height(page: Page<*>) = page.layout.rows * page.layout.cellHeight
 
     private fun cell(page: Page<*>, slot: Int): IRect {
-        val pitch = pitch(page.imageSize)
-        return IRect.makeXYWH(slot % columns * pitch, slot / columns * pitch, pitch, pitch)
+        val layout = page.layout
+        return IRect.makeXYWH(
+            slot % layout.columns * layout.cellWidth,
+            slot / layout.columns * layout.cellHeight,
+            layout.cellWidth,
+            layout.cellHeight,
+        )
     }
 
     /** False while a deferred host is still copying [result]. */
@@ -406,34 +450,34 @@ class NativeIconAtlas<I : Any>(
             changed += entry.variant
         }
         // The page kept the pixels of every other variant, so all of them move to the new copy.
-        val size = page.imageSize.toFloat()
+        val size = page.size
         val regions = HashMap<Variant, NativeImageRegion>()
         page.slots.forEach { entry ->
             if (entry == null || !entry.hasImage) return@forEach
             val cell = cell(page, entry.slot)
             regions[entry.variant] =
-                NativeImageRegion(copy, Rect.makeXYWH(cell.left.toFloat(), cell.top.toFloat(), size, size))
+                NativeImageRegion(
+                    copy,
+                    Rect.makeXYWH(cell.left.toFloat(), cell.top.toFloat(), size.width.toFloat(), size.height.toFloat()),
+                )
         }
         ComposeThread.call { host.publish(regions, changed, emptySet()) }
-        page.image?.let {
-            host.release(it)
-            retired++
-        }
-        page.image = copy
+        if (page.owner.image != null) retired++
+        page.owner.replace(copy)
         return true
     }
 
     /** Forgets every slot, releases page images and discards pages, for example after a resource reload. */
     fun reset() {
-        pending = null
+        pending.clear()
         byVariant.clear()
         settling.clear()
         buffer = -1
         ComposeThread.call { host.clear() }
         pages.forEachIndexed { index, page ->
             if (page == null) return@forEachIndexed
-            page.image?.let {
-                host.release(it)
+            if (page.owner.image != null) {
+                page.owner.close()
                 retired++
             }
             host.discard(index)
@@ -449,18 +493,7 @@ class NativeIconAtlas<I : Any>(
     }
 
     companion object {
-        /** GUI units of one cell: 16 for the icon plus a gutter for stack counts and shadows. */
-        const val SLOT_UNITS = 18
-        private const val ICON_UNITS = 16f
-        /** The image sizes an atlas draws. */
-        val IMAGE_SIZES = 16..256
         /** Frames a new size of an already drawn icon must stay demanded before it is drawn. */
         const val SETTLE_FRAMES = 2
-
-        /** The image size for an icon that occupies [pixels] on screen, within [IMAGE_SIZES]. */
-        fun imageSize(pixels: Int): Int = pixels.coerceIn(IMAGE_SIZES)
-
-        /** Whole pixels from one cell to the next, so every image starts on a pixel. */
-        private fun pitch(imageSize: Int) = ceil(SLOT_UNITS * imageSize / ICON_UNITS).toInt()
     }
 }

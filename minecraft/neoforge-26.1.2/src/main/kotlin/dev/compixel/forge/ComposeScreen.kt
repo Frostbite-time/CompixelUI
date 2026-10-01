@@ -1,6 +1,7 @@
 package dev.compixel.forge
 
 import androidx.compose.runtime.Composable
+import dev.compixel.forge.drawing.NativeDrawingOptions
 import dev.compixel.forge.item.NativeItemOptions
 import dev.compixel.forge.item.NativeItemStatistics
 import dev.compixel.forge.item.NativeTooltipStatistics
@@ -28,6 +29,7 @@ open class ComposeScreen(
     guiUnitsPerDp: Float = 1f,
     val renderBackend: RenderBackend = configuredRenderBackend(),
     nativeItemOptions: NativeItemOptions = NativeItemOptions(),
+    nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
     minimumUiDensity: Float = 1f,
     theme: OreThemeId = OreThemeId.Default,
     content: @Composable () -> Unit,
@@ -39,12 +41,16 @@ open class ComposeScreen(
             nativeItemOptions,
             minimumUiDensity,
             theme = theme,
+            nativeDrawingOptions = nativeDrawingOptions,
             windowFocused = { isUiWindowFocused() },
             content = content,
         )
     private var nativeCapture: GuiEventListener? = null
     internal val session
         get() = layer.session
+
+    val nativeDrawingStatistics
+        get() = layer.nativeDrawingStatistics
 
     val nativeItemStatistics: NativeItemStatistics
         get() = layer.nativeItemStatistics

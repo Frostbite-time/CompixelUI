@@ -5,6 +5,7 @@ import com.mojang.blaze3d.systems.RenderSystem
 import com.mojang.blaze3d.textures.FilterMode
 import com.mojang.blaze3d.textures.GpuTexture
 import com.mojang.logging.LogUtils
+import dev.compixel.forge.drawing.NativePictureRenderers
 import dev.compixel.forge.render.FrameRetirement
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
@@ -103,6 +104,36 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
                 width,
                 height,
             )
+    }
+
+    /** A component-local GUI viewport with exact framebuffer scaling, including partial GUI pixels at its edges. */
+    fun renderLocal(buffer: Int, guiScale: Float, draw: (GuiGraphicsExtractor) -> Unit) {
+        RenderSystem.assertOnRenderThread()
+        check(!closed)
+        val window = minecraft.gameRenderer.gameRenderState.windowRenderState
+        val oldWidth = window.width
+        val oldHeight = window.height
+        val oldScale = window.guiScale
+        window.width = imageWidth
+        window.height = imageHeight
+        window.guiScale = guiScale.toInt()
+        try {
+            renderInto(
+                renderer(window.guiScale),
+                1f,
+                1f,
+                { graphics ->
+                    draw(graphics)
+                    true
+                },
+            ) {
+                target(buffer, imageWidth, imageHeight).also(::clear)
+            }
+        } finally {
+            window.width = oldWidth
+            window.height = oldHeight
+            window.guiScale = oldScale
+        }
     }
 
     /** Draws into [buffer] without a readback and returns the measured content, or null to cancel. */
@@ -339,7 +370,7 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
                 minecraft.renderBuffers().bufferSource(),
                 minecraft.gameRenderer.submitNodeStorage,
                 minecraft.gameRenderer.featureRenderDispatcher,
-                emptyList(),
+                NativePictureRenderers.factories(),
             )
         }
 
@@ -356,7 +387,16 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
         output: (T) -> TextureTarget,
     ): T? {
         try {
-            val graphics = GuiGraphicsExtractor(minecraft, state, 0, 0)
+            // The extractor also uses its GUI dimensions to initialize the native scissor stack.
+            val viewport = minecraft.gameRenderer.gameRenderState.windowRenderState
+            val logicalWidth = kotlin.math.ceil(viewport.width.toDouble() / viewport.guiScale).toInt()
+            val logicalHeight = kotlin.math.ceil(viewport.height.toDouble() / viewport.guiScale).toInt()
+            val graphics =
+                object : GuiGraphicsExtractor(minecraft, state, 0, 0) {
+                    override fun guiWidth() = logicalWidth
+
+                    override fun guiHeight() = logicalHeight
+                }
             graphics.pose().scale(scaleX, scaleY)
             val result = draw(graphics)
             if (result != null) {

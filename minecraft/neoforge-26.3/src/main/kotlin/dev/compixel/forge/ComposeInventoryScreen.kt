@@ -1,6 +1,7 @@
 package dev.compixel.forge
 
 import androidx.compose.runtime.Composable
+import dev.compixel.forge.drawing.NativeDrawingOptions
 import dev.compixel.forge.item.NativeItemOptions
 import dev.compixel.forge.slots.ComposeMenuSlots
 import dev.compixel.forge.slots.SlotBehaviorScreen
@@ -28,11 +29,13 @@ open class ComposeInventoryScreen<M : AbstractContainerMenu>(
     val inventory: ComposeMenuSlots<M> = ComposeMenuSlots(container),
     theme: OreThemeId = OreThemeId.Default,
     nativeItemOptions: NativeItemOptions = NativeItemOptions(cacheCapacity = 256),
+    nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
     content: @Composable (ComposeMenuSlots<M>) -> Unit,
 ) : SlotBehaviorScreen<M>(container, checkNotNull(Minecraft.getInstance().player).inventory, title) {
     private val layer =
         ComposeLayer(
             nativeItemOptions = nativeItemOptions,
+            nativeDrawingOptions = nativeDrawingOptions,
             theme = theme,
             windowFocused = { isUiWindowFocused() },
             prepareFrameContent = { inventory.refreshAfterLayout() },
@@ -44,6 +47,9 @@ open class ComposeInventoryScreen<M : AbstractContainerMenu>(
 
     val rendererStatistics
         get() = layer.rendererStatistics
+
+    val nativeDrawingStatistics
+        get() = layer.nativeDrawingStatistics
 
     val nativeItemStatistics
         get() = layer.nativeItemStatistics

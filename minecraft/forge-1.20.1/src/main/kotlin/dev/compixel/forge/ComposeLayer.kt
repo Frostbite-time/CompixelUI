@@ -5,12 +5,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import com.mojang.blaze3d.systems.RenderSystem
 import dev.compixel.bridge.ComposeThread
+import dev.compixel.bridge.NativeImageMailbox
+import dev.compixel.forge.drawing.*
 import dev.compixel.forge.input.ClipboardMailbox
 import dev.compixel.forge.input.CommittedCharacters
 import dev.compixel.forge.input.toModifiers
 import dev.compixel.forge.input.toMouseButton
 import dev.compixel.forge.input.uiKey
-import dev.compixel.forge.item.ItemImageMailbox
+import dev.compixel.forge.item.ItemIcon
 import dev.compixel.forge.item.ItemTooltipMailbox
 import dev.compixel.forge.item.LocalItemImages
 import dev.compixel.forge.item.LocalItemTooltips
@@ -52,6 +54,7 @@ internal class ComposeLayer(
     private val nativeItemOptions: NativeItemOptions = NativeItemOptions(),
     private val minimumUiDensity: Float = 1f,
     private val theme: OreThemeId = OreThemeId.Default,
+    private val nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
     private val windowFocused: () -> Boolean,
     /** Adapter-owned layout-to-snapshot handoff, on the game thread before presentation. */
     private val prepareFrameContent: () -> Boolean = { false },
@@ -65,7 +68,13 @@ internal class ComposeLayer(
     private val pendingOreFeedback = AtomicBoolean()
     private val oreFeedback = OreFeedback { pendingOreFeedback.set(true) }
     private var renderer: ScreenFrameRenderer? = null
-    private val itemMailbox = ComposeThread.call { ItemImageMailbox() }
+    private val itemMailbox = ComposeThread.call { NativeImageMailbox<ItemIcon> { it.id } }
+    private val drawingMailbox = ComposeThread.call { NativeImageMailbox<NativeDrawing> { it.id } }
+    private var nativeDrawings: NativeDrawingRenderer? = null
+    private var closedDrawingStatistics = NativeImageStatistics()
+    val nativeDrawingStatistics
+        get() = nativeDrawings?.statistics ?: closedDrawingStatistics
+
     private val tooltipMailbox = ComposeThread.call { ItemTooltipMailbox() }
     private var nativeItems: NativeItemAtlas? = null
     private var nativeTooltips: NativeTooltipRenderer? = null
@@ -127,6 +136,7 @@ internal class ComposeLayer(
                     UiSession(current.viewport, clipboard) {
                         CompositionLocalProvider(
                             LocalItemImages provides itemMailbox,
+                            LocalNativeDrawings provides drawingMailbox,
                             LocalItemTooltips provides tooltipMailbox,
                         ) {
                             OreThemeResources(themeState.value) {
@@ -136,6 +146,7 @@ internal class ComposeLayer(
                     }
                 renderer = backend
                 nativeItems = NativeItemAtlas(backend, itemMailbox, nativeItemOptions)
+                nativeDrawings = NativeDrawingRenderer(backend, drawingMailbox, nativeDrawingOptions)
                 nativeTooltips = NativeTooltipRenderer(backend, tooltipMailbox)
                 windowFocus = null
             } catch (error: Throwable) {
@@ -213,6 +224,7 @@ internal class ComposeLayer(
                 guiGraphics.flush()
                 val currentResourceEpoch = RendererResources.epoch
                 if (resourceEpoch != currentResourceEpoch) {
+                    nativeDrawings?.reset()
                     items.reset()
                     tooltips.reset()
                     backend.reset()
@@ -226,6 +238,7 @@ internal class ComposeLayer(
                 frameProfiler?.recorded(it.generation)
                 items.recorded(it.generation)
                 tooltips.recorded(it.generation)
+                nativeDrawings?.recorded()
             }
         var frame = frameProfiler.measureCpu(CpuPhase.RECORD) { recordFrame() }
         fun replaceFrame() {
@@ -244,7 +257,9 @@ internal class ComposeLayer(
             val itemsChanged = frameProfiler.measureCpu(CpuPhase.ITEMS) { items.prepare(System.nanoTime()) }
             val tooltipChanged =
                 frameProfiler.measureCpu(CpuPhase.TOOLTIP) { tooltips.prepare(System.nanoTime(), current) }
-            if (itemsChanged || tooltipChanged) replaceFrame()
+            val drawingsChanged =
+                frameProfiler.measureCpu(CpuPhase.ITEMS) { nativeDrawings?.prepare(System.nanoTime(), current) == true }
+            if (itemsChanged || tooltipChanged || drawingsChanged) replaceFrame()
         } catch (error: Throwable) {
             frame?.close()
             throw error
@@ -355,15 +370,26 @@ internal class ComposeLayer(
                 } finally {
                     nativeTooltips = null
                     try {
-                        renderer?.let { backend ->
+                        nativeDrawings?.let { drawings ->
                             try {
-                                backend.close()
+                                drawings.close()
                             } finally {
-                                closedStatistics = backend.statistics
+                                closedDrawingStatistics = drawings.statistics
                             }
                         }
                     } finally {
-                        renderer = null
+                        nativeDrawings = null
+                        try {
+                            renderer?.let { backend ->
+                                try {
+                                    backend.close()
+                                } finally {
+                                    closedStatistics = backend.statistics
+                                }
+                            }
+                        } finally {
+                            renderer = null
+                        }
                     }
                 }
             }

@@ -63,6 +63,8 @@ Game objects stay on the game thread. Compose sees immutable snapshots and sends
 
 GPU images that Compose draws, such as item icon pages, belong to the render thread. Pictures recorded by Compose keep references to them, so the renderer frees an image only after those references are gone. Freeing it on another thread would lose its GPU memory.
 
+`NativeImageAtlas` in `compose-bridge` schedules rectangular image requests. Item adapters choose atlas grids; custom native drawings choose independent viewports. The Compose mailbox and image node are shared. `NativeImageOwner` retires published images through the renderer, including tooltip images; native tooltip measurement and loader events remain in each adapter.
+
 ## Packaging
 
 - The mod JAR contains every CompixelUI module and no third-party code.
@@ -73,7 +75,7 @@ GPU images that Compose draws, such as item icon pages, belong to the render thr
 
 ## Hooks into the game
 
-Public loader APIs come first. Beyond them, each adapter declares small access transformers: slot coordinates on every version, plus the slot render hook on 1.20.1, and the container size, slot highlight methods and GPU backend fields on 26.x. The 26.x adapters also contain one Mixin that sends `GuiRenderer` output to an offscreen target while item icons and tooltips are captured. Build checks reject anything not declared.
+Public loader APIs come first. Beyond them, each adapter declares small access transformers: slot coordinates on every version, plus the slot render hook on 1.20.1, and the container size, slot highlight methods, registered native preview factories and GPU backend fields on 26.x. The 26.x adapters also contain one Mixin that sends `GuiRenderer` output to an offscreen target while native drawings, item icons and tooltips are captured. Build checks reject anything not declared.
 
 ## Adding a Minecraft version
 

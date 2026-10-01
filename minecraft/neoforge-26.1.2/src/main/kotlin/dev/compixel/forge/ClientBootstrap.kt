@@ -17,6 +17,7 @@ internal object ClientBootstrap {
         NeoForge.EVENT_BUS.addListener(FrameRetirement::shutdown)
         NeoForge.EVENT_BUS.addListener(::leaveWorld)
         modEventBus.addListener(::registerReloadListeners)
+        modEventBus.addListener(dev.compixel.forge.drawing.NativePictureRenderers::registered)
     }
 
     private fun registerReloadListeners(event: AddClientReloadListenersEvent) {

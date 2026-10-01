@@ -92,6 +92,7 @@ dependencies {
 
 verifyMinecraftArtifacts(artifacts, [
     'public-f net.minecraft.world.inventory.Slot x',
+    'public net.neoforged.neoforge.client.event.RegisterPictureInPictureRenderersEvent renderers',
     'public-f net.minecraft.world.inventory.Slot y',
     'protected-f net.minecraft.client.gui.screens.inventory.AbstractContainerScreen imageWidth',
     'protected-f net.minecraft.client.gui.screens.inventory.AbstractContainerScreen imageHeight',

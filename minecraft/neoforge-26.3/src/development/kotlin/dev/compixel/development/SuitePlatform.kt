@@ -37,6 +37,21 @@ internal typealias SuiteComposeScreen = ComposeScreen
 
 /** Every Minecraft 26.3 / NeoForge call the shared suite code needs, in one reviewable place. */
 internal object SuitePlatform {
+    fun nativeDrawingPreview(context: dev.compixel.forge.drawing.NativeDrawingContext) {
+        net.minecraft.client.gui.screens.inventory.InventoryScreen.renderEntityInInventoryFollowsAngle(
+            context.graphics,
+            0,
+            0,
+            context.width,
+            context.height,
+            context.height / 3,
+            0f,
+            0f,
+            0f,
+            checkNotNull(Minecraft.getInstance().player),
+        )
+    }
+
     const val MINECRAFT = "26.3"
     const val LOADER = "NeoForge"
     // SDL numbers mouse buttons from 1 and keys by scancode.

@@ -13,7 +13,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.compixel.bridge.ComposeThread
-import dev.compixel.forge.item.IconRefresh
+import dev.compixel.forge.drawing.NativeRefresh
 import dev.compixel.forge.item.ItemIcon
 import dev.compixel.forge.item.MinecraftItemIcon
 import dev.compixel.forge.render.ScreenMetrics
@@ -113,7 +113,7 @@ open class VanillaMenuSlotAdapter(private val menu: AbstractContainerMenu) : Men
                         Minecraft.getInstance().getTextureAtlas(sprite.first).apply(sprite.second),
                     )
                 },
-                IconRefresh.STATIC,
+                NativeRefresh.STATIC,
             )
         emptyIcons[slot.index] = sprite to icon
         return icon

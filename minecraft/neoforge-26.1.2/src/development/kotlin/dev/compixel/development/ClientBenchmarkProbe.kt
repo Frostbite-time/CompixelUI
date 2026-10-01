@@ -47,6 +47,7 @@ internal class ClientBenchmarkProbe {
     private var firstMeasured = 0L
     private var lastMeasured = 0L
     private var refreshesAtSampleStart = 0L
+    private var drawingRefreshesAtSampleStart = 0L
     private var hiddenFrames = 0
     private var focusedFrames = 0
     private var reload: CompletableFuture<Void>? = null
@@ -215,6 +216,7 @@ internal class ClientBenchmarkProbe {
         if (frames == warmup) {
             firstMeasured = profiler.lastFrameId + 1
             refreshesAtSampleStart = active.nativeItemStatistics.animationRefreshes
+            drawingRefreshesAtSampleStart = active.nativeDrawingStatistics.animationRefreshes
         }
         if (frames == warmup + samples) lastMeasured = profiler.lastFrameId
         if (frames <= warmup + samples) active.advance()
@@ -236,6 +238,8 @@ internal class ClientBenchmarkProbe {
             items.activeVariants,
             items.dynamicVariants,
             items.animationRefreshes - refreshesAtSampleStart,
+            active.nativeDrawingStatistics.cachedImages,
+            (active.nativeDrawingStatistics.animationRefreshes) - drawingRefreshesAtSampleStart,
         )
         val stem = "${repeat + 1}-${case.name}"
         BenchmarkRecords.writeCsv(File(session.output, "$stem.csv"), rows)
@@ -261,6 +265,7 @@ internal class ClientBenchmarkProbe {
                 "metrics" to metrics,
                 "renderer" to active.rendererStatistics,
                 "nativeItems" to items,
+                "nativeDrawings" to active.nativeDrawingStatistics,
                 "nativeTooltips" to active.nativeTooltipStatistics,
             ),
         )
@@ -316,6 +321,7 @@ internal interface BenchmarkTarget {
     val frameProfiler: UiFrameProfiler?
     val componentsReady: Boolean
     val rendererStatistics: RendererStatistics
+    val nativeDrawingStatistics: dev.compixel.render.NativeImageStatistics
     val nativeItemStatistics: NativeItemStatistics
     val nativeTooltipStatistics: NativeTooltipStatistics
 
@@ -338,6 +344,9 @@ private class HudBenchmark(override val fixture: BenchmarkCase) : BenchmarkTarge
 
     override val nativeItemStatistics: NativeItemStatistics
         get() = SuiteHud.layer.nativeItemStatistics
+
+    override val nativeDrawingStatistics
+        get() = SuiteHud.layer.nativeDrawingStatistics
 
     // Without input, a HUD never shows a native tooltip.
     override val nativeTooltipStatistics = NativeTooltipStatistics()

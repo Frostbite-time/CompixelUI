@@ -2,11 +2,15 @@ package dev.compixel.forge.item
 
 import com.mojang.blaze3d.systems.RenderSystem
 import dev.compixel.bridge.ComposeThread
-import dev.compixel.bridge.NativeIconAtlas
+import dev.compixel.bridge.NativeImageAtlas
+import dev.compixel.bridge.NativeImageMailbox
 import dev.compixel.bridge.NativeImageRegion
+import dev.compixel.forge.drawing.NativeDrawingClock
+import dev.compixel.forge.drawing.scheduled
 import dev.compixel.forge.render.FrameRetirement
 import dev.compixel.forge.render.NativeSnapshots
 import java.util.concurrent.ConcurrentLinkedQueue
+import kotlin.math.ceil
 import net.minecraft.client.Minecraft
 import org.jetbrains.skia.ColorAlphaType
 import org.jetbrains.skia.ColorType
@@ -29,20 +33,20 @@ data class NativeItemStatistics(
 )
 
 /**
- * Draws the shared [NativeIconAtlas] schedule into native GUI pages, which keep the pixels of icons that are not due.
+ * Draws the shared [NativeImageAtlas] schedule into native GUI pages, which keep the pixels of icons that are not due.
  * With [snapshots], each page is copied to a Skia image on the GPU: OpenGL copies the page immediately, while Vulkan
  * first copies it into a buffer, because its snapshot consumes the source, and publishes it on the next frame. The CPU
  * reference renderer has no snapshots; it reads each page back and publishes it once the copy arrives.
  */
 internal class NativeItemAtlas(
-    private val mailbox: ItemImageMailbox,
+    private val mailbox: NativeImageMailbox<ItemIcon>,
     private val options: NativeItemOptions,
     private val snapshots: NativeSnapshots?,
 ) : AutoCloseable {
     private class Readback(val request: Long, val pixels: ByteArray, val width: Int, val height: Int)
 
     private val animations = NativeIconAnimation()
-    private val atlas = NativeIconAtlas(options.cacheCapacity, options.preparationsPerFrame, Pages())
+    private val atlas = NativeImageAtlas(options.cacheCapacity, options.preparationsPerFrame, Pages())
     private var capture: NativeGuiCapture? = null
     private var generation = 0L
     // Copies may complete on another thread. At most one page is pending, so any other copy is stale.
@@ -63,7 +67,7 @@ internal class NativeItemAtlas(
                     it.dynamicVariants,
                     it.animationRefreshes,
                     it.pages,
-                    it.drawnIcons,
+                    it.drawnImages,
                 )
             }
 
@@ -71,7 +75,9 @@ internal class NativeItemAtlas(
         val requests = ComposeThread.call { mailbox.activeRequests() }
         // A fixed image size draws each icon once; icons shown at other sizes resample that image.
         atlas.recorded(
-            options.imageSize?.let { size -> requests.map { NativeIconAtlas.Request(it.icon, size) } } ?: requests
+            options.imageSize?.let { size ->
+                requests.map { NativeImageAtlas.Request(it.icon, NativeImageAtlas.Size(size, size)) }
+            } ?: requests
         )
         generation = frameGeneration
     }
@@ -79,7 +85,7 @@ internal class NativeItemAtlas(
     /** At most one bounded page is prepared per host frame. */
     fun prepare(now: Long): Boolean {
         RenderSystem.assertOnRenderThread()
-        return atlas.prepare(now, NativeIconClock.tick(), Minecraft.getInstance().window.guiScale.toDouble())
+        return atlas.prepare(now, NativeDrawingClock.tick(), Minecraft.getInstance().window.guiScale.toDouble())
     }
 
     fun reset() {
@@ -106,9 +112,15 @@ internal class NativeItemAtlas(
         }
     }
 
-    private inner class Pages : NativeIconAtlas.Host<ItemIcon> {
+    private inner class Pages : NativeImageAtlas.Host<ItemIcon> {
         override val immediate
             get() = snapshots?.immediate ?: false
+
+        override fun layout(size: NativeImageAtlas.Size, capacity: Int): NativeImageAtlas.Layout {
+            require(size.width == size.height)
+            val gutter = ceil(size.width / 8.0).toInt()
+            return NativeImageAtlas.Layout.grid(size, capacity, gutter, gutter)
+        }
 
         override fun id(icon: ItemIcon) = icon.id
 
@@ -119,15 +131,16 @@ internal class NativeItemAtlas(
         override fun draw(
             page: Int,
             buffer: Int,
-            imageSize: Int,
+            size: NativeImageAtlas.Size,
             width: Int,
             height: Int,
-            icons: List<NativeIconAtlas.Placement<ItemIcon>>,
+            icons: List<NativeImageAtlas.Placement<ItemIcon>>,
         ) {
             val target = capture ?: NativeGuiCapture(width, height, atlas.buffers).also { capture = it }
             // Pages of different image sizes share the capture; each page target keeps its own size.
             target.resize(width, height)
             val font = Minecraft.getInstance().font
+            val imageSize = size.width
             target.renderPage(page, icons.map { it.cell }, imageSize) { graphics ->
                 icons.forEach { placement ->
                     val icon = placement.icon
@@ -135,7 +148,7 @@ internal class NativeItemAtlas(
                     graphics.pose().pushMatrix()
                     try {
                         // The placement starts on a pixel, where the game draws its own items too.
-                        graphics.pose().translate(placement.x, placement.y)
+                        graphics.pose().translate(placement.x * 16f / imageSize, placement.y * 16f / imageSize)
                         if (drawing == null) {
                             // Held by the local player, as in a container slot; compass and clock models need a holder.
                             graphics.item(icon.stack, 0, 0)
@@ -184,12 +197,11 @@ internal class NativeItemAtlas(
         }
 
         override fun publish(
-            regions: Map<NativeIconAtlas.Variant, NativeImageRegion>,
-            changed: Set<NativeIconAtlas.Variant>,
-            removed: Set<NativeIconAtlas.Variant>,
+            regions: Map<NativeImageAtlas.Variant, NativeImageRegion>,
+            changed: Set<NativeImageAtlas.Variant>,
+            removed: Set<NativeImageAtlas.Variant>,
         ) {
-            mailbox.removeAtlas(removed)
-            mailbox.publishAtlas(regions, changed)
+            mailbox.publish(regions, changed, removed)
         }
 
         override fun clear() = mailbox.clear()

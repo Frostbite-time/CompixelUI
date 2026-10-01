@@ -1,6 +1,7 @@
 package dev.compixel.development
 
 import dev.compixel.bridge.ComposeThread
+import dev.compixel.development.render.NativeDrawingVisualScreen
 import dev.compixel.development.render.NativeItemPartialScreen
 import dev.compixel.development.render.NativeItemVisualScreen
 import dev.compixel.development.render.PortValidationScreen
@@ -98,6 +99,7 @@ internal class ClientAcceptanceProbe {
                 port()
                 nativeVisual()
                 nativePartial()
+                nativeDrawing()
                 hud.schedule()
                 preview.schedule()
                 scripted = true
@@ -214,6 +216,63 @@ internal class ClientAcceptanceProbe {
         script.until("the native partial capture") { session.capturesIdle }
         script.act("record ${AcceptanceStep.NATIVE_PARTIAL}") {
             log.pass(AcceptanceStep.NATIVE_PARTIAL, partial.nativeItemStatistics.toString())
+        }
+    }
+
+    private fun nativeDrawing() {
+        lateinit var drawing: NativeDrawingVisualScreen
+        var still = 0
+        var ticking = 0
+        fun ready() =
+            drawing.nativeDrawingStatistics.let { it.cachedImages == 5 && it.pendingImages == 0 && it.pages == 5 }
+        fun capture(name: String) {
+            script.until("rectangular drawings ready for $name", 20_000) { ready() }
+            script.pause(100)
+            script.act("capture $name") {
+                drawing.verifyDimensions()
+                val bounds = drawing.bounds()
+                session.capture(name) { drawing.verifyPixels(it, bounds) }
+            }
+            script.until("the $name capture") { session.capturesIdle }
+        }
+        script.act("open rectangular native drawing") {
+            drawing = NativeDrawingVisualScreen()
+            session.open(drawing)
+        }
+        capture("native-drawing")
+        script.act("remember rectangular refreshes") {
+            still = drawing.staticDraws
+            ticking = drawing.tickingDraws
+        }
+        script.until("native drawing tick refreshes") { drawing.tickingDraws >= ticking + 5 }
+        script.act("static native drawings stayed cached") { check(drawing.staticDraws == still) }
+        script.act("resize native drawing layout") { ComposeThread.call { drawing.model.expanded = true } }
+        capture("native-drawing-layout")
+        script.act("resize rectangular drawing viewport") {
+            SuitePlatform.setGuiScale(3)
+            SuitePlatform.setWindowSize(1001, 751)
+        }
+        script.until("rectangular viewport resized") {
+            minecraft.window.width == 1001 && minecraft.window.height == 751 && SuitePlatform.guiScale == 3
+        }
+        capture("native-drawing-scale")
+        script.act("reload rectangular drawing resources") { reload = minecraft.reloadResourcePacks() }
+        script.until("rectangular drawing resource reload", 120_000) { reload?.isDone == true }
+        script.act("finish rectangular resource reload") { checkNotNull(reload).join() }
+        capture("native-drawing-reload")
+        script.act("detach native drawings") { ComposeThread.call { drawing.model.visible = false } }
+        script.until("detached native drawings released") {
+            drawing.nativeDrawingStatistics.let { it.pages == 0 && it.preparedImages == it.retiredImages }
+        }
+        script.act("close native drawing fixture") {
+            session.closeScreen()
+            check(drawing.rendererStatistics.strandedNativeImages == 0)
+            log.pass(AcceptanceStep.NATIVE_DRAWING)
+            SuitePlatform.setGuiScale(2)
+            SuitePlatform.setWindowSize(1280, 960)
+        }
+        script.until("native drawing viewport restored") {
+            minecraft.window.width == 1280 && minecraft.window.height == 960 && SuitePlatform.guiScale == 2
         }
     }
 

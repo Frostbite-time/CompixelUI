@@ -15,6 +15,8 @@ enum class BenchmarkKind {
     NATIVE_SCROLL,
     NATIVE_ANIMATED,
     NATIVE_MIXED,
+    DRAWING_STATIC,
+    DRAWING_ANIMATED,
     TOOLTIP,
     HUD_STATIC,
     HUD_ANIMATED,
@@ -49,6 +51,8 @@ object BenchmarkPlan {
             BenchmarkCase("native-scroll-10k", BenchmarkKind.NATIVE_SCROLL, 10000),
             BenchmarkCase("native-animated", BenchmarkKind.NATIVE_ANIMATED, 1000),
             BenchmarkCase("native-mixed", BenchmarkKind.NATIVE_MIXED, 64),
+            BenchmarkCase("drawing-static", BenchmarkKind.DRAWING_STATIC, 4),
+            BenchmarkCase("drawing-animated", BenchmarkKind.DRAWING_ANIMATED, 4),
             BenchmarkCase("rich-tooltip", BenchmarkKind.TOOLTIP),
             BenchmarkCase("hud-static", BenchmarkKind.HUD_STATIC),
             BenchmarkCase("hud-animated", BenchmarkKind.HUD_ANIMATED),
@@ -92,6 +96,8 @@ object BenchmarkValidity {
         activeVariants: Int,
         dynamicVariants: Int,
         refreshesDuringSamples: Long,
+        drawingVariants: Int = 0,
+        drawingRefreshes: Long = 0,
     ) {
         check(rows.size == samples) { "Incomplete samples for ${case.name}: ${rows.size}/$samples" }
         check(rows.all { it.missingGpuResults == 0 }) { "GPU results did not drain; ${case.name} is incomplete" }
@@ -99,7 +105,15 @@ object BenchmarkValidity {
         check(rows.maxOf { it.cachedItems } <= if (case.kind == BenchmarkKind.NATIVE_ANIMATED) 256 else 128) {
             "${case.name} showed more native icons than its fixture"
         }
-        if (case.kind in setOf(BenchmarkKind.STATIC, BenchmarkKind.NATIVE_STATIC, BenchmarkKind.HUD_STATIC))
+        if (
+            case.kind in
+                setOf(
+                    BenchmarkKind.STATIC,
+                    BenchmarkKind.NATIVE_STATIC,
+                    BenchmarkKind.HUD_STATIC,
+                    BenchmarkKind.DRAWING_STATIC,
+                )
+        )
             check(rows.none { it.rendered }) { "Static fixture ${case.name} kept repainting" }
         if (
             case.kind in
@@ -108,6 +122,7 @@ object BenchmarkValidity {
                     BenchmarkKind.ANIMATION,
                     BenchmarkKind.NATIVE_ANIMATED,
                     BenchmarkKind.HUD_ANIMATED,
+                    BenchmarkKind.DRAWING_ANIMATED,
                 )
         )
             check(rows.count { it.rendered } > samples * 9 / 10) {
@@ -130,6 +145,15 @@ object BenchmarkValidity {
             check(refreshesDuringSamples >= samples / 6) {
                 "The enchanted icon stopped refreshing: $refreshesDuringSamples refreshes"
             }
+        }
+        if (case.kind == BenchmarkKind.DRAWING_STATIC || case.kind == BenchmarkKind.DRAWING_ANIMATED) {
+            check(drawingVariants == case.count) { "Native rectangles were not prepared: $drawingVariants" }
+            if (case.kind == BenchmarkKind.DRAWING_STATIC)
+                check(drawingRefreshes == 0L) { "Static rectangles kept refreshing" }
+            else
+                check(drawingRefreshes >= samples * case.count / 2) {
+                    "Native rectangles stopped refreshing: $drawingRefreshes"
+                }
         }
         if (case.kind == BenchmarkKind.TOOLTIP)
             check(rows.all { it.tooltipVisible }) {

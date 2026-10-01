@@ -2,13 +2,14 @@ package dev.compixel.forge.slots
 
 import androidx.compose.ui.geometry.Rect
 import dev.compixel.forge.render.ScreenMetrics
+import kotlin.math.roundToInt
 import kotlin.test.*
 import org.junit.jupiter.api.Test
 
 class MenuCoordinateTest {
     @Test
     fun `native slot geometry and input bounds meet at the same physical pixels`() {
-        for ((width, height) in listOf(1927 to 1447, 2560 to 1440, 1920 to 1080)) {
+        for ((width, height) in listOf(1927 to 1447, 2560 to 1440, 1366 to 768, 1920 to 1080)) {
             for (scale in 1..9) {
                 val metrics =
                     ScreenMetrics(
@@ -32,6 +33,19 @@ class MenuCoordinateTest {
                 assertEquals(pixels.bottom.toDouble(), rendered.bottom * scale, 0.000001)
             }
         }
+    }
+
+    @Test
+    fun `a slot in the right quarter keeps its native GUI unit on odd windows`() {
+        // 1366 px at GUI scale 3 rounds up to 456 units. A dp-aligned slot at 1200 px is exactly GUI 400, while
+        // the rounded mouse mapping gives 400.6, which would move its native slot one unit (3 px) to the right.
+        val pixels = Rect(1176f, 300f, 1224f, 348f)
+        val metrics = ScreenMetrics(1366, 768, 456, 256, 3f, 1f)
+        val rendered = menuRenderBounds(pixels, metrics)
+        val input = menuInputBounds(pixels, metrics)
+        assertEquals(MenuSlotBounds(392.0, 100.0, 408.0, 116.0), rendered)
+        assertEquals(400, ((rendered.left + rendered.right) / 2).roundToInt())
+        assertEquals(401, ((input.left + input.right) / 2).roundToInt())
     }
 
     @Test

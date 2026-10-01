@@ -2,6 +2,7 @@ package dev.compixel.forge
 
 import androidx.compose.runtime.Composable
 import com.mojang.blaze3d.platform.InputConstants
+import dev.compixel.forge.drawing.NativeDrawingOptions
 import dev.compixel.forge.item.NativeItemOptions
 import dev.compixel.ui.ore.theme.OreThemeId
 import net.minecraft.client.Minecraft
@@ -20,6 +21,7 @@ open class ComposeMenuScreen<M : AbstractContainerMenu>(
     minimumUiDensity: Float = 1f,
     theme: OreThemeId = OreThemeId.Default,
     nativeItemOptions: NativeItemOptions = NativeItemOptions(),
+    nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
     content: @Composable () -> Unit,
 ) :
     ComposeScreen(
@@ -27,6 +29,7 @@ open class ComposeMenuScreen<M : AbstractContainerMenu>(
         guiUnitsPerDp = guiUnitsPerDp,
         minimumUiDensity = minimumUiDensity,
         nativeItemOptions = nativeItemOptions,
+        nativeDrawingOptions = nativeDrawingOptions,
         theme = theme,
         content = content,
     ),

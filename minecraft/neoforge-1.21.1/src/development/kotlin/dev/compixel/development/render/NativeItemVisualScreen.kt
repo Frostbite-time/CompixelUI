@@ -5,7 +5,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import dev.compixel.bridge.ComposeThread
 import dev.compixel.forge.ComposeScreen
-import dev.compixel.forge.item.IconRefresh
+import dev.compixel.forge.drawing.NativeRefresh
 import dev.compixel.forge.item.ItemIcon
 import dev.compixel.forge.item.MinecraftItemIcon
 import dev.compixel.forge.item.NativeItemOptions
@@ -27,7 +27,7 @@ internal class NativeItemVisualScreen(
         ItemIcon.drawn(
             "native visual acceptance",
             { graphics -> graphics.fill(0, 0, 16, 16, NATIVE_VISUAL_RED) },
-            IconRefresh.STATIC,
+            NativeRefresh.STATIC,
         ),
 ) :
     ComposeScreen(
@@ -75,14 +75,14 @@ private fun partialIcons(): List<ItemIcon> {
         ItemIcon.drawn(
             "native partial ticking",
             { graphics -> graphics.fill(0, 0, 16, 16, NATIVE_PARTIAL_TICKING[drawings.getAndIncrement() % 2]) },
-            IconRefresh.GAME_TICK,
+            NativeRefresh.GAME_TICK,
         )
     return listOf(ticking) +
         NATIVE_PARTIAL_STILL.mapIndexed { index, color ->
             ItemIcon.drawn(
                 "native partial still $index",
                 { graphics -> graphics.fill(0, 0, 16, 16, color) },
-                IconRefresh.STATIC,
+                NativeRefresh.STATIC,
             )
         }
 }

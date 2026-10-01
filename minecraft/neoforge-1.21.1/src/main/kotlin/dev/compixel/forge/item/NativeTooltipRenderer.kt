@@ -4,9 +4,11 @@ package dev.compixel.forge.item
 
 import com.mojang.blaze3d.systems.RenderSystem
 import dev.compixel.bridge.ComposeThread
+import dev.compixel.bridge.NativeImageRefresh
 import dev.compixel.forge.render.ScreenFrameRenderer
 import dev.compixel.forge.render.ScreenMetrics
 import dev.compixel.render.GpuPhase
+import dev.compixel.render.NativeImageOwner
 import kotlin.math.ceil
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.Font
@@ -18,7 +20,6 @@ import net.minecraft.client.gui.screens.inventory.tooltip.DefaultTooltipPosition
 import net.minecraft.client.gui.screens.inventory.tooltip.TooltipRenderUtil
 import net.minecraft.world.item.ItemStack
 import net.neoforged.neoforge.client.ClientHooks
-import org.jetbrains.skia.Image
 
 data class NativeTooltipStatistics(
     val visible: Boolean = false,
@@ -52,7 +53,11 @@ internal class NativeTooltipRenderer(
     private var request: ItemTooltipRequest? = null
     private var preparedRequest: ItemTooltipRequest? = null
     private var metrics: ScreenMetrics? = null
-    private var image: Image? = null
+    private val images = NativeImageOwner { value -> backend.releaseNativeImage(value) }
+    private val image
+        get() = images.image
+
+    private val refresh = NativeImageRefresh.every(100)
     private var layout: Layout? = null
     private var updated = Long.MIN_VALUE
     private var prepared = 0L
@@ -85,7 +90,7 @@ internal class NativeTooltipRenderer(
             reset()
             return changed
         }
-        if (preparedRequest === active && metrics == current && now - updated < 100_000_000L) return false
+        if (preparedRequest === active && metrics == current && !refresh.isDue(now, updated)) return false
         val minecraft = Minecraft.getInstance()
         val guiWidth = (current.guiWidth - 8).coerceIn(1, 320)
         val guiHeight = (current.guiHeight - 8).coerceAtLeast(1)
@@ -158,7 +163,7 @@ internal class NativeTooltipRenderer(
         val changed = image != null || replacement != null
         retireImage()
         if (published) {
-            image = replacement
+            images.replace(replacement)
             layout = measured
         } else if (replacement != null) {
             backend.releaseNativeImage(replacement)
@@ -211,11 +216,8 @@ internal class NativeTooltipRenderer(
     }
 
     private fun retireImage() {
-        image?.let {
-            backend.releaseNativeImage(it)
-            retired++
-        }
-        image = null
+        if (image != null) retired++
+        images.close()
         layout = null
     }
 

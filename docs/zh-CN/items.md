@@ -39,13 +39,15 @@ fun openItemCatalog(stacks: List<ItemStack>) {
 
 | 策略 | 何时重绘 |
 | --- | --- |
-| `IconRefresh.AUTO`（默认） | 物品有动画（如附魔光效、动态纹理）时每个游戏刻；否则在外观变化时 |
-| `IconRefresh.GAME_TICK` | 每个游戏刻 |
-| `IconRefresh.FRAME` | 每一帧 |
-| `IconRefresh.every(ms)` | 固定间隔，16 到 60,000 毫秒 |
-| `IconRefresh.STATIC` | 从不，保留第一帧画面 |
+| `NativeRefresh.AUTO`（默认） | 物品有动画（如附魔光效、动态纹理）时每个游戏刻；否则在外观变化时 |
+| `NativeRefresh.GAME_TICK` | 每个游戏刻 |
+| `NativeRefresh.FRAME` | 每一帧 |
+| `NativeRefresh.every(ms)` | 固定间隔，16 到 60,000 毫秒 |
+| `NativeRefresh.STATIC` | 从不，保留第一帧画面 |
 
 有动画的图标每个游戏刻重绘一次，与 Minecraft 播放纹理动画的频率相同。如果某个物品的自定义渲染器在模型不变的情况下播放动画，请使用 `GAME_TICK`；只有需要比这更快变化的绘制才使用 `FRAME`。
+
+`NativeRefresh` 位于 `dev.compixel.forge.drawing`，供物品图标和矩形绘制共用。
 
 ## 自绘图标
 
@@ -58,6 +60,34 @@ val water = ItemIcon.drawn("水", { graphics ->
 ```
 
 绘制在渲染线程执行，默认每个游戏刻重绘一次，也可以传入其他策略。自绘图标没有物品提示，可以改用 [OreTooltip](ore-ui.md#提示) 包裹。
+
+## 矩形原生绘制
+
+面板、预览或其他超过 16×16 图标范围的原生内容使用 `NativeDrawing`。在游戏线程创建句柄，再交给 Compose 重复使用：
+
+```kotlin
+import dev.compixel.forge.drawing.NativeDrawing
+import dev.compixel.forge.drawing.NativeRefresh
+import dev.compixel.forge.drawing.MinecraftNativeDrawing
+
+val panel = NativeDrawing.create("原生面板", { context ->
+    context.graphics.fill(0, 0, context.width, context.height, 0xFF203040.toInt())
+    context.graphics.fill(4, 4, context.width - 4, 12, 0xFF80D4C0.toInt())
+}, NativeRefresh.STATIC)
+
+// 在 CompixelUI 界面或 HUD 中：
+MinecraftNativeDrawing(panel, Modifier.size(180.dp, 48.dp))
+```
+
+回调在游戏/渲染线程执行。`context.graphics` 是对应版本的原生 `GuiGraphics`（1.20.1/1.21.1）或 `GuiGraphicsExtractor`（26.x）。坐标从组件左上角开始，`width` 和 `height` 是向上取整以覆盖图像的局部 GUI 尺寸，`pixelWidth` 和 `pixelHeight` 是精确的物理像素尺寸。
+
+组件没有固有尺寸，需要指定尺寸或在有界布局中填充。可以正常使用 Compose 的裁剪、透明度和变换修饰符。原生画面在这些显示变换之前捕获，输入仍由 Compose 处理。原生 scissor 使用局部目标坐标，超出图像边缘的内容会被裁掉。
+
+回调中不要读取 Compose 状态，也不要保存 graphics 对象。通过重复使用的句柄传递不可变快照，快照改变时替换句柄；动画回调可以读取归游戏线程所有的状态。默认刷新策略是 `NativeRefresh.GAME_TICK`，自绘内容的 `AUTO` 也表示每个游戏刻刷新一次。仅显示中的内容会在绘制预算内刷新。
+
+四种界面/HUD 宿主均提供 `nativeDrawingOptions = NativeDrawingOptions(cacheCapacity = 0, preparationsPerFrame = 4)`。缓存容量（0–128）控制可见内容较少时保留的图像数，默认释放隐藏的目标；每帧准备数（1–64）限制所有独立矩形目标的原生绘制次数。同一尺寸重复使用同一句柄会共用图像，不同尺寸各自分配目标。尺寸连续变化时先显示最接近的已有图像，稳定后再绘制新尺寸。资源重载和 GUI 缩放变化也会刷新静态内容。
+
+物品图标继续使用紧凑的图集和原生物品处理。矩形使用独立目标，保证原生裁剪和依赖视口的绘制正确；两者共用底层图像调度、Compose 发布和渲染器回收机制。
 
 ## 大量物品
 

@@ -2,9 +2,11 @@ package dev.compixel.forge.item
 
 import com.mojang.blaze3d.systems.RenderSystem
 import dev.compixel.bridge.ComposeThread
+import dev.compixel.bridge.NativeImageRefresh
 import dev.compixel.forge.render.FrameRetirement
 import dev.compixel.forge.render.NativeSnapshots
 import dev.compixel.forge.render.ScreenMetrics
+import dev.compixel.render.NativeImageOwner
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.math.ceil
 import net.minecraft.client.Minecraft
@@ -56,7 +58,13 @@ internal class NativeTooltipRenderer(
     private val completions = ConcurrentLinkedQueue<Completion>()
     private var capture: NativeGuiCapture? = null
     private var captureMetrics: ScreenMetrics? = null
-    private var image: Image? = null
+    private val images = NativeImageOwner { value ->
+        if (snapshots == null) FrameRetirement.afterFrame { value.close() } else snapshots.release(value)
+    }
+    private val image
+        get() = images.image
+
+    private val refresh = NativeImageRefresh.every(100)
     private var imageRequest: ItemTooltipRequest? = null
     private var layout: Layout? = null
     private var request: ItemTooltipRequest? = null
@@ -104,7 +112,7 @@ internal class NativeTooltipRenderer(
             if (active == null) return changed
         }
         if (inFlight) return changed
-        if (attemptedRequest === active && attemptedMetrics == current && now - attemptedAt < 100_000_000L)
+        if (attemptedRequest === active && attemptedMetrics == current && !refresh.isDue(now, attemptedAt))
             return changed
         attemptedRequest = active
         attemptedMetrics = current
@@ -257,7 +265,7 @@ internal class NativeTooltipRenderer(
         }
         prepared++
         retireImage()
-        image = value
+        images.replace(value)
         imageRequest = active
         layout = measured
         return true
@@ -285,7 +293,7 @@ internal class NativeTooltipRenderer(
             if (published) {
                 prepared++
                 retireImage()
-                image = value
+                images.replace(value)
                 imageRequest = completion.request
                 layout = completion.layout
                 changed = true
@@ -298,11 +306,8 @@ internal class NativeTooltipRenderer(
     }
 
     private fun retireImage() {
-        image?.let { old ->
-            if (snapshots == null) FrameRetirement.afterFrame { old.close() } else snapshots.release(old)
-            retired++
-        }
-        image = null
+        if (image != null) retired++
+        images.close()
         imageRequest = null
         layout = null
     }

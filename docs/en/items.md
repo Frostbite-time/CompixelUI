@@ -39,13 +39,15 @@ Icons follow the game on their own: enchantment glint, animated textures, compas
 
 | Policy | Redraws the icon |
 | --- | --- |
-| `IconRefresh.AUTO` (default) | Every game tick while the item animates, as with glint or animated textures; otherwise when its look changes |
-| `IconRefresh.GAME_TICK` | Every game tick |
-| `IconRefresh.FRAME` | Every frame |
-| `IconRefresh.every(ms)` | At a fixed interval, 16 to 60,000 ms |
-| `IconRefresh.STATIC` | Never; the first image stays |
+| `NativeRefresh.AUTO` (default) | Every game tick while the item animates, as with glint or animated textures; otherwise when its look changes |
+| `NativeRefresh.GAME_TICK` | Every game tick |
+| `NativeRefresh.FRAME` | Every frame |
+| `NativeRefresh.every(ms)` | At a fixed interval, 16 to 60,000 ms |
+| `NativeRefresh.STATIC` | Never; the first image stays |
 
 Animated icons redraw once per game tick, the rate at which Minecraft animates its textures. Choose `GAME_TICK` for items whose custom renderer animates without changing its model, and `FRAME` only for drawings that must move faster.
+
+`NativeRefresh` lives in `dev.compixel.forge.drawing` and is shared by item icons and rectangular drawings.
 
 ## Draw your own icons
 
@@ -58,6 +60,34 @@ val water = ItemIcon.drawn("Water", { graphics ->
 ```
 
 The drawing runs on the render thread and repeats every game tick unless you pass another policy. Drawn icons have no item tooltip; wrap them in an [OreTooltip](ore-ui.md#tooltips) instead.
+
+## Rectangular native drawing
+
+Use `NativeDrawing` for a panel, preview or other native content larger than a 16×16 icon. Create its handle on the game thread and reuse it in Compose:
+
+```kotlin
+import dev.compixel.forge.drawing.NativeDrawing
+import dev.compixel.forge.drawing.NativeRefresh
+import dev.compixel.forge.drawing.MinecraftNativeDrawing
+
+val panel = NativeDrawing.create("Native panel", { context ->
+    context.graphics.fill(0, 0, context.width, context.height, 0xFF203040.toInt())
+    context.graphics.fill(4, 4, context.width - 4, 12, 0xFF80D4C0.toInt())
+}, NativeRefresh.STATIC)
+
+// Inside a CompixelUI screen or HUD:
+MinecraftNativeDrawing(panel, Modifier.size(180.dp, 48.dp))
+```
+
+The callback runs on the game/render thread. `context.graphics` is the version's native `GuiGraphics` (1.20.1/1.21.1) or `GuiGraphicsExtractor` (26.x). Coordinates start at the component's top-left corner. `width` and `height` are local GUI units, rounded up to cover the image; `pixelWidth` and `pixelHeight` are its exact physical dimensions. One native GUI unit occupies `guiScale` pixels. A screen's custom UI density can therefore make one Compose dp differ from one native GUI unit.
+
+Give the component a size or bounded fill modifier; native drawings have no intrinsic size. Use ordinary Compose clip, alpha and transform modifiers. The drawing is captured before those display transforms; input still belongs to Compose. Native scissor rectangles use the local target. The final image clips anything past its edges. Dimensions are not limited to 256 pixels, but must fit the graphics device's texture limits; memory use grows with width × height.
+
+Do not read Compose state inside the callback or retain its graphics object. Pass immutable snapshots through a reused handle, replacing the handle when its snapshot changes. A callback may read game-thread-owned state for animated content. The default refresh is `NativeRefresh.GAME_TICK`; `AUTO` also means one refresh per game tick for custom drawings. Refreshes happen only while displayed and within the preparation budget.
+
+`nativeDrawingOptions = NativeDrawingOptions(cacheCapacity = 0, preparationsPerFrame = 4)` is available on all four screen/HUD hosts. Cache capacity (0–128) controls images retained when fewer are visible; the default releases hidden targets. Preparations per frame (1–64) bounds native draws across independent rectangular targets. Reusing one handle at one size shares its image; different sizes get separate targets. During continuous resizing, the nearest existing image remains visible until the new size settles. Resource reloads and GUI-scale changes invalidate static drawings too.
+
+Item icons retain their compact atlas allocation and native item handling. Rectangles use independent targets so native clipping and viewport-dependent drawing work correctly. Both use the same underlying image scheduler, Compose publication and renderer-owned retirement.
 
 ## Large grids
 

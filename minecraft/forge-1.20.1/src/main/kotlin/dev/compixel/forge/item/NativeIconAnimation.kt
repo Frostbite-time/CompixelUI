@@ -1,5 +1,6 @@
 package dev.compixel.forge.item
 
+import dev.compixel.forge.drawing.NativeRefresh
 import java.util.IdentityHashMap
 import net.minecraft.client.Minecraft
 import net.minecraft.client.renderer.texture.SpriteContents
@@ -14,24 +15,24 @@ internal class NativeIconAnimation {
     private val sprites = IdentityHashMap<SpriteContents, Boolean>()
     private val random = RandomSource.create(42)
 
-    fun resolve(icon: ItemIcon): IconRefresh {
-        if (icon.refresh !== IconRefresh.AUTO) return icon.refresh
-        if (icon.stack.isEmpty) return IconRefresh.GAME_TICK // An opaque custom drawing has no model to inspect.
+    fun resolve(icon: ItemIcon): NativeRefresh {
+        if (icon.refresh !== NativeRefresh.AUTO) return icon.refresh
+        if (icon.stack.isEmpty) return NativeRefresh.GAME_TICK // An opaque custom drawing has no model to inspect.
         val stack = icon.stack
         // Glint and custom renderers animate continuously; like animated sprites, they redraw once per game tick.
         if (
             stack.hasFoil() || Minecraft.getInstance().itemRenderer.itemModelShaper.getItemModel(stack).isCustomRenderer
         )
-            return IconRefresh.GAME_TICK
+            return NativeRefresh.GAME_TICK
         // Model overrides, such as compass and clock angles, are followed through appearance().
         for (pass in model(stack).getRenderPasses(stack, true)) {
-            if (pass.isCustomRenderer || animated(pass.particleIcon)) return IconRefresh.GAME_TICK
+            if (pass.isCustomRenderer || animated(pass.particleIcon)) return NativeRefresh.GAME_TICK
             for (face in Direction.entries + listOf(null)) {
                 random.setSeed(42)
-                if (pass.getQuads(null, face, random).any { animated(it.sprite) }) return IconRefresh.GAME_TICK
+                if (pass.getQuads(null, face, random).any { animated(it.sprite) }) return NativeRefresh.GAME_TICK
             }
         }
-        return IconRefresh.ON_CHANGE
+        return NativeRefresh.ON_CHANGE
     }
 
     /** What a page draws for an ON_CHANGE icon: its override-resolved model and cooldown overlay rows. */

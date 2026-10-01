@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.compixel.bridge.ComposeThread
 import dev.compixel.forge.*
-import dev.compixel.forge.item.IconRefresh
+import dev.compixel.forge.drawing.NativeRefresh
 import dev.compixel.forge.item.ItemIcon
 import dev.compixel.forge.item.MinecraftItemIcon
 import dev.compixel.forge.item.MinecraftItemTooltip
@@ -46,6 +46,8 @@ private constructor(
     override val fixture: BenchmarkCase,
     val model: BenchmarkModel,
     icons: List<ItemIcon>,
+    private val drawings: dev.compixel.development.render.NativeDrawingBenchmark =
+        dev.compixel.development.render.NativeDrawingBenchmark(fixture.kind),
     samples: Map<Int, ItemIcon> =
         if (
             fixture.kind == BenchmarkKind.ORE_COMPONENTS &&
@@ -56,7 +58,7 @@ private constructor(
 ) :
     ComposeScreen(
         Component.literal("CompixelUI benchmark"),
-        content = { BenchmarkContent(fixture, model, icons, samples) },
+        content = { BenchmarkContent(fixture, model, icons, samples, drawings) },
     ),
     BenchmarkTarget {
     private val componentExercise =
@@ -72,7 +74,7 @@ private constructor(
     }
 
     override val componentsReady
-        get() = componentExercise?.complete ?: true
+        get() = (componentExercise?.complete ?: true) && (!drawings.active || nativeDrawingStatistics.cachedImages == 4)
 
     init {
         if (componentExercise != null)
@@ -91,10 +93,10 @@ private constructor(
         ComposeThread.call { BenchmarkModel() },
         // Glint makes AUTO refresh every game tick, like enchanted items in real inventories.
         if (fixture.kind == BenchmarkKind.NATIVE_ANIMATED)
-            benchmarkIcons(IconRefresh.AUTO) { set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, true) }
+            benchmarkIcons(NativeRefresh.AUTO) { set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, true) }
         // One enchanted item among static icons on the same atlas page.
         else if (fixture.kind == BenchmarkKind.NATIVE_MIXED)
-            benchmarkIcons(IconRefresh.STATIC).take(fixture.count - 1) +
+            benchmarkIcons(NativeRefresh.STATIC).take(fixture.count - 1) +
                 ItemIcon.snapshot(
                     ItemStack(Items.DIAMOND_SWORD).apply { set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, true) }
                 )
@@ -108,7 +110,9 @@ private constructor(
                             dev.compixel.demo.preview.DemoPage.Items.ordinal,
                         )
         )
-            benchmarkIcons(if (fixture.kind == BenchmarkKind.NATIVE_STATIC) IconRefresh.STATIC else IconRefresh.AUTO)
+            benchmarkIcons(
+                if (fixture.kind == BenchmarkKind.NATIVE_STATIC) NativeRefresh.STATIC else NativeRefresh.AUTO
+            )
         else emptyList(),
     )
 
@@ -121,7 +125,7 @@ private constructor(
     }
 }
 
-private fun benchmarkIcons(refresh: IconRefresh, configure: ItemStack.() -> Unit = {}): List<ItemIcon> =
+private fun benchmarkIcons(refresh: NativeRefresh, configure: ItemStack.() -> Unit = {}): List<ItemIcon> =
     BuiltInRegistries.ITEM.asSequence()
         .filter { it !== Items.AIR }
         .take(255)
@@ -143,6 +147,7 @@ private fun BenchmarkContent(
     model: BenchmarkModel,
     icons: List<ItemIcon>,
     samples: Map<Int, ItemIcon>,
+    drawings: dev.compixel.development.render.NativeDrawingBenchmark,
 ) {
     if (fixture.kind == BenchmarkKind.ORE_COMPONENTS) {
         dev.compixel.demo.preview.OreDemoScreen(
@@ -207,6 +212,8 @@ private fun BenchmarkContent(
                         .background(Color(0xFF8CCDDD))
                 )
             }
+            BenchmarkKind.DRAWING_STATIC,
+            BenchmarkKind.DRAWING_ANIMATED -> drawings.Content()
             BenchmarkKind.LIST -> {
                 val state = rememberLazyListState()
                 LaunchedEffect(model.step) { state.scrollToItem(model.step % (fixture.count - 64)) }

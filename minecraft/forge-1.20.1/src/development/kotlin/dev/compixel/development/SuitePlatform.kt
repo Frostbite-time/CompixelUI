@@ -30,6 +30,18 @@ internal typealias SuiteComposeScreen = ComposeScreen
 
 /** Every Minecraft 1.20.1 / Forge call the shared suite code needs, in one reviewable place. */
 internal object SuitePlatform {
+    fun nativeDrawingPreview(context: dev.compixel.forge.drawing.NativeDrawingContext) {
+        net.minecraft.client.gui.screens.inventory.InventoryScreen.renderEntityInInventoryFollowsAngle(
+            context.graphics,
+            context.width / 2,
+            context.height - 4,
+            context.height / 3,
+            0f,
+            0f,
+            checkNotNull(Minecraft.getInstance().player),
+        )
+    }
+
     const val MINECRAFT = "1.20.1"
     const val LOADER = "Forge"
     const val MOUSE_LEFT = GLFW.GLFW_MOUSE_BUTTON_LEFT
