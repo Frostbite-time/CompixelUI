@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -85,6 +86,7 @@ fun OreMenu(
     val feedback = LocalOreFeedback.current
     val focus = remember { FocusRequester() }
     val list = rememberLazyListState()
+    val showScrollbar by remember { derivedStateOf { list.canScrollForward || list.canScrollBackward } }
     val scope = rememberCoroutineScope()
     var activeId by remember {
         mutableStateOf(items.getOrNull(initialIndex)?.takeIf { it.enabled }?.id ?: items.firstOrNull { it.enabled }?.id)
@@ -105,7 +107,7 @@ fun OreMenu(
         OreSurface(
             modifier
                 .widthIn(max = width)
-                .width(minOf(180.dp, width))
+                .width(minOf(136.dp, width))
                 .heightIn(max = minOf(200.dp, height))
                 .focusRequester(focus)
                 .onPreviewKeyEvent { event ->
@@ -144,7 +146,7 @@ fun OreMenu(
         ) {
             Box {
                 LazyColumn(
-                    Modifier.padding(3.dp).padding(end = 7.dp),
+                    Modifier.padding(3.dp).padding(end = if (showScrollbar) 7.dp else 0.dp),
                     state = list,
                     verticalArrangement = Arrangement.spacedBy(1.dp),
                 ) {
@@ -156,6 +158,7 @@ fun OreMenu(
                                 if (item.enabled) activeId = item.id
                             },
                             enabled = item.enabled,
+                            minimumHeight = 22.dp,
                         ) {
                             if (item.checked != null)
                                 Box(Modifier.size(8.dp), contentAlignment = Alignment.Center) {
@@ -180,8 +183,10 @@ fun OreMenu(
                         }
                     }
                 }
-                Box(Modifier.matchParentSize()) {
-                    OreScrollbar(list, Modifier.align(Alignment.CenterEnd).fillMaxHeight())
+                if (showScrollbar) {
+                    Box(Modifier.matchParentSize()) {
+                        OreScrollbar(list, Modifier.align(Alignment.CenterEnd).fillMaxHeight())
+                    }
                 }
             }
         }

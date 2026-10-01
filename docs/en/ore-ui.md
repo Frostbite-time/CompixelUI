@@ -117,6 +117,8 @@ fun ActionMenu() {
 
 Keep the menu and its button in the same `Box`. `OreContextMenuArea(items) { … }` opens the same kind of menu with a right click. Arrow keys, Enter and Escape work in both. The shortcut label is only text; register the key binding yourself.
 
+Menus default to 136 dp wide with a minimum row height of 22 dp; longer labels can wrap. Select dropdowns use their anchor's width. The scrollbar and its reserved space appear only when the menu content can scroll.
+
 ## Tooltips
 
 ![A tooltip with a second tooltip opened from inside it](../assets/ore-tooltips-en.png)

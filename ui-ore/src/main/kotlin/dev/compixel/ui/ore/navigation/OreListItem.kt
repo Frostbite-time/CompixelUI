@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.compixel.ui.ore.internal.oreFrame
 import dev.compixel.ui.ore.internal.oreOutline
@@ -35,6 +36,17 @@ fun OreListItem(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     content: @Composable RowScope.() -> Unit,
+) = OreListItem(selected, onClick, modifier, enabled, 28.dp, content)
+
+/** Menus use a shorter row while keeping the same selection, focus and activation behavior. */
+@Composable
+internal fun OreListItem(
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier,
+    enabled: Boolean,
+    minimumHeight: Dp,
+    content: @Composable RowScope.() -> Unit,
 ) {
     val interactions = remember { MutableInteractionSource() }
     val hovered by interactions.collectIsHoveredAsState()
@@ -44,7 +56,7 @@ fun OreListItem(
     val feedback = LocalOreFeedback.current
     Row(
         modifier
-            .heightIn(min = 28.dp)
+            .heightIn(min = minimumHeight)
             .oreFrame(
                 if (enabled && pressed) colors.panel
                 else if (enabled && hovered) colors.hovered

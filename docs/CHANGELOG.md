@@ -1,4 +1,9 @@
-# CompixelUI 0.1.7
+# CompixelUI 0.1.8
+
+- Reduce the default menu width to 136 dp and the minimum menu row height to 22 dp while preserving text size, wrapping and keyboard navigation.
+- Show menu scrollbars only when content can scroll, and reclaim their reserved space when hidden. Context menus and select dropdowns share this behavior.
+
+## CompixelUI 0.1.7
 
 - Add `NativeDrawing` and `MinecraftNativeDrawing` for native Minecraft drawing in arbitrary rectangular Compose layouts. Content renders at the layout's physical resolution and participates in Compose clipping, transparency and transforms.
 - Share native image scheduling, publication and retirement between rectangular drawings and item icons; tooltips reuse the same image ownership and refresh policy while keeping native measurement and events.
