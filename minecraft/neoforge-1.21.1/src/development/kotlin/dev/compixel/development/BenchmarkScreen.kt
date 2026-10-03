@@ -45,22 +45,23 @@ internal class BenchmarkScreen
 private constructor(
     override val fixture: BenchmarkCase,
     val model: BenchmarkModel,
-    icons: List<ItemIcon>,
+    private val icons: List<ItemIcon>,
     private val drawings: dev.compixel.development.render.NativeDrawingBenchmark =
         dev.compixel.development.render.NativeDrawingBenchmark(fixture.kind),
-    samples: Map<Int, ItemIcon> =
+    private val samples: Map<Int, ItemIcon> =
         if (
             fixture.kind == BenchmarkKind.ORE_COMPONENTS &&
                 fixture.count == dev.compixel.demo.preview.DemoPage.Items.ordinal
         )
             listOf(0, 1, 3, 8).associateWith { ItemIcon.snapshot(icons[it].stack) }
         else emptyMap(),
-) :
-    ComposeScreen(
-        Component.literal("CompixelUI benchmark"),
-        content = { BenchmarkContent(fixture, model, icons, samples, drawings) },
-    ),
-    BenchmarkTarget {
+) : ComposeScreen<Unit, Nothing>(Component.literal("CompixelUI benchmark")), BenchmarkTarget {
+    override fun snapshot() {}
+
+    override fun handle(action: Nothing) {}
+
+    @Composable override fun Content(state: Unit) = BenchmarkContent(fixture, model, icons, samples, drawings)
+
     private val componentExercise =
         if (fixture.kind == BenchmarkKind.ORE_COMPONENTS)
             dev.compixel.testing.ui.OreComponentExercise(

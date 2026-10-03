@@ -65,13 +65,23 @@ If only one mod's screens are affected, start with that mod's issue tracker. Oth
 CompixelUI lets you write your mod's screens, inventories and HUDs in Kotlin with Jetpack Compose:
 
 ```kotlin
-Minecraft.getInstance().setScreen(ComposeScreen(Component.literal("Counter")) {
-    var count by remember { mutableStateOf(0) }
-    OreScreen("Counter") {
-        OreText("Clicked $count times")
-        OreButton("Click me", onClick = { count++ })
+class CounterScreen : ComposeScreen<Int, Unit>(Component.literal("Counter")) {
+    private var count = 0
+
+    override fun snapshot() = count
+
+    override fun handle(action: Unit) {
+        count++
     }
-})
+
+    @Composable
+    override fun Content(state: Int) {
+        OreScreen("Counter") {
+            OreText("Clicked $state times")
+            OreButton("Click me", onClick = { send(Unit) })
+        }
+    }
+}
 ```
 
 It also covers container screens with real slots, menu synchronization between server and client, and ready-made config screens. Start with [Getting started](https://github.com/Frostbite-time/CompixelUI/blob/main/docs/en/getting-started.md), or browse [all guides](https://github.com/Frostbite-time/CompixelUI/blob/main/docs/README.md) and the [source code](https://github.com/Frostbite-time/CompixelUI).

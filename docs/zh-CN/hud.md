@@ -8,29 +8,23 @@
 
 ## 注册 HUD 层
 
-这个 HUD 层统计玩家物品栏中的钻石：
+这个 HUD 层统计玩家物品栏中的钻石。`ComposeHudLayer` 在 `snapshot` 中读取游戏，在 `Content` 中绘制最新的值：
 
 ```kotlin
-object QuestHud {
-    private lateinit var diamonds: UiBinding<Int, Nothing>
+class QuestHud(private val diamond: ItemIcon) : ComposeHudLayer<Int>() {
+    override fun snapshot() = Minecraft.getInstance().player?.inventory?.countItem(Items.DIAMOND) ?: 0
 
-    fun register(modBus: IEventBus) {
-        modBus.addListener(::registerLayer)
-        NeoForge.EVENT_BUS.addListener(::tick)
-    }
+    @Composable
+    override fun Content(state: Int) = QuestPanel(diamond, state)
+}
 
-    private fun registerLayer(event: RegisterGuiLayersEvent) {
-        diamonds = UiBinding(0)
-        val diamond = ItemIcon.snapshot(ItemStack(Items.DIAMOND))
+fun registerQuestHud(modBus: IEventBus) {
+    modBus.addListener { event: RegisterGuiLayersEvent ->
         event.registerAbove(
             VanillaGuiLayers.HOTBAR,
             ResourceLocation.fromNamespaceAndPath("examplemod", "quest"),
-            ComposeHudLayer { QuestPanel(diamond, diamonds.value) },
+            QuestHud(ItemIcon.snapshot(ItemStack(Items.DIAMOND))),
         )
-    }
-
-    private fun tick(event: ClientTickEvent.Post) {
-        Minecraft.getInstance().player?.let { diamonds.update(it.inventory.countItem(Items.DIAMOND)) }
     }
 }
 
@@ -48,7 +42,7 @@ fun QuestPanel(diamond: ItemIcon, found: Int) {
 }
 ```
 
-在客户端模组构造函数中调用 `QuestHud.register(modBus)`。
+在客户端模组构造函数中调用 `registerQuestHud(modBus)`。没有游戏状态的 HUD 层继承 `ComposeHudLayer<Unit>`，写 `override fun snapshot() {}`。
 
 ## 表现
 
@@ -56,6 +50,7 @@ fun QuestPanel(diamond: ItemIcon, found: Int) {
 - 玩家按 F1 隐藏 HUD 时，它一起隐藏。
 - 它不接收输入：点击、按键和文字都交给游戏，提示也不会弹出。需要交互的内容请放在界面里。
 - 它在进入世界后的第一帧启动，离开世界时停止。调用 `close()` 可以提前停止；下次启动时 `remember` 的状态会重新开始。
+- `snapshot` 在 HUD 层启动时于游戏线程调用一次，之后每个客户端刻调用一次，界面打开时也不例外。快照变化时内容才会重绘。
 
 ## 其他版本
 

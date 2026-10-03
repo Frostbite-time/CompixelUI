@@ -8,29 +8,23 @@
 
 ## Register a layer
 
-This layer counts the diamonds in the player's inventory:
+This layer counts the diamonds in the player's inventory. `ComposeHudLayer` reads the game in `snapshot` and draws the latest value in `Content`:
 
 ```kotlin
-object QuestHud {
-    private lateinit var diamonds: UiBinding<Int, Nothing>
+class QuestHud(private val diamond: ItemIcon) : ComposeHudLayer<Int>() {
+    override fun snapshot() = Minecraft.getInstance().player?.inventory?.countItem(Items.DIAMOND) ?: 0
 
-    fun register(modBus: IEventBus) {
-        modBus.addListener(::registerLayer)
-        NeoForge.EVENT_BUS.addListener(::tick)
-    }
+    @Composable
+    override fun Content(state: Int) = QuestPanel(diamond, state)
+}
 
-    private fun registerLayer(event: RegisterGuiLayersEvent) {
-        diamonds = UiBinding(0)
-        val diamond = ItemIcon.snapshot(ItemStack(Items.DIAMOND))
+fun registerQuestHud(modBus: IEventBus) {
+    modBus.addListener { event: RegisterGuiLayersEvent ->
         event.registerAbove(
             VanillaGuiLayers.HOTBAR,
             ResourceLocation.fromNamespaceAndPath("examplemod", "quest"),
-            ComposeHudLayer { QuestPanel(diamond, diamonds.value) },
+            QuestHud(ItemIcon.snapshot(ItemStack(Items.DIAMOND))),
         )
-    }
-
-    private fun tick(event: ClientTickEvent.Post) {
-        Minecraft.getInstance().player?.let { diamonds.update(it.inventory.countItem(Items.DIAMOND)) }
     }
 }
 
@@ -48,7 +42,7 @@ fun QuestPanel(diamond: ItemIcon, found: Int) {
 }
 ```
 
-Call `QuestHud.register(modBus)` from your client mod constructor.
+Call `registerQuestHud(modBus)` from your client mod constructor. A layer without game state extends `ComposeHudLayer<Unit>` with `override fun snapshot() {}`.
 
 ## What to expect
 
@@ -56,6 +50,7 @@ Call `QuestHud.register(modBus)` from your client mod constructor.
 - It hides with the rest of the HUD when the player presses F1.
 - It never takes input. Clicks, keys and text go to the game, and tooltips don't open, so use a screen for anything interactive.
 - It starts on the first frame in a world and stops when the player leaves. Call `close()` to stop it sooner; `remember`ed state starts over the next time.
+- `snapshot` runs on the game thread when the layer starts and once per client tick after that, also while a screen is open. The content redraws only when the snapshot changes.
 
 ## On other versions
 

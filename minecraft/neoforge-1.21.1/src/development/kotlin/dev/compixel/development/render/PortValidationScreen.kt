@@ -21,31 +21,32 @@ internal class PortValidationModel {
 
 /** Deliberately asymmetric fixture, with a real Compose click target and alpha patch. */
 internal class PortValidationScreen(val model: PortValidationModel = ComposeThread.call { PortValidationModel() }) :
-    ComposeScreen(
-        Component.literal("Port validation"),
-        content = {
-            Box(Modifier.fillMaxSize().background(Color(0xFF204060))) {
-                Box(
-                    Modifier.align(Alignment.TopStart)
-                        .padding(16.dp)
-                        .size(40.dp)
-                        .background(if (model.clicks == 0) Color.Red else Color.Yellow)
-                        .clickable { model.clicks++ }
-                )
-                Box(Modifier.align(Alignment.TopEnd).padding(16.dp).size(40.dp).background(Color.Green))
-                Box(Modifier.align(Alignment.BottomStart).padding(16.dp).size(40.dp).background(Color.Blue))
-                Box(Modifier.align(Alignment.Center).size(40.dp).background(Color.White.copy(alpha = 0.5f)))
-                BasicTextField(
-                    model.text,
-                    { model.text = it },
-                    Modifier.align(Alignment.TopCenter)
-                        .padding(top = 16.dp)
-                        .size(120.dp, 30.dp)
-                        .background(Color.White),
-                )
-            }
-        },
-    ) {
+    ComposeScreen<Unit, Nothing>(Component.literal("Port validation")) {
+    override fun snapshot() {}
+
+    override fun handle(action: Nothing) {}
+
+    @Composable
+    override fun Content(state: Unit) {
+        Box(Modifier.fillMaxSize().background(Color(0xFF204060))) {
+            Box(
+                Modifier.align(Alignment.TopStart)
+                    .padding(16.dp)
+                    .size(40.dp)
+                    .background(if (model.clicks == 0) Color.Red else Color.Yellow)
+                    .clickable { model.clicks++ }
+            )
+            Box(Modifier.align(Alignment.TopEnd).padding(16.dp).size(40.dp).background(Color.Green))
+            Box(Modifier.align(Alignment.BottomStart).padding(16.dp).size(40.dp).background(Color.Blue))
+            Box(Modifier.align(Alignment.Center).size(40.dp).background(Color.White.copy(alpha = 0.5f)))
+            BasicTextField(
+                model.text,
+                { model.text = it },
+                Modifier.align(Alignment.TopCenter).padding(top = 16.dp).size(120.dp, 30.dp).background(Color.White),
+            )
+        }
+    }
+
     override fun isUiWindowFocused() = dev.compixel.development.SuiteEnvironment.uiFocused(super.isUiWindowFocused())
 
     /** [clicked] is the expected state of the top-left target when the frame was captured. */

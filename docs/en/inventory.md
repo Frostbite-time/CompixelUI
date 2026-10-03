@@ -11,9 +11,16 @@
 This screen is for a menu with 27 storage slots followed by the player's inventory, like a chest:
 
 ```kotlin
-fun storageScreen(menu: StorageMenu, inventory: Inventory, title: Component): ComposeInventoryScreen<StorageMenu> {
-    val caption = title.string
-    return ComposeInventoryScreen(menu, title) { slots ->
+class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
+    ComposeInventoryScreen<StorageMenu, Unit, Nothing>(menu, title) {
+    private val caption = title.string
+
+    override fun snapshot() {}
+
+    override fun handle(action: Nothing) {}
+
+    @Composable
+    override fun Content(state: Unit, slots: ComposeMenuSlots<StorageMenu>) {
         OreScreen(caption, maxWidth = 176.dp, maxHeight = 190.dp, panelModifier = slots.areaModifier()) {
             SlotGrid(slots, 0 until 27)
             OreText("Inventory")
@@ -35,17 +42,63 @@ Register it like any other menu screen, from your client mod constructor:
 
 ```kotlin
 modBus.addListener { event: RegisterMenuScreensEvent ->
-    event.register(ModMenus.STORAGE.get(), ::storageScreen)
+    event.register(ModMenus.STORAGE.get(), ::StorageScreen)
 }
 ```
 
 - `slots.Slot(id)` places the menu slot with that index. Place each slot once; slots you leave out are hidden.
 - `slots.areaModifier()` marks the area other mods treat as the container, for example to place recipe viewer panels beside it.
 - Read the title and other game objects before composition, as `caption` does here.
+- The slots already show the menu's items, so this screen needs no state of its own: `Unit` and `Nothing` say so, as for any [screen without game state](getting-started.md#4-show-game-data).
 
 On Forge 1.20.1, register the screen with `MenuScreens.register` inside `FMLClientSetupEvent.enqueueWork`.
 
 Every slot of a large inventory gets its icon without further setup. `ComposeInventoryScreen` keeps up to 256 icons cached across the whole screen, including the player inventory and crafting slots. See [Large grids](items.md#large-grids) to tune the cache and the per-frame drawing budget.
+
+## Show the menu's state
+
+When the screen shows more than slots, give it a state type. This version of `StorageScreen` reads the menu in `snapshot`, draws the latest snapshot with the slots in `Content`, and runs the actions the UI sends in `handle`:
+
+```kotlin
+data class StorageState(val used: Int, val locked: Boolean)
+
+class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
+    ComposeInventoryScreen<StorageMenu, StorageState, Boolean>(menu, title) {
+    private val caption = title.string
+
+    override fun snapshot() = StorageState((0 until 27).count { container.getSlot(it).hasItem() }, container.locked())
+
+    override fun handle(action: Boolean) {
+        container.requestLocked(action)
+    }
+
+    @Composable
+    override fun Content(state: StorageState, slots: ComposeMenuSlots<StorageMenu>) {
+        OreScreen(
+            caption,
+            maxWidth = 176.dp,
+            maxHeight = 210.dp,
+            onClose = ::requestClose,
+            panelModifier = slots.areaModifier(),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OreText("${state.used} / 27 used", Modifier.weight(1f))
+                OreSwitch(state.locked, onCheckedChange = { send(it) })
+            }
+            SlotGrid(slots, 0 until 27)
+            OreText("Inventory")
+            SlotGrid(slots, 27 until 54)
+            SlotGrid(slots, 54 until 63)
+        }
+    }
+}
+```
+
+Here `locked` and `requestLocked` stand for your menu's own state, for example kept in sync with [menu sync](menu-sync.md).
+
+- `snapshot` runs on the game thread when the screen opens, then every tick after `handle` has run that tick's actions.
+- `requestClose()` closes the screen from the UI, as the panel's close button does here.
+- `ComposeMenuScreen` works the same way for menus without slots; its `Content(state)` has no slots.
 
 ## Choose a screen class
 
@@ -55,6 +108,8 @@ Every slot of a large inventory gets its icon without further setup. `ComposeInv
 | `ComposeMenuScreen` | Server menus without slots |
 | `ComposeInventoryScreen` | Menus with slots |
 | `SlotBehaviorScreen` | Container screens you draw natively, with CompixelUI's slot rules |
+
+All three Compose classes have `snapshot`, `handle`, `Content` and `requestClose()`; the two menu screens also have `menuClosed()`.
 
 ## Change what a click does
 
@@ -94,5 +149,5 @@ Ranges exclude their end, and `true` fills that group from its last slot. Stacks
 ## Overlays and other screens
 
 - Call `slots.Interaction(enabled = false)` while a dialog or window should block slot clicks.
-- Override `inventoryTick()` to update a `UiBinding` each tick.
-- When a recipe viewer opens its own screen over yours, the menu stays open. Keep your bindings until the menu itself closes.
+- When a recipe viewer opens its own screen over yours, the menu stays open, and your screen returns with a new Compose session and a new snapshot. Actions not yet handled are dropped, and `remember` state starts over, so keep anything that must last, such as a search text, in the screen or the menu.
+- Override `menuClosed()` for work that should happen once, when the screen closes for good, such as saving that search text. A recipe viewer covering the screen doesn't call it.

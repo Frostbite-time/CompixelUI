@@ -33,13 +33,23 @@ CompixelUI 把 Jetpack Compose 带进 Minecraft Java 版。用声明式 Kotlin �
 ## 第一个界面
 
 ```kotlin
-Minecraft.getInstance().setScreen(ComposeScreen(Component.literal("计数器")) {
-    var count by remember { mutableStateOf(0) }
-    OreScreen("计数器") {
-        OreText("已点击 $count 次")
-        OreButton("点我", onClick = { count++ })
+class CounterScreen : ComposeScreen<Int, Unit>(Component.literal("计数器")) {
+    private var count = 0
+
+    override fun snapshot() = count
+
+    override fun handle(action: Unit) {
+        count++
     }
-})
+
+    @Composable
+    override fun Content(state: Int) {
+        OreScreen("计数器") {
+            OreText("已点击 $state 次")
+            OreButton("点我", onClick = { send(Unit) })
+        }
+    }
+}
 ```
 
 [快速开始](docs/zh-CN/getting-started.md)会带你从空模组做到这个界面。

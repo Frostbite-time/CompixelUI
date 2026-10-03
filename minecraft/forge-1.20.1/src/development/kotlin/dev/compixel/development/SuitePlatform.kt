@@ -26,7 +26,7 @@ import net.minecraftforge.fml.loading.FMLEnvironment
 import org.lwjgl.glfw.GLFW
 import org.lwjgl.opengl.GL11
 
-internal typealias SuiteComposeScreen = ComposeScreen
+internal typealias SuiteComposeScreen = ComposeScreen<*, *>
 
 /** Every Minecraft 1.20.1 / Forge call the shared suite code needs, in one reviewable place. */
 internal object SuitePlatform {

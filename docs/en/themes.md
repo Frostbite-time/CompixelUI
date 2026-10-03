@@ -228,11 +228,9 @@ Give each screen a theme ID so resource packs can target it:
 ```kotlin
 import dev.compixel.ui.ore.theme.OreThemeId
 
-ComposeScreen(
-    Component.literal("Storage"),
-    theme = OreThemeId("examplemod", "storage"),
-) {
-    OreScreen("Storage") { /* controls */ }
+class StorageScreen :
+    ComposeScreen<StorageState, StorageAction>(Component.literal("Storage"), theme = OreThemeId("examplemod", "storage")) {
+    // snapshot, handle and Content as usual
 }
 ```
 

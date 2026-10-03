@@ -33,7 +33,7 @@ import org.lwjgl.sdl.SDLEvents
 import org.lwjgl.sdl.SDLKeyboard
 import org.lwjgl.sdl.SDLVideo
 
-internal typealias SuiteComposeScreen = ComposeScreen
+internal typealias SuiteComposeScreen = ComposeScreen<*, *>
 
 /** Every Minecraft 26.3 / NeoForge call the shared suite code needs, in one reviewable place. */
 internal object SuitePlatform {

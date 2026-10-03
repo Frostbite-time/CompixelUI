@@ -1,5 +1,8 @@
 package dev.compixel.development
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import dev.compixel.bridge.ComposeThread
 import dev.compixel.forge.ComposeMenuScreen
 import dev.compixel.forge.sync.MenuSync
 import net.minecraft.client.Minecraft
@@ -9,17 +12,57 @@ import net.minecraft.world.entity.player.Inventory
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.Items
 
+/** What the screen's content shows of the synchronized menu. */
+internal data class SyncAcceptanceView(val ready: Boolean, val counter: Int, val emeralds: Int)
+
+/** Its content requests the replacement text through the screen's state, as a button would. */
 internal class SyncAcceptanceScreen(
     menu: SyncAcceptanceMenu,
     @Suppress("UNUSED_PARAMETER") inventory: Inventory,
     title: Component,
-) : ComposeMenuScreen<SyncAcceptanceMenu>(menu, title, content = {}) {
+) : ComposeMenuScreen<SyncAcceptanceMenu, SyncAcceptanceView, String>(menu, title) {
+    /** The latest state the content composed. Compose thread. */
+    var composed: SyncAcceptanceView? = null
+        private set
+
+    /** Calls of [menuClosed]; the menu closes once. */
+    var menuCloses = 0
+        private set
+
     override fun isUiWindowFocused() = SuiteEnvironment.uiFocused(super.isUiWindowFocused())
+
+    override fun snapshot() =
+        SyncAcceptanceView(
+            container.sync.hasSnapshot(),
+            container.counter,
+            if (container.item.item == Items.EMERALD) container.item.count else 0,
+        )
+
+    override fun handle(action: String) {
+        check(container.sync.request(SyncAcceptanceMenu.REPLACE, action).queued()) {
+            "The content's action was not queued"
+        }
+    }
+
+    override fun menuClosed() {
+        menuCloses++
+    }
+
+    @Composable
+    override fun Content(state: SyncAcceptanceView) {
+        SideEffect { composed = state }
+    }
+
+    /** What a button in the content does; call it on the Compose thread. */
+    fun replace(text: String) = send(text)
+
+    /** What a close button in the content does; call it on the Compose thread. */
+    fun closeFromContent() = requestClose()
 }
 
 /**
- * A real server-opened menu: bounded multi-batch snapshot, fragmented action round trip, a native value through one
- * shared codec in both directions, and screen release.
+ * A real server-opened menu: bounded multi-batch snapshot, fragmented action round trip from the screen's content, a
+ * native value through one shared codec in both directions, and screen release on a close request from the content.
  */
 internal class MenuSyncAcceptanceProbe(private val done: () -> Unit) {
     private val mc
@@ -66,17 +109,29 @@ internal class MenuSyncAcceptanceProbe(private val done: () -> Unit) {
                         check(menu.sync.statistics().largestBatch() <= menu.sync.options().state().batchBytes()) {
                             "A state batch exceeded its bound"
                         }
-                        check(menu.sync.request(SyncAcceptanceMenu.REPLACE, SyncAcceptanceMenu.REPLACEMENT).queued()) {
-                            "The action was not queued"
-                        }
                         stage++
                     }
                 }
             2 -> {
+                val active = checkNotNull(screen)
+                // The screen's snapshot of the menu's initial state has reached the content.
+                if (ComposeThread.call { active.composed } == SyncAcceptanceView(true, 7, 0)) {
+                    check(ComposeThread.call { active.replace(SyncAcceptanceMenu.REPLACEMENT) }) {
+                        "The screen rejected its content's action"
+                    }
+                    stage++
+                }
+            }
+            3 -> {
                 val menu = mc.player!!.containerMenu as SyncAcceptanceMenu
                 check(menu.sync.status() != MenuSync.Status.FAILED) { "Menu sync failed: ${menu.sync.statistics()}" }
                 val result = menu.sync.lastActionResult()
-                if (result != null && menu.counter == 42 && menu.text == SyncAcceptanceMenu.REPLACEMENT) {
+                if (
+                    result != null &&
+                        menu.counter == 42 &&
+                        menu.text == SyncAcceptanceMenu.REPLACEMENT &&
+                        ComposeThread.call { checkNotNull(screen).composed } == SyncAcceptanceView(true, 42, 0)
+                ) {
                     check(result.status() == MenuSync.ActionStatus.APPLIED) {
                         "The action was not applied: ${result.status()}"
                     }
@@ -90,29 +145,36 @@ internal class MenuSyncAcceptanceProbe(private val done: () -> Unit) {
                     stage++
                 }
             }
-            3 -> {
+            4 -> {
                 val menu = mc.player!!.containerMenu as SyncAcceptanceMenu
                 check(menu.sync.status() != MenuSync.Status.FAILED) { "Menu sync failed: ${menu.sync.statistics()}" }
                 val result = menu.sync.lastActionResult()
+                val active = checkNotNull(screen)
                 if (
                     result != null &&
                         result.action() == "give" &&
                         menu.item.item == Items.EMERALD &&
-                        menu.item.count == 5
+                        menu.item.count == 5 &&
+                        ComposeThread.call { active.composed } == SyncAcceptanceView(true, 42, 5)
                 ) {
                     check(result.status() == MenuSync.ActionStatus.APPLIED) {
                         "The native-value action was not applied: ${result.status()}"
                     }
-                    mc.player!!.closeContainer()
+                    // The screen closes the menu on its next tick.
+                    ComposeThread.call { active.closeFromContent() }
                     stage++
                 }
             }
-            4 ->
+            5 ->
                 if (mc.player?.containerMenu === mc.player?.inventoryMenu) {
                     val closed = checkNotNull(screen)
                     check(closed.session == null && closed.rendererStatistics.liveSurfaces == 0) {
                         "The menu screen kept its renderer after closing"
                     }
+                    check(!closed.contentState.isOpen && !ComposeThread.call { closed.replace("late") }) {
+                        "The closed menu screen kept its state"
+                    }
+                    check(closed.menuCloses == 1) { "The menu screen reported ${closed.menuCloses} menu closes" }
                     stage++
                     done()
                 }

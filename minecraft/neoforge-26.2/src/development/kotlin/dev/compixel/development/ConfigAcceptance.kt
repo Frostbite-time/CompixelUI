@@ -1,9 +1,12 @@
 package dev.compixel.development
 
+import dev.compixel.forge.config.ComposeConfigScreen
 import dev.compixel.forge.config.ConfigEditor
 import dev.compixel.forge.config.ConfigEditor.Input
 import dev.compixel.forge.config.ConfigEditor.Result
+import net.minecraft.client.gui.screens.Screen
 import net.neoforged.fml.ModContainer
+import net.neoforged.fml.ModList
 import net.neoforged.fml.config.ModConfig
 import net.neoforged.neoforge.common.ModConfigSpec
 
@@ -16,6 +19,10 @@ internal object ConfigAcceptance {
     private val spec = builder.build()
 
     fun register(container: ModContainer) = container.registerConfig(ModConfig.Type.CLIENT, spec, FILE)
+
+    /** The library's config screen for the development mod, returning to [parent]. */
+    fun screen(parent: Screen) =
+        ComposeConfigScreen(ModList.get().getModContainerById("compixel_development").orElseThrow(), parent)
 
     fun verify(): String {
         val editor = ConfigEditor("compixel_development")

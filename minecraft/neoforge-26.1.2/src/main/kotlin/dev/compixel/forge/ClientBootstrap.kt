@@ -8,6 +8,7 @@ import net.minecraft.server.packs.resources.ResourceManagerReloadListener
 import net.neoforged.bus.api.IEventBus
 import net.neoforged.neoforge.client.event.AddClientReloadListenersEvent
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent
+import net.neoforged.neoforge.client.event.ClientTickEvent
 import net.neoforged.neoforge.common.NeoForge
 
 internal object ClientBootstrap {
@@ -15,6 +16,7 @@ internal object ClientBootstrap {
         NeoForge.EVENT_BUS.addListener(dev.compixel.forge.sync.ClientMenuSync::tick)
         NeoForge.EVENT_BUS.addListener(FrameRetirement::finish)
         NeoForge.EVENT_BUS.addListener(FrameRetirement::shutdown)
+        NeoForge.EVENT_BUS.addListener(::tick)
         NeoForge.EVENT_BUS.addListener(::leaveWorld)
         modEventBus.addListener(::registerReloadListeners)
         modEventBus.addListener(dev.compixel.forge.drawing.NativePictureRenderers::registered)
@@ -27,6 +29,9 @@ internal object ClientBootstrap {
             ResourceManagerReloadListener { RendererResources.reloaded() },
         )
     }
+
+    // HUD layers publish their content's state once per client tick.
+    private fun tick(event: ClientTickEvent.Post) = tickHudLayers()
 
     // HUD layers release their sessions with the world; the next drawn frame opens new ones.
     private fun leaveWorld(event: ClientPlayerNetworkEvent.LoggingOut) = closeHudLayers()

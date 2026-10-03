@@ -33,7 +33,7 @@ internal class ThemeAcceptance(
     private val other = OreThemeId("compixel_other_test")
     private val packs = mutableListOf<File>()
     private var originalPacks: List<String>? = null
-    private lateinit var screen: ComposeScreen
+    private lateinit var screen: ComposeScreen<Unit, Nothing>
     private lateinit var ui: UiSession
     private var reload: CompletableFuture<Void>? = null
     private var colors = OreColors()
@@ -45,35 +45,32 @@ internal class ThemeAcceptance(
     fun schedule() {
         script.act("open the resource theme fixture") {
             screen =
-                object :
-                    ComposeScreen(
-                        Component.literal("Resource themes"),
-                        theme = owner,
-                        content = {
-                            var text by remember {
-                                creations++
-                                mutableStateOf("")
-                            }
-                            val current = OreTheme.colors
-                            var isolated = current
-                            OreTheme(other) { isolated = OreTheme.colors }
-                            SideEffect {
-                                colors = current
-                                otherColors = isolated
-                                draft = text
-                                edit = { text = it }
-                            }
-                            OreScreen("Resource theme / AE light") {
-                                OreTextField(
-                                    text,
-                                    { text = it },
-                                    Modifier.fillMaxWidth(),
-                                    label = "Draft survives reload",
-                                )
-                                OreButton("Primary action", {}, Modifier.fillMaxWidth())
-                            }
-                        },
-                    ) {
+                object : ComposeScreen<Unit, Nothing>(Component.literal("Resource themes"), theme = owner) {
+                    override fun snapshot() {}
+
+                    override fun handle(action: Nothing) {}
+
+                    @Composable
+                    override fun Content(state: Unit) {
+                        var text by remember {
+                            creations++
+                            mutableStateOf("")
+                        }
+                        val current = OreTheme.colors
+                        var isolated = current
+                        OreTheme(other) { isolated = OreTheme.colors }
+                        SideEffect {
+                            colors = current
+                            otherColors = isolated
+                            draft = text
+                            edit = { text = it }
+                        }
+                        OreScreen("Resource theme / AE light") {
+                            OreTextField(text, { text = it }, Modifier.fillMaxWidth(), label = "Draft survives reload")
+                            OreButton("Primary action", {}, Modifier.fillMaxWidth())
+                        }
+                    }
+
                     override fun isUiWindowFocused() = true
                 }
             session.open(screen)

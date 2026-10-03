@@ -54,7 +54,7 @@ abstract class PowerMenu extends AbstractContainerMenu implements SyncedMenu {
 ```
 
 - 服务端：机器状态变化时调用 `captureMachine`，新值会送达每个正在查看该菜单的客户端。
-- 客户端：在游戏线程调用 `requestEnabled`，例如在处理 `UiBinding` 的动作时。返回 `true` 只表示请求已排队，不代表已经成功。
+- 客户端：在游戏线程调用 `requestEnabled`，例如在 `ComposeMenuScreen` 的 `handle` 中。返回 `true` 只表示请求已排队，不代表已经成功。
 - 动作处理器在服务端运行。先在那里检查权限，再修改机器。
 
 相关类型位于 `dev.compixel.sync.state`（结构与编解码器）、`dev.compixel.sync.action` 和 `dev.compixel.forge.sync`（菜单绑定）。

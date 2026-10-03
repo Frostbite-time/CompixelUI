@@ -11,9 +11,15 @@ CompixelUI 能在 Compose 中绘制真实的 Minecraft 物品：模型、动画�
 在游戏线程用 `ItemIcon.snapshot` 为每个物品堆拍下快照，再把图标交给 Compose：
 
 ```kotlin
-fun openItemCatalog(stacks: List<ItemStack>) {
-    val icons = stacks.map { ItemIcon.snapshot(it) }
-    Minecraft.getInstance().setScreen(ComposeScreen(Component.literal("物品目录")) {
+class ItemCatalogScreen(stacks: List<ItemStack>) : ComposeScreen<Unit, Nothing>(Component.literal("物品目录")) {
+    private val icons = stacks.map { ItemIcon.snapshot(it) }
+
+    override fun snapshot() {}
+
+    override fun handle(action: Nothing) {}
+
+    @Composable
+    override fun Content(state: Unit) {
         OreScreen("物品目录", maxWidth = 176.dp, maxHeight = 110.dp) {
             LazyVerticalGrid(GridCells.FixedSize(18.dp)) {
                 items(icons) { icon ->
@@ -23,9 +29,11 @@ fun openItemCatalog(stacks: List<ItemStack>) {
                 }
             }
         }
-    })
+    }
 }
 ```
+
+界面在游戏线程创建，所以可以在构造时拍下快照。会随游戏变化的图标则应放进界面状态，在 `snapshot()` 中拍下。
 
 - `MinecraftItemIcon` 和其他可组合项一样，可以调整大小、裁剪、旋转或设置透明度。
 - 指针停留 500 毫秒后，`MinecraftItemTooltip` 显示物品提示。提示由 Minecraft 自己绘制，其他模组添加的提示行也会出现。
@@ -96,15 +104,15 @@ MinecraftNativeDrawing(panel, Modifier.size(180.dp, 48.dp))
 创建 `ComposeScreen`、`ComposeMenuScreen`、`ComposeInventoryScreen` 或 `ComposeHudLayer` 时，可以通过 `nativeItemOptions` 为该界面或 HUD 层单独调整：
 
 ```kotlin
-ComposeScreen(title, nativeItemOptions = NativeItemOptions(cacheCapacity = 512)) { … }
+class CatalogScreen(title: Component) :
+    ComposeScreen<CatalogState, CatalogAction>(title, nativeItemOptions = NativeItemOptions(cacheCapacity = 512)) { … }
 
-ComposeInventoryScreen(
-    menu,
-    title,
-    nativeItemOptions = NativeItemOptions(cacheCapacity = 1024),
-) { slots ->
-    // 在这里排布菜单槽位。
-}
+class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
+    ComposeInventoryScreen<StorageMenu, Unit, Nothing>(
+        menu,
+        title,
+        nativeItemOptions = NativeItemOptions(cacheCapacity = 1024),
+    ) { … }
 ```
 
 `NativeItemOptions` 位于 `dev.compixel.forge.item`。

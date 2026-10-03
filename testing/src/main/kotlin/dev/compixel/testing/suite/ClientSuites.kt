@@ -24,11 +24,17 @@ enum class AcceptanceStep(val report: String) {
     RESOURCES("library and development translations loaded; loader environment matches the launch"),
     RENDERER("renderer backend matches CPU reference pixels"),
     WORLD("fresh flat creative test world loaded"),
-    INVENTORY("native left/right container input, per-slot render hooks, server acknowledgement and screen release"),
-    MENU_SYNC(
-        "bounded multi-batch snapshot, fragmented action round trip and a native value both ways through one shared codec"
+    INVENTORY(
+        "native left/right container input, per-slot render hooks, server acknowledgement, screen state and actions, " +
+            "and release on a close request from the content"
     ),
-    CONFIG("config staging, scalar/list validation, save and restore"),
+    MENU_SYNC(
+        "bounded multi-batch snapshot, fragmented action round trip from a state screen's content, a native value " +
+            "both ways through one shared codec, and release on a close request from the content"
+    ),
+    CONFIG(
+        "config staging, scalar/list validation, save and restore; the config screen opens and closes with its state"
+    ),
     PORT_INPUT("top-left pointer coordinates, premultiplied alpha, Unicode text entry and key translation"),
     PORT_SCALE("GUI scaling and framebuffer resize keep pixels in place"),
     PORT_RELOAD("resource reload keeps rendered pixels correct"),
@@ -38,11 +44,14 @@ enum class AcceptanceStep(val report: String) {
         "rectangular native drawing: exact layout pixels, native scissor, Compose clip/alpha, refresh, resize, reload and release"
     ),
     HUD_RENDER(
-        "HUD layer: Compose and native item pixels over the world, drawing on beneath a screen that takes the input"
+        "HUD layer: Compose and native item pixels over the world, its opening snapshot, and per-tick state beneath " +
+            "a screen that takes the input"
     ),
     HUD_VISIBILITY("hiding the GUI hides the HUD layer; showing it again resumes the same session"),
     HUD_RESIZE("GUI scale, framebuffer resize and resource reload keep the HUD session and its pixels in place"),
-    HUD_RELEASE("leaving the world and close() release the HUD session; the next drawn frame opens a new one"),
+    HUD_RELEASE(
+        "leaving the world and close() release the HUD session and its state; the next drawn frame opens new ones"
+    ),
     PREVIEW_OPEN("F8 key mapping opens the development preview"),
     RETAINED_FRAME("static UI reuses its retained frame"),
     TEXT_FIELD("text field focus, supplementary Unicode input and select-all delete"),

@@ -1,6 +1,5 @@
 package dev.compixel.forge
 
-import androidx.compose.runtime.Composable
 import com.mojang.blaze3d.platform.InputConstants
 import dev.compixel.forge.drawing.NativeDrawingOptions
 import dev.compixel.forge.item.NativeItemOptions
@@ -11,10 +10,11 @@ import net.minecraft.network.chat.Component
 import net.minecraft.world.inventory.AbstractContainerMenu
 
 /**
- * Compose screen for a server-backed menu with no inventory slots. Keeps vanilla MenuAccess, close packets and client
- * removal semantics. Use ComposeInventoryScreen for menus with native inventory slots.
+ * Compose screen for a server-backed menu with no inventory slots, showing the menu's state as [ComposeScreen] does.
+ * Keeps vanilla MenuAccess, close packets and client removal semantics. Use ComposeInventoryScreen for menus with
+ * native inventory slots.
  */
-open class ComposeMenuScreen<M : AbstractContainerMenu>(
+abstract class ComposeMenuScreen<M : AbstractContainerMenu, S, A>(
     protected val container: M,
     title: Component,
     guiUnitsPerDp: Float = 1f,
@@ -22,16 +22,14 @@ open class ComposeMenuScreen<M : AbstractContainerMenu>(
     theme: OreThemeId = OreThemeId.Default,
     nativeItemOptions: NativeItemOptions = NativeItemOptions(),
     nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
-    content: @Composable () -> Unit,
 ) :
-    ComposeScreen(
+    ComposeScreen<S, A>(
         title,
         guiUnitsPerDp = guiUnitsPerDp,
         minimumUiDensity = minimumUiDensity,
         nativeItemOptions = nativeItemOptions,
         nativeDrawingOptions = nativeDrawingOptions,
         theme = theme,
-        content = content,
     ),
     MenuAccess<M> {
     private var menuRemoved = false
@@ -43,12 +41,21 @@ open class ComposeMenuScreen<M : AbstractContainerMenu>(
     override fun getMenu(): M = container
 
     final override fun tick() {
-        super.tick()
         val player = Minecraft.getInstance().player
-        if (player == null || !player.isAlive || player.isRemoved) onClose() else containerTick()
+        if (player == null || !player.isAlive || player.isRemoved) onClose()
+        else {
+            containerTick()
+            super.tick() // The content's state and close requests follow the container tick.
+        }
     }
 
     protected open fun containerTick() {}
+
+    /**
+     * Runs once on the game thread after the menu has closed and the screen has let go of it, for example to save what
+     * the player entered. A screen that only covers this one, such as a recipe viewer, does not close the menu.
+     */
+    protected open fun menuClosed() {}
 
     override fun keyPressed(keyCode: Int, scanCode: Int, modifiers: Int): Boolean {
         if (
@@ -76,6 +83,7 @@ open class ComposeMenuScreen<M : AbstractContainerMenu>(
             if (!menuRemoved && Minecraft.getInstance().player?.containerMenu !== container) {
                 menuRemoved = true
                 Minecraft.getInstance().player?.let(container::removed)
+                menuClosed()
             }
         }
     }

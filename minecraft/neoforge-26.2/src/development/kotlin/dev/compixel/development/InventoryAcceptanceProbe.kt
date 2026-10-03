@@ -2,10 +2,14 @@ package dev.compixel.development
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import dev.compixel.bridge.ComposeThread
 import dev.compixel.forge.ComposeInventoryScreen
+import dev.compixel.forge.slots.ComposeMenuSlots
 import java.util.concurrent.CompletableFuture
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
@@ -16,7 +20,8 @@ import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.Items
 
 /**
- * Real native container prediction, slot-render hooks, mouse translation, server acknowledgement and screen release.
+ * Real native container prediction, slot-render hooks, mouse translation, server acknowledgement, the screen's state
+ * and actions, and screen release on a close request from its content.
  */
 internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
     private val mc
@@ -30,7 +35,62 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
     private var slotHooks = 0
     private var initialized: CompletableFuture<Void>? = null
     private var serverVerified: CompletableFuture<Boolean>? = null
-    private var screen: ComposeInventoryScreen<InventoryMenu>? = null
+    private var screen: AcceptanceScreen? = null
+
+    /** Shows the second hotbar slot's count as its state; its content sends presses, as a button would. */
+    private inner class AcceptanceScreen :
+        ComposeInventoryScreen<InventoryMenu, Int, Unit>(
+            player.inventoryMenu,
+            Component.literal("Native inventory acceptance"),
+        ) {
+        /** The latest state the content composed. Compose thread. */
+        var composed = -1
+            private set
+
+        /** Presses handled on the game thread. */
+        var presses = 0
+            private set
+
+        /** Calls of [menuClosed]; the menu closes once. */
+        var menuCloses = 0
+            private set
+
+        override fun isUiWindowFocused() = SuiteEnvironment.uiFocused(super.isUiWindowFocused())
+
+        override fun extractSlot(graphics: GuiGraphicsExtractor, slot: Slot, mouseX: Int, mouseY: Int) {
+            slotHooks++
+            super.extractSlot(graphics, slot, mouseX, mouseY)
+        }
+
+        override fun snapshot() = player.inventory.getItem(1).count
+
+        override fun handle(action: Unit) {
+            presses++
+        }
+
+        override fun menuClosed() {
+            menuCloses++
+        }
+
+        @Composable
+        override fun Content(state: Int, slots: ComposeMenuSlots<InventoryMenu>) {
+            SideEffect { composed = state }
+            Column(Modifier.fillMaxSize().background(Color(0xFF204060)).padding(20.dp)) {
+                Row(slots.areaModifier()) {
+                    slots.Slot(36)
+                    slots.Slot(37)
+                    slots.Slot(5)
+                    slots.Slot(45)
+                }
+            }
+        }
+
+        /** What a button in the content does; call it on the Compose thread. */
+        fun press() = send(Unit)
+
+        /** What a close button in the content does; call it on the Compose thread. */
+        fun closeFromContent() = requestClose()
+    }
 
     fun tick() {
         check(++ticks < 600) { "Inventory acceptance timed out at stage $stage" }
@@ -51,34 +111,7 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
             1 ->
                 if (initialized!!.isDone && player.inventory.getItem(0).count == 8) {
                     initialized!!.join()
-                    screen =
-                        object :
-                            ComposeInventoryScreen<InventoryMenu>(
-                                player.inventoryMenu,
-                                Component.literal("Native inventory acceptance"),
-                                content = { slots ->
-                                    Column(Modifier.fillMaxSize().background(Color(0xFF204060)).padding(20.dp)) {
-                                        Row(slots.areaModifier()) {
-                                            slots.Slot(36)
-                                            slots.Slot(37)
-                                            slots.Slot(5)
-                                            slots.Slot(45)
-                                        }
-                                    }
-                                },
-                            ) {
-                            override fun isUiWindowFocused() = SuiteEnvironment.uiFocused(super.isUiWindowFocused())
-
-                            override fun extractSlot(
-                                graphics: GuiGraphicsExtractor,
-                                slot: Slot,
-                                mouseX: Int,
-                                mouseY: Int,
-                            ) {
-                                slotHooks++
-                                super.extractSlot(graphics, slot, mouseX, mouseY)
-                            }
-                        }
+                    screen = AcceptanceScreen()
                     SuitePlatform.setScreen(screen)
                     stage++
                 }
@@ -86,6 +119,9 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
                 // Layout already ran during init; the hooks run in the same pass as the first rendered frame.
                 if (screen!!.inventory.bounds(36) != null && screen!!.rendererStatistics.renderedFrames > 0) {
                     check(slotHooks > 0) { "The native per-slot render hook was not dispatched" }
+                    check(ComposeThread.call { screen!!.composed } == 0) {
+                        "The first composition did not show the screen's opening snapshot"
+                    }
                     click(36, SuitePlatform.MOUSE_LEFT)
                     check(player.containerMenu.carried.count == 8) { "Left-click did not pick up the stack" }
                     stage++
@@ -104,7 +140,14 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
                 }
                 stage++
             }
-            5 -> {
+            5 ->
+                // The next tick's snapshot shows the placed stack, and the content sends an action back.
+                if (ComposeThread.call { screen!!.composed } == 8) {
+                    check(ComposeThread.call { screen!!.press() }) { "The screen rejected its content's action" }
+                    stage++
+                }
+            6 -> if (screen!!.presses == 1) stage++
+            7 -> {
                 serverVerified =
                     checkNotNull(mc.singleplayerServer)
                         .submit(
@@ -117,21 +160,31 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
                         )
                 stage++
             }
-            6 ->
+            8 ->
                 if (serverVerified!!.isDone) {
                     if (serverVerified!!.join()) {
-                        val active = checkNotNull(screen)
-                        active.onClose()
-                        check(
-                            active.rendererStatistics.liveSurfaces == 0 &&
-                                active.rendererStatistics.liveNativeImages == 0 &&
-                                active.rendererStatistics.strandedNativeImages == 0
-                        ) {
-                            "The inventory screen kept its renderer after closing: ${active.rendererStatistics}"
-                        }
+                        // The screen closes on its next tick.
+                        ComposeThread.call { screen!!.closeFromContent() }
                         stage++
-                        done()
-                    } else stage = 5 // Client packets may arrive after the queued server task.
+                    } else stage = 7 // Client packets may arrive after the queued server task.
+                }
+            9 ->
+                if (SuitePlatform.screen !== screen) {
+                    val closed = checkNotNull(screen)
+                    check(
+                        closed.rendererStatistics.liveSurfaces == 0 &&
+                            closed.rendererStatistics.liveNativeImages == 0 &&
+                            closed.rendererStatistics.strandedNativeImages == 0
+                    ) {
+                        "The inventory screen kept its renderer after closing: ${closed.rendererStatistics}"
+                    }
+                    check(!closed.contentState.isOpen && !ComposeThread.call { closed.press() }) {
+                        "The closed inventory screen kept its state"
+                    }
+                    check(closed.presses == 1) { "The closed inventory screen handled a late action" }
+                    check(closed.menuCloses == 1) { "The inventory screen reported ${closed.menuCloses} menu closes" }
+                    stage++
+                    done()
                 }
         }
     }

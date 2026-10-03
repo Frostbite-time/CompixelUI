@@ -43,14 +43,18 @@ internal class SuiteHudModel {
     var step by mutableIntStateOf(0)
     /** Pointer events that reached the content. A HUD layer takes no input, so this stays zero. */
     var pointerEvents = 0
+    /** The game values the acceptance panel composed first and last in its session. */
+    var firstValue = -1
+    var value = -1
     /** The acceptance panel and its item in framebuffer pixels, as last laid out. */
     var panel: Rect? = null
     var item: Rect? = null
 }
 
 /**
- * The development HUD: one [ComposeHudLayer] whose content the suites choose. The adapter registers it above every
- * vanilla layer but draws it only while [enabled], so the other steps and cases run without it. Game thread only.
+ * The development HUD: one [ComposeHudLayer] whose content the suites choose, showing [gameValue] as its state. The
+ * adapter registers it above every vanilla layer but draws it only while [enabled], so the other steps and cases run
+ * without it. Game thread only.
  */
 internal object SuiteHud {
     const val INSET_DP = 8
@@ -58,9 +62,18 @@ internal object SuiteHud {
     const val PANEL_HEIGHT_DP = 32
 
     val model: SuiteHudModel by lazy { ComposeThread.call { SuiteHudModel() } }
-    val layer: ComposeHudLayer by lazy { ComposeHudLayer { SuiteHudContent(model) } }
+    val layer: ComposeHudLayer<Int> by lazy {
+        object : ComposeHudLayer<Int>() {
+            override fun snapshot() = gameValue
+
+            @Composable override fun Content(state: Int) = SuiteHudContent(model, state)
+        }
+    }
     var enabled = false
         private set
+
+    /** The game state the HUD layer shows; it stays unchanged while benchmarks run. */
+    var gameValue = 0
 
     private val items = listOf(Items.DIAMOND, Items.IRON_INGOT, Items.GOLD_INGOT, Items.REDSTONE, Items.EMERALD)
 
@@ -73,6 +86,8 @@ internal object SuiteHud {
             model.icons = icons
             model.step = 0
             model.pointerEvents = 0
+            model.firstValue = -1
+            model.value = -1
             model.panel = null
             model.item = null
         }
@@ -94,7 +109,7 @@ internal object SuiteHud {
 }
 
 @Composable
-private fun SuiteHudContent(model: SuiteHudModel) {
+private fun SuiteHudContent(model: SuiteHudModel, value: Int) {
     val mode = model.mode
     if (mode == SuiteHudMode.OFF) return
     Box(
@@ -107,13 +122,17 @@ private fun SuiteHudContent(model: SuiteHudModel) {
             }
         }
     ) {
-        if (mode == SuiteHudMode.ACCEPTANCE) AcceptancePanel(model)
+        if (mode == SuiteHudMode.ACCEPTANCE) AcceptancePanel(model, value)
         else StatusPanel(model, animated = mode == SuiteHudMode.ANIMATED)
     }
 }
 
 @Composable
-private fun AcceptancePanel(model: SuiteHudModel) {
+private fun AcceptancePanel(model: SuiteHudModel, value: Int) {
+    SideEffect {
+        if (model.firstValue < 0) model.firstValue = value
+        model.value = value
+    }
     Row(
         Modifier.padding(start = SuiteHud.INSET_DP.dp, top = SuiteHud.INSET_DP.dp)
             .size(SuiteHud.PANEL_WIDTH_DP.dp, SuiteHud.PANEL_HEIGHT_DP.dp)

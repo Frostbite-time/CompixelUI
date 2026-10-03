@@ -58,70 +58,80 @@ side = "CLIENT"
 ## 3. 打开界面
 
 ```kotlin
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import dev.compixel.forge.ComposeScreen
 import dev.compixel.ui.ore.button.OreButton
 import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.layout.OreScreen
-import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.Component
 
-fun openCounterScreen() {
-    Minecraft.getInstance().setScreen(ComposeScreen(Component.literal("计数器")) {
-        var count by remember { mutableStateOf(0) }
+class CounterScreen : ComposeScreen<Int, Unit>(Component.literal("计数器")) {
+    private var count = 0
+
+    override fun snapshot() = count
+
+    override fun handle(action: Unit) {
+        count++
+    }
+
+    @Composable
+    override fun Content(state: Int) {
         OreScreen("计数器", maxWidth = 160.dp, maxHeight = 78.dp) {
-            OreText("已点击 $count 次")
-            OreButton("点我", onClick = { count++ })
+            OreText("已点击 $state 次")
+            OreButton("点我", onClick = { send(Unit) })
         }
-    })
+    }
 }
 ```
 
 ![点击三次后的计数器界面](../assets/counter-zh-CN.png)
 
-在客户端代码中调用 `openCounterScreen()`，例如按键绑定的处理函数。`ComposeScreen` 就是普通的 Minecraft 界面，`OreScreen` 负责绘制面板和标题。界面代码放在仅客户端加载的类里，专用服务器就不会加载它。
+在客户端代码中用 `Minecraft.getInstance().setScreen(CounterScreen())` 打开它，例如在按键绑定的处理函数里。`ComposeScreen` 就是普通的 Minecraft 界面，`OreScreen` 负责绘制面板和标题。界面代码放在仅客户端加载的类里，专用服务器就不会加载它。
+
+界面的数据留在游戏线程，Compose 在自己的线程上绘制。`ComposeScreen<S, A>` 通过三个需要重写的成员把两者连起来：`snapshot` 把数据读成类型为 `S` 的不可变值，`Content` 绘制最新快照，`handle` 执行按钮通过 `send` 发来的、类型为 `A` 的动作。这里计数保存在界面里，每次点击就是一个动作。
 
 ## 4. 显示游戏数据
 
-Compose 运行在自己的线程上。请在游戏线程读取游戏数据，再通过 `dev.compixel.host` 中的 `UiBinding` 把不可变快照交给 Compose；按钮也通过它把动作发回来：
+`snapshot` 和 `handle` 运行在游戏线程，可以使用玩家、物品堆等游戏对象。下面的界面显示玩家主手中的物品，点击按钮时丢出一个：
 
 ```kotlin
 data class HeldItem(val name: String, val count: Int)
 
-fun openHandScreen() {
-    val minecraft = Minecraft.getInstance()
-    val held = UiBinding<HeldItem, Unit>(HeldItem("", 0))
-    minecraft.setScreen(object : ComposeScreen(Component.literal("手持物品"), content = {
-        val item = held.value
-        OreScreen("手持物品", maxWidth = 180.dp, maxHeight = 84.dp) {
-            OreText("${item.name} × ${item.count}")
-            OreButton("丢出一个", onClick = { held.send(Unit) })
-        }
-    }) {
-        override fun tick() {
-            super.tick()
-            val player = minecraft.player ?: return
-            held.drainActions { player.drop(false) }
-            val stack = player.mainHandItem
-            held.update(HeldItem(stack.hoverName.string, stack.count))
-        }
+class HandScreen : ComposeScreen<HeldItem, Unit>(Component.literal("手持物品")) {
+    override fun snapshot(): HeldItem {
+        val stack = Minecraft.getInstance().player?.mainHandItem ?: ItemStack.EMPTY
+        return HeldItem(stack.hoverName.string, stack.count)
+    }
 
-        override fun removed() {
-            super.removed()
-            held.close()
+    override fun handle(action: Unit) {
+        Minecraft.getInstance().player?.drop(false)
+    }
+
+    @Composable
+    override fun Content(state: HeldItem) {
+        OreScreen("手持物品", maxWidth = 180.dp, maxHeight = 84.dp) {
+            OreText("${state.name} × ${state.count}")
+            OreButton("丢出一个", onClick = { send(Unit) })
         }
-    })
+    }
 }
 ```
 
-| `UiBinding` 调用 | 在哪里调用 |
-| --- | --- |
-| 构造、`update`、`drainActions`、`close` | 游戏线程 |
-| `value` | 可组合项内部 |
-| `send` | UI 回调。绑定关闭或已有 64 个动作排队时返回 `false`。 |
+用 `Minecraft.getInstance().setScreen(HandScreen())` 打开它。
 
-不要在可组合项里访问玩家、物品堆等游戏对象，也不要让 Compose 等待游戏线程。
+| 成员 | 何时运行 |
+| --- | --- |
+| `snapshot()` | 界面打开时在游戏线程调用一次，之后每刻处理完动作再调用 |
+| `handle(action)` | 在游戏线程逐个处理动作，先于当刻的快照 |
+| `Content(state)` | 在 Compose 线程，参数是最新快照 |
+| `send(action)` | 任意线程，通常在 UI 回调中。界面已关闭或已有 64 个动作排队时返回 `false`。 |
+
+界面在第一帧之前就取得第一份快照，所以不会先显示占位数据。界面关闭时，尚未处理的动作会被丢弃；再次打开时，从新的快照开始。在按钮中调用 `requestClose()` 可以关闭界面。
+
+`snapshot()` 应返回数据类等不可变值：快照没有变化时不会重绘。没有游戏状态的界面继承 `ComposeScreen<Unit, Nothing>`，写 `override fun snapshot() {}` 和 `override fun handle(action: Nothing) {}`。`ComposeMenuScreen`、`ComposeInventoryScreen` 和 `ComposeHudLayer` 以同样的方式用于[菜单与容器界面](inventory.md#显示菜单状态)和 [HUD 层](hud.md)。
+
+`Content` 中只使用 `state`、`send` 和构造时准备好的值。不要在可组合项里访问玩家、物品堆等游戏对象，也不要让 Compose 等待游戏线程。
 
 ## 5. 发布
 

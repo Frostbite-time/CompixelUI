@@ -26,7 +26,7 @@ import net.neoforged.neoforge.common.NeoForge
 import org.lwjgl.glfw.GLFW
 import org.lwjgl.opengl.GL11
 
-internal typealias SuiteComposeScreen = ComposeScreen
+internal typealias SuiteComposeScreen = ComposeScreen<*, *>
 
 /** Every Minecraft 1.21.1 / NeoForge call the shared suite code needs, in one reviewable place. */
 internal object SuitePlatform {

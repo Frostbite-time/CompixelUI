@@ -29,13 +29,14 @@ internal class NativeItemVisualScreen(
             { graphics -> graphics.fill(0, 0, 16, 16, NATIVE_VISUAL_RED) },
             NativeRefresh.STATIC,
         ),
-) :
-    ComposeScreen(
-        Component.literal("Native item visual acceptance"),
-        content = {
-            NativeItemVisualScene(model) { modifier -> MinecraftItemIcon(icon, modifier) }
-        },
-    ) {
+) : ComposeScreen<Unit, Nothing>(Component.literal("Native item visual acceptance")) {
+    override fun snapshot() {}
+
+    override fun handle(action: Nothing) {}
+
+    @Composable
+    override fun Content(state: Unit) = NativeItemVisualScene(model) { modifier -> MinecraftItemIcon(icon, modifier) }
+
     override fun isUiWindowFocused() = dev.compixel.development.SuiteEnvironment.uiFocused(super.isUiWindowFocused())
 
     fun bounds(): Map<String, Rect> = ComposeThread.call { model.bounds() }
@@ -50,16 +51,21 @@ internal class NativeItemPartialScreen(
     val model: NativeItemVisualModel = ComposeThread.call { NativeItemVisualModel() },
     private val icons: List<ItemIcon> = partialIcons(),
 ) :
-    ComposeScreen(
+    ComposeScreen<Unit, Nothing>(
         Component.literal("Native partial redraw acceptance"),
         nativeItemOptions = NativeItemOptions(preparationsPerFrame = 4),
-        content = {
-            NativeItemPartialScene(
-                model,
-                icons.map { icon -> @Composable { modifier: Modifier -> MinecraftItemIcon(icon, modifier) } },
-            )
-        },
     ) {
+    override fun snapshot() {}
+
+    override fun handle(action: Nothing) {}
+
+    @Composable
+    override fun Content(state: Unit) =
+        NativeItemPartialScene(
+            model,
+            icons.map { icon -> @Composable { modifier: Modifier -> MinecraftItemIcon(icon, modifier) } },
+        )
+
     override fun isUiWindowFocused() = dev.compixel.development.SuiteEnvironment.uiFocused(super.isUiWindowFocused())
 
     fun bounds(): Map<String, Rect> = ComposeThread.call { model.bounds() }

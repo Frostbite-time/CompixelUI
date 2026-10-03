@@ -12,7 +12,7 @@ import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
 public final class ComposeInventoryInputEvents {
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void keyPressed(ScreenEvent.KeyPressed.Pre event) {
-        if (event.getScreen() instanceof ComposeInventoryScreen<?> screen && screen.getHasTextInputFocus())
+        if (event.getScreen() instanceof ComposeInventoryScreen<?, ?, ?> screen && screen.getHasTextInputFocus())
             event.setCanceled(screen.keyPressed(event.getKeyCode(), event.getScanCode(), event.getModifiers()));
     }
 }

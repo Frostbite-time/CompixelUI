@@ -228,11 +228,9 @@ CompixelUI 自带三套完整配色：
 ```kotlin
 import dev.compixel.ui.ore.theme.OreThemeId
 
-ComposeScreen(
-    Component.literal("仓储"),
-    theme = OreThemeId("examplemod", "storage"),
-) {
-    OreScreen("仓储") { /* 控件 */ }
+class StorageScreen :
+    ComposeScreen<StorageState, StorageAction>(Component.literal("仓储"), theme = OreThemeId("examplemod", "storage")) {
+    // 照常重写 snapshot、handle 和 Content
 }
 ```
 

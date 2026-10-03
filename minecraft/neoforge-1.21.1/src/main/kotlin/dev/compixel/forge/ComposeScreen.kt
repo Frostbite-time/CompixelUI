@@ -6,8 +6,10 @@ import dev.compixel.forge.item.NativeItemOptions
 import dev.compixel.forge.item.NativeItemStatistics
 import dev.compixel.forge.item.NativeTooltipStatistics
 import dev.compixel.forge.render.configuredRenderBackend
+import dev.compixel.host.UiStateBinding
 import dev.compixel.render.*
 import dev.compixel.ui.ore.theme.OreThemeId
+import java.util.concurrent.atomic.AtomicBoolean
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.client.gui.components.EditBox
@@ -16,10 +18,15 @@ import net.minecraft.client.gui.screens.Screen
 import net.minecraft.network.chat.Component
 
 /**
- * Full-screen Compose adapter. Widgets added through screen initialization events draw above the Compose layer and
- * receive input first. All rendering and resource retirement run on the game thread.
+ * Full-screen Compose adapter. A subclass reads the game into an immutable [snapshot], draws the latest one in
+ * [Content] and runs the actions its content [send]s in [handle]; `ComposeScreen<Unit, Nothing>` shows content without
+ * game state. The screen takes a snapshot when it opens and every tick after handling that tick's actions. Actions
+ * still pending when it is removed are discarded, and a screen shown again starts from a new snapshot.
+ *
+ * Widgets added through screen initialization events draw above the Compose layer and receive input first. All
+ * rendering and resource retirement run on the game thread.
  */
-open class ComposeScreen(
+abstract class ComposeScreen<S, A>(
     title: Component,
     private val parent: Screen? = null,
     guiUnitsPerDp: Float = 1f,
@@ -28,8 +35,9 @@ open class ComposeScreen(
     nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
     minimumUiDensity: Float = 1f,
     theme: OreThemeId = OreThemeId.Default,
-    content: @Composable () -> Unit,
 ) : Screen(title) {
+    /** The content's game state, opened and closed with each Compose session. */
+    internal val contentState = UiStateBinding<S, A>(::snapshot, ::handle)
     private val layer =
         ComposeLayer(
             renderBackend,
@@ -39,8 +47,10 @@ open class ComposeScreen(
             theme = theme,
             nativeDrawingOptions = nativeDrawingOptions,
             windowFocused = { isUiWindowFocused() },
-            content = content,
+            contentState = contentState,
+            content = { Content(contentState.value) },
         )
+    private val closeRequested = AtomicBoolean()
     private var nativeCapture: GuiEventListener? = null
     internal val session
         get() = layer.session
@@ -67,6 +77,27 @@ open class ComposeScreen(
     val frameProfiler: UiFrameProfiler?
         get() = layer.frameProfiler
 
+    /** Reads the game on the game thread. Return an immutable value: an equal snapshot leaves the content as it is. */
+    protected abstract fun snapshot(): S
+
+    /** Runs an action from the content on the game thread, before the tick's snapshot. It may close the screen. */
+    protected abstract fun handle(action: A)
+
+    /**
+     * The content for the latest [state], composed on the Compose thread. Use [state], [send] and immutable values
+     * prepared during construction, never game objects such as the player.
+     */
+    @Composable protected abstract fun Content(state: S)
+
+    /** Queues [action] for [handle] from any thread. False while the screen is not shown or 64 actions are waiting. */
+    protected fun send(action: A): Boolean = contentState.send(action)
+
+    /**
+     * Closes the screen at its next tick on the game thread, as [onClose] does. Call it from any thread, for example
+     * from a close button in the content.
+     */
+    protected fun requestClose() = closeRequested.set(true)
+
     override fun init() {
         nativeCapture = null
         layer.open(width, height)
@@ -78,7 +109,11 @@ open class ComposeScreen(
         for (renderable in renderables) renderable.render(guiGraphics, mouseX, mouseY, partialTick)
     }
 
-    override fun tick() = layer.tick()
+    override fun tick() {
+        layer.tick()
+        contentState.tick()
+        if (closeRequested.getAndSet(false)) onClose()
+    }
 
     // Native widgets take pointer input first, as in inventory hosts; Compose receives the rest.
     override fun mouseClicked(mouseX: Double, mouseY: Double, button: Int): Boolean {
@@ -134,6 +169,7 @@ open class ComposeScreen(
 
     override fun removed() {
         nativeCapture = null
+        closeRequested.set(false) // A request ends with the session that made it.
         try {
             layer.close()
         } finally {

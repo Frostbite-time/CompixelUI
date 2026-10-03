@@ -31,6 +31,7 @@ import dev.compixel.forge.render.createScreenRenderer
 import dev.compixel.forge.theme.OreThemeReloadListener
 import dev.compixel.host.SessionState
 import dev.compixel.host.UiSession
+import dev.compixel.host.UiStateBinding
 import dev.compixel.platform.*
 import dev.compixel.render.*
 import dev.compixel.ui.ore.theme.OreFeedback
@@ -61,6 +62,8 @@ internal class ComposeLayer(
     private val windowFocused: () -> Boolean,
     /** Adapter-owned layout-to-snapshot handoff, on the game thread before presentation. */
     private val prepareFrameContent: () -> Boolean = { false },
+    /** The content's game state, opened before each session composes and closed with it. */
+    private val contentState: UiStateBinding<*, *>,
     private val content: @Composable () -> Unit,
 ) {
     var session: UiSession? = null
@@ -144,6 +147,8 @@ internal class ComposeLayer(
         refreshTheme()
         val existing = session
         if (existing == null || existing.state == SessionState.CLOSED) {
+            // The first composition already reads the game, not a placeholder.
+            contentState.open()
             val backend = createScreenRenderer(renderBackend, frameProfiler)
             try {
                 session =
@@ -368,6 +373,8 @@ internal class ComposeLayer(
         } finally {
             session = null
             characters.reset()
+            // After the composition is disposed, so the content reads its state until the end.
+            contentState.close()
             try {
                 nativeItems?.let { items ->
                     try {

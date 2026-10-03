@@ -59,7 +59,7 @@ flowchart LR
     gpu --> frame["Minecraft 的画面"]
 ```
 
-游戏对象只留在游戏线程。Compose 看到的是不可变快照，并通过 `UiBinding` 把动作发回。每一帧先由 Compose 录制，再由渲染线程在 Minecraft 自己的图形上下文中绘制：OpenGL 状态在绘制后恢复，Vulkan 使用游戏的设备和队列。
+游戏对象只留在游戏线程。Compose 看到的是不可变快照，并通过 `UiBinding` 把动作发回。界面和 HUD 层让绑定跟随 Compose 会话：会话打开时从第一份快照开始，每刻先处理动作再取下一份快照，会话关闭时绑定随之关闭。每一帧先由 Compose 录制，再由渲染线程在 Minecraft 自己的图形上下文中绘制：OpenGL 状态在绘制后恢复，Vulkan 使用游戏的设备和队列。
 
 Compose 绘制的 GPU 图像（例如物品图标页）归渲染线程所有。Compose 录制的画面会保留对这些图像的引用，渲染器要等这些引用全部释放后才释放图像；在其他线程释放会丢失这块显存。
 

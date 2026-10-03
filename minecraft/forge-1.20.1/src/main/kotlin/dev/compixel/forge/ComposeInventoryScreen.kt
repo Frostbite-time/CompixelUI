@@ -5,9 +5,11 @@ import dev.compixel.forge.drawing.NativeDrawingOptions
 import dev.compixel.forge.item.NativeItemOptions
 import dev.compixel.forge.slots.ComposeMenuSlots
 import dev.compixel.forge.slots.SlotBehaviorScreen
+import dev.compixel.host.UiStateBinding
 import dev.compixel.slots.SlotBehavior
 import dev.compixel.slots.SlotIntent
 import dev.compixel.ui.ore.theme.OreThemeId
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.*
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphics
@@ -20,16 +22,23 @@ import net.minecraft.world.inventory.ClickType
 import net.minecraft.world.inventory.Slot
 import org.lwjgl.glfw.GLFW
 
-/** Compose layout/drawing inside the native container lifecycle, with replaceable inventory behavior. */
-open class ComposeInventoryScreen<M : AbstractContainerMenu>(
+/**
+ * Compose layout/drawing inside the native container lifecycle, with replaceable inventory behavior. A subclass reads
+ * the menu into an immutable [snapshot], draws the latest one with the slots in [Content] and runs the actions its
+ * content [send]s in [handle]. The screen takes a snapshot when it opens and every tick after handling that tick's
+ * actions. Actions still pending when it is removed, for example by a recipe viewer, are discarded, and a screen shown
+ * again starts from a new snapshot.
+ */
+abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
     protected val container: M,
     title: Component,
     val inventory: ComposeMenuSlots<M> = ComposeMenuSlots(container),
     theme: OreThemeId = OreThemeId.Default,
     nativeItemOptions: NativeItemOptions = NativeItemOptions(cacheCapacity = 256),
     nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
-    content: @Composable (ComposeMenuSlots<M>) -> Unit,
 ) : SlotBehaviorScreen<M>(container, checkNotNull(Minecraft.getInstance().player).inventory, title) {
+    /** The content's game state, opened and closed with each Compose session. */
+    internal val contentState = UiStateBinding<S, A>(::snapshot, ::handle)
     private val layer =
         ComposeLayer(
             nativeItemOptions = nativeItemOptions,
@@ -37,9 +46,13 @@ open class ComposeInventoryScreen<M : AbstractContainerMenu>(
             theme = theme,
             windowFocused = { isUiWindowFocused() },
             prepareFrameContent = { inventory.refreshAfterLayout() },
+            contentState = contentState,
         ) {
-            content(inventory)
+            Content(contentState.value, inventory)
         }
+    private val closeRequested = AtomicBoolean()
+    // Set by onClose: the player's own inventory menu stays the open menu after its screen closes.
+    private var closing = false
     val hasTextInputFocus
         get() = layer.hasTextInputFocus || (focused as? EditBox)?.canConsumeInput() == true
 
@@ -61,6 +74,33 @@ open class ComposeInventoryScreen<M : AbstractContainerMenu>(
     private var duringDrag = false
     private var nativeCoordinates = emptyMap<Pair<Int, Int>, Int>()
 
+    /** Reads the menu on the game thread. Return an immutable value: an equal snapshot leaves the content as it is. */
+    protected abstract fun snapshot(): S
+
+    /** Runs an action from the content on the game thread, before the tick's snapshot. It may close the screen. */
+    protected abstract fun handle(action: A)
+
+    /**
+     * The content for the latest [state], composed on the Compose thread. Use [state], [slots], [send] and immutable
+     * values prepared during construction, never game objects such as the menu.
+     */
+    @Composable protected abstract fun Content(state: S, slots: ComposeMenuSlots<M>)
+
+    /** Queues [action] for [handle] from any thread. False while the screen is not shown or 64 actions are waiting. */
+    protected fun send(action: A): Boolean = contentState.send(action)
+
+    /**
+     * Closes the screen at its next tick on the game thread, as [onClose] does. Call it from any thread, for example
+     * from a close button in the content.
+     */
+    protected fun requestClose() = closeRequested.set(true)
+
+    /**
+     * Runs once on the game thread after the screen has closed for good and let go of its menu, for example to save
+     * what the player entered. A screen that only covers this one, such as a recipe viewer, does not end it.
+     */
+    protected open fun menuClosed() {}
+
     protected open fun inventoryTick() {}
 
     protected open fun isUiWindowFocused() = Minecraft.getInstance().isWindowActive
@@ -69,6 +109,8 @@ open class ComposeInventoryScreen<M : AbstractContainerMenu>(
         layer.tick()
         inventoryTick()
         inventory.refresh()
+        contentState.tick()
+        if (closeRequested.getAndSet(false)) onClose()
     }
 
     override fun slotBehavior(slot: Slot?): SlotBehavior = inventory.adapter.behavior(slot)
@@ -291,12 +333,15 @@ open class ComposeInventoryScreen<M : AbstractContainerMenu>(
 
     override fun onClose() {
         cancelInteraction()
+        closing = true
         super.onClose()
     }
 
     override fun removed() {
         cancelInteraction()
-        val menuStillOpen = Minecraft.getInstance().player?.containerMenu === container
+        closeRequested.set(false) // A request ends with the session that made it.
+        val menuStillOpen = !closing && Minecraft.getInstance().player?.containerMenu === container
+        closing = false
         try {
             layer.close()
         } finally {
@@ -304,6 +349,7 @@ open class ComposeInventoryScreen<M : AbstractContainerMenu>(
             else {
                 inventory.close()
                 super.removed()
+                menuClosed()
             }
         }
     }

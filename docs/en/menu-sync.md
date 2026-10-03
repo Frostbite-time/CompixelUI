@@ -54,7 +54,7 @@ abstract class PowerMenu extends AbstractContainerMenu implements SyncedMenu {
 ```
 
 - On the server, call `captureMachine` whenever the machine changes. The new values reach every client viewing the menu.
-- On the client, call `requestEnabled` from the game thread, for example while draining a `UiBinding`. `true` means the request was queued, not that it succeeded.
+- On the client, call `requestEnabled` from the game thread, for example in the `handle` of a `ComposeMenuScreen`. `true` means the request was queued, not that it succeeded.
 - The action handler runs on the server. Check permissions there, then change the machine.
 
 Imports are in `dev.compixel.sync.state` (schemas and codecs), `dev.compixel.sync.action` and `dev.compixel.forge.sync` (menu binding).

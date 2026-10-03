@@ -1,6 +1,7 @@
 package dev.compixel.development
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import dev.compixel.bridge.ComposeThread
 import dev.compixel.demo.preview.DemoModel
@@ -25,45 +26,46 @@ private constructor(
     private val icons: List<ItemIcon>,
     private val samples: Map<Int, ItemIcon> =
         listOf(0, 1, 3, 8).filter { it < icons.size }.associateWith { ItemIcon.snapshot(icons[it].stack) },
-) :
-    ComposeScreen(
-        Component.literal("CompixelUI"),
-        parent,
-        content = {
-            DemoScreen(
-                model,
-                tooltipItem =
-                    if (icons.isEmpty()) null
-                    else
-                        { modifier ->
-                            MinecraftItemIcon(icons[0], modifier)
-                        },
-                slotItem =
-                    if (icons.isEmpty()) null
-                    else
-                        { index, modifier ->
-                            MinecraftItemIcon(icons[index % icons.size], modifier)
-                        },
-            ) { modifier ->
-                if (icons.isEmpty())
-                    dev.compixel.ui.ore.display.OreText("Open a world to preview native items.", modifier)
+) : ComposeScreen<Unit, Nothing>(Component.literal("CompixelUI"), parent) {
+    override fun snapshot() {}
+
+    override fun handle(action: Nothing) {}
+
+    @Composable
+    override fun Content(state: Unit) {
+        DemoScreen(
+            model,
+            tooltipItem =
+                if (icons.isEmpty()) null
                 else
-                    ItemBrowserDemo(
-                        model.itemBrowser,
-                        icons.map { it.description },
-                        modifier,
-                        previewItem = { index, itemModifier ->
-                            val icon = samples.getValue(index)
-                            MinecraftItemTooltip(icon, itemModifier) { MinecraftItemIcon(icon, Modifier.fillMaxSize()) }
-                        },
-                    ) { index, itemModifier ->
-                        MinecraftItemTooltip(icons[index], itemModifier) {
-                            MinecraftItemIcon(icons[index], Modifier.fillMaxSize())
-                        }
+                    { modifier ->
+                        MinecraftItemIcon(icons[0], modifier)
+                    },
+            slotItem =
+                if (icons.isEmpty()) null
+                else
+                    { index, modifier ->
+                        MinecraftItemIcon(icons[index % icons.size], modifier)
+                    },
+        ) { modifier ->
+            if (icons.isEmpty()) dev.compixel.ui.ore.display.OreText("Open a world to preview native items.", modifier)
+            else
+                ItemBrowserDemo(
+                    model.itemBrowser,
+                    icons.map { it.description },
+                    modifier,
+                    previewItem = { index, itemModifier ->
+                        val icon = samples.getValue(index)
+                        MinecraftItemTooltip(icon, itemModifier) { MinecraftItemIcon(icon, Modifier.fillMaxSize()) }
+                    },
+                ) { index, itemModifier ->
+                    MinecraftItemTooltip(icons[index], itemModifier) {
+                        MinecraftItemIcon(icons[index], Modifier.fillMaxSize())
                     }
-            }
-        },
-    ) {
+                }
+        }
+    }
+
     internal val itemBrowser
         get() = model.itemBrowser
 

@@ -20,7 +20,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.compixel.forge.ComposeScreen
 import dev.compixel.forge.config.ConfigEditor.*
-import dev.compixel.host.UiBinding
 import dev.compixel.ui.ore.button.OreButton
 import dev.compixel.ui.ore.button.OreButtonStyle
 import dev.compixel.ui.ore.display.OreText
@@ -43,33 +42,39 @@ import net.neoforged.fml.ModContainer
 import net.neoforged.fml.config.ModConfig
 import net.neoforged.neoforge.common.ModConfigSpec
 
-private data class ConfigField(
+internal data class ConfigField(
     val source: EntryView,
     val title: String,
     val comment: String,
     val choices: Map<String, String>,
 )
 
-private data class ConfigFile(val source: FileView, val title: String, val fields: List<ConfigField>)
+internal data class ConfigFile(val source: FileView, val title: String, val fields: List<ConfigField>)
 
-private data class ConfigReply(val id: Long = 0, val result: Result = Result.OK)
+internal data class ConfigReply(val id: Long = 0, val result: Result = Result.OK)
 
-private data class ConfigView(
-    val title: String,
-    val files: List<ConfigFile>,
-    val labels: Map<String, String>,
-    val changes: Int,
-    val reply: ConfigReply,
-    val saved: Boolean,
-    val restart: ModConfigSpec.RestartType,
+/** The config editor's state, as its content sees it. Only the library reads it. */
+@ConsistentCopyVisibility
+data class ConfigView
+internal constructor(
+    internal val title: String,
+    internal val files: List<ConfigFile>,
+    internal val labels: Map<String, String>,
+    internal val changes: Int,
+    internal val reply: ConfigReply,
+    internal val saved: Boolean,
+    internal val restart: ModConfigSpec.RestartType,
 )
 
-private data class ConfigAction(
-    val kind: String,
-    val file: String = "",
-    val entry: String = "",
-    val input: Input = Input.scalar(""),
-    val id: Long = 0,
+/** A request from the config editor's content. Only the library creates and reads it. */
+@ConsistentCopyVisibility
+data class ConfigAction
+internal constructor(
+    internal val kind: String,
+    internal val file: String = "",
+    internal val entry: String = "",
+    internal val input: Input = Input.scalar(""),
+    internal val id: Long = 0,
 )
 
 private class ConfigUiState {
@@ -84,7 +89,7 @@ private class ConfigUiState {
     var sequence = 0L
 }
 
-private class ConfigController(val mod: ModContainer) : AutoCloseable {
+private class ConfigController(val mod: ModContainer, private val close: () -> Unit) {
     val editor = ConfigEditor(mod.modId)
     val local = ConfigUiState()
     private var language: Language? = null
@@ -94,42 +99,37 @@ private class ConfigController(val mod: ModContainer) : AutoCloseable {
     private var reply = ConfigReply()
     private var saved = false
     private var restart = ModConfigSpec.RestartType.NONE
-    private var closed = false
-    val ui = UiBinding<ConfigView, ConfigAction>(snapshot())
 
-    fun tick(close: () -> Unit) {
-        ui.drainActions { action ->
-            val result =
-                when (action.kind) {
-                    "stage" -> editor.stage(action.file, action.entry, action.input)
-                    "default" -> editor.reset(action.file, action.entry)
-                    "reload" -> editor.reload(action.file)
-                    "save" ->
-                        editor.save(action.file).let { result ->
-                            if (result.result() == Result.OK) {
-                                saved = true
-                                restart = restart.with(result.restart())
-                            }
-                            result.result()
+    fun handle(action: ConfigAction) {
+        val result =
+            when (action.kind) {
+                "stage" -> editor.stage(action.file, action.entry, action.input)
+                "default" -> editor.reset(action.file, action.entry)
+                "reload" -> editor.reload(action.file)
+                "save" ->
+                    editor.save(action.file).let { result ->
+                        if (result.result() == Result.OK) {
+                            saved = true
+                            restart = restart.with(result.restart())
                         }
-                    "close" -> {
-                        if (editor.changes() == 0) close()
-                        Result.OK
+                        result.result()
                     }
-                    "discardClose" -> {
-                        editor.discardAll()
-                        close()
-                        Result.OK
-                    }
-                    else -> Result.UNKNOWN
+                "close" -> {
+                    if (editor.changes() == 0) close()
+                    Result.OK
                 }
-            if (action.kind != "save") saved = false
-            reply = ConfigReply(action.id, result)
-        }
-        if (!closed) ui.update(snapshot())
+                "discardClose" -> {
+                    editor.discardAll()
+                    close()
+                    Result.OK
+                }
+                else -> Result.UNKNOWN
+            }
+        if (action.kind != "save") saved = false
+        reply = ConfigReply(action.id, result)
     }
 
-    private fun snapshot(): ConfigView {
+    fun snapshot(): ConfigView {
         fun text(key: String, fallback: String = key) =
             if (Language.getInstance().has(key)) Component.translatable(key).string else fallback
         val lang = Language.getInstance()
@@ -219,11 +219,6 @@ private class ConfigController(val mod: ModContainer) : AutoCloseable {
         )
     }
 
-    override fun close() {
-        closed = true
-        ui.close()
-    }
-
     private fun humanize(value: String) =
         value.replace(Regex("([a-z0-9])([A-Z])"), "$1 $2").replace('_', ' ').lowercase(Locale.ROOT).replaceFirstChar {
             it.uppercase()
@@ -235,49 +230,28 @@ private class ConfigController(val mod: ModContainer) : AutoCloseable {
  * changed.
  */
 open class ComposeConfigScreen
-private constructor(
-    mod: ModContainer,
-    private val parent: Screen,
-    private val controller: ConfigController,
-    theme: OreThemeId,
-) :
-    ComposeScreen(
-        Component.literal(mod.modInfo.displayName),
-        theme = theme,
-        content = { ConfigContent(controller.ui, controller.local) },
-    ) {
-    @JvmOverloads
-    constructor(
-        mod: ModContainer,
-        parent: Screen,
-        theme: OreThemeId = OreThemeId(mod.modId),
-    ) : this(mod, parent, ConfigController(mod), theme)
+@JvmOverloads
+constructor(mod: ModContainer, private val parent: Screen, theme: OreThemeId = OreThemeId(mod.modId)) :
+    ComposeScreen<ConfigView, ConfigAction>(Component.literal(mod.modInfo.displayName), theme = theme) {
+    private val controller = ConfigController(mod) { Minecraft.getInstance().setScreen(parent) }
 
     val editor: ConfigEditor
         get() = controller.editor
 
-    override fun tick() {
-        super.tick()
-        controller.tick { Minecraft.getInstance().setScreen(parent) }
-    }
+    final override fun snapshot() = controller.snapshot()
+
+    final override fun handle(action: ConfigAction) = controller.handle(action)
+
+    @Composable final override fun Content(state: ConfigView) = ConfigContent(state, ::send, controller.local)
 
     override fun onClose() {
         if (controller.editor.changes() > 0) controller.local.confirmClose = true
         else Minecraft.getInstance().setScreen(parent)
     }
-
-    override fun removed() {
-        try {
-            controller.close()
-        } finally {
-            super.removed()
-        }
-    }
 }
 
 @Composable
-private fun ConfigContent(binding: UiBinding<ConfigView, ConfigAction>, local: ConfigUiState) {
-    val state = binding.value
+private fun ConfigContent(state: ConfigView, actions: (ConfigAction) -> Boolean, local: ConfigUiState) {
     val labels = state.labels
     val dialogHeight =
         with(LocalDensity.current) {
@@ -295,8 +269,7 @@ private fun ConfigContent(binding: UiBinding<ConfigView, ConfigAction>, local: C
         }
     fun send(kind: String, entry: String = "", input: Input = Input.scalar(""), await: Boolean = false) {
         val id = ++local.sequence
-        if (binding.send(ConfigAction(kind, file?.source?.id().orEmpty(), entry, input, id)) && await)
-            local.pending = id
+        if (actions(ConfigAction(kind, file?.source?.id().orEmpty(), entry, input, id)) && await) local.pending = id
     }
     fun close() {
         if (state.changes > 0) local.confirmClose = true else send("close")

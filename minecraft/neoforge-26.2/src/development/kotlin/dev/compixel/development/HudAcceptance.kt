@@ -43,6 +43,7 @@ internal class HudAcceptance(
     private fun draw() {
         script.act("return to the game view and show the HUD") {
             session.closeScreen()
+            SuiteHud.gameValue = 1
             SuiteHud.show(SuiteHudMode.ACCEPTANCE)
         }
         script.until("the HUD drew its panel and native item", 20_000) {
@@ -50,7 +51,12 @@ internal class HudAcceptance(
                 layout() != null &&
                 hud.nativeItemStatistics.let { it.cachedImages > 0 && it.pendingImages == 0 }
         }
-        script.act("remember the HUD session") { first = checkNotNull(hud.session) { "The HUD has no session" } }
+        script.act("remember the HUD session") {
+            first = checkNotNull(hud.session) { "The HUD has no session" }
+            check(ComposeThread.call { SuiteHud.model.firstValue } == 1) {
+                "The HUD's first composition did not show its opening snapshot"
+            }
+        }
         script.pause(150)
         capture("hud")
         script.act("open a screen above the HUD") {
@@ -62,6 +68,8 @@ internal class HudAcceptance(
             SuiteHud.advance()
             hud.rendererStatistics.renderedFrames > frames + 2
         }
+        script.act("change the game state beneath the screen") { SuiteHud.gameValue = 2 }
+        script.until("the HUD showed the next tick's snapshot") { ComposeThread.call { SuiteHud.model.value } == 2 }
         // The port target lies over the HUD panel: the screen above takes the click.
         script.act("click the screen over the HUD panel") {
             port.mouseMoved(32.0, 32.0)
@@ -149,6 +157,7 @@ internal class HudAcceptance(
         script.act("leave the world") {
             closeHudLayers() // The client's own handler when the player leaves the world.
             check(first.state == SessionState.CLOSED && hud.session == null) { "The HUD kept its session" }
+            check(!hud.contentState.isOpen) { "The HUD kept its state" }
             requireReleased("Leaving the world")
         }
         script.until("the next drawn frame opened a new session") {
@@ -156,8 +165,9 @@ internal class HudAcceptance(
             next != null && next !== first && hud.rendererStatistics.renderedFrames > 0
         }
         script.act("close the HUD") {
+            check(hud.contentState.isOpen) { "The new HUD session did not open its state" }
             SuiteHud.hide()
-            check(hud.session == null) { "close() kept the HUD session" }
+            check(hud.session == null && !hud.contentState.isOpen) { "close() kept the HUD session or its state" }
             requireReleased("close()")
         }
         pass(AcceptanceStep.HUD_RELEASE)

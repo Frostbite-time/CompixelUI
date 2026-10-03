@@ -11,9 +11,15 @@ CompixelUI draws real Minecraft items inside Compose, with the same models, anim
 Take a snapshot of each stack on the game thread with `ItemIcon.snapshot`, then hand the icons to Compose:
 
 ```kotlin
-fun openItemCatalog(stacks: List<ItemStack>) {
-    val icons = stacks.map { ItemIcon.snapshot(it) }
-    Minecraft.getInstance().setScreen(ComposeScreen(Component.literal("Item catalog")) {
+class ItemCatalogScreen(stacks: List<ItemStack>) : ComposeScreen<Unit, Nothing>(Component.literal("Item catalog")) {
+    private val icons = stacks.map { ItemIcon.snapshot(it) }
+
+    override fun snapshot() {}
+
+    override fun handle(action: Nothing) {}
+
+    @Composable
+    override fun Content(state: Unit) {
         OreScreen("Item catalog", maxWidth = 176.dp, maxHeight = 110.dp) {
             LazyVerticalGrid(GridCells.FixedSize(18.dp)) {
                 items(icons) { icon ->
@@ -23,9 +29,11 @@ fun openItemCatalog(stacks: List<ItemStack>) {
                 }
             }
         }
-    })
+    }
 }
 ```
+
+The screen is created on the game thread, so its constructor can take the snapshots. Icons that change with the game belong in the screen's state instead, taken in `snapshot()`.
 
 - `MinecraftItemIcon` behaves like any other composable: size, clip, rotate or fade it.
 - `MinecraftItemTooltip` shows the tooltip after the pointer rests for 500 ms, drawn by Minecraft itself, so lines added by other mods appear too.
@@ -96,15 +104,15 @@ Every icon on screen gets its image, however many there are. Icons are drawn int
 Set `nativeItemOptions` when creating a `ComposeScreen`, `ComposeMenuScreen`, `ComposeInventoryScreen` or `ComposeHudLayer` to tune this for that screen or layer:
 
 ```kotlin
-ComposeScreen(title, nativeItemOptions = NativeItemOptions(cacheCapacity = 512)) { … }
+class CatalogScreen(title: Component) :
+    ComposeScreen<CatalogState, CatalogAction>(title, nativeItemOptions = NativeItemOptions(cacheCapacity = 512)) { … }
 
-ComposeInventoryScreen(
-    menu,
-    title,
-    nativeItemOptions = NativeItemOptions(cacheCapacity = 1024),
-) { slots ->
-    // Lay out the menu's slots here.
-}
+class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
+    ComposeInventoryScreen<StorageMenu, Unit, Nothing>(
+        menu,
+        title,
+        nativeItemOptions = NativeItemOptions(cacheCapacity = 1024),
+    ) { … }
 ```
 
 `NativeItemOptions` is in `dev.compixel.forge.item`.

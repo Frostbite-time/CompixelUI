@@ -1,5 +1,6 @@
 package dev.compixel.development.render
 
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.IntSize
 import dev.compixel.bridge.ComposeThread
@@ -54,23 +55,23 @@ private class NativeDrawingSamples {
         )
 }
 
-internal class NativeDrawingVisualScreen
-private constructor(
-    private val samples: NativeDrawingSamples,
-    val model: NativeDrawingVisualModel,
-) :
-    ComposeScreen(
-        Component.literal("Native rectangular drawing acceptance"),
-        content = {
-            NativeDrawingVisualScene(
-                model,
-                { modifier -> MinecraftNativeDrawing(samples.still, modifier) },
-                { modifier -> MinecraftNativeDrawing(samples.ticking, modifier) },
-                { modifier -> MinecraftNativeDrawing(samples.preview, modifier) },
-            )
-        },
-    ) {
-    constructor() : this(NativeDrawingSamples(), ComposeThread.call { NativeDrawingVisualModel() })
+internal class NativeDrawingVisualScreen :
+    ComposeScreen<Unit, Nothing>(Component.literal("Native rectangular drawing acceptance")) {
+    private val samples = NativeDrawingSamples()
+    val model: NativeDrawingVisualModel = ComposeThread.call { NativeDrawingVisualModel() }
+
+    override fun snapshot() {}
+
+    override fun handle(action: Nothing) {}
+
+    @Composable
+    override fun Content(state: Unit) =
+        NativeDrawingVisualScene(
+            model,
+            { modifier -> MinecraftNativeDrawing(samples.still, modifier) },
+            { modifier -> MinecraftNativeDrawing(samples.ticking, modifier) },
+            { modifier -> MinecraftNativeDrawing(samples.preview, modifier) },
+        )
 
     override fun isUiWindowFocused() = dev.compixel.development.SuiteEnvironment.uiFocused(super.isUiWindowFocused())
 

@@ -30,7 +30,7 @@ import net.neoforged.neoforge.client.event.ScreenEvent
 import net.neoforged.neoforge.common.NeoForge
 import org.lwjgl.glfw.GLFW
 
-internal typealias SuiteComposeScreen = ComposeScreen
+internal typealias SuiteComposeScreen = ComposeScreen<*, *>
 
 /** Every Minecraft 26.2 / NeoForge call the shared suite code needs, in one reviewable place. */
 internal object SuitePlatform {

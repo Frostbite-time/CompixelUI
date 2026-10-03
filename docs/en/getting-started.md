@@ -58,70 +58,80 @@ Use `side = "BOTH"` if you use [menu synchronization](menu-sync.md), which also 
 ## 3. Open a screen
 
 ```kotlin
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import dev.compixel.forge.ComposeScreen
 import dev.compixel.ui.ore.button.OreButton
 import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.layout.OreScreen
-import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.Component
 
-fun openCounterScreen() {
-    Minecraft.getInstance().setScreen(ComposeScreen(Component.literal("Counter")) {
-        var count by remember { mutableStateOf(0) }
+class CounterScreen : ComposeScreen<Int, Unit>(Component.literal("Counter")) {
+    private var count = 0
+
+    override fun snapshot() = count
+
+    override fun handle(action: Unit) {
+        count++
+    }
+
+    @Composable
+    override fun Content(state: Int) {
         OreScreen("Counter", maxWidth = 160.dp, maxHeight = 78.dp) {
-            OreText("Clicked $count times")
-            OreButton("Click me", onClick = { count++ })
+            OreText("Clicked $state times")
+            OreButton("Click me", onClick = { send(Unit) })
         }
-    })
+    }
 }
 ```
 
 ![The counter screen in Minecraft after three clicks](../assets/counter-en.png)
 
-Call `openCounterScreen()` from client code, such as a key mapping handler. `ComposeScreen` is an ordinary Minecraft screen, and `OreScreen` draws the panel and its title. Keep UI code in client-only classes so a dedicated server never loads it.
+Open it with `Minecraft.getInstance().setScreen(CounterScreen())` from client code, such as a key mapping handler. `ComposeScreen` is an ordinary Minecraft screen, and `OreScreen` draws the panel and its title. Keep UI code in client-only classes so a dedicated server never loads it.
+
+The screen keeps its data on the game thread, while Compose draws on its own thread. `ComposeScreen<S, A>` connects the two through three members you override: `snapshot` reads the data into an immutable value of type `S`, `Content` draws the latest snapshot, and `handle` runs the actions of type `A` that buttons `send`. Here the count lives in the screen, and every click is an action.
 
 ## 4. Show game data
 
-Compose runs on its own thread. Read the game on the game thread, and pass Compose an immutable snapshot through a `UiBinding` from `dev.compixel.host`. Buttons send actions back the same way:
+`snapshot` and `handle` run on the game thread, so they can use players, item stacks and other game objects. This screen shows the item in the player's main hand and drops one on a click:
 
 ```kotlin
 data class HeldItem(val name: String, val count: Int)
 
-fun openHandScreen() {
-    val minecraft = Minecraft.getInstance()
-    val held = UiBinding<HeldItem, Unit>(HeldItem("", 0))
-    minecraft.setScreen(object : ComposeScreen(Component.literal("Hand"), content = {
-        val item = held.value
-        OreScreen("Hand", maxWidth = 180.dp, maxHeight = 84.dp) {
-            OreText("${item.name} × ${item.count}")
-            OreButton("Drop one", onClick = { held.send(Unit) })
-        }
-    }) {
-        override fun tick() {
-            super.tick()
-            val player = minecraft.player ?: return
-            held.drainActions { player.drop(false) }
-            val stack = player.mainHandItem
-            held.update(HeldItem(stack.hoverName.string, stack.count))
-        }
+class HandScreen : ComposeScreen<HeldItem, Unit>(Component.literal("Hand")) {
+    override fun snapshot(): HeldItem {
+        val stack = Minecraft.getInstance().player?.mainHandItem ?: ItemStack.EMPTY
+        return HeldItem(stack.hoverName.string, stack.count)
+    }
 
-        override fun removed() {
-            super.removed()
-            held.close()
+    override fun handle(action: Unit) {
+        Minecraft.getInstance().player?.drop(false)
+    }
+
+    @Composable
+    override fun Content(state: HeldItem) {
+        OreScreen("Hand", maxWidth = 180.dp, maxHeight = 84.dp) {
+            OreText("${state.name} × ${state.count}")
+            OreButton("Drop one", onClick = { send(Unit) })
         }
-    })
+    }
 }
 ```
 
-| `UiBinding` call | Where |
-| --- | --- |
-| Constructor, `update`, `drainActions`, `close` | Game thread |
-| `value` | Inside composables |
-| `send` | UI callbacks. Returns `false` once the binding is closed or 64 actions are waiting. |
+Open it with `Minecraft.getInstance().setScreen(HandScreen())`.
 
-Don't touch players, item stacks or other game objects inside composables, and never make Compose wait for the game thread.
+| Member | Runs |
+| --- | --- |
+| `snapshot()` | On the game thread when the screen opens, then every tick after the tick's actions |
+| `handle(action)` | On the game thread, once per action, before the tick's snapshot |
+| `Content(state)` | On the Compose thread, with the latest snapshot |
+| `send(action)` | Anywhere, usually in UI callbacks. Returns `false` while the screen is closed or 64 actions are waiting. |
+
+The screen takes the first snapshot before its first frame, so the UI never shows placeholder values. When it closes, actions not yet handled are dropped; when it opens again, it starts from a new snapshot. Call `requestClose()` to close it from a button.
+
+Return data classes or other immutable values from `snapshot()`: an equal snapshot redraws nothing. A screen without game state extends `ComposeScreen<Unit, Nothing>` with `override fun snapshot() {}` and `override fun handle(action: Nothing) {}`. `ComposeMenuScreen`, `ComposeInventoryScreen` and `ComposeHudLayer` work the same way for [menus and container screens](inventory.md#show-the-menus-state) and [HUD layers](hud.md).
+
+In `Content`, use only `state`, `send` and values prepared in the constructor. Don't touch players, item stacks or other game objects inside composables, and never make Compose wait for the game thread.
 
 ## 5. Ship it
 
