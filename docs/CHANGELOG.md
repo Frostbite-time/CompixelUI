@@ -1,4 +1,4 @@
-# CompixelUI 0.1.10
+# CompixelUI 0.1.10-alpha.1
 
 - Screens and HUD layers now own the game state their content shows. `ComposeScreen<S, A>`, `ComposeMenuScreen<M, S, A>`, `ComposeInventoryScreen<M, S, A>` and `ComposeHudLayer<S>` are abstract: override `snapshot` to read the game on the game thread, `Content` to draw the latest snapshot, and `handle` to run the actions the content sends with `send`. HUD layers have no actions. See [Show game data](https://github.com/Frostbite-time/CompixelUI/blob/main/docs/en/getting-started.md#4-show-game-data).
 - The host takes the first snapshot before the first frame, handles each tick's actions before the next snapshot, stops once `handle` closes the screen, and starts again from a new snapshot when the screen returns, for example from a recipe viewer. HUD layers take a snapshot every client tick.
