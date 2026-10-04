@@ -1,18 +1,18 @@
-package dev.compixel.forge.sync;
+package dev.compixel.sync.session;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import dev.compixel.sync.SizeLimitException;
 import dev.compixel.sync.state.SyncCodecs;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
-import net.minecraft.world.inventory.AbstractContainerMenu;
 import org.junit.jupiter.api.Test;
 
-class MenuActionTest {
+class SyncActionTest {
     @Test
     void invalidOrTrailingWireDataNeverInvokesTheHandler() throws Exception {
         var calls = new AtomicInteger();
-        var action = MenuAction.<AbstractContainerMenu, Integer>of("mode", SyncCodecs.INT, (menu, player, value) -> {
+        var action = new TestBindings.Action<Object, Object, Integer>("mode", SyncCodecs.INT, (menu, player, value) -> {
             calls.incrementAndGet();
             return value >= 0 && value < 3;
         });
@@ -26,7 +26,7 @@ class MenuActionTest {
 
     @Test
     void actionEncodingHasItsOwnSmallPayloadBudget() throws Exception {
-        var action = MenuAction.<AbstractContainerMenu, String>of(
+        var action = new TestBindings.Action<Object, Object, String>(
                 "text", SyncCodecs.string(16384), (menu, player, value) -> true);
         assertEquals(8192, action.encode("x".repeat(8188)).length);
         assertThrows(IOException.class, () -> action.encode("x".repeat(8189)));
@@ -34,12 +34,21 @@ class MenuActionTest {
 
     @Test
     void consumerCanOptIntoBodiesLargerThanTwoMiB() throws Exception {
-        var action = MenuAction.<AbstractContainerMenu, String>of(
+        var action = new TestBindings.Action<Object, Object, String>(
                 "large", SyncCodecs.string(4 * 1024 * 1024), 4 * 1024 * 1024, (menu, player, value) -> true);
         assertEquals(3 * 1024 * 1024 + 4, action.encode("x".repeat(3 * 1024 * 1024)).length);
-        var failure =
-                assertThrows(dev.compixel.sync.SizeLimitException.class, () -> action.encode("x".repeat(200), 100));
+        var failure = assertThrows(SizeLimitException.class, () -> action.encode("x".repeat(200), 100));
         assertEquals(100, failure.limit());
         assertEquals(204, failure.actual());
+    }
+
+    @Test
+    void actionIdsAndLimitsAreValidated() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new TestBindings.Action<Object, Object, Integer>("bad id", SyncCodecs.INT, (m, p, v) -> true));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new TestBindings.Action<Object, Object, Integer>("zero", SyncCodecs.INT, 0, (m, p, v) -> true));
     }
 }

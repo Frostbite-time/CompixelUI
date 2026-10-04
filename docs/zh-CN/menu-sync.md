@@ -57,7 +57,7 @@ abstract class PowerMenu extends AbstractContainerMenu implements SyncedMenu {
 - 客户端：在游戏线程调用 `requestEnabled`，例如在 `ComposeMenuScreen` 的 `handle` 中。返回 `true` 只表示请求已排队，不代表已经成功。
 - 动作处理器在服务端运行。先在那里检查权限，再修改机器。
 
-相关类型位于 `dev.compixel.sync.state`（结构与编解码器）、`dev.compixel.sync.action` 和 `dev.compixel.forge.sync`（菜单绑定）。
+相关类型位于 `dev.compixel.sync.state`（结构与编解码器）、`dev.compixel.sync.action`（请求与结果）、`dev.compixel.sync.session`（状态）和 `dev.compixel.forge.sync`（菜单绑定）。
 
 ## 取值
 
@@ -115,7 +115,7 @@ final class CatalogState {
 
 `actual()` 和 `limit()` 给出相关的大小。请求不会自动重试。
 
-在菜单打开前注册 `onActionResult(listener)`，即可收到服务端的处理结果：`APPLIED`、`REJECTED`、`INVALID`、`THROTTLED` 或 `EXPIRED`。新状态本身仍通过正常同步到达。被拒绝的请求也会写入日志，每个菜单每 100 刻最多一次。
+在菜单打开前注册 `onActionResult(listener)`，即可收到服务端的处理结果。每个 `ActionResult` 带有一个 `ActionStatus`：`APPLIED`、`REJECTED`、`INVALID`、`THROTTLED` 或 `EXPIRED`。新状态本身仍通过正常同步到达。被拒绝的请求也会写入日志，每个菜单每 100 刻最多一次。
 
 ## 上限
 
@@ -152,4 +152,4 @@ MenuSync.bind(this, SCHEMA, OPTIONS);
 
 ## 就绪状态
 
-第一份完整状态到达后，`hasSnapshot()` 变为 `true`，后续更新传输期间也保持为 `true`。`status()` 和 `statistics()` 报告进度。更新总是整体应用，界面不会看到只更新了一半的状态。
+第一份完整状态到达后，`hasSnapshot()` 变为 `true`，后续更新传输期间也保持为 `true`。`status()` 返回 `SyncStatus`，`statistics()` 报告进度。更新总是整体应用，界面不会看到只更新了一半的状态。

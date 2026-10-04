@@ -33,7 +33,7 @@ flowchart TB
 | `host` | UI sessions and `UiBinding` |
 | `render-gl`, `render-vulkan` | The OpenGL and Vulkan renderers |
 | `ui-ore` | Ore UI components, theme and font |
-| `menu-sync` | The menu synchronization protocol |
+| `menu-sync` | The menu synchronization protocol, with the client's and the server's sessions |
 | `slot-core` | Slot rules and shift-click routes |
 | `minecraft/<loader>-<version>` | Screens, HUD layers, input, items, menus and GPU access for one Minecraft version |
 | `runtimes/*` | Packaging of Compose, Skiko and Kotlin |

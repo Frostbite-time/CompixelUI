@@ -8,7 +8,8 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Modifier
 import dev.compixel.bridge.ComposeThread
 import dev.compixel.forge.ComposeMenuScreen
-import dev.compixel.forge.sync.MenuSync
+import dev.compixel.sync.action.ActionStatus
+import dev.compixel.sync.session.SyncStatus
 import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.Component
 import net.minecraft.world.SimpleMenuProvider
@@ -103,7 +104,7 @@ internal class MenuSyncAcceptanceProbe(private val done: () -> Unit) {
                 }
             1 ->
                 (mc.player?.containerMenu as? SyncAcceptanceMenu)?.let { menu ->
-                    check(menu.sync.status() != MenuSync.Status.FAILED) {
+                    check(menu.sync.status() != SyncStatus.FAILED) {
                         "Menu sync failed: ${menu.sync.statistics()}"
                     }
                     if (menu.sync.hasSnapshot()) {
@@ -141,7 +142,7 @@ internal class MenuSyncAcceptanceProbe(private val done: () -> Unit) {
             }
             3 -> {
                 val menu = mc.player!!.containerMenu as SyncAcceptanceMenu
-                check(menu.sync.status() != MenuSync.Status.FAILED) { "Menu sync failed: ${menu.sync.statistics()}" }
+                check(menu.sync.status() != SyncStatus.FAILED) { "Menu sync failed: ${menu.sync.statistics()}" }
                 val result = menu.sync.lastActionResult()
                 if (
                     result != null &&
@@ -149,7 +150,7 @@ internal class MenuSyncAcceptanceProbe(private val done: () -> Unit) {
                         menu.text == SyncAcceptanceMenu.REPLACEMENT &&
                         ComposeThread.call { checkNotNull(screen).composed } == SyncAcceptanceView(true, 42, 0)
                 ) {
-                    check(result.status() == MenuSync.ActionStatus.APPLIED) {
+                    check(result.status() == ActionStatus.APPLIED) {
                         "The action was not applied: ${result.status()}"
                     }
                     check(menu.sync.statistics().largestBatch() <= menu.sync.options().state().batchBytes()) {
@@ -164,7 +165,7 @@ internal class MenuSyncAcceptanceProbe(private val done: () -> Unit) {
             }
             4 -> {
                 val menu = mc.player!!.containerMenu as SyncAcceptanceMenu
-                check(menu.sync.status() != MenuSync.Status.FAILED) { "Menu sync failed: ${menu.sync.statistics()}" }
+                check(menu.sync.status() != SyncStatus.FAILED) { "Menu sync failed: ${menu.sync.statistics()}" }
                 val result = menu.sync.lastActionResult()
                 val active = checkNotNull(screen)
                 if (
@@ -174,7 +175,7 @@ internal class MenuSyncAcceptanceProbe(private val done: () -> Unit) {
                         menu.item.count == 5 &&
                         ComposeThread.call { active.composed } == SyncAcceptanceView(true, 42, 5)
                 ) {
-                    check(result.status() == MenuSync.ActionStatus.APPLIED) {
+                    check(result.status() == ActionStatus.APPLIED) {
                         "The native-value action was not applied: ${result.status()}"
                     }
                     // The screen closes the menu on its next tick.

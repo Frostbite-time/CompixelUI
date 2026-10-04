@@ -1,297 +1,114 @@
 package dev.compixel.forge.sync;
 
-import dev.compixel.sync.*;
-import dev.compixel.sync.action.ActionFailure;
-import dev.compixel.sync.action.ActionQueue;
 import dev.compixel.sync.action.ActionSubmission;
-import dev.compixel.sync.transport.TokenBucket;
-import java.util.UUID;
+import dev.compixel.sync.session.ClientSyncSession;
+import dev.compixel.sync.session.CodecScope;
+import dev.compixel.sync.session.SyncAction;
+import dev.compixel.sync.session.SyncBinding;
+import dev.compixel.sync.session.SyncLog;
+import dev.compixel.sync.session.SyncMessage;
 import net.minecraft.client.Minecraft;
-import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 
 /** Client adapter only. Common registration does not initialize this class on a server. */
 public final class ClientMenuSync {
-    private static MenuSync<?> active;
-    private static UUID nonce, serverSession = SyncPayloads.NO_SESSION;
-    private static long request, tick, lastData, waitingSince;
-
-    private record Bootstrap(SyncPayloads.Bootstrap message, long received) {}
-
-    private static Bootstrap bootstrap;
-    private static Object connectionIdentity;
-    private static TokenBucket bandwidth;
-    private static ActionQueue actions;
-
-    static long clock() {
-        return tick;
-    }
-
-    /** The client's registries, which native codecs use for menu values and actions. */
-    static RegistryAccess registries() {
-        var player = Minecraft.getInstance().player;
-        if (player == null) throw new IllegalStateException("Menu synchronization needs a client player");
-        return player.registryAccess();
-    }
-
-    private static void clearActions() {
-        if (actions != null) actions.clear();
-        actions = null;
-    }
-
-    private static void checkConnection(Minecraft mc) {
-        if (connectionIdentity == mc.getConnection()) return;
-        if (active != null) active.close();
-        active = null;
-        clearActions();
-        bootstrap = null;
-        request = 0;
-        nonce = null;
-        serverSession = SyncPayloads.NO_SESSION;
-        connectionIdentity = mc.getConnection();
-        bandwidth = null;
-    }
+    private static final ClientSyncSession SESSION = new ClientSyncSession(new Host());
 
     public static void tick(ClientTickEvent.Post event) {
-        tick++;
-        Minecraft mc = Minecraft.getInstance();
-        checkConnection(mc);
-        MenuSync<?> next =
-                mc.player != null && mc.player.containerMenu instanceof SyncedMenu synced ? synced.menuSync() : null;
-        if (next != active) replaceActive(next, mc);
-        if (active != null && request == 0 && bootstrap != null) attachBootstrap(active, bootstrap.message());
-        if (bootstrap != null
-                && tick - bootstrap.received() > bootstrap.message().limits().timeoutTicks()) {
-            bootstrap = null;
-        }
-        if (active != null && request == 0) {
-            if (!hasChannels()) active.fail("Server does not support compixel menu synchronization");
-            else if (tick - waitingSince > active.limits.timeoutTicks())
-                active.fail("Server did not start menu synchronization");
-        }
-        if (active != null
-                && request > 0
-                && active.status() == MenuSync.Status.SYNCING
-                && (active.expired(tick) || tick - lastData > active.limits.timeoutTicks()))
-            active.fail("Menu synchronization timed out");
-        if (actions != null && active != null) {
-            var expired = actions.expired(tick);
-            if (expired != null) {
-                active.actionResult(
-                        new MenuSync.ActionResult(
-                                expired.sequence(),
-                                expired.action(),
-                                MenuSync.ActionStatus.EXPIRED,
-                                expired.failure(),
-                                expired.elapsed(),
-                                expired.limit(),
-                                "Action deadline exceeded; reopen the menu"),
-                        tick);
-                active.fail("Menu action timed out; reopen the menu");
-            }
-        }
-        if (active != null && (active.status() == MenuSync.Status.FAILED || active.status() == MenuSync.Status.CLOSED))
-            clearActions();
-        pumpActions();
+        SESSION.tick();
     }
 
-    private static boolean hasChannels() {
-        var connection = Minecraft.getInstance().getConnection();
-        return connection != null
-                && connection.hasChannel(SyncPayloads.Bootstrap.TYPE)
-                && connection.hasChannel(SyncPayloads.Control.TYPE)
-                && connection.hasChannel(SyncPayloads.Data.TYPE)
-                && connection.hasChannel(MenuActionPayloads.Request.TYPE)
-                && connection.hasChannel(MenuActionPayloads.Fragment.TYPE)
-                && connection.hasChannel(MenuActionPayloads.Result.TYPE);
+    static void receive(SyncMessage.Bootstrap message) {
+        SESSION.receive(message);
     }
 
-    private static void replaceActive(MenuSync<?> next, Minecraft mc) {
-        closeActive(mc);
-        active = next;
-        clearActions();
-        nonce = null;
-        request = 0;
-        serverSession = SyncPayloads.NO_SESSION;
-        waitingSince = tick;
+    static void receive(SyncMessage.Data message) {
+        SESSION.receive(message);
     }
 
-    private static void closeActive(Minecraft mc) {
-        if (active == null) return;
-        if (request > 0 && mc.getConnection() != null && mc.getConnection().hasChannel(SyncPayloads.Control.TYPE))
-            send(new SyncPayloads.Control(
-                    SyncPayloads.CLOSE, active.model.containerId, nonce, request, serverSession, "", "", 0, 0));
-        active.close();
+    static void receive(SyncMessage.ActionReply message) {
+        SESSION.receive(message);
     }
 
-    static void receiveBootstrap(SyncPayloads.Bootstrap message) {
-        Minecraft mc = Minecraft.getInstance();
-        checkConnection(mc);
-        bootstrap = new Bootstrap(message, tick);
-        MenuSync<?> current =
-                mc.player != null && mc.player.containerMenu instanceof SyncedMenu synced ? synced.menuSync() : null;
-        if (current != null && current.model.containerId == message.menu()) attachBootstrap(current, message);
-    }
-
-    private static void attachBootstrap(MenuSync<?> binding, SyncPayloads.Bootstrap message) {
-        if (binding.model.containerId != message.menu()) return;
-        if (!binding.schemaId().equals(message.schema())
-                || !binding.fingerprint().equals(message.fingerprint())
-                || !binding.limits.equals(message.limits())) {
-            binding.fail("Menu schema or transport options mismatch");
-            bootstrap = null;
-            return;
-        }
-        if (active != binding) {
-            closeActive(Minecraft.getInstance());
-            active = binding;
-            clearActions();
-            request = 0;
-        }
-        if (request > 0) return;
-        nonce = message.nonce();
-        request = message.request();
-        serverSession = message.session();
-        lastData = tick;
-        if (bandwidth == null)
-            bandwidth = new TokenBucket(binding.options.actions().bandwidth(), tick);
-        else bandwidth.configure(binding.options.actions().bandwidth(), tick);
-        actions = new ActionQueue(binding.options.actions(), bandwidth);
-        active.clientStart();
-        bootstrap = null;
-        send(new SyncPayloads.Control(SyncPayloads.READY, message.menu(), nonce, request, serverSession, "", "", 0, 0));
-    }
-    /** Null means admitted to encoding, not yet queued. */
-    static ActionSubmission admission(MenuSync<?> binding) {
-        var mc = Minecraft.getInstance();
-        if (!mc.isSameThread()) throw new IllegalStateException("Menu commands belong to the client game thread");
-        if (binding.status() == MenuSync.Status.CLOSED) return ActionSubmission.rejected(ActionFailure.CLOSED, -1, -1);
-        if (active != binding
-                || mc.player == null
-                || mc.player.containerMenu != binding.model
-                || !binding.hasSnapshot()
-                || actions == null) return ActionSubmission.rejected(ActionFailure.NOT_READY, -1, -1);
-        if (!hasChannels()) return ActionSubmission.rejected(ActionFailure.TRANSPORT_UNAVAILABLE, -1, -1);
-        return actions.admission();
-    }
-
-    static long remainingBytes(MenuSync<?> binding) {
-        return active == binding && actions != null ? actions.remainingBytes() : 0;
-    }
-
-    static ActionSubmission sendAction(MenuSync<?> binding, String action, byte[] data) {
-        var refusal = admission(binding);
-        if (refusal != null) return refusal;
-        var result = actions.offer(action, data, tick);
-        if (result.queued()) pumpActions();
-        return result;
+    static <M extends AbstractContainerMenu, V> ActionSubmission request(
+            MenuSync<M> binding, SyncAction<? super M, ServerPlayer, V> action, V value) {
+        return SESSION.request(binding, action, value);
     }
 
     static boolean sending(MenuSync<?> binding) {
-        return active == binding && actions != null && actions.sending();
+        return SESSION.sending(binding);
     }
 
-    private static void pumpActions() {
-        var mc = Minecraft.getInstance();
-        if (active == null
-                || actions == null
-                || mc.getConnection() == null
-                || mc.player == null
-                || mc.player.containerMenu != active.model
-                || !active.hasSnapshot()) return;
-        actions.pump(tick, () -> mc.getConnection().getConnection().channel().isWritable(), part -> {
-            if (part.single())
-                send(new MenuActionPayloads.Request(
-                        active.model.containerId,
-                        nonce,
-                        request,
-                        serverSession,
-                        part.sequence(),
-                        part.action(),
-                        part.data()));
-            else
-                send(new MenuActionPayloads.Fragment(
-                        active.model.containerId,
-                        nonce,
-                        request,
-                        serverSession,
-                        part.sequence(),
-                        part.action(),
-                        part.total(),
-                        part.offset(),
-                        part.data()));
-        });
-    }
-
-    static void receiveAction(MenuActionPayloads.Result message) {
-        var mc = Minecraft.getInstance();
-        if (active == null
-                || actions == null
-                || mc.player == null
-                || mc.player.containerMenu != active.model
-                || active.model.containerId != message.menu()
-                || !message.nonce().equals(nonce)
-                || message.request() != request
-                || !message.session().equals(serverSession)) return;
-        String action = actions.reply(message.sequence());
-        if (action != null)
-            active.actionResult(
-                    new MenuSync.ActionResult(
-                            message.sequence(),
-                            action,
-                            message.status(),
-                            message.failure(),
-                            message.actual(),
-                            message.limit(),
-                            message.detail()),
-                    tick);
-    }
-
-    static void receive(SyncPayloads.Data message) {
-        Minecraft mc = Minecraft.getInstance();
-        if (active == null
-                || mc.player == null
-                || mc.player.containerMenu != active.model
-                || active.model.containerId != message.menu()
-                || !message.nonce().equals(nonce)
-                || message.request() != request) {
-            return;
+    private static final class Host implements ClientSyncSession.Host {
+        @Override
+        public Object connection() {
+            return Minecraft.getInstance().getConnection();
         }
-        receiveAttached(message);
-    }
 
-    private static void receiveAttached(SyncPayloads.Data message) {
-        if (active.status() == MenuSync.Status.CLOSED || active.status() == MenuSync.Status.FAILED) return;
-        if (!serverSession.equals(message.session())) return;
-        if (message.batch() == null) {
-            active.fail(message.failure());
-            return;
+        @Override
+        public Object openMenu() {
+            var player = Minecraft.getInstance().player;
+            return player == null ? null : player.containerMenu;
         }
-        lastData = tick;
-        try {
-            active.receive(registries(), message.batch(), tick);
-            send(new SyncPayloads.Control(
-                    SyncPayloads.ACK,
-                    message.menu(),
-                    nonce,
-                    request,
-                    serverSession,
-                    "",
-                    "",
-                    message.batch().revision(),
-                    message.batch().index()));
-        } catch (RuntimeException failure) {
-            com.mojang.logging.LogUtils.getLogger()
-                    .warn("Menu synchronization rejected for {}: {}", active.schemaId(), failure.toString());
-            active.fail("Invalid menu synchronization data");
-        }
-    }
 
-    private static void send(CustomPacketPayload payload) {
-        var connection = Minecraft.getInstance().getConnection();
-        if (connection != null) connection.send(new ServerboundCustomPayloadPacket(payload));
+        @Override
+        public SyncBinding<?, ?, ?> openBinding() {
+            return openMenu() instanceof SyncedMenu synced ? synced.menuSync() : null;
+        }
+
+        @Override
+        public boolean channelsAvailable() {
+            var connection = Minecraft.getInstance().getConnection();
+            return connection != null
+                    && connection.hasChannel(SyncPayloads.Bootstrap.TYPE)
+                    && connection.hasChannel(SyncPayloads.Control.TYPE)
+                    && connection.hasChannel(SyncPayloads.Data.TYPE)
+                    && connection.hasChannel(SyncPayloads.ActionRequest.TYPE)
+                    && connection.hasChannel(SyncPayloads.ActionFragment.TYPE)
+                    && connection.hasChannel(SyncPayloads.ActionReply.TYPE);
+        }
+
+        @Override
+        public boolean controlAvailable() {
+            var connection = Minecraft.getInstance().getConnection();
+            return connection != null && connection.hasChannel(SyncPayloads.Control.TYPE);
+        }
+
+        @Override
+        public boolean writable() {
+            return Minecraft.getInstance()
+                    .getConnection()
+                    .getConnection()
+                    .channel()
+                    .isWritable();
+        }
+
+        @Override
+        public boolean onGameThread() {
+            return Minecraft.getInstance().isSameThread();
+        }
+
+        /** The client's registries, which native codecs use for menu values and actions. */
+        @Override
+        public CodecScope codecs() {
+            var player = Minecraft.getInstance().player;
+            if (player == null) throw new IllegalStateException("Menu synchronization needs a client player");
+            return SyncRegistries.scope(player.registryAccess());
+        }
+
+        @Override
+        public void send(SyncMessage message) {
+            var connection = Minecraft.getInstance().getConnection();
+            if (connection != null) connection.send(new ServerboundCustomPayloadPacket(SyncPayloads.of(message)));
+        }
+
+        @Override
+        public SyncLog log() {
+            return MenuSync.LOG;
+        }
     }
 
     private ClientMenuSync() {}

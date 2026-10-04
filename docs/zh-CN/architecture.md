@@ -33,7 +33,7 @@ flowchart TB
 | `host` | 界面会话与 `UiBinding` |
 | `render-gl`、`render-vulkan` | OpenGL 与 Vulkan 渲染器 |
 | `ui-ore` | Ore UI 组件、主题与字体 |
-| `menu-sync` | 菜单同步协议 |
+| `menu-sync` | 菜单同步协议，以及客户端和服务端的会话 |
 | `slot-core` | 槽位规则与 Shift 点击路线 |
 | `minecraft/<加载器>-<版本>` | 某个 Minecraft 版本的界面、HUD 层、输入、物品、菜单与 GPU 接入 |
 | `runtimes/*` | 打包 Compose、Skiko 与 Kotlin |

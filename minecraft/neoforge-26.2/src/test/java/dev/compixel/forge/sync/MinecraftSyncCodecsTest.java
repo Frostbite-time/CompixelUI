@@ -49,13 +49,17 @@ class MinecraftSyncCodecsTest {
         var server = registries();
         var client = registries();
         var bytes = new ByteArrayOutputStream();
-        SyncRegistries.run(server, () -> codec.write(new DataOutputStream(bytes), 42));
+        try (var ignored = SyncRegistries.scope(server).enter()) {
+            codec.write(new DataOutputStream(bytes), 42);
+        }
         // As with the integrated server and the client, another thread decodes with its own registries.
         var executor = Executors.newSingleThreadExecutor();
         try {
-            int decoded = executor.submit(() -> SyncRegistries.with(
-                            client,
-                            () -> codec.read(new DataInputStream(new ByteArrayInputStream(bytes.toByteArray())))))
+            int decoded = executor.submit(() -> {
+                        try (var ignored = SyncRegistries.scope(client).enter()) {
+                            return codec.read(new DataInputStream(new ByteArrayInputStream(bytes.toByteArray())));
+                        }
+                    })
                     .get();
             assertEquals(42, decoded);
         } finally {
@@ -71,7 +75,7 @@ class MinecraftSyncCodecsTest {
                 IllegalStateException.class, () -> codec.write(new DataOutputStream(new ByteArrayOutputStream()), 1));
         assertTrue(outside.getMessage().contains("synchronizes a menu"));
         // A finished operation leaves no registries behind for later work on the same thread.
-        SyncRegistries.run(registries(), () -> {});
+        SyncRegistries.scope(registries()).enter().close();
         assertThrows(IllegalStateException.class, SyncRegistries::current);
     }
 }

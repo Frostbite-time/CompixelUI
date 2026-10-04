@@ -57,7 +57,7 @@ abstract class PowerMenu extends AbstractContainerMenu implements SyncedMenu {
 - On the client, call `requestEnabled` from the game thread, for example in the `handle` of a `ComposeMenuScreen`. `true` means the request was queued, not that it succeeded.
 - The action handler runs on the server. Check permissions there, then change the machine.
 
-Imports are in `dev.compixel.sync.state` (schemas and codecs), `dev.compixel.sync.action` and `dev.compixel.forge.sync` (menu binding).
+Imports are in `dev.compixel.sync.state` (schemas and codecs), `dev.compixel.sync.action` (requests and results), `dev.compixel.sync.session` (status) and `dev.compixel.forge.sync` (menu binding).
 
 ## Values
 
@@ -115,7 +115,7 @@ A map has no order; sort it where you display it. `current.forEachChange(previou
 
 `actual()` and `limit()` give the sizes involved. Nothing is retried automatically.
 
-Register `onActionResult(listener)` before the menu opens to hear back from the server. Results are `APPLIED`, `REJECTED`, `INVALID`, `THROTTLED` or `EXPIRED`; the new state itself arrives through normal syncing. Rejections are also logged, at most once per 100 ticks per menu.
+Register `onActionResult(listener)` before the menu opens to hear back from the server. Each `ActionResult` has an `ActionStatus`: `APPLIED`, `REJECTED`, `INVALID`, `THROTTLED` or `EXPIRED`; the new state itself arrives through normal syncing. Rejections are also logged, at most once per 100 ticks per menu.
 
 ## Limits
 
@@ -152,4 +152,4 @@ MenuSync.bind(this, SCHEMA, OPTIONS);
 
 ## Readiness
 
-`hasSnapshot()` becomes true once the first complete state has arrived, and stays true while later updates stream in. `status()` and `statistics()` report progress. Updates are applied all at once, so the UI never sees half an update.
+`hasSnapshot()` becomes true once the first complete state has arrived, and stays true while later updates stream in. `status()` returns a `SyncStatus`, and `statistics()` reports progress. Updates are applied all at once, so the UI never sees half an update.

@@ -1,41 +1,26 @@
 package dev.compixel.forge.sync;
 
+import dev.compixel.sync.session.CodecScope;
 import java.util.Objects;
 import net.minecraft.core.RegistryAccess;
 
 /**
- * The registries of the side that is encoding or decoding a menu's values. MenuSync supplies them around each
+ * The registries of the side that is encoding or decoding a menu's values. The sessions enter a scope around each
  * operation on the calling game thread, so one registry codec serves the integrated server and the client alike.
  */
 final class SyncRegistries {
     private static final ThreadLocal<RegistryAccess> CURRENT = new ThreadLocal<>();
 
-    @FunctionalInterface
-    interface Work<T, E extends Exception> {
-        T run() throws E;
-    }
-
-    @FunctionalInterface
-    interface Step<E extends Exception> {
-        void run() throws E;
-    }
-
-    static <T, E extends Exception> T with(RegistryAccess registries, Work<T, E> work) throws E {
-        var previous = CURRENT.get();
-        CURRENT.set(Objects.requireNonNull(registries));
-        try {
-            return work.run();
-        } finally {
-            if (previous == null) CURRENT.remove();
-            else CURRENT.set(previous);
-        }
-    }
-
-    static <E extends Exception> void run(RegistryAccess registries, Step<E> step) throws E {
-        with(registries, () -> {
-            step.run();
-            return null;
-        });
+    static CodecScope scope(RegistryAccess registries) {
+        Objects.requireNonNull(registries);
+        return () -> {
+            var previous = CURRENT.get();
+            CURRENT.set(registries);
+            return () -> {
+                if (previous == null) CURRENT.remove();
+                else CURRENT.set(previous);
+            };
+        };
     }
 
     static RegistryAccess current() {
