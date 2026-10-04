@@ -96,7 +96,7 @@ class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
 
 这里的 `locked` 和 `requestLocked` 代表你的菜单自己的状态，例如通过[菜单同步](menu-sync.md)保持一致。
 
-- `snapshot` 在界面打开时于游戏线程调用一次，之后每刻在 `handle` 处理完当刻的动作后调用。
+- `snapshot` 在游戏线程调用：界面打开时、每刻，以及 `handle` 刚处理完某次输入事件发出的动作之后。
 - `requestClose()` 从界面中关闭界面，就像这里面板的关闭按钮。
 - 没有槽位的菜单用 `ComposeMenuScreen`，用法相同，只是 `Content(state)` 没有槽位参数。
 

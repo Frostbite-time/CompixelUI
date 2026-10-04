@@ -1,7 +1,11 @@
 package dev.compixel.development
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.Modifier
 import dev.compixel.bridge.ComposeThread
 import dev.compixel.forge.ComposeMenuScreen
 import dev.compixel.forge.sync.MenuSync
@@ -15,7 +19,7 @@ import net.minecraft.world.item.Items
 /** What the screen's content shows of the synchronized menu. */
 internal data class SyncAcceptanceView(val ready: Boolean, val counter: Int, val emeralds: Int)
 
-/** Its content requests the replacement text through the screen's state, as a button would. */
+/** Its content is one button over the whole screen, which requests the replacement text through the screen's state. */
 internal class SyncAcceptanceScreen(
     menu: SyncAcceptanceMenu,
     @Suppress("UNUSED_PARAMETER") inventory: Inventory,
@@ -23,6 +27,10 @@ internal class SyncAcceptanceScreen(
 ) : ComposeMenuScreen<SyncAcceptanceMenu, SyncAcceptanceView, String>(menu, title) {
     /** The latest state the content composed. Compose thread. */
     var composed: SyncAcceptanceView? = null
+        private set
+
+    /** Actions handled on the game thread. */
+    var requests = 0
         private set
 
     /** Calls of [menuClosed]; the menu closes once. */
@@ -39,6 +47,7 @@ internal class SyncAcceptanceScreen(
         )
 
     override fun handle(action: String) {
+        requests++
         check(container.sync.request(SyncAcceptanceMenu.REPLACE, action).queued()) {
             "The content's action was not queued"
         }
@@ -51,9 +60,10 @@ internal class SyncAcceptanceScreen(
     @Composable
     override fun Content(state: SyncAcceptanceView) {
         SideEffect { composed = state }
+        Box(Modifier.fillMaxSize().clickable { send(SyncAcceptanceMenu.REPLACEMENT) })
     }
 
-    /** What a button in the content does; call it on the Compose thread. */
+    /** Sends [text] as the content's button does; call it on the Compose thread. */
     fun replace(text: String) = send(text)
 
     /** What a close button in the content does; call it on the Compose thread. */
@@ -116,8 +126,15 @@ internal class MenuSyncAcceptanceProbe(private val done: () -> Unit) {
                 val active = checkNotNull(screen)
                 // The screen's snapshot of the menu's initial state has reached the content.
                 if (ComposeThread.call { active.composed } == SyncAcceptanceView(true, 7, 0)) {
-                    check(ComposeThread.call { active.replace(SyncAcceptanceMenu.REPLACEMENT) }) {
-                        "The screen rejected its content's action"
+                    // A click on the content's button runs its action before the input event returns, as a vanilla
+                    // button's would, not at the next tick.
+                    val x = active.width / 2.0
+                    val y = active.height / 2.0
+                    active.mouseMoved(x, y)
+                    active.mouseClicked(x, y, SuitePlatform.MOUSE_LEFT)
+                    active.mouseReleased(x, y, SuitePlatform.MOUSE_LEFT)
+                    check(active.requests == 1) {
+                        "The click's action ran ${active.requests} times before its input event returned"
                     }
                     stage++
                 }

@@ -27,9 +27,10 @@ import net.minecraft.world.inventory.Slot
 /**
  * Compose layout/drawing inside the native container lifecycle, with replaceable inventory behavior. A subclass reads
  * the menu into an immutable [snapshot], draws the latest one with the slots in [Content] and runs the actions its
- * content [send]s in [handle]. The screen takes a snapshot when it opens and every tick after handling that tick's
- * actions. Actions still pending when it is removed, for example by a recipe viewer, are discarded, and a screen shown
- * again starts from a new snapshot.
+ * content [send]s in [handle]. Actions sent while Compose handles an input event run before the event returns, as
+ * vanilla widgets act inside their input handlers; actions sent at other times run at the next tick. The screen takes a
+ * snapshot when it opens, after an input event's actions and every tick. Actions still pending when it is removed, for
+ * example by a recipe viewer, are discarded, and a screen shown again starts from a new snapshot.
  */
 abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
     protected val container: M,
@@ -76,10 +77,16 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
     private var duringDrag = false
     private var nativeCoordinates = emptyMap<Pair<Int, Int>, Int>()
 
-    /** Reads the menu on the game thread. Return an immutable value: an equal snapshot leaves the content as it is. */
+    /**
+     * Reads the menu on the game thread. It can run more than once per tick, so only read. Return an immutable value:
+     * an equal snapshot leaves the content as it is.
+     */
     protected abstract fun snapshot(): S
 
-    /** Runs an action from the content on the game thread, before the tick's snapshot. It may close the screen. */
+    /**
+     * Runs an action from the content on the game thread, before the next snapshot: before the input event that sent it
+     * returns, otherwise at the next tick. It may close the screen.
+     */
     protected abstract fun handle(action: A)
 
     /**
@@ -92,8 +99,8 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
     protected fun send(action: A): Boolean = contentState.send(action)
 
     /**
-     * Closes the screen at its next tick on the game thread, as [onClose] does. Call it from any thread, for example
-     * from a close button in the content.
+     * Closes the screen on the game thread, as [onClose] does: before the input event during which it was called
+     * returns, otherwise at the next tick. Call it from any thread, for example from a close button in the content.
      */
     protected fun requestClose() = closeRequested.set(true)
 
@@ -113,6 +120,17 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
         inventory.refresh()
         contentState.tick()
         if (closeRequested.getAndSet(false)) onClose()
+    }
+
+    /**
+     * Runs what the content asked for while Compose handled an input event, before the event returns, as vanilla
+     * widgets act inside their input handlers: the actions it sent, then a close request. True when Compose [consumed]
+     * the event or the content closed the screen, which then takes nothing more from the event.
+     */
+    private fun contentHandled(consumed: Boolean): Boolean {
+        contentState.handleActions()
+        if (closeRequested.getAndSet(false)) onClose()
+        return consumed || !contentState.isOpen
     }
 
     override fun slotBehavior(slot: Slot?): SlotBehavior = inventory.adapter.behavior(slot)
@@ -274,13 +292,14 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
         val ui = layer.press(x, y, button)
         mirrorDrag()
         inventory.refresh()
-        return handled || ui
+        return contentHandled(ui) || handled
     }
 
     override fun mouseMoved(x: Double, y: Double) {
         inventory.move(x, y)
-        layer.move(x, y)
+        val ui = layer.move(x, y)
         super.mouseMoved(x, y)
+        contentHandled(ui)
     }
 
     override fun mouseDragged(event: MouseButtonEvent, dx: Double, dy: Double): Boolean {
@@ -298,7 +317,7 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
             } else false
         mirrorDrag()
         inventory.refresh()
-        return layer.move(event.x(), event.y()) || handled
+        return contentHandled(layer.move(event.x(), event.y())) || handled
     }
 
     override fun mouseReleased(event: MouseButtonEvent): Boolean {
@@ -312,7 +331,7 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
         nativePress = false
         mirrorDrag()
         inventory.refresh()
-        return layer.release(event.x(), event.y(), event.button()) || handled
+        return contentHandled(layer.release(event.x(), event.y(), event.button())) || handled
     }
 
     override fun mouseScrolled(x: Double, y: Double, sx: Double, sy: Double): Boolean {
@@ -320,7 +339,7 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
             return true
         cancelInteraction()
         // Calling the native hook also lets container integrations consume wheel gestures.
-        return super.mouseScrolled(x, y, sx, sy) || layer.scroll(x, y, sx, sy)
+        return super.mouseScrolled(x, y, sx, sy) || contentHandled(layer.scroll(x, y, sx, sy))
     }
 
     // Every handler reports real consumption, so keys and text that nothing uses reach the Post events.
@@ -338,13 +357,15 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
             return true
         }
         if (hasTextInputFocus || !inventory.interactionsEnabled || sendingAction())
-            return layer.keyPressed(event) || closeOnEscape(event)
-        return super.keyPressed(event) || layer.keyPressed(event)
+            return contentHandled(layer.keyPressed(event)) || closeOnEscape(event)
+        return super.keyPressed(event) || contentHandled(layer.keyPressed(event))
     }
 
-    override fun keyReleased(event: KeyEvent): Boolean = super.keyReleased(event) || layer.keyReleased(event)
+    override fun keyReleased(event: KeyEvent): Boolean =
+        super.keyReleased(event) || contentHandled(layer.keyReleased(event))
 
-    override fun charTyped(event: CharacterEvent): Boolean = focused?.charTyped(event) == true || layer.charTyped(event)
+    override fun charTyped(event: CharacterEvent): Boolean =
+        focused?.charTyped(event) == true || contentHandled(layer.charTyped(event))
 
     // IME support (26.x only; see MinecraftTextInput): a focused widget manages Minecraft's text input and
     // Compose reclaims it afterwards, while input method composition goes where typed text goes.
@@ -354,7 +375,7 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
     }
 
     override fun preeditUpdated(event: PreeditEvent?): Boolean =
-        focused?.preeditUpdated(event) == true || layer.preedit(event)
+        focused?.preeditUpdated(event) == true || contentHandled(layer.preedit(event))
 
     /** Where native key handling is bypassed, an Escape that Compose leaves still closes the screen. */
     private fun closeOnEscape(event: KeyEvent): Boolean {

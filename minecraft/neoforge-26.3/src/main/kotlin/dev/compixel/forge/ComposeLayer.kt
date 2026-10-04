@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import com.mojang.blaze3d.systems.RenderSystem
+import com.mojang.logging.LogUtils
 import dev.compixel.bridge.ComposeThread
 import dev.compixel.bridge.NativeImageMailbox
 import dev.compixel.forge.drawing.*
@@ -73,6 +74,9 @@ internal class ComposeLayer(
     private val characters = CommittedCharacters()
     private val pendingOreFeedback = AtomicBoolean()
     private val oreFeedback = OreFeedback { pendingOreFeedback.set(true) }
+    private val logger = LogUtils.getLogger()
+    // Whether this session already warned that its content sent more actions than the screen can queue.
+    private var rejectionsReported = false
     private var renderer: ScreenFrameRenderer? = null
     private val itemMailbox = ComposeThread.call { NativeImageMailbox<ItemIcon> { it.id } }
     private val drawingMailbox = ComposeThread.call { NativeImageMailbox<NativeDrawing> { it.id } }
@@ -149,6 +153,7 @@ internal class ComposeLayer(
         if (existing == null || existing.state == SessionState.CLOSED) {
             // The first composition already reads the game, not a placeholder.
             contentState.open()
+            rejectionsReported = false
             val backend = createScreenRenderer(renderBackend, frameProfiler)
             try {
                 session =
@@ -315,6 +320,7 @@ internal class ComposeLayer(
         updateWindowFocus()
         flushClipboard()
         flushOreFeedback()
+        reportRejectedActions()
     }
 
     fun press(x: Double, y: Double, button: Int): Boolean {
@@ -426,6 +432,15 @@ internal class ComposeLayer(
         if (pendingOreFeedback.getAndSet(false)) {
             Minecraft.getInstance().soundManager.play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1f))
         }
+    }
+
+    // A send() the queue refused loses its action. Say so once per session, without flooding the log.
+    private fun reportRejectedActions() {
+        if (rejectionsReported) return
+        val rejected = contentState.rejectedActions
+        if (rejected == 0L) return
+        rejectionsReported = true
+        logger.warn("UI content sent more actions than its screen can queue; {} were rejected", rejected)
     }
 
     private fun updateWindowFocus() {

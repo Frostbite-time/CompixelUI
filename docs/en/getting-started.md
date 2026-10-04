@@ -122,12 +122,14 @@ Open it with `Minecraft.getInstance().setScreen(HandScreen())`.
 
 | Member | Runs |
 | --- | --- |
-| `snapshot()` | On the game thread when the screen opens, then every tick after the tick's actions |
-| `handle(action)` | On the game thread, once per action, before the tick's snapshot |
+| `snapshot()` | On the game thread when the screen opens, after each input event that sent actions, and every tick |
+| `handle(action)` | On the game thread, once per action, before the next snapshot |
 | `Content(state)` | On the Compose thread, with the latest snapshot |
 | `send(action)` | Anywhere, usually in UI callbacks. Returns `false` while the screen is closed or 64 actions are waiting. |
 
-The screen takes the first snapshot before its first frame, so the UI never shows placeholder values. When it closes, actions not yet handled are dropped; when it opens again, it starts from a new snapshot. Call `requestClose()` to close it from a button.
+A click, key or typed character that sends actions has them handled, and a new snapshot taken, before the event returns, just as vanilla buttons act at once; the next frame already shows the result. Actions sent at other times, for example from a coroutine, wait for the next tick. Because `snapshot()` can run more than once per tick, keep it to reading the game.
+
+The screen takes the first snapshot before its first frame, so the UI never shows placeholder values. When it closes, actions not yet handled are dropped; when it opens again, it starts from a new snapshot. Call `requestClose()` to close it from a button; the screen closes before the click returns.
 
 Return data classes or other immutable values from `snapshot()`: an equal snapshot redraws nothing. A screen without game state extends `ComposeScreen<Unit, Nothing>` with `override fun snapshot() {}` and `override fun handle(action: Nothing) {}`. `ComposeMenuScreen`, `ComposeInventoryScreen` and `ComposeHudLayer` work the same way for [menus and container screens](inventory.md#show-the-menus-state) and [HUD layers](hud.md).
 

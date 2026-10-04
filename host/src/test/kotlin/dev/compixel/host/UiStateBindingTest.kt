@@ -35,6 +35,76 @@ class UiStateBindingTest {
     }
 
     @Test
+    fun `handling an input event's actions publishes one snapshot before the next tick`() {
+        var energy = 1
+        var snapshots = 0
+        val handled = mutableListOf<Int>()
+        val state =
+            UiStateBinding<Int, Int>({
+                snapshots++
+                energy
+            }) {
+                handled += it
+                energy += it
+            }
+        state.open()
+        var observed = 0
+        UiSession(Viewport(20, 20)) {
+                val value = state.value
+                SideEffect { observed = value }
+            }
+            .use { session ->
+                session.frame(1)?.close()
+                assertEquals(1, observed)
+                state.handleActions()
+                assertEquals(1, snapshots, "A snapshot was taken without an action")
+                assertTrue(ComposeThread.call { state.send(10) && state.send(5) })
+                state.handleActions()
+                assertEquals(listOf(10, 5), handled)
+                assertEquals(2, snapshots)
+                session.frame(2)?.close()
+                assertEquals(16, observed)
+            }
+        state.close()
+    }
+
+    @Test
+    fun `handling actions stops once the handler ends the session`() {
+        var snapshots = 0
+        val handled = mutableListOf<Int>()
+        lateinit var state: UiStateBinding<Int, Int>
+        state =
+            UiStateBinding({ ++snapshots }) {
+                handled += it
+                state.close()
+            }
+        state.open()
+        assertTrue(state.send(1))
+        assertTrue(state.send(2))
+        state.handleActions()
+        assertEquals(listOf(1), handled)
+        assertEquals(1, snapshots)
+        assertFalse(state.isOpen)
+        state.handleActions()
+        assertEquals(listOf(1), handled)
+    }
+
+    @Test
+    fun `rejected actions are counted for each session`() {
+        val state = UiStateBinding<Int, Int>({ 0 }) {}
+        state.open()
+        repeat(64) { assertTrue(state.send(it)) }
+        assertFalse(state.send(64))
+        assertEquals(1, state.rejectedActions)
+        state.close()
+        assertFalse(state.send(65))
+        assertEquals(1, state.rejectedActions, "A send after close counted as a rejection")
+        state.open()
+        assertEquals(0, state.rejectedActions)
+        state.close()
+    }
+
+    @Test
     fun `an open session takes one snapshot per tick`() {
         var snapshots = 0
         val state = UiStateBinding<Int, Unit>({ ++snapshots }) {}
@@ -113,6 +183,7 @@ class UiStateBindingTest {
         ComposeThread.call {
             assertTrue(state.send(1))
             assertFailsWith<IllegalStateException> { state.tick() }
+            assertFailsWith<IllegalStateException> { state.handleActions() }
             assertFailsWith<IllegalStateException> { state.close() }
         }
         assertTrue(state.isOpen)

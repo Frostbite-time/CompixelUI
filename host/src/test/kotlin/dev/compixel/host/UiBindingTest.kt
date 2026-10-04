@@ -42,16 +42,27 @@ class UiBindingTest {
             assertTrue(binding.send(2))
             assertFalse(binding.send(3))
         }
+        assertEquals(1, binding.rejectedActions)
         val received = mutableListOf<Int>()
-        binding.drainActions {
+        val first = binding.drainActions {
             assertSame(owner, Thread.currentThread())
             received += it
             if (it == 1) assertTrue(binding.send(4))
         }
+        assertEquals(2, first)
         assertEquals(listOf(1, 2), received)
-        binding.drainActions { received += it }
+        assertEquals(1, binding.drainActions { received += it })
         assertEquals(listOf(1, 2, 4), received)
+        assertEquals(0, binding.drainActions { received += it })
         binding.close()
+    }
+
+    @Test
+    fun `a handler that closes the binding ends the drain`() {
+        val binding = UiBinding<Unit, Int>(Unit)
+        binding.send(1)
+        binding.send(2)
+        assertEquals(1, binding.drainActions { binding.close() })
     }
 
     @Test
@@ -61,7 +72,8 @@ class UiBindingTest {
         binding.close()
         binding.close()
         assertFalse(ComposeThread.call { binding.send(2) })
-        binding.drainActions { fail("Closed action executed") }
+        assertEquals(0, binding.rejectedActions, "A send after close counted as a rejection")
+        assertEquals(0, binding.drainActions { fail("Closed action executed") })
         assertFailsWith<IllegalStateException> { binding.update(Unit) }
     }
 

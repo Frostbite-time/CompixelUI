@@ -20,8 +20,10 @@ import net.minecraft.network.chat.Component
 /**
  * Full-screen Compose adapter. A subclass reads the game into an immutable [snapshot], draws the latest one in
  * [Content] and runs the actions its content [send]s in [handle]; `ComposeScreen<Unit, Nothing>` shows content without
- * game state. The screen takes a snapshot when it opens and every tick after handling that tick's actions. Actions
- * still pending when it is removed are discarded, and a screen shown again starts from a new snapshot.
+ * game state. Actions sent while Compose handles an input event run before the event returns, as vanilla widgets act
+ * inside their input handlers; actions sent at other times run at the next tick. The screen takes a snapshot when it
+ * opens, after an input event's actions and every tick. Actions still pending when it is removed are discarded, and a
+ * screen shown again starts from a new snapshot.
  *
  * Widgets added through screen initialization events draw above the Compose layer and receive input first. All
  * rendering and resource retirement run on the game thread.
@@ -77,10 +79,16 @@ abstract class ComposeScreen<S, A>(
     val frameProfiler: UiFrameProfiler?
         get() = layer.frameProfiler
 
-    /** Reads the game on the game thread. Return an immutable value: an equal snapshot leaves the content as it is. */
+    /**
+     * Reads the game on the game thread. It can run more than once per tick, so only read. Return an immutable value:
+     * an equal snapshot leaves the content as it is.
+     */
     protected abstract fun snapshot(): S
 
-    /** Runs an action from the content on the game thread, before the tick's snapshot. It may close the screen. */
+    /**
+     * Runs an action from the content on the game thread, before the next snapshot: before the input event that sent it
+     * returns, otherwise at the next tick. It may close the screen.
+     */
     protected abstract fun handle(action: A)
 
     /**
@@ -93,8 +101,8 @@ abstract class ComposeScreen<S, A>(
     protected fun send(action: A): Boolean = contentState.send(action)
 
     /**
-     * Closes the screen at its next tick on the game thread, as [onClose] does. Call it from any thread, for example
-     * from a close button in the content.
+     * Closes the screen on the game thread, as [onClose] does: before the input event during which it was called
+     * returns, otherwise at the next tick. Call it from any thread, for example from a close button in the content.
      */
     protected fun requestClose() = closeRequested.set(true)
 
@@ -115,6 +123,17 @@ abstract class ComposeScreen<S, A>(
         if (closeRequested.getAndSet(false)) onClose()
     }
 
+    /**
+     * Runs what the content asked for while Compose handled an input event, before the event returns, as vanilla
+     * widgets act inside their input handlers: the actions it sent, then a close request. True when Compose [consumed]
+     * the event or the content closed the screen, which then takes nothing more from the event.
+     */
+    private fun contentHandled(consumed: Boolean): Boolean {
+        contentState.handleActions()
+        if (closeRequested.getAndSet(false)) onClose()
+        return consumed || !contentState.isOpen
+    }
+
     // Native widgets take pointer input first, as in inventory hosts; Compose receives the rest.
     override fun mouseClicked(mouseX: Double, mouseY: Double, button: Int): Boolean {
         for (child in children().asReversed()) if (child.mouseClicked(mouseX, mouseY, button)) {
@@ -123,7 +142,7 @@ abstract class ComposeScreen<S, A>(
             return true
         }
         setFocused(null)
-        return layer.press(mouseX, mouseY, button)
+        return contentHandled(layer.press(mouseX, mouseY, button))
     }
 
     override fun mouseReleased(mouseX: Double, mouseY: Double, button: Int): Boolean {
@@ -132,14 +151,14 @@ abstract class ComposeScreen<S, A>(
             it.mouseReleased(mouseX, mouseY, button)
             return true
         }
-        return layer.release(mouseX, mouseY, button)
+        return contentHandled(layer.release(mouseX, mouseY, button))
     }
 
     override fun mouseDragged(mouseX: Double, mouseY: Double, button: Int, dragX: Double, dragY: Double): Boolean =
-        nativeCapture?.mouseDragged(mouseX, mouseY, button, dragX, dragY) ?: layer.move(mouseX, mouseY)
+        nativeCapture?.mouseDragged(mouseX, mouseY, button, dragX, dragY) ?: contentHandled(layer.move(mouseX, mouseY))
 
     override fun mouseMoved(mouseX: Double, mouseY: Double) {
-        layer.move(mouseX, mouseY)
+        contentHandled(layer.move(mouseX, mouseY))
     }
 
     override fun mouseScrolled(mouseX: Double, mouseY: Double, scrollX: Double, scrollY: Double): Boolean {
@@ -147,21 +166,21 @@ abstract class ComposeScreen<S, A>(
             child.isMouseOver(mouseX, mouseY) && child.mouseScrolled(mouseX, mouseY, scrollX, scrollY)
         )
             return true
-        return layer.scroll(mouseX, mouseY, scrollX, scrollY)
+        return contentHandled(layer.scroll(mouseX, mouseY, scrollX, scrollY))
     }
 
     // A focused widget, otherwise Compose, gets keys and text first. What they leave reaches vanilla
     // handling (Escape, focus navigation); an unconsumed event returns false, so its Post event fires.
     override fun keyPressed(keyCode: Int, scanCode: Int, modifiers: Int): Boolean =
-        focused == null && layer.keyPressed(keyCode, scanCode, modifiers) ||
+        focused == null && contentHandled(layer.keyPressed(keyCode, scanCode, modifiers)) ||
             super.keyPressed(keyCode, scanCode, modifiers)
 
     override fun keyReleased(keyCode: Int, scanCode: Int, modifiers: Int): Boolean =
-        focused == null && layer.keyReleased(keyCode, scanCode, modifiers) ||
+        focused == null && contentHandled(layer.keyReleased(keyCode, scanCode, modifiers)) ||
             super.keyReleased(keyCode, scanCode, modifiers)
 
     override fun charTyped(codePoint: Char, modifiers: Int): Boolean =
-        focused == null && layer.charTyped(codePoint) || super.charTyped(codePoint, modifiers)
+        focused == null && contentHandled(layer.charTyped(codePoint)) || super.charTyped(codePoint, modifiers)
 
     override fun onClose() {
         Minecraft.getInstance().setScreen(parent)

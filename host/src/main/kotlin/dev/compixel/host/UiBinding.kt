@@ -15,6 +15,7 @@ class UiBinding<S, A>(initial: S, private val capacity: Int = 64) : AutoCloseabl
     private val owner = Thread.currentThread()
     private val actions = ArrayDeque<A>()
     private var closed = false
+    private var rejected = 0L
     private var latest = initial
     private val state = mutableStateOf(initial)
 
@@ -37,21 +38,34 @@ class UiBinding<S, A>(initial: S, private val capacity: Int = 64) : AutoCloseabl
     /** False means the screen closed or the bounded queue is full; no action is overwritten. */
     fun send(action: A): Boolean =
         synchronized(actions) {
-            if (closed || actions.size >= capacity) false
-            else {
-                actions.addLast(action)
-                true
+            when {
+                closed -> false
+                actions.size >= capacity -> {
+                    rejected++
+                    false
+                }
+                else -> {
+                    actions.addLast(action)
+                    true
+                }
             }
         }
 
-    /** Dispatch at most the actions pending on entry; callbacks run on the creating thread. */
-    fun drainActions(handler: Consumer<A>) {
+    /** Actions [send] refused because the queue was full. Sends after [close] are not counted. */
+    val rejectedActions: Long
+        get() = synchronized(actions) { rejected }
+
+    /** Dispatch at most the actions pending on entry; callbacks run on the creating thread. Returns how many ran. */
+    fun drainActions(handler: Consumer<A>): Int {
         checkOwner()
         val count = synchronized(actions) { if (closed) 0 else actions.size }
+        var handled = 0
         repeat(count) {
-            val action = synchronized(actions) { if (closed) null else actions.pollFirst() } ?: return
+            val action = synchronized(actions) { if (closed) null else actions.pollFirst() } ?: return handled
             handler.accept(action)
+            handled++
         }
+        return handled
     }
 
     override fun close() {

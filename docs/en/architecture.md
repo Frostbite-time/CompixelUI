@@ -59,7 +59,7 @@ flowchart LR
     gpu --> frame["Minecraft's frame"]
 ```
 
-Game objects stay on the game thread. Compose sees immutable snapshots and sends actions back through `UiBinding`. Screens and HUD layers manage theirs with their Compose session: it opens from a first snapshot, every tick handles the actions before taking the next snapshot, and it closes with the session. Each frame is recorded by Compose and drawn by the render thread inside Minecraft's own graphics context: OpenGL state is restored afterwards, and Vulkan work uses the game's device and queue.
+Game objects stay on the game thread. Compose sees immutable snapshots and sends actions back through `UiBinding`. Screens and HUD layers manage theirs with their Compose session: it opens from a first snapshot, handles the actions an input event sent before the event returns, handles the rest at each tick before taking the next snapshot, and closes with the session. Each frame is recorded by Compose and drawn by the render thread inside Minecraft's own graphics context: OpenGL state is restored afterwards, and Vulkan work uses the game's device and queue.
 
 GPU images that Compose draws, such as item icon pages, belong to the render thread. Pictures recorded by Compose keep references to them, so the renderer frees an image only after those references are gone. Freeing it on another thread would lose its GPU memory.
 

@@ -96,7 +96,7 @@ class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
 
 Here `locked` and `requestLocked` stand for your menu's own state, for example kept in sync with [menu sync](menu-sync.md).
 
-- `snapshot` runs on the game thread when the screen opens, then every tick after `handle` has run that tick's actions.
+- `snapshot` runs on the game thread when the screen opens, every tick, and after an input event whose actions `handle` has just run.
 - `requestClose()` closes the screen from the UI, as the panel's close button does here.
 - `ComposeMenuScreen` works the same way for menus without slots; its `Content(state)` has no slots.
 
