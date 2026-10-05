@@ -63,16 +63,12 @@ class CounterScreen : ComposeScreen<Int, Unit>(Component.literal("计数器")) {
 | 26.2 | NeoForge 26.2.0.0-beta 及以上 | OpenGL、Vulkan |
 | 26.3 | NeoForge 26.3.0.0-beta 及以上 | OpenGL、Vulkan |
 
-最新版本：**0.1.6**。
-
 ## 玩家须知
 
-CompixelUI 是前置库，当你玩的模组需要它时再安装。在 [Releases](https://github.com/Frostbite-time/CompixelUI/releases) 下载对应 Minecraft 版本的文件：
+CompixelUI 是前置库，当你玩的模组需要它时再安装。在 [Releases](https://github.com/Frostbite-time/CompixelUI/releases) 下载对应 Minecraft 版本的两个文件之一：
 
 - `…-with-kotlin.jar` 可以单独使用。
 - 不带后缀的 `.jar` 更小，但需要 [Kotlin for Forge](https://modrinth.com/mod/kotlin-for-forge)。
-
-两者只装其一。
 
 ## 文档
 

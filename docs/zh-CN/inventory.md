@@ -53,7 +53,7 @@ modBus.addListener { event: RegisterMenuScreensEvent ->
 
 Forge 1.20.1 请在 `FMLClientSetupEvent.enqueueWork` 中用 `MenuScreens.register` 注册。
 
-大型容器的每个槽位都会显示图标，无需额外设置。`ComposeInventoryScreen` 在整个界面范围内最多缓存 256 个图标，包括玩家背包和合成区。调整缓存和每帧绘制上限见[大量物品](items.md#大量物品)。
+`ComposeInventoryScreen` 在整个界面范围内最多缓存 256 个图标，调整方法见[大量物品](items.md#大量物品)。
 
 ## 显示菜单状态
 
@@ -161,5 +161,5 @@ public ItemStack quickMoveStack(Player player, int slot) {
 ## 浮层与其他界面
 
 - 对话框或窗口需要挡住槽位点击时，调用 `slots.Interaction(enabled = false)`。
-- 配方查看器打开自己的界面时，菜单仍保持打开，你的界面也会保留它的内容：返回时，`remember` 的状态、滚动位置和输入的文字都保持原样，并读取新的快照。如果菜单在此期间关闭，或者配方查看器关闭后没有回到你的界面，你的界面也会随之关闭。参见[被覆盖的界面](transitions.md#被覆盖的界面)。
+- 配方查看器在你的界面上打开自己的界面时，你的界面会保留内容，返回时一切照旧；参见[被覆盖的界面](transitions.md#被覆盖的界面)。
 - 只需在界面最终关闭时做一次的工作（例如保存搜索文字），请重写 `menuClosed()`。配方查看器覆盖界面时不会调用它。

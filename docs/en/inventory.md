@@ -53,7 +53,7 @@ modBus.addListener { event: RegisterMenuScreensEvent ->
 
 On Forge 1.20.1, register the screen with `MenuScreens.register` inside `FMLClientSetupEvent.enqueueWork`.
 
-Every slot of a large inventory gets its icon without further setup. `ComposeInventoryScreen` keeps up to 256 icons cached across the whole screen, including the player inventory and crafting slots. See [Large grids](items.md#large-grids) to tune the cache and the per-frame drawing budget.
+`ComposeInventoryScreen` caches up to 256 icons across the whole screen; [Large grids](items.md#large-grids) shows how to change that.
 
 ## Show the menu's state
 
@@ -163,5 +163,5 @@ Ranges exclude their end, and `true` fills that group from its last slot. Stacks
 ## Overlays and other screens
 
 - Call `slots.Interaction(enabled = false)` while a dialog or window should block slot clicks.
-- When a recipe viewer opens its own screen over yours, the menu stays open, and your screen keeps its content: when it returns, `remember` state, scroll positions and typed text are as they were, and it takes a new snapshot. If the menu closes meanwhile, or the viewer closes without returning to your screen, your screen closes too. See [covered screens](transitions.md#covered-screens).
+- When a recipe viewer opens its own screen over yours, your screen keeps its content and comes back as it was; see [covered screens](transitions.md#covered-screens).
 - Override `menuClosed()` for work that should happen once, when the screen closes for good, such as saving a search text. A recipe viewer covering the screen doesn't call it.

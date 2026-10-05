@@ -29,10 +29,10 @@ dependencies {
 kotlin { jvmToolchain(21) }
 ```
 
-在 `gradle.properties` 中：
+在 `gradle.properties` 中，填入 [Releases](https://github.com/Frostbite-time/CompixelUI/releases) 上的最新版本：
 
 ```properties
-compixel_version=0.1.6
+compixel_version=<version>
 kotlin.stdlib.default.dependency=false
 ```
 
@@ -42,13 +42,13 @@ CompixelUI 作为独立模组安装，不要用 Jar-in-Jar 打进你的 JAR。
 
 ## 2. 声明依赖
 
-在 `src/main/resources/META-INF/neoforge.mods.toml` 中，换成你的模组 ID：
+在 `src/main/resources/META-INF/neoforge.mods.toml` 中，换成你的模组 ID，版本与上面相同：
 
 ```toml
 [[dependencies.examplemod]]
 modId = "compixel"
 type = "required"
-versionRange = "[0.1.6]"
+versionRange = "[<version>]"
 ordering = "AFTER"
 side = "CLIENT"
 ```
@@ -129,7 +129,7 @@ class HandScreen : ComposeScreen<HeldItem, Unit>(Component.literal("手持物品
 
 点击、按键或输入文字时发出的动作，会在这次事件返回前处理完并取得新快照，和原版按钮一样立即生效，下一帧就能看到结果。其他时候发出的动作（例如在协程里）等到下一刻处理。由于 `snapshot()` 每刻可能调用不止一次，它只应读取游戏状态。
 
-界面在第一帧之前就取得第一份快照，所以不会先显示占位数据。界面关闭时，尚未处理的动作会被丢弃；再次打开时，从新的快照开始。在按钮中调用 `requestClose()` 可以关闭界面，界面会在这次点击返回前关闭。
+界面在第一帧之前取得第一份快照。界面关闭时，尚未处理的动作会被丢弃；再次打开时，从新的快照开始。在按钮中调用 `requestClose()` 可以关闭界面，界面会在这次点击返回前关闭。
 
 `snapshot()` 应返回数据类等不可变值：快照没有变化时不会重绘。没有游戏状态的界面继承 `ComposeScreen<Unit, Nothing>`，写 `override fun snapshot() {}` 和 `override fun handle(action: Nothing) {}`。`ComposeMenuScreen`、`ComposeInventoryScreen` 和 `ComposeHudLayer` 以同样的方式用于[菜单与容器界面](inventory.md#显示菜单状态)和 [HUD 层](hud.md)。
 
@@ -141,8 +141,8 @@ class HandScreen : ComposeScreen<HeldItem, Unit>(Component.literal("手持物品
 
 | 文件 | 适用于 |
 | --- | --- |
-| `compixel-neoforge-1.21.1-0.1.6-with-kotlin.jar` | 所有玩家，已包含 Kotlin |
-| `compixel-neoforge-1.21.1-0.1.6.jar` | 已安装 Kotlin for Forge 的玩家 |
+| `compixel-neoforge-1.21.1-…-with-kotlin.jar` | 所有玩家，已包含 Kotlin |
+| `compixel-neoforge-1.21.1-….jar` | 已安装 Kotlin for Forge 的玩家 |
 
 两个文件都可以在 [Releases](https://github.com/Frostbite-time/CompixelUI/releases) 页面下载。
 

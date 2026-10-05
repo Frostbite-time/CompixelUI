@@ -38,7 +38,7 @@ OreScreen(
 }
 ```
 
-`showTitleBar` defaults to `true`. Setting it to `false` removes the title, built-in close button and separator below the title bar without reserving their height, giving the space to the content. The panel frame, content padding and footer remain. If you need a close button, put it in the footer as above or in your own toolbar. An empty title string still displays the title bar.
+Without the title bar, its title, close button and separator give their space to the content; the panel frame, padding and footer stay. Put a close button in the footer, as above, or in your own toolbar.
 
 ## Buttons and inputs
 
@@ -117,7 +117,7 @@ fun ActionMenu() {
 
 Keep the menu and its button in the same `Box`. `OreContextMenuArea(items) { … }` opens the same kind of menu with a right click. Arrow keys, Enter and Escape work in both. The shortcut label is only text; register the key binding yourself.
 
-Menus default to 136 dp wide with a minimum row height of 22 dp; longer labels can wrap. Select dropdowns use their anchor's width. The scrollbar and its reserved space appear only when the menu content can scroll.
+Menus are 136 dp wide by default and wrap longer labels; a select's dropdown takes the width of its field.
 
 ## Tooltips
 
@@ -140,7 +140,7 @@ fun MendingHint() {
 }
 ```
 
-`OreTooltip` accepts a `mode` in both its text and composable overloads. The default, `OreTooltipMode.Delayed`, opens as soon as the pointer arrives. Keep the pointer still until the green line fills (`lockDelayMillis`, 600 ms by default) and the tooltip locks; you can then move into it to click buttons or open the next layer. Once locked, `exitDelayMillis` (350 ms by default) gives you time to cross the gap. Tooltips can hold any composable, including item icons.
+The default `OreTooltipMode.Delayed` opens as soon as the pointer arrives. Keep the pointer still until the green line fills (`lockDelayMillis`, 600 ms by default) and the tooltip locks; you can then move into it to click buttons or open the next layer. Once locked, `exitDelayMillis` (350 ms by default) gives you time to cross the gap. Tooltips can hold any composable, including item icons.
 
 For a hint that only follows its trigger, use `OreTooltipMode.Immediate`:
 
@@ -150,7 +150,7 @@ OreTooltip("Refresh the list", mode = OreTooltipMode.Immediate) {
 }
 ```
 
-Immediate hints open on hover and close as soon as the pointer leaves the trigger, including when moving into the hint itself. They have a regular bottom frame without a lock progress line and do not use the lock or exit delays. `OreIconButton` uses immediate hints for its action label.
+An immediate hint opens on hover and closes as soon as the pointer leaves the trigger; it never locks. `OreIconButton` labels its action this way.
 
 ## Windows and dialogs
 

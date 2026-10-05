@@ -2,8 +2,6 @@
 
 [简体中文](../zh-CN/compatibility.md) · [All guides](../README.md)
 
-This page describes CompixelUI **0.1.6**.
-
 ## Minecraft versions
 
 | Minecraft | Loader | Java | Graphics |
@@ -16,7 +14,7 @@ This page describes CompixelUI **0.1.6**.
 
 Each Minecraft version has its own build of CompixelUI, so use the one that matches. The API has the same package and class names on every version, `dev.compixel.forge` included; only the Minecraft and loader types around it differ.
 
-The loader versions are the oldest builds CompixelUI has been verified with. It is developed and tested against Forge 47.4.23 and NeoForge 21.1.250, 26.1.2.109, 26.2.0.88 and 26.3.0.6-beta, and built with Kotlin 2.4.10 and Compose 1.12.0.
+CompixelUI is built with Kotlin 2.4.10 and Compose 1.12.0.
 
 ## Maven coordinates
 
@@ -36,13 +34,13 @@ Every release has two player files per Minecraft version:
 | `…-with-kotlin.jar` | Included. Don't combine with Kotlin for Forge. |
 | `….jar` | Needs a Kotlin provider, such as Kotlin for Forge |
 
-Tested Kotlin for Forge versions: 4.12.0 on 1.20.1, 5.12.0 on 1.21.1, and 6.3.0 on 26.1.2 and 26.2. Kotlin for Forge 6.3.0 doesn't support 26.3, so use the `-with-kotlin` file there. Any provider needs Kotlin 2.2.21 or newer with matching Coroutines and Serialization libraries. The game reports a clear error at startup if they're missing.
+A Kotlin provider needs Kotlin 2.2.21 or newer with matching Coroutines and Serialization libraries. Kotlin for Forge provides them: 4.12.0 on 1.20.1, 5.12.0 on 1.21.1, and 6.3.0 on 26.1.2 and 26.2. On 26.3, use the `-with-kotlin` file.
 
 ## Graphics
 
 CompixelUI draws with the same graphics API as the game: OpenGL, or Vulkan when Minecraft 26.2 or 26.3 runs on Vulkan. Set `-Dcompixel.backend` to `opengl`, `vulkan` or `cpu` to override it; `cpu` is a slow reference renderer for troubleshooting.
 
-Each file contains the native libraries for Windows, Linux and macOS on x64 and arm64. Testing on real hardware has so far covered Windows x64 with NVIDIA graphics. Other systems, graphics drivers and shader mods are expected to work but have not been verified.
+Each file contains the native libraries for Windows, Linux and macOS on x64 and arm64.
 
 ## Loader differences
 
@@ -61,4 +59,4 @@ Each file contains the native libraries for Windows, Linux and macOS on x64 and 
 
 ## Other mods
 
-Container screens keep the native container screen and its events, so recipe viewers and other container add-ons keep working. Widgets that other mods add to a screen draw above the Compose content and receive input first. Test the combinations your modpack relies on; shaders and heavily modified GUIs have not been tested widely.
+Container screens keep the native container screen and its events, so recipe viewers and other container add-ons keep working. Widgets that other mods add to a screen draw above the Compose content and receive input first.

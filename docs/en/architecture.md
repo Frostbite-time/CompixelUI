@@ -66,7 +66,7 @@ Game objects stay on the game thread. Compose sees immutable snapshots and sends
 
 GPU images that Compose draws, such as item icon pages, belong to the render thread. Pictures recorded by Compose keep references to them, so the renderer frees an image only after those references are gone. Freeing it on another thread would lose its GPU memory.
 
-`NativeImageAtlas` in `compose-bridge` schedules rectangular image requests. Item adapters choose atlas grids; custom native drawings choose independent viewports. The Compose mailbox and image node are shared. `NativeImageOwner` retires published images through the renderer, including tooltip images; native tooltip measurement and loader events remain in each adapter.
+`NativeImageAtlas` in `compose-bridge` schedules the images that item icons and native drawings request, and `NativeImageOwner` releases them, tooltip images included, through the renderer. Drawing the images, measuring tooltips and handling loader events stay in each adapter.
 
 ## Packaging
 

@@ -66,7 +66,7 @@ flowchart LR
 
 Compose 绘制的 GPU 图像（例如物品图标页）归渲染线程所有。Compose 录制的画面会保留对这些图像的引用，渲染器要等这些引用全部释放后才释放图像；在其他线程释放会丢失这块显存。
 
-`compose-bridge` 中的 `NativeImageAtlas` 调度带宽高的图像请求：物品适配器选择图集网格，自定义原生绘制选择独立视口。Compose 邮箱和图像节点共用同一实现。`NativeImageOwner` 统一通过渲染器回收已发布图像，原生提示也复用这一所有权机制；提示的测量和加载器事件仍由各适配器负责。
+`compose-bridge` 中的 `NativeImageAtlas` 调度物品图标和原生绘制请求的图像，`NativeImageOwner` 通过渲染器释放这些图像，提示图像也不例外。绘制图像、测量提示和处理加载器事件由各适配器负责。
 
 ## 打包
 

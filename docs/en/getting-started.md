@@ -29,10 +29,10 @@ dependencies {
 kotlin { jvmToolchain(21) }
 ```
 
-And in `gradle.properties`:
+And in `gradle.properties`, with the latest version from [Releases](https://github.com/Frostbite-time/CompixelUI/releases):
 
 ```properties
-compixel_version=0.1.6
+compixel_version=<version>
 kotlin.stdlib.default.dependency=false
 ```
 
@@ -42,13 +42,13 @@ CompixelUI is installed as its own mod, so don't include it in your JAR through 
 
 ## 2. Declare the dependency
 
-In `src/main/resources/META-INF/neoforge.mods.toml`, with your own mod ID:
+In `src/main/resources/META-INF/neoforge.mods.toml`, with your own mod ID and the same version:
 
 ```toml
 [[dependencies.examplemod]]
 modId = "compixel"
 type = "required"
-versionRange = "[0.1.6]"
+versionRange = "[<version>]"
 ordering = "AFTER"
 side = "CLIENT"
 ```
@@ -129,7 +129,7 @@ Open it with `Minecraft.getInstance().setScreen(HandScreen())`.
 
 A click, key or typed character that sends actions has them handled, and a new snapshot taken, before the event returns, just as vanilla buttons act at once; the next frame already shows the result. Actions sent at other times, for example from a coroutine, wait for the next tick. Because `snapshot()` can run more than once per tick, keep it to reading the game.
 
-The screen takes the first snapshot before its first frame, so the UI never shows placeholder values. When it closes, actions not yet handled are dropped; when it opens again, it starts from a new snapshot. Call `requestClose()` to close it from a button; the screen closes before the click returns.
+The screen takes its first snapshot before its first frame. When it closes, actions not yet handled are dropped; when it opens again, it starts from a new snapshot. Call `requestClose()` to close it from a button; the screen closes before the click returns.
 
 Return data classes or other immutable values from `snapshot()`: an equal snapshot redraws nothing. A screen without game state extends `ComposeScreen<Unit, Nothing>` with `override fun snapshot() {}` and `override fun handle(action: Nothing) {}`. `ComposeMenuScreen`, `ComposeInventoryScreen` and `ComposeHudLayer` work the same way for [menus and container screens](inventory.md#show-the-menus-state) and [HUD layers](hud.md).
 
@@ -141,8 +141,8 @@ Players install CompixelUI next to your mod. Each Minecraft version has two file
 
 | File | For |
 | --- | --- |
-| `compixel-neoforge-1.21.1-0.1.6-with-kotlin.jar` | Everyone; Kotlin included |
-| `compixel-neoforge-1.21.1-0.1.6.jar` | Players who already have Kotlin for Forge |
+| `compixel-neoforge-1.21.1-…-with-kotlin.jar` | Everyone; Kotlin included |
+| `compixel-neoforge-1.21.1-….jar` | Players who already have Kotlin for Forge |
 
 Both are on the [Releases](https://github.com/Frostbite-time/CompixelUI/releases) page.
 

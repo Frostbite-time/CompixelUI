@@ -30,8 +30,6 @@ Download the file for your Minecraft version and put it in your `mods` folder, n
 | Ends in `-with-kotlin.jar` | You don't use Kotlin for Forge. This is the right file for most players. |
 | The other `.jar` | You already have [Kotlin for Forge](https://www.curseforge.com/minecraft/mc-mods/kotlin-for-forge) installed. |
 
-Don't combine the `-with-kotlin` file with Kotlin for Forge: the two copies of Kotlin conflict.
-
 ## Change the colors
 
 Resource packs can recolor CompixelUI screens without any code. For example, a resource pack with this file at `assets/compixel/compixel/themes/default.json` switches every CompixelUI screen to the built-in Twilight theme:

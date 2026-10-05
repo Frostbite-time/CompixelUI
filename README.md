@@ -63,16 +63,12 @@ class CounterScreen : ComposeScreen<Int, Unit>(Component.literal("Counter")) {
 | 26.2 | NeoForge 26.2.0.0-beta or newer | OpenGL, Vulkan |
 | 26.3 | NeoForge 26.3.0.0-beta or newer | OpenGL, Vulkan |
 
-Latest version: **0.1.6**.
-
 ## For players
 
-CompixelUI is a library. Install it when a mod you play asks for it: download the file for your Minecraft version from [Releases](https://github.com/Frostbite-time/CompixelUI/releases).
+CompixelUI is a library. Install it when a mod you play asks for it: download one of the two files for your Minecraft version from [Releases](https://github.com/Frostbite-time/CompixelUI/releases).
 
 - `…-with-kotlin.jar` works on its own.
 - The plain `.jar` is smaller and needs [Kotlin for Forge](https://modrinth.com/mod/kotlin-for-forge).
-
-Install one of the two, not both.
 
 ## Documentation
 

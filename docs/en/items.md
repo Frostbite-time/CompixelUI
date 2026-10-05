@@ -87,19 +87,17 @@ val panel = NativeDrawing.create("Native panel", { context ->
 MinecraftNativeDrawing(panel, Modifier.size(180.dp, 48.dp))
 ```
 
-The callback runs on the game/render thread. `context.graphics` is the version's native `GuiGraphics` (1.20.1/1.21.1) or `GuiGraphicsExtractor` (26.x). Coordinates start at the component's top-left corner. `width` and `height` are local GUI units, rounded up to cover the image; `pixelWidth` and `pixelHeight` are its exact physical dimensions. One native GUI unit occupies `guiScale` pixels. A screen's custom UI density can therefore make one Compose dp differ from one native GUI unit.
+The callback runs on the render thread. `context.graphics` is the version's `GuiGraphics` (1.20.1, 1.21.1) or `GuiGraphicsExtractor` (26.x), with coordinates from the component's top-left corner; `width` and `height` are in GUI units, `pixelWidth` and `pixelHeight` in pixels.
 
-Give the component a size or bounded fill modifier; native drawings have no intrinsic size. Use ordinary Compose clip, alpha and transform modifiers. The drawing is captured before those display transforms; input still belongs to Compose. Native scissor rectangles use the local target. The final image clips anything past its edges. Dimensions are not limited to 256 pixels, but must fit the graphics device's texture limits; memory use grows with width × height.
+Give the component a size, since a native drawing has none of its own. Clip, alpha and transform modifiers work as usual, and the image clips whatever the callback draws past its edges.
 
-Do not read Compose state inside the callback or retain its graphics object. Pass immutable snapshots through a reused handle, replacing the handle when its snapshot changes. A callback may read game-thread-owned state for animated content. The default refresh is `NativeRefresh.GAME_TICK`; `AUTO` also means one refresh per game tick for custom drawings. Refreshes happen only while displayed and within the preparation budget.
+The callback may read the game's state but not Compose state. To draw different data, create a new handle; reusing a handle at one size shares its image. Drawings refresh every game tick by default, and only while they are on screen.
 
-`nativeDrawingOptions = NativeDrawingOptions(cacheCapacity = 0, preparationsPerFrame = 4)` is available on all four screen/HUD hosts. Cache capacity (0–128) controls images retained when fewer are visible; the default releases hidden targets. Preparations per frame (1–64) bounds native draws across independent rectangular targets. Reusing one handle at one size shares its image; different sizes get separate targets. During continuous resizing, the nearest existing image remains visible until the new size settles. Resource reloads and GUI-scale changes invalidate static drawings too.
-
-Item icons retain their compact atlas allocation and native item handling. Rectangles use independent targets so native clipping and viewport-dependent drawing work correctly. Both use the same underlying image scheduler, Compose publication and renderer-owned retirement.
+Pass `nativeDrawingOptions = NativeDrawingOptions(cacheCapacity, preparationsPerFrame)` to a screen or HUD layer to keep hidden drawings cached (0–128, none by default) or to change how many drawings may run per frame (1–64, 4 by default).
 
 ## Large grids
 
-Every icon on screen gets its image, however many there are. Icons are drawn into atlas pages of up to 64 icons each. A page redraws only its due icons, so an animated item doesn't redraw the icons beside it. Pages are added as more icons appear, and discarded once their icons are gone.
+Icons are drawn into atlas pages of up to 64 icons each. A page redraws only its due icons, so an animated item doesn't redraw the icons beside it.
 
 Set `nativeItemOptions` when creating a `ComposeScreen`, `ComposeMenuScreen`, `ComposeInventoryScreen` or `ComposeHudLayer` to tune this for that screen or layer:
 
@@ -121,9 +119,9 @@ class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
 | --- | --- | --- | --- |
 | `cacheCapacity` | 128; 256 for inventory screens | 1–1024 | Icons kept while fewer are on screen. An icon that scrolls out of view stays cached while it fits, and returns without being drawn again |
 | `preparationsPerFrame` | 64 | 1–64 | Maximum number of icons drawn in one frame, and the number of icons on one atlas page |
-| `imageSize` | The pixels each icon is laid out with | 16–256 | Pixel size used to draw each 16×16 icon. By default an icon is drawn with the pixels it is laid out with, so it shows pixel for pixel at any size and matches Minecraft's own item rendering at 16 dp. An icon shown at two sizes is drawn at both; a size that keeps changing, as in an animation, shows the nearest drawn size until it settles. A fixed size draws each icon once and resamples it on screen |
+| `imageSize` | The pixels each icon is laid out with | 16–256 | Pixel size used to draw each 16×16 icon. By default an icon is drawn with the pixels it is laid out with, so it stays sharp at any size and matches Minecraft's own items at 16 dp. A fixed size draws each icon once and scales it on screen |
 
-A screen that shows more icons than `preparationsPerFrame` fills in over a few frames. Each page holds icons of one size: 64 icons shown at 16 dp take about 4 MB of GPU memory at GUI scale 4, about 1 MB at scale 2 and about 9 MB at scale 6, and larger icons take more with the square of their size. Reusing the same `ItemIcon` handle shares one image; separately created handles get separate images, even for identical stacks.
+A screen that shows more icons than `preparationsPerFrame` fills in over a few frames. A page of 64 icons at 16 dp takes about 1 MB of GPU memory at GUI scale 2 and 4 MB at scale 4.
 
 ## See also
 

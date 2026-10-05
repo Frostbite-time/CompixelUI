@@ -87,19 +87,17 @@ val panel = NativeDrawing.create("原生面板", { context ->
 MinecraftNativeDrawing(panel, Modifier.size(180.dp, 48.dp))
 ```
 
-回调在游戏/渲染线程执行。`context.graphics` 是对应版本的原生 `GuiGraphics`（1.20.1/1.21.1）或 `GuiGraphicsExtractor`（26.x）。坐标从组件左上角开始，`width` 和 `height` 是向上取整以覆盖图像的局部 GUI 尺寸，`pixelWidth` 和 `pixelHeight` 是精确的物理像素尺寸。
+回调在渲染线程执行。`context.graphics` 是对应版本的 `GuiGraphics`（1.20.1、1.21.1）或 `GuiGraphicsExtractor`（26.x），坐标从组件左上角开始；`width` 和 `height` 以 GUI 单位计，`pixelWidth` 和 `pixelHeight` 以像素计。
 
-组件没有固有尺寸，需要指定尺寸或在有界布局中填充。可以正常使用 Compose 的裁剪、透明度和变换修饰符。原生画面在这些显示变换之前捕获，输入仍由 Compose 处理。原生 scissor 使用局部目标坐标，超出图像边缘的内容会被裁掉。
+原生绘制没有自己的尺寸，需要给组件指定尺寸。裁剪、透明度和变换修饰符照常使用，回调画到图像边缘之外的内容会被裁掉。
 
-回调中不要读取 Compose 状态，也不要保存 graphics 对象。通过重复使用的句柄传递不可变快照，快照改变时替换句柄；动画回调可以读取归游戏线程所有的状态。默认刷新策略是 `NativeRefresh.GAME_TICK`，自绘内容的 `AUTO` 也表示每个游戏刻刷新一次。仅显示中的内容会在绘制预算内刷新。
+回调可以读取游戏状态，但不能读取 Compose 状态。要绘制不同的数据，就创建新的句柄；同一尺寸重复使用同一句柄会共用图像。默认每个游戏刻刷新一次，且只在显示时刷新。
 
-四种界面/HUD 宿主均提供 `nativeDrawingOptions = NativeDrawingOptions(cacheCapacity = 0, preparationsPerFrame = 4)`。缓存容量（0–128）控制可见内容较少时保留的图像数，默认释放隐藏的目标；每帧准备数（1–64）限制所有独立矩形目标的原生绘制次数。同一尺寸重复使用同一句柄会共用图像，不同尺寸各自分配目标。尺寸连续变化时先显示最接近的已有图像，稳定后再绘制新尺寸。资源重载和 GUI 缩放变化也会刷新静态内容。
-
-物品图标继续使用紧凑的图集和原生物品处理。矩形使用独立目标，保证原生裁剪和依赖视口的绘制正确；两者共用底层图像调度、Compose 发布和渲染器回收机制。
+给界面或 HUD 层传入 `nativeDrawingOptions = NativeDrawingOptions(cacheCapacity, preparationsPerFrame)`，可以缓存隐藏的绘制（0–128，默认不缓存），或调整每帧最多运行的绘制数（1–64，默认 4）。
 
 ## 大量物品
 
-界面上的每个图标都会显示，不论数量多少。图标绘制在图集页中，每页最多 64 个。一页只重绘到期的图标，所以一个有动画的物品不会连带重绘旁边的图标。显示的图标增多时会添加新页，页中图标都不再使用后，该页随之释放。
+图标绘制在图集页中，每页最多 64 个。一页只重绘到期的图标，所以一个有动画的物品不会连带重绘旁边的图标。
 
 创建 `ComposeScreen`、`ComposeMenuScreen`、`ComposeInventoryScreen` 或 `ComposeHudLayer` 时，可以通过 `nativeItemOptions` 为该界面或 HUD 层单独调整：
 
@@ -121,9 +119,9 @@ class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
 | --- | --- | --- | --- |
 | `cacheCapacity` | 128；容器界面为 256 | 1–1024 | 屏幕上的图标少于此数量时保留的图标数。滚出视野的图标在容量内继续缓存，滚回时无需重绘 |
 | `preparationsPerFrame` | 64 | 1–64 | 每帧最多绘制的图标数量，也是一个图集页容纳的图标数量 |
-| `imageSize` | 图标布局所占的像素 | 16–256 | 每个 16×16 图标绘制时使用的像素尺寸。默认按图标布局所占的像素绘制，因此任何尺寸都逐像素显示，16 dp 的图标与原版物品渲染完全一致。同一图标以两种尺寸显示时分别绘制；尺寸持续变化时（例如动画中），先显示最接近的已绘制尺寸，稳定后再绘制新尺寸。指定固定尺寸时，每个图标只绘制一次，并在屏幕上重新采样 |
+| `imageSize` | 图标布局所占的像素 | 16–256 | 每个 16×16 图标绘制时使用的像素尺寸。默认按图标布局所占的像素绘制，因此任何尺寸都保持清晰，16 dp 时与原版物品一致。指定固定尺寸时，每个图标只绘制一次，并在屏幕上缩放 |
 
-界面显示的图标多于 `preparationsPerFrame` 时，会在几帧内陆续显示完整。每页只容纳同一尺寸的图标：以 16 dp 显示的 64 个图标在 GUI 缩放为 4 时约占 4 MB 显存，缩放为 2 时约 1 MB，缩放为 6 时约 9 MB，更大的图标按尺寸的平方占用更多。重复使用同一个 `ItemIcon` 句柄共用一份图像；分别创建的句柄即使物品相同，也各占一份。
+界面显示的图标多于 `preparationsPerFrame` 时，会在几帧内陆续显示完整。一页 64 个 16 dp 的图标在 GUI 缩放为 2 时约占 1 MB 显存，缩放为 4 时约 4 MB。
 
 ## 另见
 

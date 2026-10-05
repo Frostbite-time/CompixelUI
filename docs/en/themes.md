@@ -49,13 +49,11 @@ Inside `ore`:
 | `palette` | No | Base colors for `primary`, `secondary` or `danger` | Generates a matching set of colors for those controls. |
 | `colors` | No | Colors for individual parts | Sets exact colors, one part at a time. |
 
-Only write what you want to change; everything else keeps its current color. JSON doesn't allow comments or trailing commas, and field names are case-sensitive.
+Only write what you want to change; everything else keeps its current color.
 
 ### `preset`: start from a built-in scheme
 
 A preset replaces every color with one of the built-in schemes, then applies the rest of the section. So `"preset": "default"` means "start again from the dark default". To build on the colors a screen already has, leave `preset` out.
-
-The value names a built-in scheme; it isn't a file path, a mod ID or a theme ID. For your own colors, use `palette` and `colors`.
 
 ### `palette`: recolor a family of controls
 
@@ -150,7 +148,7 @@ Replace `examplemod` and `storage` with the ID the mod publishes; `assets`, `com
 | The built-in light theme | `assets/compixel/compixel/themes/light.json` |
 | The built-in twilight theme | `assets/compixel/compixel/themes/twilight.json` |
 
-A file only affects screens that use its exact theme ID. `storage.json` does nothing unless a screen uses `examplemod:storage`, so look up the IDs in the mod's resource-pack notes rather than guessing from the mod name. Mods may share one theme between screens or use the `compixel` namespace.
+A file affects only the screens that use its theme ID; mods list their IDs in their resource-pack notes.
 
 ## How files stack
 
@@ -173,9 +171,9 @@ Each section stacks on its own in the same way: a file without an `examplemod` s
 
 ## Color names
 
-Colors are written `"#RRGGBB"`, or `"#RRGGBBAA"` with an opacity from `00` (transparent) to `FF` (opaque). For example, `"#00000080"` is half-transparent black. Upper and lower case both work, but the `#` is required; names such as `red`, `rgb(…)` and short forms such as `#FFF` aren't accepted.
+Colors are written `"#RRGGBB"`, or `"#RRGGBBAA"` with an opacity from `00` (transparent) to `FF` (opaque). For example, `"#00000080"` is half-transparent black.
 
-These are all the names `colors` in `ore` accepts. Several controls share some of them, so the table lists typical uses. Parts a mod colors itself aren't affected.
+These are all the names `colors` in `ore` accepts, with their typical uses; several controls share some of them.
 
 | Name | Where it appears |
 | --- | --- |
