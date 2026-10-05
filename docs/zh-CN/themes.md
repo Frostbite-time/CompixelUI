@@ -254,7 +254,7 @@ class StorageScreen :
 ```
 
 - 在模组文档里公布各个界面的主题 ID 和文件路径，例如"仓储：`examplemod:storage`，`assets/examplemod/compixel/themes/storage.json`"。想自带一套配色，就把文件放在 `src/main/resources` 下的同一路径，资源包仍然可以覆盖它。
-- `ComposeMenuScreen`、`ComposeInventoryScreen`、`ComposeHudLayer` 和 `ComposeConfigScreen` 同样接受 `theme` 参数。界面默认使用 `compixel:default`，配置界面默认使用所编辑模组的 `<modid>:default`。
+- `ComposeMenuScreen`、`ComposeInventoryScreen` 和 `ComposeHudLayer` 同样接受 `theme` 参数。界面默认使用 `compixel:default`。
 - 传入 `ThemeId.Light` 或 `ThemeId.Twilight` 即可使用内置主题。
 - 对话框、菜单和 Compose 提示框会沿用界面的主题。想让界面的某一部分使用别的主题，用 `OreTheme(id = ThemeId("examplemod", "inspector")) { … }` 包起来即可。
 - `OreTheme(colors = …)` 使用固定颜色，资源包无法修改。Minecraft 之外的宿主通过 `LocalThemeCatalog` 以 `ThemeCatalog` 的形式提供主题文件。

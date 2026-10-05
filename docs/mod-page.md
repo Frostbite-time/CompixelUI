@@ -12,7 +12,6 @@ In mods built with CompixelUI:
 - **Real items**: icons with their animations and enchantment glint, and the same tooltips as in your inventory.
 - **Inventories that work as usual**: clicking, dragging and shift-clicking behave like vanilla, and recipe viewers and other inventory mods keep working.
 - **Proper typing**: text fields follow your keyboard layout and support selection, copy and paste, and input methods for languages such as Chinese and Japanese.
-- **Friendlier config screens**: mods can use its settings editor, with a tab per file, search, value checks, defaults and undo.
 - **Colors you can change**: resource packs can recolor any CompixelUI screen, and Light and Twilight themes are built in.
 - **Smooth rendering**: screens are drawn on the GPU through the same graphics API as the game, including Vulkan on Minecraft 26.2 and 26.3.
 
@@ -86,7 +85,7 @@ class CounterScreen : ComposeScreen<Int, Unit>(Component.literal("Counter")) {
 }
 ```
 
-It also covers container screens with real slots, menu synchronization between server and client, and ready-made config screens. Start with [Getting started](https://github.com/Frostbite-time/CompixelUI/blob/main/docs/en/getting-started.md), or browse [all guides](https://github.com/Frostbite-time/CompixelUI/blob/main/docs/README.md) and the [source code](https://github.com/Frostbite-time/CompixelUI).
+It also covers container screens with real slots and menu synchronization between server and client. Start with [Getting started](https://github.com/Frostbite-time/CompixelUI/blob/main/docs/en/getting-started.md), or browse [all guides](https://github.com/Frostbite-time/CompixelUI/blob/main/docs/README.md) and the [source code](https://github.com/Frostbite-time/CompixelUI).
 
 ## License
 

@@ -34,7 +34,6 @@ internal object DevelopmentClientBootstrap {
 
     fun register(modEventBus: IEventBus) {
         SyncAcceptanceMenu.register(modEventBus)
-        ConfigAcceptance.register()
         modEventBus.addListener(::registerKeyMappings)
         modEventBus.addListener(::registerHud)
         modEventBus.addListener { event: FMLClientSetupEvent ->

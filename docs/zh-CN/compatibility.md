@@ -51,7 +51,6 @@ CompixelUI 使用与游戏相同的图形接口：OpenGL；当 Minecraft 26.2 �
 | 元数据 | `mods.toml`，`mandatory = true` | `neoforge.mods.toml`，`type = "required"` |
 | 菜单界面 | 在 `enqueueWork` 中调用 `MenuScreens.register` | `RegisterMenuScreensEvent` |
 | HUD 层 | `RegisterGuiOverlaysEvent` | `RegisterGuiLayersEvent` |
-| 配置界面 | `ConfigScreenHandler.ConfigScreenFactory` | `IConfigScreenFactory` |
 | 菜单同步中的 Minecraft 值 | `MinecraftSyncCodecs.buffer` | `MinecraftSyncCodecs.registry` |
 
 ## 键盘与文字输入

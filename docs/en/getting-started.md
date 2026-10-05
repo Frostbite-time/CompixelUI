@@ -152,4 +152,4 @@ Both are on the [Releases](https://github.com/Frostbite-time/CompixelUI/releases
 - [Items and tooltips](items.md): real item icons in your UI
 - [Container screens](inventory.md): menus with slots
 - [HUD layers](hud.md): Compose over the game view
-- [Menu synchronization](menu-sync.md) and [Config screens](configuration.md)
+- [Menu synchronization](menu-sync.md): server state and client requests

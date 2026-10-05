@@ -52,7 +52,7 @@
 
 - `checkCore` 检查模块边界和代码格式，并运行单元测试和离屏界面测试。
 - `:desktop:run` 在桌面窗口中打开组件预览，`:desktop:smoke` 把它渲染到 `desktop/build/screenshots`。
-- 两套客户端测试在真实游戏的全新测试世界中运行。`runAcceptance` 检查渲染、输入、物品、容器、菜单同步、配置、HUD、窗口缩放、资源重载和资源释放；`runBenchmark` 测量帧耗时。
+- 两套客户端测试在真实游戏的全新测试世界中运行。`runAcceptance` 检查渲染、输入、物品、容器、菜单同步、HUD、窗口缩放、资源重载和资源释放；`runBenchmark` 测量帧耗时。
 
 ```powershell
 .\gradlew.bat '-PcompixelTargets=1.21.1' :minecraft:neoforge-1.21.1:runAcceptance

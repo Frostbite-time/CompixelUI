@@ -27,7 +27,6 @@ CompixelUI brings Jetpack Compose to Minecraft Java Edition. Write screens, inve
 - **Container screens**: arrange real menu slots with Compose. Clicking, dragging, shift-clicking and other mods' hooks keep working.
 - **HUD layers**: Compose content over the game view.
 - **Menu sync**: server menu state on the client, and typed requests back to the server.
-- **Config screens**: a ready-made editor for your mod's config files.
 - **OpenGL and Vulkan**: follows the game's renderer, including Vulkan on Minecraft 26.2 and 26.3.
 
 ## A first screen
@@ -78,8 +77,7 @@ Install one of the two, not both.
 ## Documentation
 
 - [Getting started](docs/en/getting-started.md): add the dependency and open a screen
-- [Ore UI](docs/en/ore-ui.md) · [Themes](docs/en/themes.md) · [Items and tooltips](docs/en/items.md) · [Container screens](docs/en/inventory.md) · [HUD layers](docs/en/hud.md)
-- [Menu synchronization](docs/en/menu-sync.md) · [Config screens](docs/en/configuration.md)
+- [Ore UI](docs/en/ore-ui.md) · [Themes](docs/en/themes.md) · [Items and tooltips](docs/en/items.md) · [Container screens](docs/en/inventory.md) · [HUD layers](docs/en/hud.md) · [Menu synchronization](docs/en/menu-sync.md)
 - [Compatibility](docs/en/compatibility.md) · [Contributing](docs/en/contributing.md) · [Architecture](docs/en/architecture.md)
 
 ## License

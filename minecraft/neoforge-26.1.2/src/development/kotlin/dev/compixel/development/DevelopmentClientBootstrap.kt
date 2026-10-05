@@ -7,7 +7,6 @@ import net.minecraft.client.KeyMapping
 import net.minecraft.client.Minecraft
 import net.minecraft.resources.Identifier
 import net.neoforged.bus.api.IEventBus
-import net.neoforged.fml.ModContainer
 import net.neoforged.neoforge.client.event.ClientTickEvent
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent
@@ -34,9 +33,8 @@ internal object DevelopmentClientBootstrap {
             category,
         )
 
-    fun register(modEventBus: IEventBus, container: ModContainer) {
+    fun register(modEventBus: IEventBus) {
         SyncAcceptanceMenu.register(modEventBus)
-        ConfigAcceptance.register(container)
         modEventBus.addListener(::registerKeyMappings)
         modEventBus.addListener(::registerHud)
         modEventBus.addListener { event: RegisterMenuScreensEvent ->
@@ -89,8 +87,8 @@ internal object DevelopmentClientBootstrap {
 }
 
 @net.neoforged.fml.common.Mod(value = "compixel_development", dist = [net.neoforged.api.distmarker.Dist.CLIENT])
-class CompixelDevelopment(bus: IEventBus, container: ModContainer) {
+class CompixelDevelopment(bus: IEventBus) {
     init {
-        DevelopmentClientBootstrap.register(bus, container)
+        DevelopmentClientBootstrap.register(bus)
     }
 }

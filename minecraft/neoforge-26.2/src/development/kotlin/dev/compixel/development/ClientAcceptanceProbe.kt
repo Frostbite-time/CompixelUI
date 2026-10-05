@@ -6,7 +6,6 @@ import dev.compixel.development.render.NativeItemPartialScreen
 import dev.compixel.development.render.NativeItemVisualScreen
 import dev.compixel.development.render.PortValidationScreen
 import dev.compixel.development.render.verifyRenderer
-import dev.compixel.forge.config.ComposeConfigScreen
 import dev.compixel.testing.suite.AcceptanceLog
 import dev.compixel.testing.suite.AcceptanceStep
 import dev.compixel.testing.suite.ClientSuite
@@ -69,13 +68,8 @@ internal class ClientAcceptanceProbe {
         started = true
         val language = Language.getInstance()
         val previewCategory = SuitePlatform.keyCategory("key.compixel.open_preview")
-        check(
-            language.has("compixel.config.title") &&
-                language.has("key.compixel.open_preview") &&
-                previewCategory != null &&
-                language.has(previewCategory)
-        ) {
-            "Library/development translations did not load"
+        check(language.has("key.compixel.open_preview") && previewCategory != null && language.has(previewCategory)) {
+            "Development translations did not load"
         }
         check(SuitePlatform.loaderProduction == SuiteEnvironment.production) {
             "Loader production=${SuitePlatform.loaderProduction}, but the launch expects production=${SuiteEnvironment.production}"
@@ -96,7 +90,6 @@ internal class ClientAcceptanceProbe {
             menuSync = MenuSyncAcceptanceProbe {
                 menuSync = null
                 log.pass(AcceptanceStep.MENU_SYNC)
-                config()
                 port()
                 nativeVisual()
                 nativePartial()
@@ -105,30 +98,6 @@ internal class ClientAcceptanceProbe {
                 preview.schedule()
                 scripted = true
             }
-        }
-    }
-
-    private fun config() {
-        var file = ""
-        lateinit var parent: PortValidationScreen
-        lateinit var config: ComposeConfigScreen
-        script.act("edit the acceptance config") { file = ConfigAcceptance.verify() }
-        script.act("open the config screen") {
-            parent = PortValidationScreen()
-            config = ConfigAcceptance.screen(parent)
-            session.open(config)
-        }
-        script.until("the config screen rendered its state") {
-            config.rendererStatistics.renderedFrames > 0 && config.contentState.isOpen
-        }
-        script.act("close the config screen") {
-            config.onClose()
-            check(SuitePlatform.screen === parent) { "The config screen did not return to its parent" }
-            check(!config.contentState.isOpen) { "The config screen kept its state" }
-            session.requireReleased(config)
-            session.adopt(parent)
-            session.closeScreen()
-            log.pass(AcceptanceStep.CONFIG, file)
         }
     }
 

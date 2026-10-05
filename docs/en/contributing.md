@@ -52,7 +52,7 @@ Press **F8** in game to open the component preview, which shows every Ore UI con
 
 - `checkCore` checks module boundaries and formatting, and runs the unit tests and offscreen UI tests.
 - `:desktop:run` opens the component preview in a desktop window, and `:desktop:smoke` renders it to `desktop/build/screenshots`.
-- Two client suites run in a real game with a fresh test world. `runAcceptance` checks rendering, input, items, containers, menu sync, config, the HUD, resizing, resource reloads and cleanup; `runBenchmark` measures frame times.
+- Two client suites run in a real game with a fresh test world. `runAcceptance` checks rendering, input, items, containers, menu sync, the HUD, resizing, resource reloads and cleanup; `runBenchmark` measures frame times.
 
 ```powershell
 .\gradlew.bat '-PcompixelTargets=1.21.1' :minecraft:neoforge-1.21.1:runAcceptance

@@ -51,7 +51,6 @@ Each file contains the native libraries for Windows, Linux and macOS on x64 and 
 | Metadata | `mods.toml`, `mandatory = true` | `neoforge.mods.toml`, `type = "required"` |
 | Menu screens | `MenuScreens.register` in `enqueueWork` | `RegisterMenuScreensEvent` |
 | HUD layers | `RegisterGuiOverlaysEvent` | `RegisterGuiLayersEvent` |
-| Config screens | `ConfigScreenHandler.ConfigScreenFactory` | `IConfigScreenFactory` |
 | Minecraft values in menu sync | `MinecraftSyncCodecs.buffer` | `MinecraftSyncCodecs.registry` |
 
 ## Keyboard and text input

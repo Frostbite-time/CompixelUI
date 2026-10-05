@@ -21,7 +21,7 @@ enum class ClientSuite(val id: String, val report: String, val results: String) 
  * so no Minecraft version can silently cover less than the others.
  */
 enum class AcceptanceStep(val report: String) {
-    RESOURCES("library and development translations loaded; loader environment matches the launch"),
+    RESOURCES("development translations loaded; loader environment matches the launch"),
     RENDERER("renderer backend matches CPU reference pixels"),
     WORLD("fresh flat creative test world loaded"),
     INVENTORY(
@@ -31,9 +31,6 @@ enum class AcceptanceStep(val report: String) {
     MENU_SYNC(
         "bounded multi-batch snapshot, fragmented action round trip from a state screen's content, a native value " +
             "both ways through one shared codec, and release on a close request from the content"
-    ),
-    CONFIG(
-        "config staging, scalar/list validation, save and restore; the config screen opens and closes with its state"
     ),
     PORT_INPUT("top-left pointer coordinates, premultiplied alpha, Unicode text entry and key translation"),
     PORT_SCALE("GUI scaling and framebuffer resize keep pixels in place"),

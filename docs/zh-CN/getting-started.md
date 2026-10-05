@@ -152,4 +152,4 @@ class HandScreen : ComposeScreen<HeldItem, Unit>(Component.literal("手持物品
 - [物品与提示](items.md)：在界面中显示真实物品
 - [容器界面](inventory.md)：带槽位的菜单
 - [HUD 层](hud.md)：游戏画面上的 Compose 内容
-- [菜单同步](menu-sync.md)与[配置界面](configuration.md)
+- [菜单同步](menu-sync.md)：服务端状态与客户端请求

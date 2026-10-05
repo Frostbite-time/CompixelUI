@@ -13,7 +13,6 @@
 | Menus with slots · 带槽位的菜单 | [Container screens](en/inventory.md) | [容器界面](zh-CN/inventory.md) |
 | Compose over the game view · 游戏画面上的界面 | [HUD layers](en/hud.md) | [HUD 层](zh-CN/hud.md) |
 | Server state and client requests · 服务端状态与客户端请求 | [Menu synchronization](en/menu-sync.md) | [菜单同步](zh-CN/menu-sync.md) |
-| Editing config files in game · 在游戏中编辑配置 | [Config screens](en/configuration.md) | [配置界面](zh-CN/configuration.md) |
 | Versions, Kotlin and graphics · 版本、Kotlin 与图形后端 | [Compatibility](en/compatibility.md) | [兼容性](zh-CN/compatibility.md) |
 | Building and testing · 构建与测试 | [Contributing](en/contributing.md) | [参与开发](zh-CN/contributing.md) |
 | How the code is organized · 代码结构 | [Architecture](en/architecture.md) | [架构](zh-CN/architecture.md) |

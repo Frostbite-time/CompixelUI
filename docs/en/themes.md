@@ -254,7 +254,7 @@ class StorageScreen :
 ```
 
 - Publish your screens' theme IDs and their file paths in your mod's documentation, for example "Storage: `examplemod:storage`, `assets/examplemod/compixel/themes/storage.json`". To ship your own colors, put a file at the same path under `src/main/resources`; resource packs can still override it.
-- `ComposeMenuScreen`, `ComposeInventoryScreen`, `ComposeHudLayer` and `ComposeConfigScreen` take `theme` too. Screens default to `compixel:default`, and config screens to `<modid>:default` for the mod they edit.
+- `ComposeMenuScreen`, `ComposeInventoryScreen` and `ComposeHudLayer` take `theme` too. Screens default to `compixel:default`.
 - Pass `ThemeId.Light` or `ThemeId.Twilight` to use a built-in theme.
 - Dialogs, menus and Compose tooltips inherit the screen's theme. To theme part of a screen differently, wrap it in `OreTheme(id = ThemeId("examplemod", "inspector")) { … }`.
 - `OreTheme(colors = …)` applies fixed colors that resource packs can't change. Hosts outside Minecraft provide their theme files as a `ThemeCatalog` through `LocalThemeCatalog`.

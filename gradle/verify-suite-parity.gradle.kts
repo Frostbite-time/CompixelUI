@@ -32,7 +32,6 @@ val adapterSuiteFiles =
         "DevelopmentClientBootstrap.kt",
         "InventoryAcceptanceProbe.kt",
         "MenuSyncAcceptanceProbe.kt",
-        "ConfigAcceptance.kt",
         "BenchmarkScreen.kt",
         "ComposePreviewScreen.kt",
         "render/PortValidationScreen.kt",
