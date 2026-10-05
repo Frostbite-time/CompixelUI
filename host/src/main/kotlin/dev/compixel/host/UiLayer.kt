@@ -50,10 +50,12 @@ class UiLayerSurface<D>(
  * native images and translates the game's input. The layer is not a screen: the host keeps the native lifecycle and
  * input policy, and the input methods report whether Compose consumed an event. Every member runs on the game thread.
  *
- * Each session starts on [open] from a new snapshot of [contentState] and ends on [close]. Its content is wrapped in
- * the host's [design] for [theme], inside [LocalUiFeedback] and [LocalThemeCatalog]. [prepare] records and renders a
- * frame, so the host can read its layout before drawing beneath Compose, and [render] presents it. The input methods
- * forward events to Compose; [handled] then runs what the content asked for during the event.
+ * Each session starts on [open] from a new snapshot of [contentState] and ends on [close]. While another screen covers
+ * its host, [suspend] keeps the session for [open] to show again; when its host closes for good, [exit] lets a
+ * [ScreenTransition] in the content finish before the layer closes. Its content is wrapped in the host's [design] for
+ * [theme], inside [LocalUiFeedback] and [LocalThemeCatalog]. [prepare] records and renders a frame, so the host can
+ * read its layout before drawing beneath Compose, and [render] presents it. The input methods forward events to
+ * Compose; [handled] then runs what the content asked for during the event.
  *
  * [G] is the platform's graphics context for drawing and [D] its renderer's presentation destination.
  */
@@ -91,6 +93,16 @@ abstract class UiLayer<G, D>(
     private var prepared: ScreenMetrics? = null
     private var windowFocus: Boolean? = null
     private var closedStatistics = RendererStatistics(renderBackend, 0, 0, 0)
+    // The session's visibility, which a ScreenTransition in the content animates.
+    private var presence: ScreenPresence? = null
+
+    /** True while another screen covers the host, which stays open and may show this session again; see [suspend]. */
+    var suspended = false
+        private set
+
+    /** True while the content plays its exit transition after its host closed; see [exit]. */
+    var exiting = false
+        private set
 
     val rendererStatistics: RendererStatistics
         get() = surface?.renderer?.statistics ?: closedStatistics
@@ -170,15 +182,22 @@ abstract class UiLayer<G, D>(
     /** Runs before a pointer press reaches Compose. */
     protected open fun beforePress(session: UiSession?) {}
 
-    /** Runs first when the layer closes. */
+    /**
+     * Runs when the session stops taking input: first when the layer closes, and when the host is covered or closes
+     * while the content plays its exit.
+     */
     protected open fun beforeClose() {}
 
     /** Adds the platform's native resources to an enabled [frameProfiler] after each presented frame. */
     protected open fun profileResources(profiler: UiFrameProfiler) {}
 
-    /** Creates the session and renderer for a [width]x[height] GUI area, or resizes the open session. */
+    /**
+     * Creates the session and renderer for a [width]x[height] GUI area, or resizes the open session. A [suspended]
+     * session shows again as it was, from a new snapshot; one still [exiting] is released and a new one starts.
+     */
     fun open(width: Int, height: Int) {
         assertRenderThread()
+        if (exiting) close()
         val current = currentMetrics(width, height)
         refreshClipboard()
         refreshTheme()
@@ -188,26 +207,79 @@ abstract class UiLayer<G, D>(
             contentState.open()
             rejectionsReported = false
             val created = createSurface(frameProfiler)
+            val shown = ComposeThread.call { ScreenPresence() }
             try {
                 session =
                     UiSession(current.viewport, clipboard) {
                         CompositionLocalProvider(
                             LocalUiFeedback provides feedback,
                             LocalThemeCatalog provides themeState.value,
+                            LocalScreenPresence provides shown,
                         ) {
                             ProvideContent { design.Decorate(theme, content) }
                         }
                     }
                 surface = created
+                presence = shown
                 windowFocus = null
             } catch (error: Throwable) {
                 closeSurface(created)
                 throw error
             }
             seenResourceEpoch = resourceEpoch
-        } else existing.resize(current.viewport)
+        } else {
+            existing.resize(current.viewport)
+            if (suspended) {
+                suspended = false
+                contentState.tick() // The game went on while another screen covered the host.
+            }
+        }
         metrics = current
         updateWindowFocus()
+    }
+
+    /**
+     * Another screen covers the host, which stays open and may show this session again, as a recipe viewer does over a
+     * container. The session keeps its content and state but takes no input and no focus until [open] shows it again,
+     * or [close] releases it.
+     */
+    fun suspend() {
+        if (session == null || suspended || exiting) return
+        leave()
+        suspended = true
+        updateWindowFocus()
+    }
+
+    /**
+     * The host closed for good. When its content uses [ScreenTransition]s, the content's state ends, the session plays
+     * their exits without input while its host goes on calling [render], and this returns true; close the layer once
+     * [exitFinished]. Otherwise the layer closes at once and this returns false.
+     */
+    fun exit(): Boolean {
+        if (exiting) return true
+        val shown = presence
+        if (session == null || suspended || shown == null || !shown.animated) {
+            close()
+            return false
+        }
+        leave()
+        exiting = true
+        updateWindowFocus()
+        contentState.close() // No more actions or snapshots; the content keeps showing the last one.
+        ComposeThread.call { shown.hide() }
+        return true
+    }
+
+    /** Whether the exit that [exit] started has finished, so the layer can close. */
+    val exitFinished: Boolean
+        get() = exiting && presence.let { it == null || ComposeThread.call { it.exited } }
+
+    // The host stops showing the session: its hover, transient overlays, typing and the platform's text input end.
+    private fun leave() {
+        if (metrics != null) pointer(PointerAction.EXIT, -1.0, -1.0)
+        dismissTransient()
+        characters.reset()
+        beforeClose()
     }
 
     /** Lays the content out ahead of the first frame, so the host can read layout geometry while it initializes. */
@@ -389,6 +461,7 @@ abstract class UiLayer<G, D>(
         pointer(PointerAction.SCROLL, x, y, scrollX = -scrollX.toFloat(), scrollY = -scrollY.toFloat())
 
     fun key(input: KeyInput): Boolean {
+        if (!shown) return false
         if (input.pressed) {
             refreshClipboard()
             dismissTransient()
@@ -404,12 +477,14 @@ abstract class UiLayer<G, D>(
      * focus.
      */
     fun typeCharacter(character: Char): Boolean {
+        if (!shown) return false
         val text = characters.accept(character) ?: return character.isHighSurrogate() && hasTextInputFocus
         return session?.commitText(text) == true
     }
 
     /** Commits typed text, such as one code point; true when Compose took any of it. */
     fun typeText(text: String): Boolean {
+        if (!shown) return false
         var consumed = false
         text.forEach { character ->
             characters.accept(character)?.let { consumed = session?.commitText(it) == true || consumed }
@@ -425,6 +500,9 @@ abstract class UiLayer<G, D>(
         }
         beforeClose()
         closeRequested.set(false) // A request ends with the session that made it.
+        suspended = false
+        exiting = false
+        presence = null
         try {
             session?.close()
         } finally {
@@ -490,8 +568,12 @@ abstract class UiLayer<G, D>(
         warn("UI content sent more actions than its screen can queue; $rejected were rejected")
     }
 
+    // Input reaches the session only while its host shows it.
+    private val shown
+        get() = !suspended && !exiting
+
     private fun updateWindowFocus() {
-        val now = windowFocused()
+        val now = !suspended && !exiting && windowFocused()
         if (now == windowFocus) return
         characters.reset()
         windowFocus = now
@@ -516,6 +598,7 @@ abstract class UiLayer<G, D>(
         scrollX: Float = 0f,
         scrollY: Float = 0f,
     ): Boolean {
+        if (!shown) return false
         val current = metrics ?: return false
         if (action == PointerAction.PRESS || action == PointerAction.SCROLL || action == PointerAction.EXIT) {
             dismissTransient()
