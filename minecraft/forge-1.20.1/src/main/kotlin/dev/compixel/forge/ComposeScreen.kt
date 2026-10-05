@@ -24,7 +24,8 @@ import net.minecraft.network.chat.Component
  * game state. Actions sent while Compose handles an input event run before the event returns, as vanilla widgets act
  * inside their input handlers; actions sent at other times run at the next tick. The screen takes a snapshot when it
  * opens, after an input event's actions and every tick. Actions still pending when it is removed are discarded, and a
- * screen shown again starts from a new snapshot.
+ * screen shown again starts from a new snapshot. When its content uses ScreenTransition, closing gives the player
+ * control back at once while the content plays its exit above the game.
  *
  * Widgets added through screen initialization events draw above the Compose layer and receive input first. All
  * rendering and resource retirement run on the game thread.
@@ -111,6 +112,8 @@ abstract class ComposeScreen<S, A>(
 
     override fun init() {
         nativeCapture = null
+        CoveredScreens.remove(this)
+        ScreenExits.reclaim(layer)
         layer.open(width, height)
     }
 
@@ -180,11 +183,20 @@ abstract class ComposeScreen<S, A>(
     override fun removed() {
         nativeCapture = null
         try {
-            layer.close()
+            if (coveredByAnotherScreen()) {
+                layer.suspend()
+                CoveredScreens.add(this, ::coveredByAnotherScreen, ::closeCovered)
+            } else ScreenExits.close(layer)
         } finally {
             super.removed()
         }
     }
+
+    /** Whether the screen that replaced this one only covers it and may show it again, keeping its session. */
+    internal open fun coveredByAnotherScreen() = false
+
+    /** A covered screen will not show again: its session ends. */
+    internal open fun closeCovered() = layer.close()
 
     override fun isPauseScreen(): Boolean = false
 

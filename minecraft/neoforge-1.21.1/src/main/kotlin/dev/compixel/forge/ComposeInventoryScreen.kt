@@ -28,8 +28,10 @@ import org.lwjgl.glfw.GLFW
  * the menu into an immutable [snapshot], draws the latest one with the slots in [Content] and runs the actions its
  * content [send]s in [handle]. Actions sent while Compose handles an input event run before the event returns, as
  * vanilla widgets act inside their input handlers; actions sent at other times run at the next tick. The screen takes a
- * snapshot when it opens, after an input event's actions and every tick. Actions still pending when it is removed, for
- * example by a recipe viewer, are discarded, and a screen shown again starts from a new snapshot.
+ * snapshot when it opens, after an input event's actions and every tick. A screen that only covers this one while the
+ * menu stays open, such as a recipe viewer, leaves its content as it was until it shows again from a new snapshot. When
+ * the content uses ScreenTransition, closing gives the player control back at once while the content plays its exit
+ * above the game.
  */
 abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
     protected val container: M,
@@ -57,6 +59,9 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
         }
     // Set by onClose: the player's own inventory menu stays the open menu after its screen closes.
     private var closing = false
+    internal val session
+        get() = layer.session
+
     val hasTextInputFocus
         get() = layer.hasTextInputFocus || (focused as? EditBox)?.canConsumeInput() == true
 
@@ -107,7 +112,8 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
 
     /**
      * Runs once on the game thread after the screen has closed for good and let go of its menu, for example to save
-     * what the player entered. A screen that only covers this one, such as a recipe viewer, does not end it.
+     * what the player entered. A screen that only covers this one, such as a recipe viewer, does not end it; the menu
+     * closing while it covers this one does.
      */
     protected open fun menuClosed() {}
 
@@ -143,6 +149,8 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
 
     override fun init() {
         cancelInteraction()
+        CoveredScreens.remove(this)
+        ScreenExits.reclaim(layer)
         super.init()
         renderables.remove(composeRenderable)
         renderables.add(0, composeRenderable)
@@ -352,17 +360,34 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
 
     override fun removed() {
         cancelInteraction()
-        val menuStillOpen = !closing && Minecraft.getInstance().player?.containerMenu === container
+        val menuStillOpen = !closing && menuOpen()
         closing = false
+        if (menuStillOpen) {
+            // A recipe viewer or another screen only covers this one and may show it again, as it was.
+            layer.suspend()
+            CoveredScreens.add(this, ::menuOpen, ::closeCovered)
+            return
+        }
+        // The menu is gone; the content can still draw its last slots while it plays its exit.
+        inventory.freeze()
+        try {
+            ScreenExits.close(layer) { inventory.close() }
+        } finally {
+            super.removed()
+            menuClosed()
+        }
+    }
+
+    private fun menuOpen() = Minecraft.getInstance().player?.containerMenu === container
+
+    // The menu closed while another screen covered this one, which will not show again.
+    private fun closeCovered() {
         try {
             layer.close()
         } finally {
-            if (menuStillOpen) inventory.detachLayout() // A recipe overlay can return to this same Screen.
-            else {
-                inventory.close()
-                super.removed()
-                menuClosed()
-            }
+            inventory.close()
+            super.removed()
+            menuClosed()
         }
     }
 }

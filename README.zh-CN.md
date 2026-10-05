@@ -77,7 +77,7 @@ CompixelUI 是前置库，当你玩的模组需要它时再安装。在 [Release
 ## 文档
 
 - [快速开始](docs/zh-CN/getting-started.md)：添加依赖并打开界面
-- [Ore UI](docs/zh-CN/ore-ui.md) · [主题](docs/zh-CN/themes.md) · [物品与提示](docs/zh-CN/items.md) · [容器界面](docs/zh-CN/inventory.md) · [HUD 层](docs/zh-CN/hud.md) · [菜单同步](docs/zh-CN/menu-sync.md)
+- [Ore UI](docs/zh-CN/ore-ui.md) · [主题](docs/zh-CN/themes.md) · [物品与提示](docs/zh-CN/items.md) · [容器界面](docs/zh-CN/inventory.md) · [进出场动画](docs/zh-CN/transitions.md) · [HUD 层](docs/zh-CN/hud.md) · [菜单同步](docs/zh-CN/menu-sync.md)
 - [兼容性](docs/zh-CN/compatibility.md) · [参与开发](docs/zh-CN/contributing.md) · [架构](docs/zh-CN/architecture.md)
 
 ## 许可

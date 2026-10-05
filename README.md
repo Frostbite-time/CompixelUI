@@ -77,7 +77,7 @@ Install one of the two, not both.
 ## Documentation
 
 - [Getting started](docs/en/getting-started.md): add the dependency and open a screen
-- [Ore UI](docs/en/ore-ui.md) · [Themes](docs/en/themes.md) · [Items and tooltips](docs/en/items.md) · [Container screens](docs/en/inventory.md) · [HUD layers](docs/en/hud.md) · [Menu synchronization](docs/en/menu-sync.md)
+- [Ore UI](docs/en/ore-ui.md) · [Themes](docs/en/themes.md) · [Items and tooltips](docs/en/items.md) · [Container screens](docs/en/inventory.md) · [Screen transitions](docs/en/transitions.md) · [HUD layers](docs/en/hud.md) · [Menu synchronization](docs/en/menu-sync.md)
 - [Compatibility](docs/en/compatibility.md) · [Contributing](docs/en/contributing.md) · [Architecture](docs/en/architecture.md)
 
 ## License

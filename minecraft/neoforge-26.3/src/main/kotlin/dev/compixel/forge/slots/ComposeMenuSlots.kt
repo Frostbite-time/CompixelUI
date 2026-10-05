@@ -473,7 +473,10 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
         ComposeThread.call { visuals.clear() }
     }
 
-    internal fun detachLayout() {
+    /** The menu closed: stop reading it, while the content can still draw the slots it showed last until [close]. */
+    internal fun freeze() {
+        checkOwner()
+        closed = true
         reset()
         synchronized(layoutLock) {
             layout.clear()

@@ -20,6 +20,7 @@ val identicalSuiteFiles =
         "PreviewAcceptance.kt",
         "ThemeAcceptance.kt",
         "HudAcceptance.kt",
+        "TransitionAcceptance.kt",
         "SuiteHud.kt",
         "ClientBenchmarkProbe.kt",
         "NativeTooltipProbe.kt",

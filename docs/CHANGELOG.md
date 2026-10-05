@@ -1,4 +1,6 @@
-# CompixelUI 0.1.10-alpha.5
+# CompixelUI 0.1.10-alpha.6
 
-- Breaking: CompixelUI no longer ships a config screen. `ComposeConfigScreen`, `ConfigEditor` and their translations are removed, because editing config files is not a UI framework's job. On NeoForge, register NeoForge's own screen from your client mod constructor with `container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new)`. Forge 1.20.1 has no built-in config screen: use a config library's screen, or let players edit the config files.
-- Breaking: removed unused API. `UiSession.setActive`, `SessionState.SUSPENDED`, `UiSession.diagnosticThread()` and `UiDesign.None` are gone, and a `UiLayerSurface` always takes its item, tooltip and drawing image sources.
+- New: `ScreenTransition` animates a screen's content in when the screen opens and out when it closes, using Compose's enter and exit transitions, which can differ. Closing gives the player control back at once while the exit plays above the game. See [Screen transitions](https://github.com/Frostbite-time/CompixelUI/blob/main/docs/en/transitions.md).
+- Changed: a container screen that a recipe viewer or another screen covers while its menu stays open keeps its Compose session. When it shows again, its content is as it was, including `remember` state, scroll positions and typed text, and its entrance doesn't play again.
+- Fixed: `menuClosed()` now runs when the menu closes while another screen covers the container screen.
+- Fixed: an enter animation that starts with a screen's content, such as `AnimatedVisibility` with a `MutableTransitionState`, now plays from the first frame instead of jumping to its end.

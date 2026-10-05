@@ -32,7 +32,7 @@ flowchart TB
 | `platform` | Viewport, input, clipboard and other contracts with the host game |
 | `render` | Frames, GPU resources and profiling |
 | `compose-bridge` | Runs Compose on its own thread, records frames and draws native images |
-| `host` | UI sessions, `UiBinding`, and `UiLayer`, the Compose layer that every screen and HUD layer is built on |
+| `host` | UI sessions, `UiBinding`, `ScreenTransition`, and `UiLayer`, the Compose layer that every screen and HUD layer is built on |
 | `render-gl`, `render-vulkan` | The OpenGL and Vulkan renderers |
 | `ui-core` | What a design system plugs into: control feedback, the design around a host's content, and theme files with a section per design system |
 | `ui-ore` | Ore UI components, theme and font |

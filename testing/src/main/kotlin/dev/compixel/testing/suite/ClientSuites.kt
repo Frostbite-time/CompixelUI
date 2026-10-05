@@ -32,6 +32,10 @@ enum class AcceptanceStep(val report: String) {
         "bounded multi-batch snapshot, fragmented action round trip from a state screen's content, a native value " +
             "both ways through one shared codec, and release on a close request from the content"
     ),
+    TRANSITIONS(
+        "screen transitions: a covered menu screen keeps its session without entering again; closing returns control " +
+            "at once while the exit plays and releases, also when the same menu, another menu or the same screen opens"
+    ),
     PORT_INPUT("top-left pointer coordinates, premultiplied alpha, Unicode text entry and key translation"),
     PORT_SCALE("GUI scaling and framebuffer resize keep pixels in place"),
     PORT_RELOAD("resource reload keeps rendered pixels correct"),

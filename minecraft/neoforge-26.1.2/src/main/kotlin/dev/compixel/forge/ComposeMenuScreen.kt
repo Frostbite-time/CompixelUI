@@ -58,7 +58,8 @@ abstract class ComposeMenuScreen<M : AbstractContainerMenu, S, A>(
 
     /**
      * Runs once on the game thread after the menu has closed and the screen has let go of it, for example to save what
-     * the player entered. A screen that only covers this one, such as a recipe viewer, does not close the menu.
+     * the player entered. A screen that only covers this one, such as a recipe viewer, does not close the menu: this
+     * screen keeps its content as it was and shows it again.
      */
     protected open fun menuClosed() {}
 
@@ -82,11 +83,25 @@ abstract class ComposeMenuScreen<M : AbstractContainerMenu, S, A>(
         try {
             super.removed()
         } finally {
-            if (!menuRemoved && Minecraft.getInstance().player?.containerMenu !== container) {
-                menuRemoved = true
-                Minecraft.getInstance().player?.let(container::removed)
-                menuClosed()
-            }
+            if (!coveredByAnotherScreen()) endMenu()
         }
+    }
+
+    // The menu stays open while a recipe viewer or another screen covers this one.
+    override fun coveredByAnotherScreen() = Minecraft.getInstance().player?.containerMenu === container
+
+    override fun closeCovered() {
+        try {
+            super.closeCovered()
+        } finally {
+            endMenu()
+        }
+    }
+
+    private fun endMenu() {
+        if (menuRemoved) return
+        menuRemoved = true
+        Minecraft.getInstance().player?.let(container::removed)
+        menuClosed()
     }
 }

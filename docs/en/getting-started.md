@@ -151,5 +151,6 @@ Both are on the [Releases](https://github.com/Frostbite-time/CompixelUI/releases
 - [Ore UI](ore-ui.md): every control, with examples
 - [Items and tooltips](items.md): real item icons in your UI
 - [Container screens](inventory.md): menus with slots
+- [Screen transitions](transitions.md): animate screens in and out
 - [HUD layers](hud.md): Compose over the game view
 - [Menu synchronization](menu-sync.md): server state and client requests

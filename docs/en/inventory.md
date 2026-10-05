@@ -163,5 +163,5 @@ Ranges exclude their end, and `true` fills that group from its last slot. Stacks
 ## Overlays and other screens
 
 - Call `slots.Interaction(enabled = false)` while a dialog or window should block slot clicks.
-- When a recipe viewer opens its own screen over yours, the menu stays open, and your screen returns with a new Compose session and a new snapshot. Actions not yet handled are dropped, and `remember` state starts over, so keep anything that must last, such as a search text, in the screen or the menu.
-- Override `menuClosed()` for work that should happen once, when the screen closes for good, such as saving that search text. A recipe viewer covering the screen doesn't call it.
+- When a recipe viewer opens its own screen over yours, the menu stays open, and your screen keeps its content: when it returns, `remember` state, scroll positions and typed text are as they were, and it takes a new snapshot. If the menu closes meanwhile, or the viewer closes without returning to your screen, your screen closes too. See [covered screens](transitions.md#covered-screens).
+- Override `menuClosed()` for work that should happen once, when the screen closes for good, such as saving a search text. A recipe viewer covering the screen doesn't call it.

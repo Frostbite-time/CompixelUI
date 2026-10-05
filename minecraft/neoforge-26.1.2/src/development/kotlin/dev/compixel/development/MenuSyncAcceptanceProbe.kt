@@ -25,7 +25,7 @@ internal class SyncAcceptanceScreen(
     menu: SyncAcceptanceMenu,
     @Suppress("UNUSED_PARAMETER") inventory: Inventory,
     title: Component,
-) : ComposeMenuScreen<SyncAcceptanceMenu, SyncAcceptanceView, String>(menu, title) {
+) : ComposeMenuScreen<SyncAcceptanceMenu, SyncAcceptanceView, String>(menu, title), ShowsTransition {
     /** The latest state the content composed. Compose thread. */
     var composed: SyncAcceptanceView? = null
         private set
@@ -58,17 +58,29 @@ internal class SyncAcceptanceScreen(
         menuCloses++
     }
 
+    /** Screens created while [transitions] is on enter and exit through a ScreenTransition. */
+    private val animated = transitions
+
+    @Volatile override var shown: TransitionShown? = null
+
     @Composable
     override fun Content(state: SyncAcceptanceView) {
         SideEffect { composed = state }
-        Box(Modifier.fillMaxSize().clickable { send(SyncAcceptanceMenu.REPLACEMENT) })
+        if (animated) ReportedTransition { Button() } else Button()
     }
+
+    @Composable private fun Button() = Box(Modifier.fillMaxSize().clickable { send(SyncAcceptanceMenu.REPLACEMENT) })
 
     /** Sends [text] as the content's button does; call it on the Compose thread. */
     fun replace(text: String) = send(text)
 
     /** What a close button in the content does; call it on the Compose thread. */
     fun closeFromContent() = requestClose()
+
+    companion object {
+        /** Read when a screen is created; TransitionAcceptance turns it on for the screens it opens. */
+        @Volatile var transitions = false
+    }
 }
 
 /**

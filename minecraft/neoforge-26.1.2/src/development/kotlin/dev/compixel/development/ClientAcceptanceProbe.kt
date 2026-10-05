@@ -30,6 +30,7 @@ internal class ClientAcceptanceProbe {
     private val script = SuiteScript(session)
     private val hud = HudAcceptance(session, log, script)
     private val preview = PreviewAcceptance(session, log, script)
+    private val transitions = TransitionAcceptance(log, script)
     private var started = false
     private var finished = false
     private var world = false
@@ -90,6 +91,7 @@ internal class ClientAcceptanceProbe {
             menuSync = MenuSyncAcceptanceProbe {
                 menuSync = null
                 log.pass(AcceptanceStep.MENU_SYNC)
+                transitions.schedule()
                 port()
                 nativeVisual()
                 nativePartial()

@@ -11,6 +11,7 @@
 | Built-in themes and resource-pack colors · 内置主题与资源包配色 | [Themes](en/themes.md) | [主题](zh-CN/themes.md) |
 | Item icons and tooltips · 物品图标与提示 | [Items and tooltips](en/items.md) | [物品与提示](zh-CN/items.md) |
 | Menus with slots · 带槽位的菜单 | [Container screens](en/inventory.md) | [容器界面](zh-CN/inventory.md) |
+| Animate screens in and out · 界面进出场动画 | [Screen transitions](en/transitions.md) | [进出场动画](zh-CN/transitions.md) |
 | Compose over the game view · 游戏画面上的界面 | [HUD layers](en/hud.md) | [HUD 层](zh-CN/hud.md) |
 | Server state and client requests · 服务端状态与客户端请求 | [Menu synchronization](en/menu-sync.md) | [菜单同步](zh-CN/menu-sync.md) |
 | Versions, Kotlin and graphics · 版本、Kotlin 与图形后端 | [Compatibility](en/compatibility.md) | [兼容性](zh-CN/compatibility.md) |
