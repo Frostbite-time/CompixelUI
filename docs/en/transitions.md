@@ -58,8 +58,25 @@ Whether the player presses Escape, the content calls `requestClose()` or the ser
 - The content keeps showing its last snapshot, and `send` returns `false`. In a container screen, slots keep showing their last items.
 - When every exit has finished, the screen releases its Compose session and its graphics.
 - Opening the same screen object during its exit stops the exit, and the screen enters from the start. A new screen, such as the same container opened again, enters while the old exit finishes beneath it.
-- A screen without `ScreenTransition` closes at once.
+- An open Ore dialog fades with the screen, scrim included. Ore's menus and tooltips close at once.
+- A screen without `ScreenTransition` closes at once, and so does any screen while there is no world, such as on the title screen.
 - In a [HUD layer](hud.md), `ScreenTransition` only enters; the layer disappears at once when it stops.
+
+## Popups and dialogs of your own
+
+Popups and dialogs draw in layers of their own, which the transition's modifiers don't reach. Inside a `ScreenTransition`, `LocalOverlayVisibility` gives them the screen's visibility from 0 to 1; apply it as their alpha:
+
+```kotlin
+import androidx.compose.ui.graphics.graphicsLayer
+import dev.compixel.ui.LocalOverlayVisibility
+
+Popup(onDismissRequest = { menuOpen = false }) {
+    val visibility = LocalOverlayVisibility.current?.animate()
+    MyMenu(Modifier.graphicsLayer { alpha = visibility?.value ?: 1f })
+}
+```
+
+The value is 1 while the screen shows, so a popup that opens then appears at once. It fades with the screen's entrance and exit, and the exit waits for it. For a Compose `Dialog`, also multiply the alpha of its `scrimColor` by the value, as Ore's dialogs do.
 
 ## Covered screens
 

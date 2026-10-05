@@ -58,8 +58,25 @@ ScreenTransition(enter = fadeIn(), exit = fadeOut()) {
 - 内容继续显示最后一次快照，`send` 返回 `false`。容器界面中的槽位继续显示最后的物品。
 - 所有退场动画结束后，界面释放它的 Compose 会话和图形资源。
 - 在退场期间再次打开同一个界面对象时，退场动画停止，界面从头入场。新的界面（例如再次打开的同一个容器）会正常入场，旧界面的退场动画在它下方播完。
-- 没有使用 `ScreenTransition` 的界面会立即关闭。
+- 打开着的 Ore 对话框会连同遮罩一起随界面淡出。Ore 的菜单和提示会立即关闭。
+- 没有使用 `ScreenTransition` 的界面会立即关闭；没有世界时（例如在标题界面）任何界面也都会立即关闭。
 - 在 [HUD 层](hud.md)中，`ScreenTransition` 只播放入场动画；HUD 层停止时立即消失。
+
+## 自己的弹出层和对话框
+
+弹出层和对话框绘制在各自的图层里，过渡的修饰符影响不到它们。在 `ScreenTransition` 内，`LocalOverlayVisibility` 提供界面从 0 到 1 的可见度，把它用作弹出层的透明度即可：
+
+```kotlin
+import androidx.compose.ui.graphics.graphicsLayer
+import dev.compixel.ui.LocalOverlayVisibility
+
+Popup(onDismissRequest = { menuOpen = false }) {
+    val visibility = LocalOverlayVisibility.current?.animate()
+    MyMenu(Modifier.graphicsLayer { alpha = visibility?.value ?: 1f })
+}
+```
+
+界面显示期间这个值是 1，所以这时打开的弹出层会立即出现。它随界面的入场和退场淡入淡出，退场也会等它播完。使用 Compose 的 `Dialog` 时，还要像 Ore 的对话框那样，把 `scrimColor` 的透明度乘以这个值。
 
 ## 被覆盖的界面
 
