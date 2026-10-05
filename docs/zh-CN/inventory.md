@@ -122,6 +122,20 @@ SlotBehavior inspect = SlotBehavior.standard()
 
 `MenuSlotAdapter` 还决定每个槽位显示什么（`visual`）、拖动能经过哪些槽位（`canDragTo`）以及点击如何执行（`execute`）。默认的 `VanillaMenuSlotAdapter` 与 Minecraft 的行为一致。
 
+### 自己绘制槽位
+
+`slots.Slot(id)` 按 Ore 的外观绘制槽位。想让槽位使用自己的外观，就传入槽位尺寸，并自己绘制内容：
+
+```kotlin
+slots.Slot(id, Modifier.size(18.dp)) { slot ->
+    Box(Modifier.matchParentSize().background(if (slot.hovered) Color(0xFFC6C6C6) else Color(0xFF8B8B8B)))
+    slot.icon?.let { MinecraftItemIcon(it, Modifier.fillMaxSize().padding(1.dp)) }
+    if (slot.amount.isNotEmpty()) BasicText(slot.amount, Modifier.align(Alignment.BottomEnd))
+}
+```
+
+`slot` 包含槽位要显示的内容：图标 `icon`、数量文字 `amount` 和更短的 `compactAmount`、是否被标记 `marked`、拖动是否正把物品分散到它上面 `highlighted`，以及指针是否悬停在它上面 `hovered`。点击、拖动、Shift 点击和提示框都与 Ore 外观的槽位一样，图标和数量文字仍由 `MenuSlotAdapter` 的 `visual` 决定。
+
 ## Shift 点击路线
 
 声明 Shift 点击时物品的去向，再让 `quickMoveStack` 使用这些路线：

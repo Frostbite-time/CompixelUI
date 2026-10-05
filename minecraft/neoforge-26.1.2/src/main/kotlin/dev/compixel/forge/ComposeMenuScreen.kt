@@ -23,9 +23,9 @@ abstract class ComposeMenuScreen<M : AbstractContainerMenu, S, A>(
     guiUnitsPerDp: Float = 1f,
     minimumUiDensity: Float = 1f,
     theme: ThemeId = ThemeId.Default,
-    design: UiDesign = OreDesign,
     nativeItemOptions: NativeItemOptions = NativeItemOptions(),
     nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
+    design: UiDesign = OreDesign,
 ) :
     ComposeScreen<S, A>(
         title,

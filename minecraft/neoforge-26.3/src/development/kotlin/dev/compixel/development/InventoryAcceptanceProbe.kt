@@ -10,7 +10,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import dev.compixel.bridge.ComposeThread
 import dev.compixel.forge.ComposeInventoryScreen
+import dev.compixel.forge.item.MinecraftItemIcon
 import dev.compixel.forge.slots.ComposeMenuSlots
+import dev.compixel.forge.slots.MenuSlotState
 import java.util.concurrent.CompletableFuture
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
@@ -63,6 +65,9 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
         var menuCloses = 0
             private set
 
+        /** What the slot that draws itself showed in its latest composition. */
+        var drawnSlot: MenuSlotState? = null
+
         override fun isUiWindowFocused() = SuiteEnvironment.uiFocused(super.isUiWindowFocused())
 
         override fun extractSlot(graphics: GuiGraphicsExtractor, slot: Slot, mouseX: Int, mouseY: Int) {
@@ -89,7 +94,11 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
             Column(Modifier.fillMaxSize().background(Color(0xFF204060)).padding(20.dp)) {
                 Row(slots.areaModifier()) {
                     slots.Slot(36)
-                    slots.Slot(37)
+                    // A slot that draws itself clicks and places items as a slot in Ore's look does.
+                    slots.Slot(37, Modifier.size(18.dp)) { slot ->
+                        SideEffect { drawnSlot = slot }
+                        slot.icon?.let { MinecraftItemIcon(it, Modifier.fillMaxSize().padding(1.dp)) }
+                    }
                     slots.Slot(5)
                     slots.Slot(45)
                     // Slot-sized buttons inside the container area: their clicks reach Compose alone.
@@ -154,6 +163,10 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
             5 ->
                 // The next tick's snapshot shows the placed stack, and the content sends an action back.
                 if (ComposeThread.call { screen!!.composed } == 8) {
+                    val drawn = ComposeThread.call { screen!!.drawnSlot }
+                    check(drawn != null && drawn.icon != null && drawn.amount == "8" && drawn.hovered) {
+                        "The slot that draws itself showed $drawn"
+                    }
                     check(ComposeThread.call { screen!!.press() }) { "The screen rejected its content's action" }
                     stage++
                 }

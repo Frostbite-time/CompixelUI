@@ -1,5 +1,8 @@
 package dev.compixel.forge.slots
 
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,6 +37,24 @@ data class MenuSlotVisual(
     val amount: String = "",
     val marked: Boolean = false,
     val compactAmount: String = amount,
+)
+
+/**
+ * What a slot shows, for drawing it yourself with [ComposeMenuSlots.Slot]: the adapter's [MenuSlotVisual] values and
+ * the slot's interaction state.
+ */
+@Immutable
+data class MenuSlotState(
+    val icon: ItemIcon?,
+    /** The amount label, and a shorter one for narrow slots. */
+    val amount: String,
+    val compactAmount: String,
+    /** Whether the adapter marked the slot, for example as a filter. */
+    val marked: Boolean,
+    /** Whether a native drag spreads the carried stack over this slot. */
+    val highlighted: Boolean,
+    /** Whether the pointer is over the slot. */
+    val hovered: Boolean,
 )
 
 data class MenuSlotBounds(val left: Double, val top: Double, val right: Double, val bottom: Double)
@@ -192,35 +213,13 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
         synchronized(layoutLock) { area = position.boundsInRoot() }
     }
 
-    @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+    /** A slot in Ore's look: its frame, item icon and amount. */
     @Composable
     fun Slot(slotId: Int, modifier: Modifier = Modifier) {
-        require(slotId >= 0 && slotId < slotCount)
-        val token = remember(slotId) { Any() }
-        val focus = LocalFocusManager.current
-        DisposableEffect(slotId) {
-            onDispose {
-                synchronized(layoutLock) {
-                    if (layout[slotId]?.first === token) {
-                        layout.remove(slotId)
-                        layoutRevision++
-                    }
-                }
-            }
-        }
+        val region = slotRegion(slotId)
         val visual = visuals[slotId] ?: MenuSlotVisual()
         OreSlot(
-            modifier
-                .onGloballyPositioned { position ->
-                    val bounds = position.boundsInRoot()
-                    synchronized(layoutLock) {
-                        if (layout[slotId] != (token to bounds)) {
-                            layout[slotId] = token to bounds
-                            layoutRevision++
-                        }
-                    }
-                }
-                .onPointerEvent(PointerEventType.Press) { focus.clearFocus() },
+            modifier.then(region),
             marked = visual.marked,
             highlighted = highlighted == slotId,
             contentModifier = Modifier.size(16.dp),
@@ -243,6 +242,58 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
                     )
             }
         }
+    }
+
+    /**
+     * A slot that draws itself: [content] gets what the slot shows and fills the bounds that [modifier] gives the slot,
+     * for example `Modifier.size(18.dp)`. Clicks, drags, quick moves and tooltips work as for a slot in Ore's look.
+     * Draw the item with [MinecraftItemIcon].
+     */
+    @Composable
+    fun Slot(slotId: Int, modifier: Modifier = Modifier, content: @Composable BoxScope.(MenuSlotState) -> Unit) {
+        val region = slotRegion(slotId)
+        val interactions = remember { MutableInteractionSource() }
+        val hovered by interactions.collectIsHoveredAsState()
+        val visual = visuals[slotId] ?: MenuSlotVisual()
+        val state =
+            MenuSlotState(
+                visual.icon,
+                visual.amount,
+                visual.compactAmount,
+                visual.marked,
+                highlighted == slotId,
+                hovered,
+            )
+        Box(modifier.then(region).hoverable(interactions)) { content(state) }
+    }
+
+    // Registers where the slot is laid out as its hit region, and leaves a focused text field when it is pressed.
+    @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+    @Composable
+    private fun slotRegion(slotId: Int): Modifier {
+        require(slotId >= 0 && slotId < slotCount)
+        val token = remember(slotId) { Any() }
+        val focus = LocalFocusManager.current
+        DisposableEffect(slotId) {
+            onDispose {
+                synchronized(layoutLock) {
+                    if (layout[slotId]?.first === token) {
+                        layout.remove(slotId)
+                        layoutRevision++
+                    }
+                }
+            }
+        }
+        return Modifier.onGloballyPositioned { position ->
+                val bounds = position.boundsInRoot()
+                synchronized(layoutLock) {
+                    if (layout[slotId] != (token to bounds)) {
+                        layout[slotId] = token to bounds
+                        layoutRevision++
+                    }
+                }
+            }
+            .onPointerEvent(PointerEventType.Press) { focus.clearFocus() }
     }
 
     internal fun viewport(metrics: ScreenMetrics) {

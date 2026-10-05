@@ -124,6 +124,20 @@ Return it from your `MenuSlotAdapter`'s `behavior` hook, or override `slotBehavi
 
 `MenuSlotAdapter` also decides what each slot shows (`visual`), where dragging may go (`canDragTo`) and how clicks run (`execute`). The default, `VanillaMenuSlotAdapter`, does what Minecraft does.
 
+### Draw slots yourself
+
+`slots.Slot(id)` draws a slot in Ore's look. To give slots a look of your own, pass the slot's size and draw its content:
+
+```kotlin
+slots.Slot(id, Modifier.size(18.dp)) { slot ->
+    Box(Modifier.matchParentSize().background(if (slot.hovered) Color(0xFFC6C6C6) else Color(0xFF8B8B8B)))
+    slot.icon?.let { MinecraftItemIcon(it, Modifier.fillMaxSize().padding(1.dp)) }
+    if (slot.amount.isNotEmpty()) BasicText(slot.amount, Modifier.align(Alignment.BottomEnd))
+}
+```
+
+`slot` holds what the slot shows: its `icon`, the `amount` label and a shorter `compactAmount`, whether it is `marked`, whether a drag spreads items over it (`highlighted`), and whether the pointer is over it (`hovered`). Clicks, drags, shift-clicks and tooltips work as for slots in Ore's look, and your `MenuSlotAdapter`'s `visual` still decides the icon and labels.
+
 ## Shift-click routes
 
 Declare where shift-clicked items go, then let `quickMoveStack` use the routes:

@@ -36,9 +36,9 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
     title: Component,
     val inventory: ComposeMenuSlots<M> = ComposeMenuSlots(container),
     theme: ThemeId = ThemeId.Default,
-    design: UiDesign = OreDesign,
     nativeItemOptions: NativeItemOptions = NativeItemOptions(cacheCapacity = 256),
     nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
+    design: UiDesign = OreDesign,
 ) : SlotBehaviorScreen<M>(container, checkNotNull(Minecraft.getInstance().player).inventory, title) {
     /** The content's game state, opened and closed with each Compose session. */
     internal val contentState = UiStateBinding<S, A>(::snapshot, ::handle)
