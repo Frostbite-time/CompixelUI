@@ -54,14 +54,25 @@ internal object ScreenExits : IGuiOverlay {
 
     private val exits = ArrayList<Exit>()
 
+    /** Exits playing now. */
+    val size: Int
+        get() = exits.size
+
     /**
-     * The host of [layer] closed for good: its content plays its exit here, or the layer closes now when it has none.
-     * [closed] runs once the layer has closed.
+     * The host of [layer] closed for good: its content plays its exit here, or the layer closes now when it has none,
+     * when no world is shown to draw it over, or while the game stops. [closed] runs once the layer has closed. A host
+     * removed again while its exit plays keeps that exit.
      */
     fun close(layer: ComposeLayer, closed: () -> Unit = {}) {
+        if (exits.any { it.layer === layer }) return
+        val minecraft = Minecraft.getInstance()
         val playing =
             try {
-                layer.exit()
+                if (minecraft.isRunning && minecraft.level != null) layer.exit()
+                else {
+                    layer.close()
+                    false
+                }
             } catch (error: Throwable) {
                 closed()
                 throw error

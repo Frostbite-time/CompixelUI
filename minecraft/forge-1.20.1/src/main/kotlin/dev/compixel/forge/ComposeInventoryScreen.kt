@@ -59,6 +59,7 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
         }
     // Set by onClose: the player's own inventory menu stays the open menu after its screen closes.
     private var closing = false
+    private var menuEnded = false
     internal val session
         get() = layer.session
 
@@ -372,8 +373,7 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
         try {
             ScreenExits.close(layer) { inventory.close() }
         } finally {
-            super.removed()
-            menuClosed()
+            endMenu()
         }
     }
 
@@ -385,8 +385,15 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
             layer.close()
         } finally {
             inventory.close()
-            super.removed()
-            menuClosed()
+            endMenu()
         }
+    }
+
+    // The screen lets go of its menu once, even when something removes it again.
+    private fun endMenu() {
+        if (menuEnded) return
+        menuEnded = true
+        super.removed()
+        menuClosed()
     }
 }

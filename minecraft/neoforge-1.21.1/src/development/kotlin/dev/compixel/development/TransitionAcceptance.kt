@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import dev.compixel.bridge.ComposeThread
 import dev.compixel.forge.ComposeInventoryScreen
 import dev.compixel.forge.ComposeScreen
+import dev.compixel.forge.ScreenExits
 import dev.compixel.forge.slots.ComposeMenuSlots
 import dev.compixel.host.ScreenTransition
 import dev.compixel.host.SessionState
@@ -330,7 +331,11 @@ internal class TransitionAcceptance(private val log: AcceptanceLog, private val 
         script.act("close the screen and show it again at once") {
             closeAtOnce(plain)
             val first = checkNotNull(plain.session)
+            // A screen that something removes again during its exit, as a few mods do, keeps one exit.
+            plain.removed()
+            check(ScreenExits.size == 1) { "Removing the screen again added ${ScreenExits.size - 1} exits" }
             SuitePlatform.setScreen(plain)
+            check(ScreenExits.size == 0) { "Showing the screen again left ${ScreenExits.size} exits behind" }
             exiting = null
             val second = checkNotNull(plain.session) { "The screen shown again during its exit has no session" }
             check(second !== first && first.state == SessionState.CLOSED) {
