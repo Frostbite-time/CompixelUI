@@ -16,17 +16,23 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import dev.compixel.ui.LocalOverlayVisibility
 import dev.compixel.ui.ore.button.OreButtonStyle
 import dev.compixel.ui.ore.button.OreIconButton
 import dev.compixel.ui.ore.display.OreGlyph
 import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.layout.OreSurface
 import dev.compixel.ui.ore.theme.OreTheme
+
+/** Compose's default dialog scrim. */
+private val Scrim = Color.Black.copy(alpha = 0.6f)
 
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
@@ -38,13 +44,26 @@ fun OreDialog(
     buttons: @Composable ColumnScope.() -> Unit,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    // Inside a screen transition, the dialog's layer fades with the screen: its scrim through the properties, which
+    // keep
+    // the scrim's blending with the screen beneath, and its panel through an alpha layer.
+    val visibility = LocalOverlayVisibility.current?.animate()
+    val shown = visibility?.value ?: 1f
     Dialog(
         onDismissRequest,
-        properties = DialogProperties(usePlatformDefaultWidth = false, animateTransition = false),
+        properties =
+            DialogProperties(
+                usePlatformDefaultWidth = false,
+                animateTransition = false,
+                scrimColor = Scrim.copy(alpha = Scrim.alpha * shown),
+            ),
     ) {
         val colors = OreTheme.colors
         OreSurface(
-            modifier.widthIn(max = 230.dp).fillMaxWidth(),
+            modifier
+                .widthIn(max = 230.dp)
+                .fillMaxWidth()
+                .then(if (visibility == null) Modifier else Modifier.graphicsLayer { alpha = visibility.value }),
             bottomLedge = 2.dp,
             ledgeColor = colors.ledge,
             frameEdge = colors.frameEdge,

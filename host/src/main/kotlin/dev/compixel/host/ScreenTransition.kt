@@ -2,23 +2,32 @@ package dev.compixel.host
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.Transition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import dev.compixel.ui.LocalOverlayVisibility
+import dev.compixel.ui.OverlayVisibility
 
 /**
  * Animates a screen's content in when the screen opens and out when it closes. [enter] and [exit] are Compose's
  * transitions, such as `fadeIn() + slideInVertically()`, and may differ. Parts of the content take their own with
  * `Modifier.animateEnterExit`, the scope's `transition` drives effects of your own, and a screen may use several, for
- * example one for its backdrop and one for its window.
+ * example one for its backdrop and one for its window. Popups and dialogs inside, which draw in layers of their own,
+ * fade with it through [LocalOverlayVisibility], as Ore's dialogs do.
  *
  * The screen takes input from its first frame. When it closes for good, it closes at once and the player has control
  * again, while the content plays its exits above the game without input; the session's resources are released when
@@ -36,8 +45,22 @@ fun ScreenTransition(
     val presence = LocalScreenPresence.current
     val state = remember(presence) { presence?.newState() ?: MutableTransitionState(true) }
     if (presence != null) Follow(presence, state)
-    AnimatedVisibility(state, modifier, enter, exit, label = "ScreenTransition", content = content)
+    AnimatedVisibility(state, modifier, enter, exit, label = "ScreenTransition") {
+        val overlays = remember(transition) { Overlays(transition) }
+        CompositionLocalProvider(LocalOverlayVisibility provides overlays) { content() }
+    }
 }
+
+// Overlays are fully visible while the screen shows and fade with its entrance and exit, which wait for them.
+private class Overlays(private val transition: Transition<EnterExitState>) : OverlayVisibility {
+    @Composable
+    override fun animate(): State<Float> =
+        transition.animateFloat({ tween(OVERLAY_MILLIS) }, label = "ScreenTransition overlay") {
+            if (it == EnterExitState.Visible) 1f else 0f
+        }
+}
+
+private const val OVERLAY_MILLIS = 150
 
 // Registers the transition with its session and reports when it settles, so the host learns that every exit has
 // finished without asking the Compose thread.

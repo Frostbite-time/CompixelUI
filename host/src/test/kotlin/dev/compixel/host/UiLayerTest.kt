@@ -8,9 +8,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
 import dev.compixel.bridge.ComposeThread
 import dev.compixel.platform.Modifiers
 import dev.compixel.render.FrameRenderer
@@ -18,6 +21,7 @@ import dev.compixel.render.RecordedFrame
 import dev.compixel.render.RenderBackend
 import dev.compixel.render.RendererStatistics
 import dev.compixel.render.UiFrameProfiler
+import dev.compixel.ui.LocalOverlayVisibility
 import dev.compixel.ui.LocalUiFeedback
 import dev.compixel.ui.UiDesign
 import dev.compixel.ui.UiFeedback
@@ -381,6 +385,40 @@ class UiLayerTest {
         assertFalse(layer.exiting)
         assertNotNull(layer.session)
         assertNotSame(exited, layer.session)
+        layer.close()
+    }
+
+    @Test
+    fun `a popup opened while the screen shows appears at once and fades with its exit, which waits for it`() {
+        val shown = Shown()
+        val open = ComposeThread.call { mutableStateOf(false) }
+        val drawn = java.util.concurrent.CopyOnWriteArrayList<Float>()
+        val layer =
+            TestLayer(
+                state(),
+                content = {
+                    ScreenTransition(enter = fadeIn(tween(20)), exit = fadeOut(tween(20))) {
+                        val phase = transition.currentState
+                        SideEffect { shown.phase = phase }
+                        if (open.value)
+                            Popup {
+                                val visibility = checkNotNull(LocalOverlayVisibility.current).animate()
+                                Box(Modifier.size(10.dp).drawBehind { drawn += visibility.value })
+                            }
+                    }
+                },
+            )
+        layer.open(200, 100)
+        frames(layer) { shown.phase == EnterExitState.Visible }
+        ComposeThread.call { open.value = true }
+        frames(layer) { drawn.isNotEmpty() }
+        assertEquals(1f, drawn.first(), "A popup opened while the screen shows entered")
+        val started = System.nanoTime()
+        assertTrue(layer.exit())
+        frames(layer) { layer.exitFinished }
+        // The content's exit takes 20 ms, the popup's fade 150 ms.
+        assertTrue(System.nanoTime() - started >= 140_000_000L, "The screen closed before its popup faded")
+        assertTrue(drawn.any { it > 0f && it < 1f }, "The popup did not fade: $drawn")
         layer.close()
     }
 
