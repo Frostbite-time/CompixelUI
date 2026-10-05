@@ -39,9 +39,9 @@ interface NativeImageSource : AutoCloseable {
 /** One session's renderer and native images. A [UiLayer] creates them when it opens and closes them in order. */
 class UiLayerSurface<D>(
     val renderer: FrameRenderer<D>,
-    val items: NativeImageSource? = null,
-    val tooltips: NativeImageSource? = null,
-    val drawings: NativeImageSource? = null,
+    val items: NativeImageSource,
+    val tooltips: NativeImageSource,
+    val drawings: NativeImageSource,
 )
 
 /**
@@ -275,9 +275,9 @@ abstract class UiLayer<G, D>(
                 beforePrepare(graphics)
                 val epoch = resourceEpoch
                 if (seenResourceEpoch != epoch) {
-                    surface.drawings?.reset()
-                    surface.items?.reset()
-                    surface.tooltips?.reset()
+                    surface.drawings.reset()
+                    surface.items.reset()
+                    surface.tooltips.reset()
                     backend.reset()
                     seenResourceEpoch = epoch
                 }
@@ -287,9 +287,9 @@ abstract class UiLayer<G, D>(
         fun recordFrame(): RecordedFrame? =
             active.frame()?.also {
                 frameProfiler?.recorded(it.generation)
-                surface.items?.recorded(it.generation)
-                surface.tooltips?.recorded(it.generation)
-                surface.drawings?.recorded(it.generation)
+                surface.items.recorded(it.generation)
+                surface.tooltips.recorded(it.generation)
+                surface.drawings.recorded(it.generation)
             }
         var frame = frameProfiler.measureCpu(CpuPhase.RECORD) { recordFrame() }
         fun replaceFrame() {
@@ -306,14 +306,14 @@ abstract class UiLayer<G, D>(
             // before image preparation and presentation, including newly scrolled-in slots.
             if (frameProfiler.measureCpu(CpuPhase.HOST) { prepareFrameContent() }) replaceFrame()
             val itemsChanged =
-                frameProfiler.measureCpu(CpuPhase.ITEMS) { surface.items?.prepare(System.nanoTime(), current) == true }
+                frameProfiler.measureCpu(CpuPhase.ITEMS) { surface.items.prepare(System.nanoTime(), current) }
             val tooltipChanged =
                 frameProfiler.measureCpu(CpuPhase.TOOLTIP) {
-                    surface.tooltips?.prepare(System.nanoTime(), current) == true
+                    surface.tooltips.prepare(System.nanoTime(), current)
                 }
             val drawingsChanged =
                 frameProfiler.measureCpu(CpuPhase.ITEMS) {
-                    surface.drawings?.prepare(System.nanoTime(), current) == true
+                    surface.drawings.prepare(System.nanoTime(), current)
                 }
             if (itemsChanged || tooltipChanged || drawingsChanged) replaceFrame()
         } catch (error: Throwable) {
@@ -441,13 +441,13 @@ abstract class UiLayer<G, D>(
 
     private fun closeSurface(closing: UiLayerSurface<D>) {
         try {
-            closing.items?.close()
+            closing.items.close()
         } finally {
             try {
-                closing.tooltips?.close()
+                closing.tooltips.close()
             } finally {
                 try {
-                    closing.drawings?.close()
+                    closing.drawings.close()
                 } finally {
                     try {
                         closing.renderer.close()

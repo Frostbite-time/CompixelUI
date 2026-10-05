@@ -10,15 +10,4 @@ import dev.compixel.ui.theme.ThemeId
  */
 interface UiDesign {
     @Composable fun Decorate(theme: ThemeId, content: @Composable () -> Unit)
-
-    companion object {
-        /** Shows content without a design system. */
-        val None: UiDesign =
-            object : UiDesign {
-                @Composable
-                override fun Decorate(theme: ThemeId, content: @Composable () -> Unit) {
-                    content()
-                }
-            }
-    }
 }

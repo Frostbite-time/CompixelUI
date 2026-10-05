@@ -10,7 +10,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 enum class SessionState {
     ACTIVE,
-    SUSPENDED,
     CLOSED,
 }
 
@@ -63,7 +62,6 @@ class UiSession(
 
     fun frame(timeNanos: Long = System.nanoTime()): RecordedFrame? {
         checkOpen()
-        if (state != SessionState.ACTIVE) return null
         return ComposeThread.call {
             // New/reentrant posts wait for a later frame, even when the queue initially held one task.
             val count = synchronized(commands) { minOf(commandsPerFrame, commands.size) }
@@ -95,39 +93,25 @@ class UiSession(
         }
     }
 
-    fun setActive(active: Boolean) {
-        checkOpen()
-        state = if (active) SessionState.ACTIVE else SessionState.SUSPENDED
-        ComposeThread.call {
-            bridge.setFocused(active)
-            recordTextInput()
-        }
-    }
-
     fun pointer(event: PointerInput): Boolean {
         checkOpen()
-        return state == SessionState.ACTIVE && ComposeThread.call { bridge.pointer(event) }
+        return ComposeThread.call { bridge.pointer(event) }
     }
 
     fun key(event: KeyInput): Boolean {
         checkOpen()
-        return state == SessionState.ACTIVE && ComposeThread.call { bridge.key(event) }
+        return ComposeThread.call { bridge.key(event) }
     }
 
     fun commitText(text: String): Boolean {
         checkOpen()
-        return state == SessionState.ACTIVE && ComposeThread.call { bridge.commitText(text) }
+        return ComposeThread.call { bridge.commitText(text) }
     }
 
     /** Shows [text] from an input method as the focused field's composition; null removes the composition. */
     fun setComposingText(text: ComposingText?): Boolean {
         checkOpen()
-        return state == SessionState.ACTIVE && ComposeThread.call { bridge.setComposingText(text) }
-    }
-
-    fun diagnosticThread(): String {
-        checkOpen()
-        return ComposeThread.call { bridge.diagnosticThread }
+        return ComposeThread.call { bridge.setComposingText(text) }
     }
 
     /** Use to give a focused Compose editor priority over game shortcuts. */

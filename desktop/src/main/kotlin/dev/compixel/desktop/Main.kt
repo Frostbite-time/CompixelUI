@@ -46,7 +46,6 @@ private fun smoke(directory: File) {
             },
         )
         .use { session ->
-            println("Compose thread: ${session.diagnosticThread()}")
             val cases =
                 listOf(
                     Triple("settings-en", Viewport(960, 640), { model.page = DemoPage.Settings }),

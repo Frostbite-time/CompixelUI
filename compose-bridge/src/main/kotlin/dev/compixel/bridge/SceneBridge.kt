@@ -293,12 +293,6 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
         }
     }
 
-    val diagnosticThread: String
-        get() {
-            checkOpen()
-            return Thread.currentThread().name
-        }
-
     val hasTextInputFocus: Boolean
         get() {
             checkOpen()

@@ -311,4 +311,4 @@ class StorageScreen :
     ComposeScreen<StorageState, StorageAction>(Component.literal("Storage"), theme = ThemeId("examplemod", "storage"), design = StorageDesign)
 ```
 
-`UiDesign.None` shows content without any design. Your own controls give the native click sound like Ore's buttons by calling `LocalUiFeedback.current.activate()` when the user activates them, for example right after `onClick`; the screen plays it on the game thread.
+Your own controls give the native click sound like Ore's buttons by calling `LocalUiFeedback.current.activate()` when the user activates them, for example right after `onClick`; the screen plays it on the game thread.

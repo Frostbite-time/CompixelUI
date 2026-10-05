@@ -311,4 +311,4 @@ class StorageScreen :
     ComposeScreen<StorageState, StorageAction>(Component.literal("仓储"), theme = ThemeId("examplemod", "storage"), design = StorageDesign)
 ```
 
-`UiDesign.None` 表示不使用任何设计。自己的控件被用户触发时（例如在 `onClick` 之后）调用 `LocalUiFeedback.current.activate()`，就能像 Ore 按钮一样发出原版的点击声；界面会在游戏线程播放它。
+自己的控件被用户触发时（例如在 `onClick` 之后）调用 `LocalUiFeedback.current.activate()`，就能像 Ore 按钮一样发出原版的点击声；界面会在游戏线程播放它。
