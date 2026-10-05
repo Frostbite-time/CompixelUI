@@ -27,11 +27,11 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.compixel.ui.LocalUiFeedback
 import dev.compixel.ui.ore.button.OreButtonStyle
 import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.internal.oreButtonContentOffset
 import dev.compixel.ui.ore.internal.oreButtonFrame
-import dev.compixel.ui.ore.theme.LocalOreFeedback
 import dev.compixel.ui.ore.theme.OreTheme
 
 /** Joined Ore choice buttons. The caller owns exactly one selected option; this is not page navigation. */
@@ -46,7 +46,7 @@ fun OreTabButton(
 ) {
     require(options.isNotEmpty() && selectedIndex in options.indices)
     val requesters = remember(options.size) { List(options.size) { FocusRequester() } }
-    val feedback = LocalOreFeedback.current
+    val feedback = LocalUiFeedback.current
     Row(modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(0.dp)) {
         options.forEachIndexed { index, label ->
             val active = enabled && optionEnabled(index)

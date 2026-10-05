@@ -13,30 +13,41 @@ import dev.compixel.host.UiSession
 import dev.compixel.platform.Viewport
 import dev.compixel.ui.ore.overlay.OreDialog
 import dev.compixel.ui.ore.theme.*
+import dev.compixel.ui.theme.LocalThemeCatalog
+import dev.compixel.ui.theme.ThemeCatalog
+import dev.compixel.ui.theme.ThemeId
+import dev.compixel.ui.theme.ThemeLayer
 import kotlin.test.*
 import org.junit.jupiter.api.Test
 
 class OreThemeTest {
-    private fun patch(vararg fields: Pair<String, Any?>) = OreThemePatch.parse(mapOf("format" to 1, *fields))
+    // One theme file holding only an Ore section.
+    private fun patch(vararg fields: Pair<String, Any?>) =
+        ThemeLayer("test", mapOf("format" to 1, "ore" to mapOf(*fields)))
+
+    private fun ThemeLayer.applyTo(colors: OreColors) = OreThemeSection.apply(colors, document["ore"])
+
+    private fun catalog(layers: Map<ThemeId, List<ThemeLayer>>) = ThemeCatalog.create(layers) { error(it) }
+
+    private fun ThemeCatalog.colors(id: ThemeId) = this[id, OreThemeSection]
 
     @Test
     fun `defaults are unchanged and missing themes fall back by namespace`() {
-        assertEquals(OreColors(), OreThemeCatalog.Default.colors(OreThemeId.Default))
-        assertEquals(OreColors(), OreThemeCatalog.Default.colors(OreThemeId("missing", "page")))
-        val catalog =
-            OreThemeCatalog.create(mapOf(OreThemeId("a") to listOf(patch("colors" to mapOf("panel" to "#123456")))))
-        assertEquals(Color(0xFF123456), catalog.colors(OreThemeId("a", "nested/page")).panel)
-        assertEquals(OreColors(), catalog.colors(OreThemeId("b", "page")))
+        assertEquals(OreColors(), ThemeCatalog.Empty.colors(ThemeId.Default))
+        assertEquals(OreColors(), ThemeCatalog.Empty.colors(ThemeId("missing", "page")))
+        val catalog = catalog(mapOf(ThemeId("a") to listOf(patch("colors" to mapOf("panel" to "#123456")))))
+        assertEquals(Color(0xFF123456), catalog.colors(ThemeId("a", "nested/page")).panel)
+        assertEquals(OreColors(), catalog.colors(ThemeId("b", "page")))
     }
 
     @Test
     fun `global namespace named and pack layers compose without losing omitted fields`() {
-        val id = OreThemeId("a", "storage")
+        val id = ThemeId("a", "storage")
         val catalog =
-            OreThemeCatalog.create(
+            catalog(
                 mapOf(
-                    OreThemeId.Default to listOf(patch("colors" to mapOf("text" to "#112233"))),
-                    OreThemeId("a") to listOf(patch("colors" to mapOf("panel" to "#223344"))),
+                    ThemeId.Default to listOf(patch("colors" to mapOf("text" to "#112233"))),
+                    ThemeId("a") to listOf(patch("colors" to mapOf("panel" to "#223344"))),
                     id to
                         listOf(
                             patch("palette" to mapOf("primary" to "#556699")),
@@ -48,7 +59,7 @@ class OreThemeTest {
         assertEquals(Color(0xFF112233), colors.text)
         assertEquals(Color(0xFF334455), colors.panel)
         assertEquals(Color(0xFF556699), colors.primary)
-        assertEquals(OreColors().panel, catalog.colors(OreThemeId("b")).panel)
+        assertEquals(OreColors().panel, catalog.colors(ThemeId("b")).panel)
     }
 
     @Test
@@ -72,72 +83,82 @@ class OreThemeTest {
     }
 
     @Test
-    fun `bad files fail as a whole and report the key`() {
-        for (fields in
+    fun `bad sections fail as a whole and report the key`() {
+        for (section in
             listOf(
-                mapOf("format" to 2),
-                mapOf("format" to "1"),
-                mapOf("format" to 1, "colours" to emptyMap<String, String>()),
-                mapOf("format" to 1, "colors" to mapOf("panel" to "red")),
-                mapOf("format" to 1, "colors" to mapOf("panel" to "#112233", "typo" to "#123456")),
-                mapOf("format" to 1, "palette" to mapOf("panel" to "#112233")),
-                mapOf("format" to 1, "preset" to null),
-            )) assertFailsWith<IllegalArgumentException> { OreThemePatch.parse(fields) }
+                "dark",
+                mapOf("colours" to emptyMap<String, String>()),
+                mapOf("colors" to mapOf("panel" to "red")),
+                mapOf("colors" to mapOf("panel" to "#112233", "typo" to "#123456")),
+                mapOf("palette" to mapOf("panel" to "#112233")),
+                mapOf("preset" to null),
+            )) assertFailsWith<IllegalArgumentException> { OreThemeSection.apply(OreColors(), section) }
         assertContains(
             assertFailsWith<IllegalArgumentException> {
-                    patch("colors" to mapOf("panel" to "#123"))
+                    patch("colors" to mapOf("panel" to "#123")).applyTo(OreColors())
                 }
                 .message
                 .orEmpty(),
             "colors.panel",
         )
+        // In a catalog, an invalid top file leaves the lower files in effect.
+        val warnings = mutableListOf<String>()
+        val layered =
+            ThemeCatalog.create(
+                mapOf(
+                    ThemeId("a") to
+                        listOf(patch("colors" to mapOf("panel" to "#112233")), patch("colors" to mapOf("typo" to "#1")))
+                ),
+                warnings::add,
+            )
+        assertEquals(Color(0xFF112233), layered.colors(ThemeId("a")).panel)
+        assertContains(warnings.single(), "ore section of theme a:default")
     }
 
     @Test
     fun `snapshots own their data and removed files restore defaults`() {
         val tokens = mutableMapOf("panel" to "#112233")
-        val layer = patch("colors" to tokens)
+        val layers = mutableMapOf(ThemeId("a") to mutableListOf(patch("colors" to tokens)))
+        val snapshot = catalog(layers)
         tokens["panel"] = "#FFFFFF"
-        val layers = mutableMapOf(OreThemeId("a") to mutableListOf(layer))
-        val snapshot = OreThemeCatalog.create(layers)
         layers.clear()
-        assertEquals(Color(0xFF112233), snapshot.colors(OreThemeId("a")).panel)
-        assertEquals(OreColors(), OreThemeCatalog.create(layers).colors(OreThemeId("a")))
-        assertEquals(OreThemeCatalog.Default, OreThemeCatalog.create(emptyMap()))
+        assertEquals(Color(0xFF112233), snapshot.colors(ThemeId("a")).panel)
+        assertEquals(OreColors(), catalog(layers).colors(ThemeId("a")))
+        assertEquals(ThemeCatalog.Empty, catalog(emptyMap()))
     }
 
     @Test
     fun `light preset is reusable and permits pack overrides`() {
         val catalog =
-            OreThemeCatalog.create(
+            catalog(
                 mapOf(
-                    OreThemeId("a") to
+                    ThemeId("a") to
                         listOf(
                             patch("preset" to "light"),
                             patch("colors" to mapOf("panel" to "#EEEEEE")),
                         )
                 )
             )
-        assertEquals(OrePalettes.Light, OreThemeCatalog.Default.colors(OreThemeId.Light))
-        assertEquals(Color(0xFFEEEEEE), catalog.colors(OreThemeId("a", "storage")).panel)
-        assertEquals(OrePalettes.Light.primary, catalog.colors(OreThemeId("a")).primary)
+        assertEquals(OrePalettes.Light, ThemeCatalog.Empty.colors(ThemeId.Light))
+        assertEquals(Color(0xFFEEEEEE), catalog.colors(ThemeId("a", "storage")).panel)
+        assertEquals(OrePalettes.Light.primary, catalog.colors(ThemeId("a")).primary)
         assertReadable(OrePalettes.Light)
     }
 
     @Test
     fun `twilight is built in as a theme and a preset`() {
-        assertEquals(OrePalettes.Twilight, OreThemeCatalog.Default.colors(OreThemeId.Twilight))
+        assertEquals(OrePalettes.Twilight, ThemeCatalog.Empty.colors(ThemeId.Twilight))
         assertEquals(OrePalettes.Twilight, patch("preset" to "twilight").applyTo(OrePalettes.Light))
         val catalog =
-            OreThemeCatalog.create(
+            catalog(
                 mapOf(
-                    OreThemeId.Default to listOf(patch("colors" to mapOf("panel" to "#123456"))),
-                    OreThemeId.Twilight to listOf(patch("colors" to mapOf("text" to "#FFFFFF"))),
+                    ThemeId.Default to listOf(patch("colors" to mapOf("panel" to "#123456"))),
+                    ThemeId.Twilight to listOf(patch("colors" to mapOf("text" to "#FFFFFF"))),
                 )
             )
         // Like light, twilight skips the global default but still applies its own theme files.
-        assertEquals(OrePalettes.Twilight.panel, catalog.colors(OreThemeId.Twilight).panel)
-        assertEquals(Color.White, catalog.colors(OreThemeId.Twilight).text)
+        assertEquals(OrePalettes.Twilight.panel, catalog.colors(ThemeId.Twilight).panel)
+        assertEquals(Color.White, catalog.colors(ThemeId.Twilight).text)
         assertReadable(OrePalettes.Twilight)
     }
 
@@ -160,15 +181,15 @@ class OreThemeTest {
     @Test
     fun `invalid identifiers cannot escape the theme directory`() {
         for (path in listOf("", "../x", "/x", "a//b", "a/./b", "A")) {
-            assertFailsWith<IllegalArgumentException> { OreThemeId("a", path) }
+            assertFailsWith<IllegalArgumentException> { ThemeId("a", path) }
         }
-        assertFailsWith<IllegalArgumentException> { OreThemeId("Bad Mod") }
+        assertFailsWith<IllegalArgumentException> { ThemeId("Bad Mod") }
     }
 
     @Test
     fun `live catalog updates preserve remembered state and reach dialogs popups and nested themes`() {
-        val id = OreThemeId("a")
-        val state = ComposeThread.call { mutableStateOf(OreThemeCatalog.Default) }
+        val id = ThemeId("a")
+        val state = ComposeThread.call { mutableStateOf(ThemeCatalog.Empty) }
         var creations = 0
         var observed = emptyList<OreColors>()
         var dialogColor = Color.Unspecified
@@ -176,7 +197,7 @@ class OreThemeTest {
         var draft = ""
         var edit: (String) -> Unit = {}
         UiSession(Viewport(320, 240)) {
-                OreThemeResources(state.value) {
+                CompositionLocalProvider(LocalThemeCatalog provides state.value) {
                     OreTheme(id) {
                         var text by remember {
                             creations++
@@ -184,7 +205,7 @@ class OreThemeTest {
                         }
                         val own = OreTheme.colors
                         var other = own
-                        OreTheme(OreThemeId("b")) { other = OreTheme.colors }
+                        OreTheme(ThemeId("b")) { other = OreTheme.colors }
                         SideEffect {
                             observed = listOf(own, other)
                             draft = text
@@ -214,7 +235,7 @@ class OreThemeTest {
                 settle()
                 ComposeThread.call {
                     edit("unsaved draft")
-                    state.value = OreThemeCatalog.create(mapOf(id to listOf(patch("preset" to "light"))))
+                    state.value = catalog(mapOf(id to listOf(patch("preset" to "light"))))
                 }
                 settle()
                 ComposeThread.call {
@@ -223,7 +244,7 @@ class OreThemeTest {
                     assertEquals(listOf(OrePalettes.Light, OreColors()), observed)
                     assertEquals(OrePalettes.Light.panel, dialogColor)
                     assertEquals(OrePalettes.Light.panel, popupColor)
-                    state.value = OreThemeCatalog.create(mapOf(id to listOf(patch("preset" to "light"))))
+                    state.value = catalog(mapOf(id to listOf(patch("preset" to "light"))))
                 }
                 assertNull(session.frame(time + 20_000_000L), "Equal reload must retain the recorded frame")
             }

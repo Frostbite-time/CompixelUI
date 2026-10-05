@@ -20,13 +20,13 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import dev.compixel.ui.LocalUiFeedback
 import dev.compixel.ui.ore.display.OreGlyph
 import dev.compixel.ui.ore.display.OreIcon
 import dev.compixel.ui.ore.internal.oreOutline
 import dev.compixel.ui.ore.overlay.OreTooltip
 import dev.compixel.ui.ore.overlay.OreTooltipMode
 import dev.compixel.ui.ore.theme.LocalOreContentColor
-import dev.compixel.ui.ore.theme.LocalOreFeedback
 import dev.compixel.ui.ore.theme.OreTheme
 
 /** Convenience overload for the bundled pixel glyphs. */
@@ -65,7 +65,7 @@ fun OreIconButton(
             val pressed by interactions.collectIsPressedAsState()
             val focused by interactions.collectIsFocusedAsState()
             val colors = OreTheme.colors
-            val feedback = LocalOreFeedback.current
+            val feedback = LocalUiFeedback.current
             Box(
                 modifier
                     .size(18.dp)

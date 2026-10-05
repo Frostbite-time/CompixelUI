@@ -35,12 +35,14 @@ Don't combine the `-with-kotlin` file with Kotlin for Forge: the two copies of K
 
 ## Change the colors
 
-Resource packs can recolor CompixelUI screens without any code. For example, a resource pack with this file at `assets/compixel/compixel/ore_themes/default.json` switches every CompixelUI screen to the built-in Twilight theme:
+Resource packs can recolor CompixelUI screens without any code. For example, a resource pack with this file at `assets/compixel/compixel/themes/default.json` switches every CompixelUI screen to the built-in Twilight theme:
 
 ```json
 {
   "format": 1,
-  "preset": "twilight"
+  "ore": {
+    "preset": "twilight"
+  }
 }
 ```
 

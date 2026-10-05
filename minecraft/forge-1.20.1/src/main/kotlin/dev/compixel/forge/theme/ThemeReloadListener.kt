@@ -3,24 +3,27 @@ package dev.compixel.forge.theme
 import com.google.gson.JsonElement
 import com.google.gson.JsonParser
 import com.mojang.logging.LogUtils
-import dev.compixel.ui.ore.theme.OreThemeCatalog
-import dev.compixel.ui.ore.theme.OreThemeId
-import dev.compixel.ui.ore.theme.OreThemePatch
+import dev.compixel.ui.theme.ThemeCatalog
+import dev.compixel.ui.theme.ThemeId
+import dev.compixel.ui.theme.ThemeLayer
 import net.minecraft.server.packs.resources.ResourceManager
 import net.minecraft.server.packs.resources.SimplePreparableReloadListener
 import net.minecraft.util.profiling.ProfilerFiller
 
-/** Client-only IO prepares a complete snapshot; apply publishes it for the next Compose frame. */
-internal object OreThemeReloadListener : SimplePreparableReloadListener<OreThemeCatalog>() {
+/**
+ * Reads every resource pack's theme files, `assets/<namespace>/compixel/themes/<path>.json`. Client-only IO prepares a
+ * complete catalog; apply publishes it for the next Compose frame. Design systems parse their own sections.
+ */
+internal object ThemeReloadListener : SimplePreparableReloadListener<ThemeCatalog>() {
     @Volatile
-    var catalog: OreThemeCatalog = OreThemeCatalog.Default
+    var catalog: ThemeCatalog = ThemeCatalog.Empty
         private set
 
     private val logger = LogUtils.getLogger()
-    private const val DIRECTORY = "compixel/ore_themes"
+    private const val DIRECTORY = "compixel/themes"
 
-    override fun prepare(manager: ResourceManager, profiler: ProfilerFiller): OreThemeCatalog {
-        val layers = linkedMapOf<OreThemeId, MutableList<OreThemePatch>>()
+    override fun prepare(manager: ResourceManager, profiler: ProfilerFiller): ThemeCatalog {
+        val layers = linkedMapOf<ThemeId, MutableList<ThemeLayer>>()
         // Minecraft supplies each stack in increasing resource-pack priority.
         manager
             .listResourceStacks(DIRECTORY) { it.path.endsWith(".json") }
@@ -28,18 +31,18 @@ internal object OreThemeReloadListener : SimplePreparableReloadListener<OreTheme
                 stack.forEach { resource ->
                     try {
                         val id =
-                            OreThemeId(
+                            ThemeId(
                                 location.namespace,
                                 location.path.removePrefix("$DIRECTORY/").removeSuffix(".json"),
                             )
                         val root = resource.openAsReader().use { JsonParser.parseReader(it) }
                         require(root.isJsonObject) { "root: expected an object" }
                         val document = root.asJsonObject.entrySet().associate { (key, value) -> key to neutral(value) }
-                        val patch = OreThemePatch.parse(document)
-                        layers.getOrPut(id) { mutableListOf() }.add(patch)
+                        val source = "$location in pack ${resource.sourcePackId()}"
+                        layers.getOrPut(id) { mutableListOf() }.add(ThemeLayer(source, document))
                     } catch (error: Exception) {
                         logger.warn(
-                            "Skipping Ore theme {} from pack {}: {}",
+                            "Skipping theme {} from pack {}: {}",
                             location,
                             resource.sourcePackId(),
                             error.message,
@@ -47,10 +50,10 @@ internal object OreThemeReloadListener : SimplePreparableReloadListener<OreTheme
                     }
                 }
             }
-        return OreThemeCatalog.create(layers)
+        return ThemeCatalog.create(layers) { logger.warn("{}", it) }
     }
 
-    override fun apply(snapshot: OreThemeCatalog, manager: ResourceManager, profiler: ProfilerFiller) {
+    override fun apply(snapshot: ThemeCatalog, manager: ResourceManager, profiler: ProfilerFiller) {
         if (catalog != snapshot) catalog = snapshot
     }
 
@@ -58,7 +61,8 @@ internal object OreThemeReloadListener : SimplePreparableReloadListener<OreTheme
         when {
             value.isJsonNull -> null
             value.isJsonObject -> value.asJsonObject.entrySet().associate { (key, child) -> key to neutral(child) }
-            value.isJsonPrimitive ->
+            value.isJsonArray -> value.asJsonArray.map(::neutral)
+            else ->
                 with(value.asJsonPrimitive) {
                     when {
                         isString -> asString
@@ -67,6 +71,5 @@ internal object OreThemeReloadListener : SimplePreparableReloadListener<OreTheme
                         else -> null
                     }
                 }
-            else -> error("Arrays are not supported in theme files")
         }
 }

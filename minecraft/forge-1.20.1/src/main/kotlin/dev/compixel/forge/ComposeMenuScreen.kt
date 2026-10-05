@@ -3,7 +3,9 @@ package dev.compixel.forge
 import com.mojang.blaze3d.platform.InputConstants
 import dev.compixel.forge.drawing.NativeDrawingOptions
 import dev.compixel.forge.item.NativeItemOptions
-import dev.compixel.ui.ore.theme.OreThemeId
+import dev.compixel.ui.UiDesign
+import dev.compixel.ui.ore.theme.OreDesign
+import dev.compixel.ui.theme.ThemeId
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.screens.inventory.MenuAccess
 import net.minecraft.network.chat.Component
@@ -19,7 +21,8 @@ abstract class ComposeMenuScreen<M : AbstractContainerMenu, S, A>(
     title: Component,
     guiUnitsPerDp: Float = 1f,
     minimumUiDensity: Float = 1f,
-    theme: OreThemeId = OreThemeId.Default,
+    theme: ThemeId = ThemeId.Default,
+    design: UiDesign = OreDesign,
     nativeItemOptions: NativeItemOptions = NativeItemOptions(),
     nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
 ) :
@@ -30,6 +33,7 @@ abstract class ComposeMenuScreen<M : AbstractContainerMenu, S, A>(
         nativeItemOptions = nativeItemOptions,
         nativeDrawingOptions = nativeDrawingOptions,
         theme = theme,
+        design = design,
     ),
     MenuAccess<M> {
     private var menuRemoved = false

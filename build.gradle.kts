@@ -159,6 +159,7 @@ tasks.register("checkCore") {
                 "render-vulkan",
                 "compose-bridge",
                 "host",
+                "ui-core",
                 "ui-ore",
                 "menu-sync",
                 "slot-core",

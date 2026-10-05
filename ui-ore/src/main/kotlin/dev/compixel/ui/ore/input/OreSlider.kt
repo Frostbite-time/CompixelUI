@@ -27,7 +27,7 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.unit.dp
-import dev.compixel.ui.ore.theme.LocalOreFeedback
+import dev.compixel.ui.LocalUiFeedback
 import dev.compixel.ui.ore.theme.OreTheme
 import kotlin.math.roundToInt
 
@@ -49,7 +49,7 @@ fun OreSlider(
         "Slider value and range must be finite, with a nonempty range"
     }
     val colors = OreTheme.colors
-    val feedback = LocalOreFeedback.current
+    val feedback = LocalUiFeedback.current
     val interactions = remember { MutableInteractionSource() }
     val hovered by interactions.collectIsHoveredAsState()
     var dragging by remember { mutableStateOf(false) }

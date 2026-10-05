@@ -7,7 +7,7 @@ import dev.compixel.demo.preview.Fixture
 import dev.compixel.demo.preview.OreDemoScreen as DemoScreen
 import dev.compixel.host.UiSession
 import dev.compixel.platform.*
-import dev.compixel.ui.ore.theme.OreThemeId
+import dev.compixel.ui.theme.ThemeId
 import java.awt.*
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
@@ -110,7 +110,7 @@ private fun smoke(directory: File) {
                             ),
                         )
                     } +
-                    listOf("light" to OreThemeId.Light, "twilight" to OreThemeId.Twilight).flatMap { (name, theme) ->
+                    listOf("light" to ThemeId.Light, "twilight" to ThemeId.Twilight).flatMap { (name, theme) ->
                         (listOf(DemoPage.Settings, DemoPage.Buttons) + dev.compixel.testing.ui.oreComponentPages).map {
                             page ->
                             Triple(

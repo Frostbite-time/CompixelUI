@@ -60,7 +60,7 @@ import dev.compixel.ui.ore.selection.OreSelect
 import dev.compixel.ui.ore.selection.OreSwitch
 import dev.compixel.ui.ore.selection.OreTabButton
 import dev.compixel.ui.ore.theme.OreTheme
-import dev.compixel.ui.ore.theme.OreThemeId
+import dev.compixel.ui.theme.ThemeId
 
 /** Default preview exercises the same Ore components shipped to consumer mods. */
 @Composable
@@ -87,14 +87,14 @@ fun OreDemoScreen(
                 // Cycles through the built-in themes; the label names the next one.
                 val next =
                     when (model.theme) {
-                        OreThemeId.Default -> OreThemeId.Light
-                        OreThemeId.Light -> OreThemeId.Twilight
-                        else -> OreThemeId.Default
+                        ThemeId.Default -> ThemeId.Light
+                        ThemeId.Light -> ThemeId.Twilight
+                        else -> ThemeId.Default
                     }
                 OreButton(
                     when (next) {
-                        OreThemeId.Light -> label("Light", "浅色")
-                        OreThemeId.Twilight -> label("Twilight", "暮光")
+                        ThemeId.Light -> label("Light", "浅色")
+                        ThemeId.Twilight -> label("Twilight", "暮光")
                         else -> label("Dark", "深色")
                     },
                     { model.theme = next },

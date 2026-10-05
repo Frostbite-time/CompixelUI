@@ -4,6 +4,8 @@
 
 Ore screens take their colors from a theme. Resource packs can recolor them with small JSON files, and no code is needed. A theme changes colors only: panels, text, buttons, slots and so on. Layouts, item textures and Minecraft's own item tooltips stay as they are.
 
+A theme file can also hold colors of other mods' own designs, each in its own section next to Ore's; see [For mod developers](#for-mod-developers).
+
 ## Built-in themes
 
 CompixelUI comes with three complete color schemes.
@@ -18,7 +20,7 @@ CompixelUI comes with three complete color schemes.
 
 ![Ore controls in the twilight theme](../assets/ore-twilight.png)
 
-A resource pack switches a screen to one of them with `preset`, described below. A mod can also select one directly for a screen with `OreThemeId.Light` or `OreThemeId.Twilight`.
+A resource pack switches a screen to one of them with `preset`, described below. A mod can also select one directly for a screen with `ThemeId.Light` or `ThemeId.Twilight`.
 
 ## Write a theme file
 
@@ -27,13 +29,22 @@ Every theme file uses the same format. Here is a complete file that turns a scre
 ```json
 {
   "format": 1,
-  "preset": "light"
+  "ore": {
+    "preset": "light"
+  }
 }
 ```
 
 | Field | Required | Value | What it does |
 | --- | --- | --- | --- |
 | `format` | Yes | `1` | The version of this file format. It isn't the Minecraft version or the pack's `pack_format`. |
+| `ore` | No | An object with the fields below | Colors of Ore controls. |
+| Other names | No | Whatever that mod documents | Colors of a mod's own design, such as `"examplemod"`. |
+
+Inside `ore`:
+
+| Field | Required | Value | What it does |
+| --- | --- | --- | --- |
 | `preset` | No | `"default"`, `"light"` or `"twilight"` | Starts over from a built-in scheme. |
 | `palette` | No | Base colors for `primary`, `secondary` or `danger` | Generates a matching set of colors for those controls. |
 | `colors` | No | Colors for individual parts | Sets exact colors, one part at a time. |
@@ -42,7 +53,7 @@ Only write what you want to change; everything else keeps its current color. JSO
 
 ### `preset`: start from a built-in scheme
 
-A preset replaces every color with one of the built-in schemes, then applies the rest of the file. So `"preset": "default"` means "start again from the dark default". To build on the colors a screen already has, leave `preset` out.
+A preset replaces every color with one of the built-in schemes, then applies the rest of the section. So `"preset": "default"` means "start again from the dark default". To build on the colors a screen already has, leave `preset` out.
 
 The value names a built-in scheme; it isn't a file path, a mod ID or a theme ID. For your own colors, use `palette` and `colors`.
 
@@ -61,8 +72,10 @@ This file keeps the current scheme and makes its accent blue:
 ```json
 {
   "format": 1,
-  "palette": {
-    "primary": "#5688D8"
+  "ore": {
+    "palette": {
+      "primary": "#5688D8"
+    }
   }
 }
 ```
@@ -76,9 +89,11 @@ This file changes only the panel background and the body text:
 ```json
 {
   "format": 1,
-  "colors": {
-    "panel": "#252B38",
-    "text": "#EEF2F8"
+  "ore": {
+    "colors": {
+      "panel": "#252B38",
+      "text": "#EEF2F8"
+    }
   }
 }
 ```
@@ -89,18 +104,20 @@ Every name you can use is listed under [Color names](#color-names).
 
 ### Combine them
 
-A file always applies `preset`, then `palette`, then `colors`, whatever order you write them in. This one starts from the light scheme, swaps the violet accent for blue, then sets two colors exactly:
+A section always applies `preset`, then `palette`, then `colors`, whatever order you write them in. This one starts from the light scheme, swaps the violet accent for blue, then sets two colors exactly:
 
 ```json
 {
   "format": 1,
-  "preset": "light",
-  "palette": {
-    "primary": "#5688D8"
-  },
-  "colors": {
-    "panel": "#E6E9EF",
-    "primaryHover": "#365C9C"
+  "ore": {
+    "preset": "light",
+    "palette": {
+      "primary": "#5688D8"
+    },
+    "colors": {
+      "panel": "#E6E9EF",
+      "primaryHover": "#365C9C"
+    }
   }
 }
 ```
@@ -119,19 +136,19 @@ your-resource-pack/
 └── assets/
     └── examplemod/
         └── compixel/
-            └── ore_themes/
+            └── themes/
                 └── storage.json
 ```
 
-Replace `examplemod` and `storage` with the ID the mod publishes; `assets`, `compixel` and `ore_themes` stay as they are. IDs are lower case, and a `/` in a theme name becomes a subfolder.
+Replace `examplemod` and `storage` with the ID the mod publishes; `assets`, `compixel` and `themes` stay as they are. IDs are lower case, and a `/` in a theme name becomes a subfolder.
 
 | To change | Put the file at |
 | --- | --- |
-| Every Ore screen | `assets/compixel/compixel/ore_themes/default.json` |
-| Every screen of one mod | `assets/examplemod/compixel/ore_themes/default.json` |
-| One theme | `assets/examplemod/compixel/ore_themes/storage.json` |
-| The built-in light theme | `assets/compixel/compixel/ore_themes/light.json` |
-| The built-in twilight theme | `assets/compixel/compixel/ore_themes/twilight.json` |
+| Every screen | `assets/compixel/compixel/themes/default.json` |
+| Every screen of one mod | `assets/examplemod/compixel/themes/default.json` |
+| One theme | `assets/examplemod/compixel/themes/storage.json` |
+| The built-in light theme | `assets/compixel/compixel/themes/light.json` |
+| The built-in twilight theme | `assets/compixel/compixel/themes/twilight.json` |
 
 A file only affects screens that use its exact theme ID. `storage.json` does nothing unless a screen uses `examplemod:storage`, so look up the IDs in the mod's resource-pack notes rather than guessing from the mod name. Mods may share one theme between screens or use the `compixel` namespace.
 
@@ -140,9 +157,9 @@ A file only affects screens that use its exact theme ID. `storage.json` does not
 For `examplemod:storage`, colors are built up in this order:
 
 1. The built-in default scheme.
-2. `assets/compixel/compixel/ore_themes/default.json`, for every screen.
-3. `assets/examplemod/compixel/ore_themes/default.json`, for the mod.
-4. `assets/examplemod/compixel/ore_themes/storage.json`, for the theme.
+2. `assets/compixel/compixel/themes/default.json`, for every screen.
+3. `assets/examplemod/compixel/themes/default.json`, for the mod.
+4. `assets/examplemod/compixel/themes/storage.json`, for the theme.
 
 Missing files are skipped. When several resource packs contain the same file, all of them apply, from the lowest-priority pack to the highest, after the mod's own bundled copy. Each file changes only the fields it contains, except that `preset` resets every color and `palette` regenerates its whole family.
 
@@ -152,11 +169,13 @@ The more specific file always wins over a more general one, whatever the pack or
 
 The built-in light and twilight themes are the exception. They start from their own scheme and skip the global `default.json`; only `light.json` or `twilight.json` applies on top. Editing those files changes only screens that use the built-in theme, not `"preset": "light"` or `"preset": "twilight"` in other files.
 
+Each section stacks on its own in the same way: a file without an `examplemod` section leaves that mod's colors as the files below it set them.
+
 ## Color names
 
 Colors are written `"#RRGGBB"`, or `"#RRGGBBAA"` with an opacity from `00` (transparent) to `FF` (opaque). For example, `"#00000080"` is half-transparent black. Upper and lower case both work, but the `#` is required; names such as `red`, `rgb(…)` and short forms such as `#FFF` aren't accepted.
 
-These are all the names `colors` accepts. Several controls share some of them, so the table lists typical uses. Parts a mod colors itself aren't affected.
+These are all the names `colors` in `ore` accepts. Several controls share some of them, so the table lists typical uses. Parts a mod colors itself aren't affected.
 
 | Name | Where it appears |
 | --- | --- |
@@ -206,7 +225,7 @@ These are all the names `colors` accepts. Several controls share some of them, s
 | `disabledEdge` | Edges of disabled controls |
 | `focus` | The outline around the focused control |
 
-Colors set in `colors` don't adjust each other: changing `text` doesn't change `onPrimary`, and changing `slot` doesn't regenerate the hover colors. `palette` runs before `colors`, so a `colors.slot` or `colors.bevelLight` in the same file doesn't affect generated colors either. Set each color you want exactly.
+Colors set in `colors` don't adjust each other: changing `text` doesn't change `onPrimary`, and changing `slot` doesn't regenerate the hover colors. `palette` runs before `colors`, so a `colors.slot` or `colors.bevelLight` in the same section doesn't affect generated colors either. Set each color you want exactly.
 
 ## Try it in game
 
@@ -216,26 +235,80 @@ If a change doesn't show up, check:
 
 1. The file path matches the theme ID the screen uses, and no more specific file overrides your color.
 2. The pack is enabled, and no higher-priority pack replaces the same file.
-3. The JSON is valid, has `"format": 1`, uses `"default"`, `"light"` or `"twilight"` as `preset`, and spells every color name and value correctly.
-4. `logs/latest.log` mentions `Skipping Ore theme`, followed by the file, the pack and the reason.
+3. The JSON is valid, has `"format": 1`, puts Ore's fields inside `"ore"`, uses `"default"`, `"light"` or `"twilight"` as `preset`, and spells every color name and value correctly.
+4. `logs/latest.log` mentions `Skipping theme` or `Ignoring theme`, followed by the file, the pack and the reason.
 
-A file with an unknown field, an invalid color, an unknown preset or broken JSON is skipped as a whole; other files still apply. Theme files are only read on the client.
+A file with broken JSON or another `format` is skipped as a whole. A section with an unknown field, an invalid color or an unknown preset is ignored on its own: the file's other sections and the other files still apply. Theme files are only read on the client.
 
 ## For mod developers
 
 Give each screen a theme ID so resource packs can target it:
 
 ```kotlin
-import dev.compixel.ui.ore.theme.OreThemeId
+import dev.compixel.ui.theme.ThemeId
 
 class StorageScreen :
-    ComposeScreen<StorageState, StorageAction>(Component.literal("Storage"), theme = OreThemeId("examplemod", "storage")) {
+    ComposeScreen<StorageState, StorageAction>(Component.literal("Storage"), theme = ThemeId("examplemod", "storage")) {
     // snapshot, handle and Content as usual
 }
 ```
 
-- Publish your screens' theme IDs and their file paths in your mod's documentation, for example "Storage: `examplemod:storage`, `assets/examplemod/compixel/ore_themes/storage.json`". To ship your own colors, put a file at the same path under `src/main/resources`; resource packs can still override it.
+- Publish your screens' theme IDs and their file paths in your mod's documentation, for example "Storage: `examplemod:storage`, `assets/examplemod/compixel/themes/storage.json`". To ship your own colors, put a file at the same path under `src/main/resources`; resource packs can still override it.
 - `ComposeMenuScreen`, `ComposeInventoryScreen`, `ComposeHudLayer` and `ComposeConfigScreen` take `theme` too. Screens default to `compixel:default`, and config screens to `<modid>:default` for the mod they edit.
-- Pass `OreThemeId.Light` or `OreThemeId.Twilight` to use a built-in theme.
-- Dialogs, menus and Compose tooltips inherit the screen's theme. To theme part of a screen differently, wrap it in `OreTheme(id = OreThemeId("examplemod", "inspector")) { … }`.
-- `OreTheme(colors = …)` applies fixed colors that resource packs can't change. Hosts outside Minecraft can supply their own `OreThemeCatalog` through `OreThemeResources`.
+- Pass `ThemeId.Light` or `ThemeId.Twilight` to use a built-in theme.
+- Dialogs, menus and Compose tooltips inherit the screen's theme. To theme part of a screen differently, wrap it in `OreTheme(id = ThemeId("examplemod", "inspector")) { … }`.
+- `OreTheme(colors = …)` applies fixed colors that resource packs can't change. Hosts outside Minecraft provide their theme files as a `ThemeCatalog` through `LocalThemeCatalog`.
+
+### Add your own colors
+
+When your mod draws parts of its own, give their colors a section of their own instead of borrowing Ore's names, so resource packs can change them without touching Ore controls. Declare the section once; it reads the decoded JSON of each file and returns the updated value:
+
+```kotlin
+import dev.compixel.ui.theme.ThemeId
+import dev.compixel.ui.theme.ThemeSection
+import dev.compixel.ui.theme.current
+
+data class StorageColors(val accent: Color = Color(0xFF22C7F0), val online: Color = Color(0xFF17A56C))
+
+object StorageThemeSection : ThemeSection<StorageColors>("examplemod") {
+    override val default = StorageColors()
+
+    override fun apply(value: StorageColors, layer: Any?): StorageColors {
+        require(layer is Map<*, *>) { "expected an object" }
+        fun color(name: String, old: Color): Color {
+            val hex = layer[name] ?: return old
+            require(hex is String && hex.matches(Regex("#[0-9a-fA-F]{6}"))) { "$name: expected #RRGGBB" }
+            return Color(0xFF000000 or hex.drop(1).toLong(16))
+        }
+        return StorageColors(color("accent", value.accent), color("online", value.online))
+    }
+}
+
+// In composition: this theme's colors in the current resources.
+val colors = StorageThemeSection.current(ThemeId("examplemod", "storage"))
+```
+
+A resource pack then writes `"examplemod": { "accent": "#5688D8" }` next to `"ore"` in the same file. Your section stacks like Ore's, an invalid one is ignored without affecting the file's other sections, and open screens update on **F3+T**. Throw from `apply`, for example with `require`, to reject a file; document the fields you accept.
+
+### Use your own design system
+
+Screens wrap their content in a design, Ore by default. To set up your own components around every screen, pass a `UiDesign`:
+
+```kotlin
+val LocalStorageColors = staticCompositionLocalOf { StorageColors() }
+
+object StorageDesign : UiDesign {
+    @Composable
+    override fun Decorate(theme: ThemeId, content: @Composable () -> Unit) {
+        // Keep Ore for the Ore controls you still use, and add your own colors around the content.
+        OreDesign.Decorate(theme) {
+            CompositionLocalProvider(LocalStorageColors provides StorageThemeSection.current(theme), content = content)
+        }
+    }
+}
+
+class StorageScreen :
+    ComposeScreen<StorageState, StorageAction>(Component.literal("Storage"), theme = ThemeId("examplemod", "storage"), design = StorageDesign)
+```
+
+`UiDesign.None` shows content without any design. Your own controls give the native click sound like Ore's buttons by calling `LocalUiFeedback.current.activate()` when the user activates them, for example right after `onClick`; the screen plays it on the game thread.

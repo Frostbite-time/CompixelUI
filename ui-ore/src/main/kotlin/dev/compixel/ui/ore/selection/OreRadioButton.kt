@@ -22,8 +22,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import dev.compixel.ui.LocalUiFeedback
 import dev.compixel.ui.ore.display.OreText
-import dev.compixel.ui.ore.theme.LocalOreFeedback
 import dev.compixel.ui.ore.theme.OreTheme
 import kotlin.math.roundToInt
 
@@ -41,7 +41,7 @@ fun OreRadioButton(
     val hovered by interactions.collectIsHoveredAsState()
     val pressed by interactions.collectIsPressedAsState()
     val colors = OreTheme.colors
-    val feedback = LocalOreFeedback.current
+    val feedback = LocalUiFeedback.current
     Row(
         modifier.heightIn(min = 18.dp).selectable(
             selected,

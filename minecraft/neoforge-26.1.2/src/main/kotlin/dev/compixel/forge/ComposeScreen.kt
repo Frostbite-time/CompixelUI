@@ -8,7 +8,9 @@ import dev.compixel.forge.item.NativeTooltipStatistics
 import dev.compixel.forge.render.configuredRenderBackend
 import dev.compixel.host.UiStateBinding
 import dev.compixel.render.*
-import dev.compixel.ui.ore.theme.OreThemeId
+import dev.compixel.ui.UiDesign
+import dev.compixel.ui.ore.theme.OreDesign
+import dev.compixel.ui.theme.ThemeId
 import java.util.concurrent.atomic.AtomicBoolean
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
@@ -40,7 +42,8 @@ abstract class ComposeScreen<S, A>(
     nativeItemOptions: NativeItemOptions = NativeItemOptions(),
     nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
     minimumUiDensity: Float = 1f,
-    theme: OreThemeId = OreThemeId.Default,
+    theme: ThemeId = ThemeId.Default,
+    design: UiDesign = OreDesign,
 ) : Screen(title) {
     /** The content's game state, opened and closed with each Compose session. */
     internal val contentState = UiStateBinding<S, A>(::snapshot, ::handle)
@@ -51,6 +54,7 @@ abstract class ComposeScreen<S, A>(
             nativeItemOptions,
             minimumUiDensity,
             theme = theme,
+            design = design,
             nativeDrawingOptions = nativeDrawingOptions,
             windowFocused = { isUiWindowFocused() },
             contentState = contentState,

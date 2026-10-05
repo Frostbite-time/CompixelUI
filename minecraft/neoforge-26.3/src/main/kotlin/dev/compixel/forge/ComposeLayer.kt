@@ -26,7 +26,7 @@ import dev.compixel.forge.render.ScreenFrameRenderer
 import dev.compixel.forge.render.ScreenRenderDestination
 import dev.compixel.forge.render.configuredRenderBackend
 import dev.compixel.forge.render.createScreenRenderer
-import dev.compixel.forge.theme.OreThemeReloadListener
+import dev.compixel.forge.theme.ThemeReloadListener
 import dev.compixel.host.ClipboardMailbox
 import dev.compixel.host.CommittedCharacters
 import dev.compixel.host.ScreenMetrics
@@ -35,10 +35,12 @@ import dev.compixel.host.UiSession
 import dev.compixel.host.UiStateBinding
 import dev.compixel.platform.*
 import dev.compixel.render.*
-import dev.compixel.ui.ore.theme.OreFeedback
-import dev.compixel.ui.ore.theme.OreTheme
-import dev.compixel.ui.ore.theme.OreThemeId
-import dev.compixel.ui.ore.theme.OreThemeResources
+import dev.compixel.ui.LocalUiFeedback
+import dev.compixel.ui.UiDesign
+import dev.compixel.ui.UiFeedback
+import dev.compixel.ui.ore.theme.OreDesign
+import dev.compixel.ui.theme.LocalThemeCatalog
+import dev.compixel.ui.theme.ThemeId
 import java.util.concurrent.atomic.AtomicBoolean
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
@@ -58,7 +60,8 @@ internal class ComposeLayer(
     private val guiUnitsPerDp: Float = 1f,
     private val nativeItemOptions: NativeItemOptions = NativeItemOptions(),
     private val minimumUiDensity: Float = 1f,
-    private val theme: OreThemeId = OreThemeId.Default,
+    private val theme: ThemeId = ThemeId.Default,
+    private val design: UiDesign = OreDesign,
     private val nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
     private val windowFocused: () -> Boolean,
     /** Adapter-owned layout-to-snapshot handoff, on the game thread before presentation. */
@@ -72,8 +75,8 @@ internal class ComposeLayer(
 
     private val clipboard = ClipboardMailbox()
     private val characters = CommittedCharacters()
-    private val pendingOreFeedback = AtomicBoolean()
-    private val oreFeedback = OreFeedback { pendingOreFeedback.set(true) }
+    private val pendingFeedback = AtomicBoolean()
+    private val feedback = UiFeedback { pendingFeedback.set(true) }
     private val logger = LogUtils.getLogger()
     // Whether this session already warned that its content sent more actions than the screen can queue.
     private var rejectionsReported = false
@@ -100,11 +103,11 @@ internal class ComposeLayer(
         get() = ComposeThread.call { tooltipMailbox.bounds }
 
     private var resourceEpoch = RendererResources.epoch
-    private var themeCatalog = OreThemeReloadListener.catalog
+    private var themeCatalog = ThemeReloadListener.catalog
     private val themeState = ComposeThread.call { mutableStateOf(themeCatalog) }
 
     private fun refreshTheme() {
-        val next = OreThemeReloadListener.catalog
+        val next = ThemeReloadListener.catalog
         if (themeCatalog === next) return
         themeCatalog = next
         ComposeThread.call { themeState.value = next }
@@ -162,10 +165,10 @@ internal class ComposeLayer(
                             LocalItemImages provides itemMailbox,
                             LocalNativeDrawings provides drawingMailbox,
                             LocalItemTooltips provides tooltipMailbox,
+                            LocalUiFeedback provides feedback,
+                            LocalThemeCatalog provides themeState.value,
                         ) {
-                            OreThemeResources(themeState.value) {
-                                OreTheme(id = theme, feedback = oreFeedback, content = content)
-                            }
+                            design.Decorate(theme, content)
                         }
                     }
                 renderer = backend
@@ -319,7 +322,7 @@ internal class ComposeLayer(
     fun tick() {
         updateWindowFocus()
         flushClipboard()
-        flushOreFeedback()
+        flushFeedback()
         reportRejectedActions()
     }
 
@@ -342,14 +345,14 @@ internal class ComposeLayer(
         ComposeThread.call { tooltipMailbox.dismiss() }
         val consumed = session?.key(KeyInput(event.toUiKey(), true, event.modifiers().toModifiers())) == true
         flushClipboard()
-        flushOreFeedback()
+        flushFeedback()
         return consumed
     }
 
     fun keyReleased(event: KeyEvent): Boolean {
         val consumed = session?.key(KeyInput(event.toUiKey(), false, event.modifiers().toModifiers())) == true
         flushClipboard()
-        flushOreFeedback()
+        flushFeedback()
         return consumed
     }
 
@@ -428,8 +431,8 @@ internal class ComposeLayer(
         }
     }
 
-    private fun flushOreFeedback() {
-        if (pendingOreFeedback.getAndSet(false)) {
+    private fun flushFeedback() {
+        if (pendingFeedback.getAndSet(false)) {
             Minecraft.getInstance().soundManager.play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1f))
         }
     }
@@ -502,7 +505,7 @@ internal class ComposeLayer(
                     ),
                 )
             ) ?: false
-        flushOreFeedback()
+        flushFeedback()
         return consumed
     }
 }

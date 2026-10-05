@@ -20,12 +20,12 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
+import dev.compixel.ui.LocalUiFeedback
 import dev.compixel.ui.ore.display.OreGlyph
 import dev.compixel.ui.ore.display.OreIcon
 import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.internal.oreFrame
 import dev.compixel.ui.ore.internal.oreOutline
-import dev.compixel.ui.ore.theme.LocalOreFeedback
 import dev.compixel.ui.ore.theme.OreTheme
 
 @Composable
@@ -59,7 +59,7 @@ fun OreCheckbox(
     val hovered by interactions.collectIsHoveredAsState()
     val pressed by interactions.collectIsPressedAsState()
     val colors = OreTheme.colors
-    val feedback = LocalOreFeedback.current
+    val feedback = LocalUiFeedback.current
     Row(
         modifier.heightIn(min = 18.dp).triStateToggleable(
             state,

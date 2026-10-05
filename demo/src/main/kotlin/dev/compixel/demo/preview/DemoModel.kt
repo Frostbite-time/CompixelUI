@@ -1,7 +1,7 @@
 package dev.compixel.demo.preview
 
 import androidx.compose.runtime.*
-import dev.compixel.ui.ore.theme.OreThemeId
+import dev.compixel.ui.theme.ThemeId
 
 enum class Fixture {
     READY,
@@ -32,7 +32,7 @@ enum class DemoPage {
 }
 
 class DemoModel {
-    var theme by mutableStateOf(OreThemeId.Default)
+    var theme by mutableStateOf(ThemeId.Default)
     val itemBrowser = ItemBrowserModel()
     val bounds = mutableMapOf<String, androidx.compose.ui.geometry.Rect>()
     var locale by mutableStateOf("en_us")

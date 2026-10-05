@@ -18,11 +18,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import dev.compixel.ui.LocalUiFeedback
 import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.internal.oreButtonContentOffset
 import dev.compixel.ui.ore.internal.oreButtonFrame
 import dev.compixel.ui.ore.theme.LocalOreContentColor
-import dev.compixel.ui.ore.theme.LocalOreFeedback
 import dev.compixel.ui.ore.theme.OreTheme
 
 enum class OreButtonStyle {
@@ -55,7 +55,7 @@ fun OreButton(
     val hovered by interactions.collectIsHoveredAsState()
     val pressed by interactions.collectIsPressedAsState()
     val colors = OreTheme.colors
-    val feedback = LocalOreFeedback.current
+    val feedback = LocalUiFeedback.current
     val ink =
         when {
             !enabled -> colors.disabledText

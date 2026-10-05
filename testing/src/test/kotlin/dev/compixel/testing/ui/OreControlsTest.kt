@@ -11,6 +11,8 @@ import androidx.compose.ui.unit.dp
 import dev.compixel.bridge.ComposeThread
 import dev.compixel.host.UiSession
 import dev.compixel.platform.*
+import dev.compixel.ui.LocalUiFeedback
+import dev.compixel.ui.UiFeedback
 import dev.compixel.ui.ore.button.OreButton
 import dev.compixel.ui.ore.button.OreButtonStyle
 import dev.compixel.ui.ore.button.OreIconButton
@@ -20,7 +22,6 @@ import dev.compixel.ui.ore.input.OreTextField
 import dev.compixel.ui.ore.inventory.OreSlot
 import dev.compixel.ui.ore.selection.OreCheckbox
 import dev.compixel.ui.ore.selection.OreSwitch
-import dev.compixel.ui.ore.theme.OreFeedback
 import dev.compixel.ui.ore.theme.OreTheme
 import kotlin.test.*
 import org.junit.jupiter.api.Test
@@ -33,7 +34,7 @@ class OreControlsTest {
             var clicks = 0
             var feedback = 0
             Fixture { bound ->
-                OreTheme(feedback = OreFeedback { feedback++ }) {
+                CompositionLocalProvider(LocalUiFeedback provides UiFeedback { feedback++ }) {
                     OreIconButton(
                         "Custom action",
                         { clicks++ },
@@ -281,7 +282,7 @@ class OreControlsTest {
         var clicks = 0
         var feedback = 0
         Fixture { bound ->
-            OreTheme(feedback = OreFeedback { feedback++ }) {
+            CompositionLocalProvider(LocalUiFeedback provides UiFeedback { feedback++ }) {
                 OreButton("Enabled", { clicks++ }, bound("enabled").width(200.dp))
                 OreButton("Disabled", { clicks += 100 }, bound("disabled").width(200.dp), enabled = false)
             }

@@ -5,9 +5,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 
-/** A validated file layer. Exact tokens override generated palette roles within the same layer. */
+/**
+ * A validated `"ore"` section of one theme file. Exact tokens override generated palette roles within the same file.
+ */
 @Immutable
-class OreThemePatch
+internal class OreThemePatch
 private constructor(
     private val preset: String?,
     private val palette: Map<String, Color>,
@@ -27,13 +29,9 @@ private constructor(
     }
 
     companion object {
-        /** Parse the JSON object's neutral values. Invalid files fail as one layer, never partially apply. */
-        fun parse(document: Map<String, Any?>): OreThemePatch {
-            document.keys.forEach {
-                require(it in setOf("format", "preset", "palette", "colors")) { "Unknown field: $it" }
-            }
-            val format = document["format"]
-            require(format is Number && format.toDouble() == 1.0) { "format: expected 1" }
+        /** Parses the section's decoded JSON object. An invalid section fails as a whole, never partially applies. */
+        fun parse(document: Map<*, *>): OreThemePatch {
+            document.keys.forEach { require(it in setOf("preset", "palette", "colors")) { "Unknown field: $it" } }
             val preset = document["preset"]
             require("preset" !in document || preset in setOf("default", "light", "twilight")) {
                 "preset: expected default, light or twilight"

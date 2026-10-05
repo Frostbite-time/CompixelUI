@@ -29,7 +29,7 @@ rootProject.name = "CompixelUI"
 
 include("platform", "render", "render-gl", "render-vulkan", "compose-bridge", "host", "demo", "desktop", "testing")
 
-include("ui-ore", "menu-sync", "slot-core", "runtime-standard", "runtime-vulkan", "runtime-kotlin")
+include("ui-core", "ui-ore", "menu-sync", "slot-core", "runtime-standard", "runtime-vulkan", "runtime-kotlin")
 
 val targets = Properties().apply { file("gradle/minecraft-targets.properties").reader().use { load(it) } }
 val supported = targets.getProperty("targets").split(",")

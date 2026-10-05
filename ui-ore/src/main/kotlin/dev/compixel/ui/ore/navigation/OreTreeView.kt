@@ -35,6 +35,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.compixel.ui.LocalUiFeedback
 import dev.compixel.ui.ore.button.OreButton
 import dev.compixel.ui.ore.button.OreButtonStyle
 import dev.compixel.ui.ore.display.OreText
@@ -42,7 +43,6 @@ import dev.compixel.ui.ore.internal.oreOutline
 import dev.compixel.ui.ore.layout.OreSurface
 import dev.compixel.ui.ore.scroll.OreScrollbar
 import dev.compixel.ui.ore.theme.LocalOreContentColor
-import dev.compixel.ui.ore.theme.LocalOreFeedback
 import dev.compixel.ui.ore.theme.OreTheme
 import kotlinx.coroutines.launch
 
@@ -95,7 +95,7 @@ fun OreTreeView(
     val focus = remember { FocusRequester() }
     var focusedId by remember { mutableStateOf(selectedId) }
     var hasFocus by remember { mutableStateOf(false) }
-    val feedback = LocalOreFeedback.current
+    val feedback = LocalUiFeedback.current
     LaunchedEffect(rows) {
         if (rows.none { it.node.id == focusedId && it.node.enabled })
             focusedId =

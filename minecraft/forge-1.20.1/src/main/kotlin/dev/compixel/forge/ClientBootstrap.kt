@@ -1,7 +1,7 @@
 package dev.compixel.forge
 
 import dev.compixel.forge.render.RendererResources
-import dev.compixel.forge.theme.OreThemeReloadListener
+import dev.compixel.forge.theme.ThemeReloadListener
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent
 import net.minecraftforge.client.event.RegisterClientReloadListenersEvent
@@ -18,7 +18,7 @@ internal object ClientBootstrap {
     }
 
     private fun registerReloadListeners(event: RegisterClientReloadListenersEvent) {
-        event.registerReloadListener(OreThemeReloadListener)
+        event.registerReloadListener(ThemeReloadListener)
         event.registerReloadListener(ResourceManagerReloadListener { RendererResources.reloaded() })
     }
 

@@ -14,6 +14,9 @@ import dev.compixel.ui.ore.button.OreButton
 import dev.compixel.ui.ore.input.OreTextField
 import dev.compixel.ui.ore.layout.OreScreen
 import dev.compixel.ui.ore.theme.*
+import dev.compixel.ui.theme.ThemeId
+import dev.compixel.ui.theme.ThemeSection
+import dev.compixel.ui.theme.current
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
@@ -29,8 +32,19 @@ internal class ThemeAcceptance(
     private val minecraft
         get() = Minecraft.getInstance()
 
-    private val owner = OreThemeId("compixel_theme_test", "storage")
-    private val other = OreThemeId("compixel_other_test")
+    /** A section of the fixture's own, as a mod declares next to Ore's for its own tokens. */
+    private object AccentSection : ThemeSection<String>("compixel_theme_test") {
+        override val default = "none"
+
+        override fun apply(value: String, layer: Any?): String {
+            require(layer is Map<*, *>) { "expected an object" }
+            return layer["accent"] as? String ?: value
+        }
+    }
+
+    private val owner = ThemeId("compixel_theme_test", "storage")
+    private val other = ThemeId("compixel_other_test")
+    private var accent = ""
     private val packs = mutableListOf<File>()
     private var originalPacks: List<String>? = null
     private lateinit var screen: ComposeScreen<Unit, Nothing>
@@ -57,10 +71,12 @@ internal class ThemeAcceptance(
                             mutableStateOf("")
                         }
                         val current = OreTheme.colors
+                        val ownAccent = AccentSection.current(owner)
                         var isolated = current
                         OreTheme(other) { isolated = OreTheme.colors }
                         SideEffect {
                             colors = current
+                            accent = ownAccent
                             otherColors = isolated
                             draft = text
                             edit = { text = it }
@@ -90,14 +106,20 @@ internal class ThemeAcceptance(
                         """{"pack":{"pack_format":34,"supported_formats":[0,9999],"min_format":0,"max_format":9999,"description":"CompixelUI theme acceptance"}}"""
                     )
             }
-            write(0, "compixel_theme_test", "default", """{"format":1,"preset":"light"}""")
-            write(0, "compixel_theme_test", "storage", """{"format":1,"colors":{"panel":"#CFD4E2"}}""")
-            write(0, "compixel_other_test", "default", """{"format":1,"colors":{"panel":"#223344"}}""")
+            write(0, "compixel_theme_test", "default", """{"format":1,"ore":{"preset":"light"}}""")
+            write(
+                0,
+                "compixel_theme_test",
+                "storage",
+                """{"format":1,"ore":{"colors":{"panel":"#CFD4E2"}},"compixel_theme_test":{"accent":"lower"}}""",
+            )
+            write(0, "compixel_other_test", "default", """{"format":1,"ore":{"colors":{"panel":"#223344"}}}""")
             write(
                 1,
                 "compixel_theme_test",
                 "storage",
-                """{"format":1,"palette":{"primary":"#426B99"},"colors":{"panel":"#E2DACA"}}""",
+                """{"format":1,"ore":{"palette":{"primary":"#426B99"},"colors":{"panel":"#E2DACA"}},""" +
+                    """"compixel_theme_test":{"accent":"higher"}}""",
             )
             minecraft.resourcePackRepository.reload()
             minecraft.resourcePackRepository.setSelected(checkNotNull(originalPacks) + packs.map { "file/${it.name}" })
@@ -108,24 +130,29 @@ internal class ThemeAcceptance(
             check(colors.primary == Color(0xFF426B99) && colors.trackFilled == colors.primary)
             check(colors.text == OrePalettes.Light.text)
             check(otherColors.panel == Color(0xFF223344))
+            check(accent == "higher") { "A mod's own theme section did not follow the pack layers: $accent" }
         }
-        script.act("replace the top theme with an invalid file") {
+        script.act("replace the top theme with an invalid Ore section") {
             write(
                 1,
                 "compixel_theme_test",
                 "storage",
-                """{"format":1,"colors":{"panel":"#000000","typo":"#FFFFFF"}}""",
+                """{"format":1,"ore":{"colors":{"panel":"#000000","typo":"#FFFFFF"}},""" +
+                    """"compixel_theme_test":{"accent":"isolated"}}""",
             )
             reload = minecraft.reloadResourcePacks()
         }
         awaitReload("invalid theme fallback", Color(0xFFCFD4E2)) {
             check(colors.primary == OrePalettes.Light.primary)
+            check(accent == "isolated") { "An invalid Ore section discarded the file's other sections: $accent" }
         }
         script.act("remove the theme packs") {
             minecraft.resourcePackRepository.setSelected(checkNotNull(originalPacks))
             reload = minecraft.reloadResourcePacks()
         }
-        awaitReload("removed themes", OreColors().panel) { check(colors == OreColors() && otherColors == OreColors()) }
+        awaitReload("removed themes", OreColors().panel) {
+            check(colors == OreColors() && otherColors == OreColors() && accent == AccentSection.default)
+        }
         script.act("finish resource theme acceptance") {
             session.open(SuiteParentScreen())
             session.requireReleased(screen)
@@ -158,7 +185,7 @@ internal class ThemeAcceptance(
     }
 
     private fun write(priority: Int, namespace: String, name: String, json: String) {
-        val file = File(packs[priority], "assets/$namespace/compixel/ore_themes/$name.json")
+        val file = File(packs[priority], "assets/$namespace/compixel/themes/$name.json")
         file.parentFile.mkdirs()
         file.writeText(json)
     }

@@ -13,7 +13,9 @@ flowchart TB
         bridge --> render
         gl[render-gl] --> render
         vk[render-vulkan] --> render
-        ore[ui-ore]
+        core[ui-core]
+        host --> core
+        ore[ui-ore] --> core
         sync["menu-sync · slot-core"]
     end
     adapter --> host
@@ -32,6 +34,7 @@ flowchart TB
 | `compose-bridge` | Runs Compose on its own thread, records frames and draws native images |
 | `host` | UI sessions and `UiBinding` |
 | `render-gl`, `render-vulkan` | The OpenGL and Vulkan renderers |
+| `ui-core` | What a design system plugs into: control feedback, the design around a host's content, and theme files with a section per design system |
 | `ui-ore` | Ore UI components, theme and font |
 | `menu-sync` | The menu synchronization protocol, with the client's and the server's sessions |
 | `slot-core` | Slot rules and shift-click routes |

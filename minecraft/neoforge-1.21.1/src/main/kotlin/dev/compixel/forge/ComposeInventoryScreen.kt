@@ -8,7 +8,9 @@ import dev.compixel.forge.slots.SlotBehaviorScreen
 import dev.compixel.host.UiStateBinding
 import dev.compixel.slots.SlotBehavior
 import dev.compixel.slots.SlotIntent
-import dev.compixel.ui.ore.theme.OreThemeId
+import dev.compixel.ui.UiDesign
+import dev.compixel.ui.ore.theme.OreDesign
+import dev.compixel.ui.theme.ThemeId
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.*
 import net.minecraft.client.Minecraft
@@ -34,7 +36,8 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
     protected val container: M,
     title: Component,
     val inventory: ComposeMenuSlots<M> = ComposeMenuSlots(container),
-    theme: OreThemeId = OreThemeId.Default,
+    theme: ThemeId = ThemeId.Default,
+    design: UiDesign = OreDesign,
     nativeItemOptions: NativeItemOptions = NativeItemOptions(cacheCapacity = 256),
     nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
 ) : SlotBehaviorScreen<M>(container, checkNotNull(Minecraft.getInstance().player).inventory, title) {
@@ -45,6 +48,7 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
             nativeItemOptions = nativeItemOptions,
             nativeDrawingOptions = nativeDrawingOptions,
             theme = theme,
+            design = design,
             windowFocused = { isUiWindowFocused() },
             prepareFrameContent = { inventory.refreshAfterLayout() },
             contentState = contentState,

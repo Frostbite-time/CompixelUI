@@ -21,7 +21,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import dev.compixel.ui.ore.theme.LocalOreFeedback
+import dev.compixel.ui.LocalUiFeedback
 import dev.compixel.ui.ore.theme.OreTheme
 import kotlin.math.roundToInt
 
@@ -36,7 +36,7 @@ fun OreSwitch(
     val hovered by interactions.collectIsHoveredAsState()
     val pressed by interactions.collectIsPressedAsState()
     val colors = OreTheme.colors
-    val feedback = LocalOreFeedback.current
+    val feedback = LocalUiFeedback.current
     val edge = if (enabled) colors.edge else colors.disabledEdge
     val thumbOffset by
         animateDpAsState(

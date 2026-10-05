@@ -43,13 +43,13 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import dev.compixel.ui.LocalUiFeedback
 import dev.compixel.ui.ore.display.OreGlyph
 import dev.compixel.ui.ore.display.OreIcon
 import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.layout.OreSurface
 import dev.compixel.ui.ore.navigation.OreListItem
 import dev.compixel.ui.ore.scroll.OreScrollbar
-import dev.compixel.ui.ore.theme.LocalOreFeedback
 import dev.compixel.ui.ore.theme.OreTheme
 import kotlinx.coroutines.launch
 
@@ -83,7 +83,7 @@ fun OreMenu(
     val point = offset?.let { with(density) { IntOffset(it.x.roundToPx(), it.y.roundToPx()) } }
     val gap = with(density) { 3.dp.roundToPx() }
     val position = remember(point, gap) { OrePopupPosition(point, gap) }
-    val feedback = LocalOreFeedback.current
+    val feedback = LocalUiFeedback.current
     val focus = remember { FocusRequester() }
     val list = rememberLazyListState()
     val showScrollbar by remember { derivedStateOf { list.canScrollForward || list.canScrollBackward } }

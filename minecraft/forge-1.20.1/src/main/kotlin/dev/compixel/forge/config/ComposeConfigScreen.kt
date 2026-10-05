@@ -32,7 +32,7 @@ import dev.compixel.ui.ore.overlay.OreDialog
 import dev.compixel.ui.ore.scroll.OreScrollbar
 import dev.compixel.ui.ore.selection.OreSwitch
 import dev.compixel.ui.ore.theme.OreTheme
-import dev.compixel.ui.ore.theme.OreThemeId
+import dev.compixel.ui.theme.ThemeId
 import java.util.Locale
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.screens.Screen
@@ -229,7 +229,7 @@ private class ConfigController(val mod: ModContainer, private val close: () -> U
  */
 open class ComposeConfigScreen
 @JvmOverloads
-constructor(mod: ModContainer, private val parent: Screen, theme: OreThemeId = OreThemeId(mod.modId)) :
+constructor(mod: ModContainer, private val parent: Screen, theme: ThemeId = ThemeId(mod.modId)) :
     ComposeScreen<ConfigView, ConfigAction>(Component.literal(mod.modInfo.displayName), theme = theme) {
     private val controller = ConfigController(mod) { Minecraft.getInstance().setScreen(parent) }
 

@@ -2,7 +2,7 @@ package dev.compixel.forge
 
 import dev.compixel.forge.render.FrameRetirement
 import dev.compixel.forge.render.RendererResources
-import dev.compixel.forge.theme.OreThemeReloadListener
+import dev.compixel.forge.theme.ThemeReloadListener
 import net.minecraft.resources.Identifier
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener
 import net.neoforged.bus.api.IEventBus
@@ -23,7 +23,7 @@ internal object ClientBootstrap {
     }
 
     private fun registerReloadListeners(event: AddClientReloadListenersEvent) {
-        event.addListener(Identifier.fromNamespaceAndPath("compixel", "ore_themes"), OreThemeReloadListener)
+        event.addListener(Identifier.fromNamespaceAndPath("compixel", "themes"), ThemeReloadListener)
         event.addListener(
             Identifier.fromNamespaceAndPath("compixel", "renderer_resources"),
             ResourceManagerReloadListener { RendererResources.reloaded() },

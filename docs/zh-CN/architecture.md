@@ -13,7 +13,9 @@ flowchart TB
         bridge --> render
         gl[render-gl] --> render
         vk[render-vulkan] --> render
-        ore[ui-ore]
+        core[ui-core]
+        host --> core
+        ore[ui-ore] --> core
         sync["menu-sync · slot-core"]
     end
     adapter --> host
@@ -32,6 +34,7 @@ flowchart TB
 | `compose-bridge` | 在独立线程运行 Compose，录制帧并绘制原生图像 |
 | `host` | 界面会话与 `UiBinding` |
 | `render-gl`、`render-vulkan` | OpenGL 与 Vulkan 渲染器 |
+| `ui-core` | 设计系统的接入点：控件反馈、宿主内容外层的设计，以及每套设计系统各占一段的主题文件 |
 | `ui-ore` | Ore UI 组件、主题与字体 |
 | `menu-sync` | 菜单同步协议，以及客户端和服务端的会话 |
 | `slot-core` | 槽位规则与 Shift 点击路线 |

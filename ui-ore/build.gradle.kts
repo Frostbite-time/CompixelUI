@@ -4,4 +4,7 @@ plugins {
     id("org.jetbrains.compose")
 }
 
-dependencies { api(compose.foundation) }
+dependencies {
+    api(project(":ui-core"))
+    api(compose.foundation)
+}

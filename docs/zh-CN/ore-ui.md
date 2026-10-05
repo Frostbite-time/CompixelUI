@@ -199,7 +199,7 @@ fun SettingsTree() {
 
 ## 主题与文字
 
-- `OreTheme` 提供 `OreColors` 和 `OreTypography`。给界面指定 `theme = OreThemeId("yourmod", "storage")`，资源包就能为它换色；也可以选用内置的浅色或暮光主题，详见[主题](themes.md)。`OreTheme(colors = …)` 则直接使用固定颜色。
+- `OreTheme` 提供 `OreColors` 和 `OreTypography`。给界面指定 `theme = ThemeId("yourmod", "storage")`，资源包就能为它换色；也可以选用内置的浅色或暮光主题，详见[主题](themes.md)。`OreTheme(colors = …)` 则直接使用固定颜色。
 - 文字使用内置的 Monocraft 字体。它缺少的字符（例如中文）由系统字体补齐，因此显示效果取决于玩家的电脑。
 - `OreSlot` 是 18 dp 的槽位框，内容区 16 dp；[容器界面](inventory.md)用它显示真实的菜单槽位。
 
