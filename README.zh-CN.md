@@ -82,6 +82,6 @@ CompixelUI 是前置库，当你玩的模组需要它时再安装。在 [Release
 
 ## 许可
 
-CompixelUI 以 [MIT 许可证](LICENSE)发布。随附的库保留各自的许可，见[第三方声明](THIRD-PARTY-NOTICES.md)。界面文字使用 Idrees Hassan 的 [Monocraft](https://github.com/IdreesInc/Monocraft) 字体，遵循 [SIL 开放字体许可证 1.1](ui-ore/src/main/resources/dev/compixel/ui/ore/Monocraft-LICENSE.txt)。
+CompixelUI 以 [MIT 许可证](LICENSE)发布。随附的库保留各自的许可，见[第三方声明](THIRD-PARTY-NOTICES.md)。界面文字使用内置的 Compixel 字体，它由 Idrees Hassan 的 [Monocraft](https://github.com/IdreesInc/Monocraft) 与 [GNU Unifont](https://unifoundry.com/unifont/) 合成，遵循 [SIL 开放字体许可证 1.1](ui-ore/src/main/resources/dev/compixel/ui/ore/Compixel-OFL.txt)。
 
 CompixelUI 不是 Minecraft 官方产品，与 Mojang 和 Microsoft 无关。

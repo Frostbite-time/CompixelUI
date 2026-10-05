@@ -200,7 +200,7 @@ Tree rows are created lazily, so ten thousand entries scroll smoothly. For flat 
 ## Theme and text
 
 - `OreTheme` supplies `OreColors` and `OreTypography`. Give a screen `theme = ThemeId("yourmod", "storage")` so resource packs can recolor it, or pick the built-in light or twilight theme; see [Themes](themes.md). `OreTheme(colors = …)` sets fixed colors directly.
-- Text uses the bundled Monocraft font. Characters it lacks, such as Chinese, come from the system fonts, so their look depends on the player's computer.
+- Text uses the bundled Compixel font: Monocraft for the characters it has, and GNU Unifont, which Minecraft also uses, for the other characters of Minecraft's languages, such as Chinese, Japanese and Korean. Text therefore looks the same on every computer. At 9 sp, each Monocraft pixel covers one GUI pixel and each Unifont pixel half of one, as in Minecraft's own text. Emoji, Devanagari, Tamil, Kannada, rare Chinese characters and the scripts of languages Minecraft lacks come from the system fonts, which draw emoji in color and lay out these scripts correctly.
 - `OreSlot` is an 18 dp slot frame with a 16 dp content area; [container screens](inventory.md) use it for real menu slots.
 
 ## Try every component in game

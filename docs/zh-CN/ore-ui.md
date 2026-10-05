@@ -200,7 +200,7 @@ fun SettingsTree() {
 ## 主题与文字
 
 - `OreTheme` 提供 `OreColors` 和 `OreTypography`。给界面指定 `theme = ThemeId("yourmod", "storage")`，资源包就能为它换色；也可以选用内置的浅色或暮光主题，详见[主题](themes.md)。`OreTheme(colors = …)` 则直接使用固定颜色。
-- 文字使用内置的 Monocraft 字体。它缺少的字符（例如中文）由系统字体补齐，因此显示效果取决于玩家的电脑。
+- 文字使用内置的 Compixel 字体：Monocraft 已有的字符用 Monocraft，Minecraft 各语言的其余字符（例如中文、日文和韩文）用 Minecraft 同样采用的 GNU Unifont，因此在每台电脑上显示一致。字号为 9 sp 时，Monocraft 的一个像素正好对应一个界面像素，Unifont 的一个像素对应半个，与 Minecraft 自己的文字相同。emoji、天城文、泰米尔文、卡纳达文、生僻汉字，以及 Minecraft 没有对应语言的文字，由系统字体显示：emoji 是彩色的，这些文字也能正确排版。
 - `OreSlot` 是 18 dp 的槽位框，内容区 16 dp；[容器界面](inventory.md)用它显示真实的菜单槽位。
 
 ## 在游戏中试用全部组件

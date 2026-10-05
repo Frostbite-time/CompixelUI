@@ -89,6 +89,6 @@ It also covers container screens with real slots and menu synchronization betwee
 
 ## License
 
-CompixelUI is released under the [MIT License](https://github.com/Frostbite-time/CompixelUI/blob/main/LICENSE). Bundled libraries keep their own licenses; see the [third-party notices](https://github.com/Frostbite-time/CompixelUI/blob/main/THIRD-PARTY-NOTICES.md). Text uses the [Monocraft](https://github.com/IdreesInc/Monocraft) font by Idrees Hassan, under the [SIL Open Font License 1.1](https://github.com/Frostbite-time/CompixelUI/blob/main/ui-ore/src/main/resources/dev/compixel/ui/ore/Monocraft-LICENSE.txt).
+CompixelUI is released under the [MIT License](https://github.com/Frostbite-time/CompixelUI/blob/main/LICENSE). Bundled libraries keep their own licenses; see the [third-party notices](https://github.com/Frostbite-time/CompixelUI/blob/main/THIRD-PARTY-NOTICES.md). Text uses the bundled Compixel font, which combines [Monocraft](https://github.com/IdreesInc/Monocraft) by Idrees Hassan with [GNU Unifont](https://unifoundry.com/unifont/), under the [SIL Open Font License 1.1](https://github.com/Frostbite-time/CompixelUI/blob/main/ui-ore/src/main/resources/dev/compixel/ui/ore/Compixel-OFL.txt).
 
 CompixelUI is not an official Minecraft product and is not associated with Mojang or Microsoft.

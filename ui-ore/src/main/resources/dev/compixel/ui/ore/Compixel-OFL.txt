@@ -1,8 +1,26 @@
-Copyright (c) 2022, Idrees Hassan (https://github.com/IdreesInc/Monocraft)
+Compixel font
+
+Compixel combines two fonts:
+
+- Monocraft 4.2, Copyright (c) 2022, Idrees Hassan (https://github.com/IdreesInc/Monocraft),
+  licensed under the SIL Open Font License, Version 1.1. Every Monocraft glyph is included unchanged.
+- GNU Unifont 17.0.01, Copyright © 1998-2025 Roman Czyborra, Paul Hardy, Qianqian Fang,
+  Andrew Miller, Johnnie Weaver, David Corbett, Ælla Chiana Moskopp, Rebecca Bettencourt, Ho-Seok Ee,
+  et al. (https://unifoundry.com/unifont/). Its authors release it under a dual license: SIL Open Font
+  License version 1.1, and GNU GPL version 2 or later with the GNU Font Embedding Exception. Compixel
+  uses Unifont under the SIL Open Font License, Version 1.1. For the other characters of the languages
+  Minecraft offers, Unifont's bitmaps were converted to outlines.
+
+CompixelUI's tools/build_font.java builds the font from these two. The license below applies to the
+whole font.
+
+Copyright (c) 2022, Idrees Hassan (https://github.com/IdreesInc/Monocraft),
+Copyright © 1998-2025 Roman Czyborra, Paul Hardy, Qianqian Fang, Andrew Miller, Johnnie Weaver,
+David Corbett, Ælla Chiana Moskopp, Rebecca Bettencourt, Ho-Seok Ee, et al. (https://unifoundry.com/unifont/).
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:
-http://scripts.sil.org/OFL
+https://openfontlicense.org
 
 
 -----------------------------------------------------------

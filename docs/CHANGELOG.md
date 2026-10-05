@@ -1,7 +1,5 @@
-# CompixelUI 0.1.10-alpha.6
+# CompixelUI 0.1.10-alpha.7
 
-- New: `ScreenTransition` animates a screen's content in when the screen opens and out when it closes, using Compose's enter and exit transitions, which can differ. Closing gives the player control back at once while the exit plays above the game. See [Screen transitions](https://github.com/Frostbite-time/CompixelUI/blob/main/docs/en/transitions.md).
-- New: `LocalOverlayVisibility` gives popups and dialogs, which draw in layers of their own, the screen's visibility during its transition. Ore's dialogs fade with the screen, scrim included.
-- Changed: a container screen that a recipe viewer or another screen covers while its menu stays open keeps its Compose session. When it shows again, its content is as it was, including `remember` state, scroll positions and typed text, and its entrance doesn't play again.
-- Fixed: `menuClosed()` now runs when the menu closes while another screen covers the container screen.
-- Fixed: an enter animation that starts with a screen's content, such as `AnimatedVisibility` with a `MutableTransitionState`, now plays from the first frame instead of jumping to its end.
+- Changed: Ore text uses the new bundled Compixel font. It keeps Monocraft's glyphs and adds GNU Unifont, which Minecraft also uses, for the other characters of Minecraft's languages. Chinese, Japanese, Korean and other scripts now appear as pixel text on every computer instead of in the system's fonts. Emoji, scripts that pixel glyphs cannot lay out, such as Devanagari, and rare characters still use the system's fonts. See [Ore UI](https://github.com/Frostbite-time/CompixelUI/blob/main/docs/en/ore-ui.md#theme-and-text).
+- Changed: the font makes the mod files about 2 MB larger.
+- Fixed: a stray control character in text, such as a carriage return, no longer draws a box.

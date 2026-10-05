@@ -82,6 +82,6 @@ Install one of the two, not both.
 
 ## License
 
-CompixelUI is released under the [MIT License](LICENSE). Bundled libraries keep their own licenses; see [third-party notices](THIRD-PARTY-NOTICES.md). Text uses the [Monocraft](https://github.com/IdreesInc/Monocraft) font by Idrees Hassan, under the [SIL Open Font License 1.1](ui-ore/src/main/resources/dev/compixel/ui/ore/Monocraft-LICENSE.txt).
+CompixelUI is released under the [MIT License](LICENSE). Bundled libraries keep their own licenses; see [third-party notices](THIRD-PARTY-NOTICES.md). Text uses the bundled Compixel font, which combines [Monocraft](https://github.com/IdreesInc/Monocraft) by Idrees Hassan with [GNU Unifont](https://unifoundry.com/unifont/), under the [SIL Open Font License 1.1](ui-ore/src/main/resources/dev/compixel/ui/ore/Compixel-OFL.txt).
 
 CompixelUI is not an official Minecraft product and is not associated with Mojang or Microsoft.

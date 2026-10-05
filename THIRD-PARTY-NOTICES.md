@@ -53,6 +53,6 @@ Skiko 原生库包含 Skia 及辅助组件，适用许可如下。
 
 ## Font / 字体
 
-CompixelUI uses the unmodified **Monocraft** font by Idrees Hassan for Ore-style interface text, under the **SIL Open Font License 1.1**. Its full license and copyright notice accompany the font as `Monocraft-LICENSE.txt`.
+CompixelUI ships the **Compixel** font for Ore-style interface text. It combines the **Monocraft** font by Idrees Hassan, whose glyphs it keeps unchanged, with glyphs of **GNU Unifont** by Roman Czyborra, Paul Hardy and other contributors, converted from Unifont's bitmaps for the other characters of Minecraft's languages. Both fonts are used under the **SIL Open Font License 1.1**, which also covers the combined font. Unifont's authors additionally offer it under the GNU GPL 2 or later with the font embedding exception. `tools/build_font.java` builds the font; its full license and copyright notices accompany it as `Compixel-OFL.txt`.
 
-CompixelUI 使用 Idrees Hassan 创作的 **Monocraft** 字体显示 Ore 风格界面文字，字体未经修改，适用 **SIL Open Font License 1.1**。完整许可及版权声明随字体附于 `Monocraft-LICENSE.txt`。
+CompixelUI 随附 **Compixel** 字体显示 Ore 风格界面文字。它合成了 Idrees Hassan 创作的 **Monocraft** 字体（字形保持不变）与 Roman Czyborra、Paul Hardy 等贡献者创作的 **GNU Unifont** 字形；后者由 Unifont 的点阵转换而来，用于 Minecraft 各语言中 Monocraft 缺少的字符。两者均依 **SIL Open Font License 1.1** 使用，合成后的字体同样适用该许可。Unifont 的作者另以 GNU GPL 2 或更高版本加字体嵌入例外提供该字体。字体由 `tools/build_font.java` 生成，完整许可及版权声明随字体附于 `Compixel-OFL.txt`。

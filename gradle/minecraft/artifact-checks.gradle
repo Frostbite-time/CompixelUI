@@ -45,7 +45,7 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
                     }
                     verifyLicenseGroups(zip, 'META-INF/compixel-third-party/licenses', ['common', 'runtime'])
                     ['META-INF/compixel/runtime.properties', 'dev/compixel/platform/ComposeRuntime.class', 'dev/compixel/host/UiSession.class',
-                     'dev/compixel/render/gl/OpenGlFrameRenderer.class', 'dev/compixel/ui/ore/Monocraft-LICENSE.txt'].each {
+                     'dev/compixel/render/gl/OpenGlFrameRenderer.class', 'dev/compixel/ui/ore/Compixel.ttf', 'dev/compixel/ui/ore/Compixel-OFL.txt'].each {
                         if (zip.getEntry(it) == null) throw new GradleException("Missing CompixelUI module entry in ${file.name}: $it")
                     }
                     if ((zip.getEntry('dev/compixel/render/vulkan/VulkanFrameRenderer.class') != null) != (profile == 'vulkan'))
