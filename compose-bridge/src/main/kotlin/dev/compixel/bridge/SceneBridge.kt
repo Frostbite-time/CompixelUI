@@ -175,6 +175,10 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
             return null
         if (settleLayout) {
             settleLayout = false
+            // The content was composed outside a frame. Lay it out before its first frame callbacks: transitions
+            // register their animations during layout, and one that sees none in its first frame ends at once, as an
+            // entering AnimatedVisibility would.
+            scene.measureAndLayout()
             // Size/placement callbacks may feed state back into composition. Resolve that
             // startup work before exposing a picture, using the same animation timestamp.
             // Observe layout writes, not hasPendingWork(): animations can await frames forever.
@@ -289,7 +293,12 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
         // Several GLFW events can arrive between rendered frames. Apply selection/state writes
         // before the next event, without advancing animation time beyond the last host frame.
         if (recomposer.hasPendingWork()) {
-            recomposer.performFrame(if (lastFrameTime == Long.MIN_VALUE) 0L else lastFrameTime)
+            // Before the first host frame, now is the frame time: a zero time would start animations long ago.
+            if (lastFrameTime == Long.MIN_VALUE) lastFrameTime = System.nanoTime()
+            recomposer.performFrame(lastFrameTime)
+            // A transition this composition started sets its animations' targets during layout. Without it, the next
+            // frame's callbacks would find them settled and end the transition at once.
+            scene.measureAndLayout()
         }
     }
 
