@@ -207,7 +207,7 @@ abstract class UiLayer<G, D>(
             contentState.open()
             rejectionsReported = false
             val created = createSurface(frameProfiler)
-            val shown = ComposeThread.call { ScreenPresence() }
+            val shown = ScreenPresence()
             try {
                 session =
                     UiSession(current.viewport, clipboard) {
@@ -272,7 +272,7 @@ abstract class UiLayer<G, D>(
 
     /** Whether the exit that [exit] started has finished, so the layer can close. */
     val exitFinished: Boolean
-        get() = exiting && presence.let { it == null || ComposeThread.call { it.exited } }
+        get() = exiting && presence.let { it == null || it.exited }
 
     // The host stops showing the session: its hover, transient overlays, typing and the platform's text input end.
     private fun leave() {

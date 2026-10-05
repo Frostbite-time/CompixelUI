@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -34,15 +35,26 @@ fun ScreenTransition(
 ) {
     val presence = LocalScreenPresence.current
     val state = remember(presence) { presence?.newState() ?: MutableTransitionState(true) }
-    if (presence != null)
-        DisposableEffect(presence, state) {
-            presence.add(state)
-            onDispose { presence.remove(state) }
-        }
+    if (presence != null) Follow(presence, state)
     AnimatedVisibility(state, modifier, enter, exit, label = "ScreenTransition", content = content)
 }
 
-/** A session's visibility, which every [ScreenTransition] in its content follows. Compose thread, except [animated]. */
+// Registers the transition with its session and reports when it settles, so the host learns that every exit has
+// finished without asking the Compose thread.
+@Composable
+private fun Follow(presence: ScreenPresence, state: MutableTransitionState<Boolean>) {
+    DisposableEffect(presence, state) {
+        presence.add(state)
+        onDispose { presence.remove(state) }
+    }
+    val idle = state.isIdle
+    SideEffect { if (idle) presence.update() }
+}
+
+/**
+ * A session's visibility, which every [ScreenTransition] in its content follows. Created on the game thread before the
+ * content composes; after that Compose thread only, except [animated] and [exited].
+ */
 internal class ScreenPresence {
     private val transitions = LinkedHashSet<MutableTransitionState<Boolean>>()
     private var visible = true
@@ -52,28 +64,37 @@ internal class ScreenPresence {
     var animated = false
         private set
 
+    /** Whether every exit has finished since [hide]. Read on the game thread. */
+    @Volatile
+    var exited = false
+        private set
+
     /** A transition entering now, or staying hidden once the session exits. */
     fun newState() = MutableTransitionState(false).apply { targetState = visible }
 
     fun add(state: MutableTransitionState<Boolean>) {
         transitions += state
         animated = true
+        update()
     }
 
     fun remove(state: MutableTransitionState<Boolean>) {
         transitions -= state
         animated = transitions.isNotEmpty()
+        update()
     }
 
     /** The host closed for good: every transition plays its exit. */
     fun hide() {
         visible = false
         transitions.forEach { it.targetState = false }
+        update()
     }
 
-    /** Whether every exit has finished. */
-    val exited: Boolean
-        get() = transitions.all { !it.currentState && it.isIdle }
+    /** Recomputes [exited] when a transition may have settled. */
+    fun update() {
+        exited = !visible && transitions.all { !it.currentState && it.isIdle }
+    }
 }
 
 internal val LocalScreenPresence = staticCompositionLocalOf<ScreenPresence?> { null }
