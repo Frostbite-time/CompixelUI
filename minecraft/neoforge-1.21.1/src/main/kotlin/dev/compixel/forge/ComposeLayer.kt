@@ -2,7 +2,6 @@ package dev.compixel.forge
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.mutableStateOf
 import com.mojang.blaze3d.systems.RenderSystem
 import com.mojang.logging.LogUtils
 import dev.compixel.bridge.ComposeThread
@@ -21,26 +20,23 @@ import dev.compixel.forge.item.NativeItemStatistics
 import dev.compixel.forge.item.NativeTooltipRenderer
 import dev.compixel.forge.item.NativeTooltipStatistics
 import dev.compixel.forge.render.RendererResources
-import dev.compixel.forge.render.ScreenFrameRenderer
 import dev.compixel.forge.render.ScreenRenderDestination
 import dev.compixel.forge.render.configuredRenderBackend
 import dev.compixel.forge.render.createScreenRenderer
 import dev.compixel.forge.theme.ThemeReloadListener
-import dev.compixel.host.ClipboardMailbox
-import dev.compixel.host.CommittedCharacters
 import dev.compixel.host.ScreenMetrics
-import dev.compixel.host.SessionState
-import dev.compixel.host.UiSession
+import dev.compixel.host.UiLayer
+import dev.compixel.host.UiLayerSurface
 import dev.compixel.host.UiStateBinding
-import dev.compixel.platform.*
-import dev.compixel.render.*
-import dev.compixel.ui.LocalUiFeedback
+import dev.compixel.platform.KeyInput
+import dev.compixel.platform.Modifiers
+import dev.compixel.render.NativeImageStatistics
+import dev.compixel.render.RenderBackend
+import dev.compixel.render.UiFrameProfiler
 import dev.compixel.ui.UiDesign
-import dev.compixel.ui.UiFeedback
 import dev.compixel.ui.ore.theme.OreDesign
-import dev.compixel.ui.theme.LocalThemeCatalog
+import dev.compixel.ui.theme.ThemeCatalog
 import dev.compixel.ui.theme.ThemeId
-import java.util.concurrent.atomic.AtomicBoolean
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.client.gui.screens.Screen
@@ -48,441 +44,151 @@ import net.minecraft.client.resources.sounds.SimpleSoundInstance
 import net.minecraft.sounds.SoundEvents
 
 /**
- * A Compose session with its renderer, native items and tooltips, drawn inside a host screen. It is not a Screen: the
- * host keeps the native lifecycle, screen events and input policy, and the input methods report only whether Compose
- * consumed an event. Every member runs on the game thread.
+ * The shared [UiLayer] on Minecraft: the window, clipboard, click sound, item icons, tooltips and native drawings, and
+ * Minecraft's input events. Every member runs on the game thread.
  */
 internal class ComposeLayer(
-    val renderBackend: RenderBackend = configuredRenderBackend(),
-    private val guiUnitsPerDp: Float = 1f,
+    renderBackend: RenderBackend = configuredRenderBackend(),
+    guiUnitsPerDp: Float = 1f,
     private val nativeItemOptions: NativeItemOptions = NativeItemOptions(),
-    private val minimumUiDensity: Float = 1f,
-    private val theme: ThemeId = ThemeId.Default,
-    private val design: UiDesign = OreDesign,
+    minimumUiDensity: Float = 1f,
+    theme: ThemeId = ThemeId.Default,
+    design: UiDesign = OreDesign,
     private val nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
-    private val windowFocused: () -> Boolean,
+    windowFocused: () -> Boolean,
     /** Adapter-owned layout-to-snapshot handoff, on the game thread before presentation. */
-    private val prepareFrameContent: () -> Boolean = { false },
+    prepareFrameContent: () -> Boolean = { false },
     /** The content's game state, opened before each session composes and closed with it. */
-    private val contentState: UiStateBinding<*, *>,
-    private val content: @Composable () -> Unit,
-) {
-    var session: UiSession? = null
-        private set
-
-    private val clipboard = ClipboardMailbox()
-    private val characters = CommittedCharacters()
-    private val pendingFeedback = AtomicBoolean()
-    private val feedback = UiFeedback { pendingFeedback.set(true) }
+    contentState: UiStateBinding<*, *>,
+    /** Closes the host when its content asks to. */
+    closeHost: () -> Unit = {},
+    content: @Composable () -> Unit,
+) :
+    UiLayer<GuiGraphics, ScreenRenderDestination>(
+        renderBackend,
+        guiUnitsPerDp,
+        minimumUiDensity,
+        theme,
+        design,
+        windowFocused,
+        prepareFrameContent,
+        contentState,
+        closeHost,
+        content,
+    ) {
     private val logger = LogUtils.getLogger()
-    // Whether this session already warned that its content sent more actions than the screen can queue.
-    private var rejectionsReported = false
-    private var renderer: ScreenFrameRenderer? = null
     private val itemMailbox = ComposeThread.call { NativeImageMailbox<ItemIcon> { it.id } }
     private val drawingMailbox = ComposeThread.call { NativeImageMailbox<NativeDrawing> { it.id } }
-    private var nativeDrawings: NativeDrawingRenderer? = null
-    private var closedDrawingStatistics = NativeImageStatistics()
-    val nativeDrawingStatistics
-        get() = nativeDrawings?.statistics ?: closedDrawingStatistics
-
     private val tooltipMailbox = ComposeThread.call { ItemTooltipMailbox() }
+    // The latest session's, kept after it closes so their final statistics stay readable.
     private var nativeItems: NativeItemAtlas? = null
     private var nativeTooltips: NativeTooltipRenderer? = null
-    private var closedItemStatistics = NativeItemStatistics()
-    private var closedTooltipStatistics = NativeTooltipStatistics()
+    private var nativeDrawings: NativeDrawingRenderer? = null
+
     val nativeItemStatistics: NativeItemStatistics
-        get() = nativeItems?.statistics ?: closedItemStatistics
+        get() = nativeItems?.statistics ?: NativeItemStatistics()
 
     val nativeTooltipStatistics: NativeTooltipStatistics
-        get() = nativeTooltips?.statistics ?: closedTooltipStatistics
+        get() = nativeTooltips?.statistics ?: NativeTooltipStatistics()
+
+    val nativeDrawingStatistics: NativeImageStatistics
+        get() = nativeDrawings?.statistics ?: NativeImageStatistics()
 
     val nativeTooltipBounds
         get() = ComposeThread.call { tooltipMailbox.bounds }
 
-    private var resourceEpoch = RendererResources.epoch
-    private var themeCatalog = ThemeReloadListener.catalog
-    private val themeState = ComposeThread.call { mutableStateOf(themeCatalog) }
+    override fun assertRenderThread() = RenderSystem.assertOnRenderThread()
 
-    private fun refreshTheme() {
-        val next = ThemeReloadListener.catalog
-        if (themeCatalog === next) return
-        themeCatalog = next
-        ComposeThread.call { themeState.value = next }
-    }
+    override val framebufferWidth: Int
+        get() = Minecraft.getInstance().window.width
 
-    private var metrics: ScreenMetrics? = null
-    /** Set by [prepare] for the [render] call that presents the frame. */
-    private var prepared: ScreenMetrics? = null
-    private var windowFocus: Boolean? = null
-    private var closedStatistics = RendererStatistics(renderBackend, 0, 0, 0)
-    val rendererStatistics: RendererStatistics
-        get() = renderer?.statistics ?: closedStatistics
+    override val framebufferHeight: Int
+        get() = Minecraft.getInstance().window.height
 
-    val hasTextInputFocus: Boolean
-        get() = session?.hasTextInputFocus == true
+    override val guiScale: Float
+        get() = Minecraft.getInstance().window.guiScale.toFloat()
 
-    /** Opt-in per-frame history. Read snapshots on the game/render thread. */
-    val frameProfiler: UiFrameProfiler? =
-        if (java.lang.Boolean.getBoolean("compixel.profile"))
-            UiFrameProfiler(measureAllocations = java.lang.Boolean.getBoolean("compixel.allocations"))
-        else null
-
-    init {
-        require(guiUnitsPerDp.isFinite() && guiUnitsPerDp > 0f)
-        require(minimumUiDensity.isFinite() && minimumUiDensity >= 0f)
-    }
-
-    /** Creates the session and renderer for a [width]x[height] GUI area, or resizes the open session. */
-    fun open(width: Int, height: Int) {
-        RenderSystem.assertOnRenderThread()
-        val current = currentMetrics(width, height)
-        refreshClipboard()
-        refreshTheme()
-        val existing = session
-        if (existing == null || existing.state == SessionState.CLOSED) {
-            // The first composition already reads the game, not a placeholder.
-            contentState.open()
-            rejectionsReported = false
-            val backend = createScreenRenderer(renderBackend, frameProfiler)
-            try {
-                session =
-                    UiSession(current.viewport, clipboard) {
-                        CompositionLocalProvider(
-                            LocalItemImages provides itemMailbox,
-                            LocalNativeDrawings provides drawingMailbox,
-                            LocalItemTooltips provides tooltipMailbox,
-                            LocalUiFeedback provides feedback,
-                            LocalThemeCatalog provides themeState.value,
-                        ) {
-                            design.Decorate(theme, content)
-                        }
-                    }
-                renderer = backend
-                nativeItems = NativeItemAtlas(backend, itemMailbox, nativeItemOptions)
-                nativeDrawings = NativeDrawingRenderer(backend, drawingMailbox, nativeDrawingOptions)
-                nativeTooltips = NativeTooltipRenderer(backend, tooltipMailbox)
-                windowFocus = null
-            } catch (error: Throwable) {
-                backend.close()
-                throw error
-            }
-            resourceEpoch = RendererResources.epoch
-        } else existing.resize(current.viewport)
-        metrics = current
-        updateWindowFocus()
-    }
-
-    /** Lays the content out ahead of the first frame, so the host can read layout geometry while it initializes. */
-    fun layout() {
-        val active = session ?: return
-        active.frame()?.close()
-        active.invalidate() // The first presented frame records again.
-    }
-
-    /**
-     * Records and renders the next frame, ahead of the [render] call that presents it, so the host can read this
-     * frame's layout before drawing anything beneath Compose.
-     */
-    fun prepare(guiGraphics: GuiGraphics, width: Int, height: Int) {
-        RenderSystem.assertOnRenderThread()
-        if (prepared != null) {
-            prepared = null
-            frameProfiler?.endFrame()
-        } // The host never presented it.
-        if (session == null) return
-        val profiler = frameProfiler
-        if (profiler == null) {
-            prepared = prepareFrame(guiGraphics, width, height)
-            return
+    override var systemClipboard: String
+        get() = Minecraft.getInstance().keyboardHandler.clipboard
+        set(text) {
+            Minecraft.getInstance().keyboardHandler.clipboard = text
         }
-        profiler.beginFrame()
+
+    override fun playFeedback() {
+        Minecraft.getInstance().soundManager.play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1f))
+    }
+
+    override fun pointerModifiers() = Modifiers(Screen.hasShiftDown(), Screen.hasControlDown(), Screen.hasAltDown())
+
+    override val resourceEpoch: Long
+        get() = RendererResources.epoch
+
+    override val themes: ThemeCatalog
+        get() = ThemeReloadListener.catalog
+
+    override fun warn(message: String) = logger.warn("{}", message)
+
+    override fun createSurface(profiler: UiFrameProfiler?): UiLayerSurface<ScreenRenderDestination> {
+        val backend = createScreenRenderer(renderBackend, profiler)
         try {
-            prepared = ComposeThread.traceCalls(profiler) { prepareFrame(guiGraphics, width, height) }
+            val items = NativeItemAtlas(backend, itemMailbox, nativeItemOptions)
+            val drawings = NativeDrawingRenderer(backend, drawingMailbox, nativeDrawingOptions)
+            val tooltips = NativeTooltipRenderer(backend, tooltipMailbox)
+            nativeItems = items
+            nativeDrawings = drawings
+            nativeTooltips = tooltips
+            return UiLayerSurface(backend, items, tooltips, drawings)
         } catch (error: Throwable) {
-            profiler.endFrame()
+            backend.close()
             throw error
         }
     }
 
-    /** Presents the frame from [prepare], preparing one first when the host did not. */
-    fun render(guiGraphics: GuiGraphics, width: Int, height: Int) {
-        if (prepared == null) prepare(guiGraphics, width, height)
-        val current = prepared ?: return
-        prepared = null
-        val profiler = frameProfiler
-        if (profiler == null) present(guiGraphics, current)
-        else
-            try {
-                ComposeThread.traceCalls(profiler) { present(guiGraphics, current) }
-            } finally {
-                profiler.endFrame()
-            }
+    override fun destination(graphics: GuiGraphics, metrics: ScreenMetrics) = ScreenRenderDestination(graphics, metrics)
+
+    @Composable
+    override fun ProvideContent(content: @Composable () -> Unit) {
+        CompositionLocalProvider(
+            LocalItemImages provides itemMailbox,
+            LocalNativeDrawings provides drawingMailbox,
+            LocalItemTooltips provides tooltipMailbox,
+            content = content,
+        )
     }
 
-    private fun prepareFrame(guiGraphics: GuiGraphics, width: Int, height: Int): ScreenMetrics? {
-        val active = session ?: return null
-        val backend = checkNotNull(renderer)
-        val items = checkNotNull(nativeItems)
-        val tooltips = checkNotNull(nativeTooltips)
-        val current =
-            frameProfiler.measureCpu(CpuPhase.HOST) {
-                val current = currentMetrics(width, height)
-                if (current != metrics) {
-                    ComposeThread.call { tooltipMailbox.dismiss() }
-                    active.resize(current.viewport)
-                    metrics = current
-                }
-                updateWindowFocus()
-                refreshTheme()
-                guiGraphics.flush()
-                val currentResourceEpoch = RendererResources.epoch
-                if (resourceEpoch != currentResourceEpoch) {
-                    nativeDrawings?.reset()
-                    items.reset()
-                    tooltips.reset()
-                    backend.reset()
-                    resourceEpoch = currentResourceEpoch
-                }
-                if (backend.needsFrame) active.invalidate()
-                current
-            }
-        fun recordFrame(): RecordedFrame? =
-            active.frame()?.also {
-                frameProfiler?.recorded(it.generation)
-                items.recorded(it.generation)
-                tooltips.recorded(it.generation)
-                nativeDrawings?.recorded()
-            }
-        var frame = frameProfiler.measureCpu(CpuPhase.RECORD) { recordFrame() }
-        fun replaceFrame() {
-            frameProfiler.measureCpu(CpuPhase.FRAME_RELEASE) { frame?.close() }
-            frame = null
-            frame =
-                frameProfiler.measureCpu(CpuPhase.RECORD) {
-                    active.invalidate()
-                    recordFrame()
-                }
-        }
-        try {
-            // A container first learns its visible slots during layout. Publish their values
-            // before image preparation and presentation, including newly scrolled-in slots.
-            if (frameProfiler.measureCpu(CpuPhase.HOST) { prepareFrameContent() }) replaceFrame()
-            val itemsChanged = frameProfiler.measureCpu(CpuPhase.ITEMS) { items.prepare(System.nanoTime()) }
-            val tooltipChanged =
-                frameProfiler.measureCpu(CpuPhase.TOOLTIP) { tooltips.prepare(System.nanoTime(), current) }
-            val drawingsChanged =
-                frameProfiler.measureCpu(CpuPhase.ITEMS) { nativeDrawings?.prepare(System.nanoTime(), current) == true }
-            if (itemsChanged || tooltipChanged || drawingsChanged) replaceFrame()
-        } catch (error: Throwable) {
-            frame?.close()
-            throw error
-        }
-        frame?.let {
-            try {
-                frameProfiler.measureCpu(CpuPhase.RENDER) { backend.render(it) }
-                frameProfiler?.rendered()
-            } finally {
-                frameProfiler.measureCpu(CpuPhase.FRAME_RELEASE) { it.close() }
-            }
-        }
-        frameProfiler.measureCpu(CpuPhase.HOST) { flushClipboard() }
-        return current
+    override fun dismissTransient() = ComposeThread.call { tooltipMailbox.dismiss() }
+
+    // Native item capture draws through GuiGraphics; draw what the screen batched first.
+    override fun beforePrepare(graphics: GuiGraphics?) {
+        graphics?.flush()
     }
 
-    private fun present(guiGraphics: GuiGraphics, current: ScreenMetrics) {
-        val backend = renderer ?: return
-        frameProfiler.measureCpu(CpuPhase.PRESENT) {
-            guiGraphics.flush() // OpenGL composites directly, above everything batched so far.
-            backend.present(ScreenRenderDestination(guiGraphics, current))
-        }
-        frameProfiler?.let { profiler ->
-            val itemStats = nativeItems?.statistics ?: return@let
-            profiler.resources(
-                itemStats.activeVariants,
-                itemStats.cachedImages,
-                itemStats.pendingImages,
-                nativeTooltips?.statistics?.visible ?: false,
-            )
-        }
+    // OpenGL composites directly, above everything batched so far.
+    override fun beforePresent(graphics: GuiGraphics) = graphics.flush()
+
+    override fun profileResources(profiler: UiFrameProfiler) {
+        val items = nativeItems?.statistics ?: return
+        profiler.resources(
+            items.activeVariants,
+            items.cachedImages,
+            items.pendingImages,
+            nativeTooltips?.statistics?.visible ?: false,
+        )
     }
 
-    fun tick() {
-        updateWindowFocus()
-        flushClipboard()
-        flushFeedback()
-        reportRejectedActions()
-    }
+    fun press(x: Double, y: Double, button: Int): Boolean = press(x, y, button.toMouseButton())
 
-    fun press(x: Double, y: Double, button: Int): Boolean {
-        refreshClipboard()
-        return pointer(PointerAction.PRESS, x, y, button.toMouseButton())
-    }
+    fun release(x: Double, y: Double, button: Int): Boolean = release(x, y, button.toMouseButton())
 
-    fun release(x: Double, y: Double, button: Int): Boolean =
-        pointer(PointerAction.RELEASE, x, y, button.toMouseButton())
+    fun keyPressed(keyCode: Int, scanCode: Int, modifiers: Int): Boolean =
+        key(KeyInput(uiKey(keyCode, scanCode), true, modifiers.toModifiers()))
 
-    fun move(x: Double, y: Double): Boolean = pointer(PointerAction.MOVE, x, y)
+    fun keyReleased(keyCode: Int, scanCode: Int, modifiers: Int): Boolean =
+        key(KeyInput(uiKey(keyCode, scanCode), false, modifiers.toModifiers()))
 
-    fun scroll(x: Double, y: Double, scrollX: Double, scrollY: Double): Boolean =
-        pointer(PointerAction.SCROLL, x, y, scrollX = -scrollX.toFloat(), scrollY = -scrollY.toFloat())
-
-    fun keyPressed(keyCode: Int, scanCode: Int, modifiers: Int): Boolean {
-        refreshClipboard()
-        ComposeThread.call { tooltipMailbox.dismiss() }
-        val consumed = session?.key(KeyInput(uiKey(keyCode, scanCode), true, modifiers.toModifiers())) == true
-        flushClipboard()
-        flushFeedback()
-        return consumed
-    }
-
-    fun keyReleased(keyCode: Int, scanCode: Int, modifiers: Int): Boolean {
-        val consumed = session?.key(KeyInput(uiKey(keyCode, scanCode), false, modifiers.toModifiers())) == true
-        flushClipboard()
-        flushFeedback()
-        return consumed
-    }
-
-    /** A high surrogate is held for its pair; it counts as consumed while a text input has focus. */
-    fun charTyped(character: Char): Boolean {
-        val text = characters.accept(character) ?: return character.isHighSurrogate() && hasTextInputFocus
-        return session?.commitText(text) == true
-    }
+    fun charTyped(character: Char): Boolean = typeCharacter(character)
 
     // No IME support: Minecraft 1.21.1 has neither text input control nor preedit events. The 26.x
     // layers add text input and composition hooks here (see their MinecraftTextInput.kt); keep this
     // difference when comparing or syncing adapters.
-
-    /** Releases the session and every owned resource. [open] can start a new session afterwards. */
-    fun close() {
-        if (prepared != null) {
-            prepared = null
-            frameProfiler?.endFrame()
-        }
-        try {
-            session?.close()
-        } finally {
-            session = null
-            characters.reset()
-            // After the composition is disposed, so the content reads its state until the end.
-            contentState.close()
-            try {
-                nativeItems?.let { items ->
-                    try {
-                        items.close()
-                    } finally {
-                        closedItemStatistics = items.statistics
-                    }
-                }
-            } finally {
-                nativeItems = null
-                try {
-                    nativeTooltips?.let { tooltips ->
-                        try {
-                            tooltips.close()
-                        } finally {
-                            closedTooltipStatistics = tooltips.statistics
-                        }
-                    }
-                } finally {
-                    nativeTooltips = null
-                    try {
-                        nativeDrawings?.let { drawings ->
-                            try {
-                                drawings.close()
-                            } finally {
-                                closedDrawingStatistics = drawings.statistics
-                            }
-                        }
-                    } finally {
-                        nativeDrawings = null
-                        try {
-                            renderer?.let { backend ->
-                                try {
-                                    backend.close()
-                                } finally {
-                                    closedStatistics = backend.statistics
-                                }
-                            }
-                        } finally {
-                            renderer = null
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private fun flushFeedback() {
-        if (pendingFeedback.getAndSet(false)) {
-            Minecraft.getInstance().soundManager.play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1f))
-        }
-    }
-
-    // A send() the queue refused loses its action. Say so once per session, without flooding the log.
-    private fun reportRejectedActions() {
-        if (rejectionsReported) return
-        val rejected = contentState.rejectedActions
-        if (rejected == 0L) return
-        rejectionsReported = true
-        logger.warn("UI content sent more actions than its screen can queue; {} were rejected", rejected)
-    }
-
-    private fun updateWindowFocus() {
-        val now = windowFocused()
-        if (now == windowFocus) return
-        characters.reset()
-        windowFocus = now
-        if (!now) ComposeThread.call { tooltipMailbox.dismiss() }
-        session?.setFocused(now)
-    }
-
-    private fun refreshClipboard() {
-        flushClipboard()
-        clipboard.refresh(Minecraft.getInstance().keyboardHandler.clipboard)
-    }
-
-    private fun flushClipboard() {
-        clipboard.takeWrite()?.let { Minecraft.getInstance().keyboardHandler.clipboard = it }
-    }
-
-    fun currentMetrics(width: Int, height: Int): ScreenMetrics {
-        val window = Minecraft.getInstance().window
-        return ScreenMetrics(
-            window.width.coerceAtLeast(1),
-            window.height.coerceAtLeast(1),
-            width.coerceAtLeast(1),
-            height.coerceAtLeast(1),
-            window.guiScale.toFloat(),
-            guiUnitsPerDp,
-            minimumUiDensity,
-        )
-    }
-
-    private fun pointer(
-        action: PointerAction,
-        x: Double,
-        y: Double,
-        button: MouseButton? = null,
-        scrollX: Float = 0f,
-        scrollY: Float = 0f,
-    ): Boolean {
-        val current = metrics ?: return false
-        if (action == PointerAction.PRESS || action == PointerAction.SCROLL || action == PointerAction.EXIT) {
-            ComposeThread.call { tooltipMailbox.dismiss() }
-        }
-        val consumed =
-            session?.pointer(
-                PointerInput(
-                    action,
-                    current.pixelX(x),
-                    current.pixelY(y),
-                    button,
-                    scrollX,
-                    scrollY,
-                    Modifiers(Screen.hasShiftDown(), Screen.hasControlDown(), Screen.hasAltDown()),
-                )
-            ) ?: false
-        flushFeedback()
-        return consumed
-    }
 }

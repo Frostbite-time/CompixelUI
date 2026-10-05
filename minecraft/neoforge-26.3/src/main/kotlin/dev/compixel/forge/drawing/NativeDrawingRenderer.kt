@@ -8,6 +8,7 @@ import dev.compixel.bridge.NativeImageRegion
 import dev.compixel.forge.item.NativeGuiCapture
 import dev.compixel.forge.render.FrameRetirement
 import dev.compixel.forge.render.NativeSnapshots
+import dev.compixel.host.NativeImageSource
 import dev.compixel.host.ScreenMetrics
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.math.ceil
@@ -21,7 +22,7 @@ internal class NativeDrawingRenderer(
     private val mailbox: NativeImageMailbox<NativeDrawing>,
     private val options: NativeDrawingOptions,
     private val snapshots: NativeSnapshots?,
-) : AutoCloseable {
+) : NativeImageSource {
     private class Surface(val capture: NativeGuiCapture) {
         val completed = ConcurrentLinkedQueue<ByteArray>()
     }
@@ -33,17 +34,17 @@ internal class NativeDrawingRenderer(
     val statistics
         get() = atlas.statistics
 
-    fun recorded() {
+    override fun recorded(frameGeneration: Long) {
         atlas.recorded(ComposeThread.call { mailbox.activeRequests() })
     }
 
-    fun prepare(now: Long, current: ScreenMetrics): Boolean {
+    override fun prepare(now: Long, current: ScreenMetrics): Boolean {
         RenderSystem.assertOnRenderThread()
         metrics = current
         return atlas.prepare(now, NativeDrawingClock.tick(), current.guiScale.toDouble())
     }
 
-    fun reset() {
+    override fun reset() {
         RenderSystem.assertOnRenderThread()
         atlas.reset()
     }

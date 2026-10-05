@@ -7,6 +7,7 @@ import dev.compixel.bridge.NativeImageMailbox
 import dev.compixel.bridge.NativeImageRegion
 import dev.compixel.forge.item.NativeGuiRenderTarget
 import dev.compixel.forge.render.ScreenFrameRenderer
+import dev.compixel.host.NativeImageSource
 import dev.compixel.host.ScreenMetrics
 import kotlin.math.ceil
 import org.jetbrains.skia.Image
@@ -16,7 +17,7 @@ internal class NativeDrawingRenderer(
     private val backend: ScreenFrameRenderer,
     private val mailbox: NativeImageMailbox<NativeDrawing>,
     private val options: NativeDrawingOptions,
-) : AutoCloseable {
+) : NativeImageSource {
     private class Surface(val capture: NativeGuiRenderTarget)
 
     private val surfaces = ArrayList<Surface?>()
@@ -26,17 +27,17 @@ internal class NativeDrawingRenderer(
     val statistics
         get() = atlas.statistics
 
-    fun recorded() {
+    override fun recorded(frameGeneration: Long) {
         atlas.recorded(ComposeThread.call { mailbox.activeRequests() })
     }
 
-    fun prepare(now: Long, current: ScreenMetrics): Boolean {
+    override fun prepare(now: Long, current: ScreenMetrics): Boolean {
         RenderSystem.assertOnRenderThread()
         metrics = current
         return atlas.prepare(now, NativeDrawingClock.tick(), current.guiScale.toDouble())
     }
 
-    fun reset() {
+    override fun reset() {
         RenderSystem.assertOnRenderThread()
         atlas.reset()
     }

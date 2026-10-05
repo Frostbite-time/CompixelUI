@@ -9,6 +9,8 @@ import dev.compixel.forge.drawing.NativeDrawingClock
 import dev.compixel.forge.drawing.scheduled
 import dev.compixel.forge.render.FrameRetirement
 import dev.compixel.forge.render.NativeSnapshots
+import dev.compixel.host.NativeImageSource
+import dev.compixel.host.ScreenMetrics
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.math.ceil
 import net.minecraft.client.Minecraft
@@ -42,7 +44,7 @@ internal class NativeItemAtlas(
     private val mailbox: NativeImageMailbox<ItemIcon>,
     private val options: NativeItemOptions,
     private val snapshots: NativeSnapshots?,
-) : AutoCloseable {
+) : NativeImageSource {
     private class Readback(val request: Long, val pixels: ByteArray, val width: Int, val height: Int)
 
     private val animations = NativeIconAnimation()
@@ -71,7 +73,7 @@ internal class NativeItemAtlas(
                 )
             }
 
-    fun recorded(frameGeneration: Long) {
+    override fun recorded(frameGeneration: Long) {
         val requests = ComposeThread.call { mailbox.activeRequests() }
         // A fixed image size draws each icon once; icons shown at other sizes resample that image.
         atlas.recorded(
@@ -83,12 +85,12 @@ internal class NativeItemAtlas(
     }
 
     /** At most one bounded page is prepared per host frame. */
-    fun prepare(now: Long): Boolean {
+    override fun prepare(now: Long, current: ScreenMetrics): Boolean {
         RenderSystem.assertOnRenderThread()
         return atlas.prepare(now, NativeDrawingClock.tick(), Minecraft.getInstance().window.guiScale.toDouble())
     }
 
-    fun reset() {
+    override fun reset() {
         RenderSystem.assertOnRenderThread()
         requested = 0
         readbacks.clear()

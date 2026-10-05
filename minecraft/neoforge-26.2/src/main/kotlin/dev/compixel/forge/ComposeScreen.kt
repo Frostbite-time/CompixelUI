@@ -11,7 +11,6 @@ import dev.compixel.render.*
 import dev.compixel.ui.UiDesign
 import dev.compixel.ui.ore.theme.OreDesign
 import dev.compixel.ui.theme.ThemeId
-import java.util.concurrent.atomic.AtomicBoolean
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.gui.components.EditBox
@@ -58,9 +57,9 @@ abstract class ComposeScreen<S, A>(
             nativeDrawingOptions = nativeDrawingOptions,
             windowFocused = { isUiWindowFocused() },
             contentState = contentState,
+            closeHost = ::onClose,
             content = { Content(contentState.value) },
         )
-    private val closeRequested = AtomicBoolean()
     private var nativeCapture: GuiEventListener? = null
     internal val session
         get() = layer.session
@@ -115,7 +114,7 @@ abstract class ComposeScreen<S, A>(
      * Closes the screen on the game thread, as [onClose] does: before the input event during which it was called
      * returns, otherwise at the next tick. Call it from any thread, for example from a close button in the content.
      */
-    protected fun requestClose() = closeRequested.set(true)
+    protected fun requestClose() = layer.requestClose()
 
     override fun init() {
         nativeCapture = null
@@ -136,19 +135,7 @@ abstract class ComposeScreen<S, A>(
 
     override fun tick() {
         layer.tick()
-        contentState.tick()
-        if (closeRequested.getAndSet(false)) onClose()
-    }
-
-    /**
-     * Runs what the content asked for while Compose handled an input event, before the event returns, as vanilla
-     * widgets act inside their input handlers: the actions it sent, then a close request. True when Compose [consumed]
-     * the event or the content closed the screen, which then takes nothing more from the event.
-     */
-    private fun contentHandled(consumed: Boolean): Boolean {
-        contentState.handleActions()
-        if (closeRequested.getAndSet(false)) onClose()
-        return consumed || !contentState.isOpen
+        layer.tickContent()
     }
 
     // Native widgets take pointer input first, as in inventory hosts; Compose receives the rest.
@@ -159,7 +146,7 @@ abstract class ComposeScreen<S, A>(
             return true
         }
         setFocused(null)
-        return contentHandled(layer.press(event.x(), event.y(), event.button()))
+        return layer.handled(layer.press(event.x(), event.y(), event.button()))
     }
 
     override fun mouseReleased(event: MouseButtonEvent): Boolean {
@@ -168,14 +155,14 @@ abstract class ComposeScreen<S, A>(
             it.mouseReleased(event)
             return true
         }
-        return contentHandled(layer.release(event.x(), event.y(), event.button()))
+        return layer.handled(layer.release(event.x(), event.y(), event.button()))
     }
 
     override fun mouseDragged(event: MouseButtonEvent, dragX: Double, dragY: Double): Boolean =
-        nativeCapture?.mouseDragged(event, dragX, dragY) ?: contentHandled(layer.move(event.x(), event.y()))
+        nativeCapture?.mouseDragged(event, dragX, dragY) ?: layer.handled(layer.move(event.x(), event.y()))
 
     override fun mouseMoved(mouseX: Double, mouseY: Double) {
-        contentHandled(layer.move(mouseX, mouseY))
+        layer.handled(layer.move(mouseX, mouseY))
     }
 
     override fun mouseScrolled(mouseX: Double, mouseY: Double, scrollX: Double, scrollY: Double): Boolean {
@@ -183,19 +170,19 @@ abstract class ComposeScreen<S, A>(
             child.isMouseOver(mouseX, mouseY) && child.mouseScrolled(mouseX, mouseY, scrollX, scrollY)
         )
             return true
-        return contentHandled(layer.scroll(mouseX, mouseY, scrollX, scrollY))
+        return layer.handled(layer.scroll(mouseX, mouseY, scrollX, scrollY))
     }
 
     // A focused widget, otherwise Compose, gets keys and text first. What they leave reaches vanilla
     // handling (Escape, focus navigation); an unconsumed event returns false, so its Post event fires.
     override fun keyPressed(event: KeyEvent): Boolean =
-        focused == null && contentHandled(layer.keyPressed(event)) || super.keyPressed(event)
+        focused == null && layer.handled(layer.keyPressed(event)) || super.keyPressed(event)
 
     override fun keyReleased(event: KeyEvent): Boolean =
-        focused == null && contentHandled(layer.keyReleased(event)) || super.keyReleased(event)
+        focused == null && layer.handled(layer.keyReleased(event)) || super.keyReleased(event)
 
     override fun charTyped(event: CharacterEvent): Boolean =
-        focused == null && contentHandled(layer.charTyped(event)) || super.charTyped(event)
+        focused == null && layer.handled(layer.charTyped(event)) || super.charTyped(event)
 
     // IME support (26.x only; see MinecraftTextInput): a focused widget manages Minecraft's text input and
     // Compose reclaims it afterwards, while input method composition goes where typed text goes.
@@ -205,7 +192,7 @@ abstract class ComposeScreen<S, A>(
     }
 
     override fun preeditUpdated(event: PreeditEvent?): Boolean =
-        focused == null && contentHandled(layer.preedit(event)) || super.preeditUpdated(event)
+        focused == null && layer.handled(layer.preedit(event)) || super.preeditUpdated(event)
 
     override fun onClose() {
         // Gui owns both the parent-screen and return-to-game transitions.
@@ -214,7 +201,6 @@ abstract class ComposeScreen<S, A>(
 
     override fun removed() {
         nativeCapture = null
-        closeRequested.set(false) // A request ends with the session that made it.
         try {
             layer.close()
         } finally {

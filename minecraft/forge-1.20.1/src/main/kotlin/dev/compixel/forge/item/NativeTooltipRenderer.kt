@@ -6,6 +6,7 @@ import com.mojang.blaze3d.systems.RenderSystem
 import dev.compixel.bridge.ComposeThread
 import dev.compixel.bridge.NativeImageRefresh
 import dev.compixel.forge.render.ScreenFrameRenderer
+import dev.compixel.host.NativeImageSource
 import dev.compixel.host.ScreenMetrics
 import dev.compixel.render.GpuPhase
 import dev.compixel.render.NativeImageOwner
@@ -36,7 +37,7 @@ data class NativeTooltipStatistics(
 internal class NativeTooltipRenderer(
     private val backend: ScreenFrameRenderer,
     private val mailbox: ItemTooltipMailbox,
-) : AutoCloseable {
+) : NativeImageSource {
     private data class Layout(val width: Int, val height: Int, val components: Int, val richComponents: Int)
 
     private data class PreparedTooltip(
@@ -76,12 +77,12 @@ internal class NativeTooltipRenderer(
                 generation,
             )
 
-    fun recorded(frameGeneration: Long) {
+    override fun recorded(frameGeneration: Long) {
         request = ComposeThread.call { mailbox.request }
         generation = frameGeneration
     }
 
-    fun prepare(now: Long, current: ScreenMetrics): Boolean {
+    override fun prepare(now: Long, current: ScreenMetrics): Boolean {
         RenderSystem.assertOnRenderThread()
         val active = request
         if (active == null) {
@@ -221,7 +222,7 @@ internal class NativeTooltipRenderer(
         layout = null
     }
 
-    fun reset() {
+    override fun reset() {
         RenderSystem.assertOnRenderThread()
         ComposeThread.call { mailbox.clearImage() }
         retireImage()

@@ -1,7 +1,7 @@
 package dev.compixel.host
 
 /** Joins the UTF-16 units of each typed code point and drops control characters. */
-class CommittedCharacters {
+internal class CommittedCharacters {
     private var pendingHigh: Char? = null
 
     fun accept(character: Char): String? {

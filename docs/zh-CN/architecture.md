@@ -32,7 +32,7 @@ flowchart TB
 | `platform` | 与宿主游戏之间的视口、输入、剪贴板等约定 |
 | `render` | 帧、GPU 资源与性能统计 |
 | `compose-bridge` | 在独立线程运行 Compose，录制帧并绘制原生图像 |
-| `host` | 界面会话与 `UiBinding` |
+| `host` | 界面会话、`UiBinding`，以及所有界面和 HUD 层共用的 Compose 层 `UiLayer` |
 | `render-gl`、`render-vulkan` | OpenGL 与 Vulkan 渲染器 |
 | `ui-core` | 设计系统的接入点：控件反馈、宿主内容外层的设计，以及每套设计系统各占一段的主题文件 |
 | `ui-ore` | Ore UI 组件、主题与字体 |

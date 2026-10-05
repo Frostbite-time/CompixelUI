@@ -5,6 +5,7 @@ import dev.compixel.bridge.ComposeThread
 import dev.compixel.bridge.NativeImageRefresh
 import dev.compixel.forge.render.FrameRetirement
 import dev.compixel.forge.render.NativeSnapshots
+import dev.compixel.host.NativeImageSource
 import dev.compixel.host.ScreenMetrics
 import dev.compixel.render.NativeImageOwner
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -36,7 +37,7 @@ data class NativeTooltipStatistics(
 internal class NativeTooltipRenderer(
     private val mailbox: ItemTooltipMailbox,
     private val snapshots: NativeSnapshots?,
-) : AutoCloseable {
+) : NativeImageSource {
     private data class Layout(val width: Int, val height: Int, val components: Int, val richComponents: Int)
 
     private data class Completion(
@@ -92,13 +93,13 @@ internal class NativeTooltipRenderer(
                 generation,
             )
 
-    fun recorded(frameGeneration: Long) {
+    override fun recorded(frameGeneration: Long) {
         request = ComposeThread.call { mailbox.request }
         generation = frameGeneration
     }
 
     /** Keep one capture in flight and refresh at most ten times per second. */
-    fun prepare(now: Long, current: ScreenMetrics): Boolean {
+    override fun prepare(now: Long, current: ScreenMetrics): Boolean {
         RenderSystem.assertOnRenderThread()
         check(!closed)
         var changed = if (snapshots == null) collectCompleted() else collectSnapshot(current)
@@ -312,7 +313,7 @@ internal class NativeTooltipRenderer(
         layout = null
     }
 
-    fun reset() {
+    override fun reset() {
         RenderSystem.assertOnRenderThread()
         epoch++
         inFlight = false
