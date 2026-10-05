@@ -1,7 +1,7 @@
 package dev.compixel.forge.slots
 
 import androidx.compose.ui.geometry.Rect
-import dev.compixel.forge.render.ScreenMetrics
+import dev.compixel.host.ScreenMetrics
 import kotlin.math.roundToInt
 import kotlin.test.*
 import org.junit.jupiter.api.Test

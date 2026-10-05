@@ -1,7 +1,7 @@
 package dev.compixel.forge.input
 
-import dev.compixel.forge.render.ScreenMetrics
 import dev.compixel.host.HostTextInput
+import dev.compixel.host.ScreenMetrics
 import dev.compixel.host.UiSession
 import dev.compixel.platform.TextInputArea
 import kotlin.math.ceil

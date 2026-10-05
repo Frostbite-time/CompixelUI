@@ -2,6 +2,7 @@ package dev.compixel.forge.render
 
 import com.mojang.blaze3d.platform.NativeImage
 import com.mojang.blaze3d.systems.RenderSystem
+import dev.compixel.host.ScreenMetrics
 import dev.compixel.render.*
 import dev.compixel.render.gl.OpenGlDestination
 import dev.compixel.render.gl.OpenGlFrameRenderer

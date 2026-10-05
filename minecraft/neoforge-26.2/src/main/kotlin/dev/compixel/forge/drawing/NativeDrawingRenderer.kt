@@ -8,7 +8,7 @@ import dev.compixel.bridge.NativeImageRegion
 import dev.compixel.forge.item.NativeGuiCapture
 import dev.compixel.forge.render.FrameRetirement
 import dev.compixel.forge.render.NativeSnapshots
-import dev.compixel.forge.render.ScreenMetrics
+import dev.compixel.host.ScreenMetrics
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.math.ceil
 import org.jetbrains.skia.ColorAlphaType

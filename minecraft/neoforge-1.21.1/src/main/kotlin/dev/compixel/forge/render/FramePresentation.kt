@@ -1,6 +1,7 @@
 package dev.compixel.forge.render
 
 import com.mojang.blaze3d.vertex.PoseStack
+import dev.compixel.host.ScreenMetrics
 
 /** Draw framebuffer pixel dimensions through Minecraft's exact GUI projection. */
 internal inline fun withFramebufferPixels(pose: PoseStack, metrics: ScreenMetrics, draw: () -> Unit) {

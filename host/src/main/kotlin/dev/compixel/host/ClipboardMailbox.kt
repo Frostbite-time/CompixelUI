@@ -1,10 +1,13 @@
-package dev.compixel.forge.input
+package dev.compixel.host
 
 import dev.compixel.platform.ClipboardPort
 import java.util.concurrent.atomic.AtomicReference
 
-/** The EDT only accesses snapshots; GLFW remains on Minecraft's thread. */
-internal class ClipboardMailbox : ClipboardPort {
+/**
+ * The clipboard as Compose sees it. Compose reads and writes snapshots on its own thread, while the host keeps the
+ * system clipboard on the game thread: it [refresh]es the snapshot before input and copies [takeWrite] out afterwards.
+ */
+class ClipboardMailbox : ClipboardPort {
     private val snapshot = AtomicReference("")
     private val pendingWrite = AtomicReference<String?>()
 

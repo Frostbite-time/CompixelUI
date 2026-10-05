@@ -1,5 +1,6 @@
 package dev.compixel.forge.render
 
+import dev.compixel.host.ScreenMetrics
 import kotlin.test.*
 import net.minecraft.client.gui.navigation.ScreenRectangle
 import net.minecraft.client.gui.render.TextureSetup

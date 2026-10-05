@@ -16,7 +16,7 @@ import dev.compixel.bridge.ComposeThread
 import dev.compixel.forge.drawing.NativeRefresh
 import dev.compixel.forge.item.ItemIcon
 import dev.compixel.forge.item.MinecraftItemIcon
-import dev.compixel.forge.render.ScreenMetrics
+import dev.compixel.host.ScreenMetrics
 import dev.compixel.slots.*
 import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.inventory.OreSlot

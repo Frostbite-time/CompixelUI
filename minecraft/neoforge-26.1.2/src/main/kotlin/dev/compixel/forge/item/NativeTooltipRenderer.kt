@@ -5,7 +5,7 @@ import dev.compixel.bridge.ComposeThread
 import dev.compixel.bridge.NativeImageRefresh
 import dev.compixel.forge.render.FrameRetirement
 import dev.compixel.forge.render.NativeSnapshots
-import dev.compixel.forge.render.ScreenMetrics
+import dev.compixel.host.ScreenMetrics
 import dev.compixel.render.NativeImageOwner
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.math.ceil

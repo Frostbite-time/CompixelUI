@@ -1,6 +1,7 @@
 package dev.compixel.forge.render
 
 import com.mojang.blaze3d.textures.GpuTexture
+import dev.compixel.host.ScreenMetrics
 import dev.compixel.render.FrameRenderer
 import dev.compixel.render.RenderBackend
 import dev.compixel.render.UiFrameProfiler

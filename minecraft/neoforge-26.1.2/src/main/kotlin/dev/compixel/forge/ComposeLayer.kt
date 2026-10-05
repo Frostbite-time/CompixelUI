@@ -8,8 +8,6 @@ import com.mojang.logging.LogUtils
 import dev.compixel.bridge.ComposeThread
 import dev.compixel.bridge.NativeImageMailbox
 import dev.compixel.forge.drawing.*
-import dev.compixel.forge.input.ClipboardMailbox
-import dev.compixel.forge.input.CommittedCharacters
 import dev.compixel.forge.input.MinecraftTextInput
 import dev.compixel.forge.input.toModifiers
 import dev.compixel.forge.input.toMouseButton
@@ -25,11 +23,13 @@ import dev.compixel.forge.item.NativeTooltipRenderer
 import dev.compixel.forge.item.NativeTooltipStatistics
 import dev.compixel.forge.render.RendererResources
 import dev.compixel.forge.render.ScreenFrameRenderer
-import dev.compixel.forge.render.ScreenMetrics
 import dev.compixel.forge.render.ScreenRenderDestination
 import dev.compixel.forge.render.configuredRenderBackend
 import dev.compixel.forge.render.createScreenRenderer
 import dev.compixel.forge.theme.OreThemeReloadListener
+import dev.compixel.host.ClipboardMailbox
+import dev.compixel.host.CommittedCharacters
+import dev.compixel.host.ScreenMetrics
 import dev.compixel.host.SessionState
 import dev.compixel.host.UiSession
 import dev.compixel.host.UiStateBinding

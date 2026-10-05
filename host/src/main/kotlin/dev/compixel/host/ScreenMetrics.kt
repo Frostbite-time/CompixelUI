@@ -1,9 +1,14 @@
-package dev.compixel.forge.render
+package dev.compixel.host
 
 import dev.compixel.platform.Viewport
 
-/** GUI coordinates, framebuffer pixels and Compose dp are deliberately separate units. */
-internal data class ScreenMetrics(
+/**
+ * Where a host shows Compose: the window's framebuffer pixels, the game's GUI coordinates and Compose dp, which are
+ * deliberately separate units. One GUI unit spans [guiScale] framebuffer pixels and one dp spans [guiUnitsPerDp] GUI
+ * units; [minimumUiDensity] keeps small windows legible. Game input arrives in GUI coordinates, rounded to whole GUI
+ * dimensions, while drawing uses the exact scale.
+ */
+data class ScreenMetrics(
     val framebufferWidth: Int,
     val framebufferHeight: Int,
     val guiWidth: Int,

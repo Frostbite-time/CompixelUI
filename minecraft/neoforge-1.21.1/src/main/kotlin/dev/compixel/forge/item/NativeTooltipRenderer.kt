@@ -6,7 +6,7 @@ import com.mojang.blaze3d.systems.RenderSystem
 import dev.compixel.bridge.ComposeThread
 import dev.compixel.bridge.NativeImageRefresh
 import dev.compixel.forge.render.ScreenFrameRenderer
-import dev.compixel.forge.render.ScreenMetrics
+import dev.compixel.host.ScreenMetrics
 import dev.compixel.render.GpuPhase
 import dev.compixel.render.NativeImageOwner
 import kotlin.math.ceil

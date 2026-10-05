@@ -7,7 +7,7 @@ import dev.compixel.bridge.NativeImageMailbox
 import dev.compixel.bridge.NativeImageRegion
 import dev.compixel.forge.item.NativeGuiRenderTarget
 import dev.compixel.forge.render.ScreenFrameRenderer
-import dev.compixel.forge.render.ScreenMetrics
+import dev.compixel.host.ScreenMetrics
 import kotlin.math.ceil
 import org.jetbrains.skia.Image
 
