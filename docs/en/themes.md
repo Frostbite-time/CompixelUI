@@ -24,7 +24,7 @@ A mod that styles its screens with Ore under its own name offers these three as 
 
 ## Change colors in game
 
-Screens can open the color editor, for example from a palette button in a mod's title bar; each mod decides where. The editor shows a preview of the mod's screens on the left and its colors on the right:
+Screens can open the color editor, for example from a palette button in a mod's title bar; each mod decides where. CompixelUI's own schemes, which screens in plain Ore style use, open from its **Config** button in the mod list. The editor shows a preview of the mod's screens on the left and its colors on the right:
 
 1. Choose a scheme at the top. Open screens of the mod switch at once.
 2. Choose a color in the list and change it with the picker: saturation and brightness, hue, and opacity.

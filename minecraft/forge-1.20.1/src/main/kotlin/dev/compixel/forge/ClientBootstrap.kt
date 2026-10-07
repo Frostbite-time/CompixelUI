@@ -2,20 +2,28 @@ package dev.compixel.forge
 
 import dev.compixel.forge.constants.CompixelGuiLayers
 import dev.compixel.forge.render.RendererResources
+import dev.compixel.forge.theme.ColorEditorScreen
 import dev.compixel.forge.theme.ColorSchemes
 import dev.compixel.forge.theme.SchemeReloadListener
+import dev.compixel.ui.ore.theme.OreDesign
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener
+import net.minecraftforge.client.ConfigScreenHandler
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent
 import net.minecraftforge.client.event.RegisterClientReloadListenersEvent
 import net.minecraftforge.client.event.RegisterGuiOverlaysEvent
 import net.minecraftforge.common.MinecraftForge
 import net.minecraftforge.event.TickEvent
 import net.minecraftforge.eventbus.api.IEventBus
+import net.minecraftforge.fml.ModLoadingContext
 
 internal object ClientBootstrap {
     fun register(modEventBus: IEventBus) {
         // The player's scheme choices and colors, which the color editor saves.
         ColorSchemes.store.reload()
+        // The mod list's Config button opens the color editor for CompixelUI's own Ore schemes.
+        ModLoadingContext.get().registerExtensionPoint(ConfigScreenHandler.ConfigScreenFactory::class.java) {
+            ConfigScreenHandler.ConfigScreenFactory { parent -> ColorEditorScreen(parent, OreDesign()) }
+        }
         MinecraftForge.EVENT_BUS.addListener(dev.compixel.forge.sync.ClientMenuSync::tick)
         MinecraftForge.EVENT_BUS.addListener(::tick)
         MinecraftForge.EVENT_BUS.addListener(::leaveWorld)
