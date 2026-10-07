@@ -32,9 +32,9 @@ Download the file for your Minecraft version and put it in your `mods` folder, n
 
 ## Change the colors
 
-Each mod's screens have their own color schemes. Where a mod offers the color editor, you can switch schemes and change any color, including its opacity, and every screen of that mod follows at once. CompixelUI's own schemes, which screens in its default style use, open from its Config button in the mod list. The editor can export your colors as a resource pack to share or to include in a modpack.
+Each mod's screens have their own color schemes. In the color editor you can switch schemes, change any color including its opacity, and export your colors as a resource pack. Mods choose where to open it; CompixelUI's own schemes open from its Config button in the mod list.
 
-Resource packs can also add or change schemes without any code. For example, a resource pack with this file at `assets/compixel/compixel/schemes.json` makes the built-in Twilight scheme the default for screens in CompixelUI's own Ore style:
+Resource packs can also add or change schemes. For example, a resource pack with this file at `assets/compixel/compixel/schemes.json` makes the built-in Twilight scheme the default for screens in CompixelUI's own Ore style:
 
 ```json
 {

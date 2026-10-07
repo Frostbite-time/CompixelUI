@@ -136,7 +136,7 @@ slots.Slot(id, Modifier.size(18.dp)) { slot ->
 }
 ```
 
-`slot` holds what the slot shows: its `icon`, the `amount` label and a shorter `compactAmount`, whether it is `marked`, and whether the pointer is over it (`hovered`). `hovered` marks the slot a click would reach: it follows the pointer while a button is held, and it is false while the screen's slot interactions are disabled. Slots in Ore's look light up by it too. Clicks, drags, shift-clicks and tooltips work as for slots in Ore's look, and your `MenuSlotAdapter`'s `visual` still decides the icon and labels.
+`slot` holds what the slot shows: its `icon`, the `amount` label and a shorter `compactAmount`, whether it is `marked`, and whether the pointer is over it (`hovered`). `hovered` marks the slot a click would reach, also while a button is held, and is false while slot interactions are disabled. Clicks, drags, shift-clicks and tooltips work as for slots in Ore's look, and your `MenuSlotAdapter`'s `visual` still decides the icon and labels.
 
 To keep Ore's look and add a mark of your own, pass `overlay`. It gets the same `slot` and draws above Ore's look:
 

@@ -118,7 +118,7 @@ class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
 | Option | Default | Range | Meaning |
 | --- | --- | --- | --- |
 | `cacheCapacity` | 128; 256 for inventory screens | 1–1024 | Icons kept while fewer are on screen. An icon that scrolls out of view stays cached while it fits, and returns without being drawn again |
-| `preparationsPerFrame` | 64 | 1–1024 | Maximum number of icons drawn in one frame. An atlas page holds up to 64 icons, so a larger value draws several pages in one frame |
+| `preparationsPerFrame` | 64 | 1–1024 | Maximum number of icons drawn in one frame |
 | `imageSize` | The pixels each icon is laid out with | 16–256 | Pixel size used to draw each 16×16 icon. By default an icon is drawn with the pixels it is laid out with, so it stays sharp at any size and matches Minecraft's own items at 16 dp. A fixed size draws each icon once and scales it on screen |
 
 A screen that shows more icons than `preparationsPerFrame` fills in over a few frames. A page of 64 icons at 16 dp takes about 1 MB of GPU memory at GUI scale 2 and 4 MB at scale 4.

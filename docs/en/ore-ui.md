@@ -200,7 +200,7 @@ Tree rows are created lazily, so ten thousand entries scroll smoothly. For flat 
 
 ## Colors and text
 
-- `OreTheme` supplies Ore's colors and `OreTypography`; controls read a color as `OreTheme.colors[OreColors.panel]`. The colors come from the scheme the player chose, which players change in the color editor and resource packs change with files; give a screen `design = OreDesign("yourmod")` for a list of schemes of its own. See [Color schemes](themes.md). `OreTheme(OreColors.scheme("light"))` sets fixed colors directly.
+- `OreTheme` supplies Ore's colors and `OreTypography`; controls read a color as `OreTheme.colors[OreColors.panel]`. The colors come from the player's scheme, and `design = OreDesign("yourmod")` gives a screen schemes of its own; see [Color schemes](themes.md).
 - Text uses the bundled Compixel font: Monocraft for the characters it has, and GNU Unifont, which Minecraft also uses, for the other characters of Minecraft's languages, such as Chinese, Japanese and Korean. Text therefore looks the same on every computer. At 9 sp, each Monocraft pixel covers one GUI pixel and each Unifont pixel half of one, as in Minecraft's own text. Emoji, Devanagari, Tamil, Kannada, rare Chinese characters and the scripts of languages Minecraft lacks come from the system fonts, which draw emoji in color and lay out these scripts correctly.
 - `OreSlot` is an 18 dp slot frame with a 16 dp content area; [container screens](inventory.md) use it for real menu slots.
 
