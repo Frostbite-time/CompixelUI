@@ -23,6 +23,7 @@ import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.internal.oreButtonContentOffset
 import dev.compixel.ui.ore.internal.oreButtonFrame
 import dev.compixel.ui.ore.theme.LocalOreContentColor
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 
 enum class OreButtonStyle {
@@ -58,11 +59,11 @@ fun OreButton(
     val feedback = LocalUiFeedback.current
     val ink =
         when {
-            !enabled -> colors.disabledText
-            style == OreButtonStyle.Secondary -> colors.onSecondary
-            style == OreButtonStyle.Primary -> colors.onPrimary
-            style == OreButtonStyle.Destructive -> colors.onDanger
-            else -> colors.text
+            !enabled -> colors[OreColors.disabledText]
+            style == OreButtonStyle.Secondary -> colors[OreColors.onSecondary]
+            style == OreButtonStyle.Primary -> colors[OreColors.onPrimary]
+            style == OreButtonStyle.Destructive -> colors[OreColors.onDanger]
+            else -> colors[OreColors.text]
         }
     CompositionLocalProvider(LocalOreContentColor provides ink) {
         Row(

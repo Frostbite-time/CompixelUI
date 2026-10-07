@@ -19,9 +19,9 @@ import dev.compixel.render.measureCpu
 import dev.compixel.ui.LocalUiFeedback
 import dev.compixel.ui.UiDesign
 import dev.compixel.ui.UiFeedback
-import dev.compixel.ui.theme.LocalThemeCatalog
-import dev.compixel.ui.theme.ThemeCatalog
-import dev.compixel.ui.theme.ThemeId
+import dev.compixel.ui.theme.LocalColorEditor
+import dev.compixel.ui.theme.LocalSchemes
+import dev.compixel.ui.theme.Schemes
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** Native images that a [UiLayer] prepares before each frame, such as item icons the game draws. */
@@ -52,9 +52,9 @@ class UiLayerSurface<D>(
  *
  * Each session starts on [open] from a new snapshot of [contentState] and ends on [close]. While another screen covers
  * its host, [suspend] keeps the session for [open] to show again; when its host closes for good, [exit] lets a
- * [ScreenTransition] in the content finish before the layer closes. Its content is wrapped in the host's [design] for
- * [theme], inside [LocalUiFeedback] and [LocalThemeCatalog]. [prepare] records and renders a frame, so the host can
- * read its layout before drawing beneath Compose, and [render] presents it. The input methods forward events to
+ * [ScreenTransition] in the content finish before the layer closes. Its content is wrapped in the host's [design],
+ * inside [LocalUiFeedback], [LocalSchemes] and [LocalColorEditor]. [prepare] records and renders a frame, so the host
+ * can read its layout before drawing beneath Compose, and [render] presents it. The input methods forward events to
  * Compose; [handled] then runs what the content asked for during the event.
  *
  * [G] is the platform's graphics context for drawing and [D] its renderer's presentation destination.
@@ -63,7 +63,6 @@ abstract class UiLayer<G, D>(
     val renderBackend: RenderBackend,
     private val guiUnitsPerDp: Float,
     private val minimumUiDensity: Float,
-    private val theme: ThemeId,
     private val design: UiDesign,
     private val windowFocused: () -> Boolean,
     /** The platform's layout-to-snapshot handoff, on the game thread before presentation. */
@@ -72,6 +71,8 @@ abstract class UiLayer<G, D>(
     private val contentState: UiStateBinding<*, *>,
     /** Closes the host, as its own close action does, when the content asked for it through [requestClose]. */
     private val closeHost: () -> Unit,
+    /** Opens the color editor over the host when the content asks through [LocalColorEditor]; null where none can. */
+    private val openColorEditor: (() -> Unit)?,
     private val content: @Composable () -> Unit,
 ) {
     var session: UiSession? = null
@@ -81,13 +82,15 @@ abstract class UiLayer<G, D>(
     private val clipboard = ClipboardMailbox()
     private val characters = CommittedCharacters()
     private val closeRequested = AtomicBoolean()
+    private val editorRequested = AtomicBoolean()
+    private val requestColorEditor: (() -> Unit)? = openColorEditor?.let { { editorRequested.set(true) } }
     private val pendingFeedback = AtomicBoolean()
     private val feedback = UiFeedback { pendingFeedback.set(true) }
     // Whether this session already warned that its content sent more actions than the host can queue.
     private var rejectionsReported = false
     private var seenResourceEpoch = 0L
-    private var themeCatalog: ThemeCatalog? = null
-    private val themeState = ComposeThread.call { mutableStateOf(ThemeCatalog.Empty) }
+    private var shownSchemes: Schemes? = null
+    private val schemesState = ComposeThread.call { mutableStateOf(Schemes.Empty) }
     private var metrics: ScreenMetrics? = null
     /** Set by [prepare] for the [render] call that presents the frame. */
     private var prepared: ScreenMetrics? = null
@@ -149,8 +152,8 @@ abstract class UiLayer<G, D>(
     /** Changes whenever the platform reset its GPU resources, for example after a resource reload. */
     protected abstract val resourceEpoch: Long
 
-    /** The theme files of the current resources. */
-    protected abstract val themes: ThemeCatalog
+    /** The scheme files of the current resources and the player's choices: a new value when either changes. */
+    protected abstract val schemes: Schemes
 
     /** Reports a problem of the content, for example actions the host refused. */
     protected abstract fun warn(message: String)
@@ -200,7 +203,7 @@ abstract class UiLayer<G, D>(
         if (exiting) close()
         val current = currentMetrics(width, height)
         refreshClipboard()
-        refreshTheme()
+        refreshSchemes()
         val existing = session
         if (existing == null || existing.state == SessionState.CLOSED) {
             // The first composition already reads the game, not a placeholder.
@@ -213,10 +216,11 @@ abstract class UiLayer<G, D>(
                     UiSession(current.viewport, clipboard) {
                         CompositionLocalProvider(
                             LocalUiFeedback provides feedback,
-                            LocalThemeCatalog provides themeState.value,
+                            LocalSchemes provides schemesState.value,
+                            LocalColorEditor provides requestColorEditor,
                             LocalScreenPresence provides shown,
                         ) {
-                            ProvideContent { design.Decorate(theme, content) }
+                            ProvideContent { design.Decorate(content) }
                         }
                     }
                 surface = created
@@ -343,7 +347,7 @@ abstract class UiLayer<G, D>(
                     metrics = current
                 }
                 updateWindowFocus()
-                refreshTheme()
+                refreshSchemes()
                 beforePrepare(graphics)
                 val epoch = resourceEpoch
                 if (seenResourceEpoch != epoch) {
@@ -424,10 +428,13 @@ abstract class UiLayer<G, D>(
         reportRejectedActions()
     }
 
-    /** Runs the content's pending actions, publishes a snapshot and then closes the host if the content asked to. */
+    /**
+     * Runs the content's pending actions, publishes a snapshot and then closes the host or opens the color editor if
+     * the content asked to.
+     */
     fun tickContent() {
         contentState.tick()
-        if (closeRequested.getAndSet(false)) closeHost()
+        runRequests()
     }
 
     /**
@@ -438,12 +445,12 @@ abstract class UiLayer<G, D>(
 
     /**
      * Runs what the content asked for while Compose handled an input event, before the event returns, as vanilla
-     * widgets act inside their input handlers: the actions it sent, then a close request. True when Compose [consumed]
-     * the event or the content closed the host, which then takes nothing more from the event.
+     * widgets act inside their input handlers: the actions it sent, then a close or color editor request. True when
+     * Compose [consumed] the event or the content closed the host, which then takes nothing more from the event.
      */
     fun handled(consumed: Boolean): Boolean {
         contentState.handleActions()
-        if (closeRequested.getAndSet(false)) closeHost()
+        runRequests()
         return consumed || !contentState.isOpen
     }
 
@@ -500,6 +507,7 @@ abstract class UiLayer<G, D>(
         }
         beforeClose()
         closeRequested.set(false) // A request ends with the session that made it.
+        editorRequested.set(false)
         suspended = false
         exiting = false
         presence = null
@@ -548,11 +556,19 @@ abstract class UiLayer<G, D>(
             minimumUiDensity,
         )
 
-    private fun refreshTheme() {
-        val next = themes
-        if (themeCatalog === next) return
-        themeCatalog = next
-        ComposeThread.call { themeState.value = next }
+    // Closing wins over a color editor requested in the same event.
+    private fun runRequests() {
+        if (closeRequested.getAndSet(false)) {
+            editorRequested.set(false)
+            closeHost()
+        } else if (editorRequested.getAndSet(false)) openColorEditor?.invoke()
+    }
+
+    private fun refreshSchemes() {
+        val next = schemes
+        if (shownSchemes === next) return
+        shownSchemes = next
+        ComposeThread.call { schemesState.value = next }
     }
 
     private fun flushFeedback() {

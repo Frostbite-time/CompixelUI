@@ -5,12 +5,12 @@ import dev.compixel.forge.drawing.NativeDrawingOptions
 import dev.compixel.forge.item.NativeItemOptions
 import dev.compixel.forge.slots.ComposeMenuSlots
 import dev.compixel.forge.slots.SlotBehaviorScreen
+import dev.compixel.forge.theme.ColorEditorScreen
 import dev.compixel.host.UiStateBinding
 import dev.compixel.slots.SlotBehavior
 import dev.compixel.slots.SlotIntent
 import dev.compixel.ui.UiDesign
 import dev.compixel.ui.ore.theme.OreDesign
-import dev.compixel.ui.theme.ThemeId
 import kotlin.math.*
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
@@ -39,10 +39,9 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
     protected val container: M,
     title: Component,
     val inventory: ComposeMenuSlots<M> = ComposeMenuSlots(container),
-    theme: ThemeId = ThemeId.Default,
     nativeItemOptions: NativeItemOptions = NativeItemOptions(cacheCapacity = 256),
     nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
-    design: UiDesign = OreDesign,
+    design: UiDesign = OreDesign(),
 ) : SlotBehaviorScreen<M>(container, checkNotNull(Minecraft.getInstance().player).inventory, title) {
     /** The content's game state, opened and closed with each Compose session. */
     internal val contentState = UiStateBinding<S, A>(::snapshot, ::handle)
@@ -50,12 +49,12 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
         ComposeLayer(
             nativeItemOptions = nativeItemOptions,
             nativeDrawingOptions = nativeDrawingOptions,
-            theme = theme,
             design = design,
             windowFocused = { isUiWindowFocused() },
             prepareFrameContent = { inventory.refreshAfterLayout() },
             contentState = contentState,
             closeHost = ::onClose,
+            openColorEditor = { Minecraft.getInstance().setScreen(ColorEditorScreen(this, design)) },
         ) {
             Content(contentState.value, inventory)
         }

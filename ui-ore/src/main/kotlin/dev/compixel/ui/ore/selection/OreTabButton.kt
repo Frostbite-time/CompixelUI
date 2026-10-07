@@ -32,6 +32,7 @@ import dev.compixel.ui.ore.button.OreButtonStyle
 import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.internal.oreButtonContentOffset
 import dev.compixel.ui.ore.internal.oreButtonFrame
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 
 /** Joined Ore choice buttons. The caller owns exactly one selected option; this is not page navigation. */
@@ -107,7 +108,8 @@ fun OreTabButton(
                 OreText(
                     label,
                     color =
-                        if (!active) colors.disabledText else if (selected) colors.onPrimary else colors.onSecondary,
+                        if (!active) colors[OreColors.disabledText]
+                        else if (selected) colors[OreColors.onPrimary] else colors[OreColors.onSecondary],
                     textAlign = TextAlign.Center,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,

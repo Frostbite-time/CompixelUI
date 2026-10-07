@@ -14,6 +14,7 @@ import dev.compixel.ui.ore.display.OrePixelArt
 import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.layout.OreSurface
 import dev.compixel.ui.ore.layout.OreSurfaceStyle
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 
 /** A domain icon kept by its consumer rather than the library, in Ore's pixel style. */
@@ -87,17 +88,22 @@ internal fun IconsPage(label: (String, String) -> String) {
     ) {
         OreText(label("Icons", "图标"), style = OreTheme.typography.title)
         for (family in glyphFamilies) {
-            OreText(label(family.english, family.chinese), color = OreTheme.colors.mutedText)
+            OreText(label(family.english, family.chinese), color = OreTheme.colors[OreColors.mutedText])
             IconSamples(family.glyphs.map { it.art to it.name })
         }
-        OreText(label("Sizes and colors", "尺寸与颜色"), color = OreTheme.colors.mutedText)
+        OreText(label("Sizes and colors", "尺寸与颜色"), color = OreTheme.colors[OreColors.mutedText])
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             for (size in listOf(8, 12, 16, 24)) OreIcon(OreGlyph.Gear, Modifier.size(size.dp))
-            for (color in listOf(OreTheme.colors.primary, OreTheme.colors.danger, OreTheme.colors.mutedText)) {
+            for (color in
+                listOf(
+                    OreTheme.colors[OreColors.primary],
+                    OreTheme.colors[OreColors.danger],
+                    OreTheme.colors[OreColors.mutedText],
+                )) {
                 OreIcon(OreGlyph.Gear, Modifier.size(16.dp), color)
             }
         }
-        OreText(label("Consumer pixel art", "消费者自定义图标"), color = OreTheme.colors.mutedText)
+        OreText(label("Consumer pixel art", "消费者自定义图标"), color = OreTheme.colors[OreColors.mutedText])
         IconSamples(listOf(DemoNetworkArt to "OrePixelArt"))
     }
 }

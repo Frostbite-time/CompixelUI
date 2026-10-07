@@ -3,7 +3,8 @@ package dev.compixel.forge
 import dev.compixel.forge.constants.CompixelGuiLayers
 import dev.compixel.forge.render.FrameRetirement
 import dev.compixel.forge.render.RendererResources
-import dev.compixel.forge.theme.ThemeReloadListener
+import dev.compixel.forge.theme.ColorSchemes
+import dev.compixel.forge.theme.SchemeReloadListener
 import net.minecraft.resources.Identifier
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener
 import net.neoforged.bus.api.IEventBus
@@ -15,6 +16,8 @@ import net.neoforged.neoforge.common.NeoForge
 
 internal object ClientBootstrap {
     fun register(modEventBus: IEventBus) {
+        // The player's scheme choices and colors, which the color editor saves.
+        ColorSchemes.store.reload()
         NeoForge.EVENT_BUS.addListener(dev.compixel.forge.sync.ClientMenuSync::tick)
         NeoForge.EVENT_BUS.addListener(FrameRetirement::finish)
         NeoForge.EVENT_BUS.addListener(FrameRetirement::shutdown)
@@ -26,7 +29,7 @@ internal object ClientBootstrap {
     }
 
     private fun registerReloadListeners(event: AddClientReloadListenersEvent) {
-        event.addListener(Identifier.fromNamespaceAndPath("compixel", "themes"), ThemeReloadListener)
+        event.addListener(Identifier.fromNamespaceAndPath("compixel", "schemes"), SchemeReloadListener)
         event.addListener(
             Identifier.fromNamespaceAndPath("compixel", "renderer_resources"),
             ResourceManagerReloadListener { RendererResources.reloaded() },

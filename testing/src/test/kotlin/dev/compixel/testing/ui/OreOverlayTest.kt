@@ -67,7 +67,7 @@ class OreOverlayTest {
                             image.encodeToData()!!.use { ImageIO.read(ByteArrayInputStream(it.bytes)) }
                         }
                     }
-                    val panel = OreColors().panel
+                    val panel = OreColors.defaults[OreColors.panel]
                     for (shown in listOf(1f, 0.5f, 0f)) {
                         val image = render(shown)
                         val inside = ComposeThread.call { content }

@@ -2,7 +2,8 @@ package dev.compixel.forge
 
 import dev.compixel.forge.constants.CompixelGuiLayers
 import dev.compixel.forge.render.RendererResources
-import dev.compixel.forge.theme.ThemeReloadListener
+import dev.compixel.forge.theme.ColorSchemes
+import dev.compixel.forge.theme.SchemeReloadListener
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent
 import net.minecraftforge.client.event.RegisterClientReloadListenersEvent
@@ -13,6 +14,8 @@ import net.minecraftforge.eventbus.api.IEventBus
 
 internal object ClientBootstrap {
     fun register(modEventBus: IEventBus) {
+        // The player's scheme choices and colors, which the color editor saves.
+        ColorSchemes.store.reload()
         MinecraftForge.EVENT_BUS.addListener(dev.compixel.forge.sync.ClientMenuSync::tick)
         MinecraftForge.EVENT_BUS.addListener(::tick)
         MinecraftForge.EVENT_BUS.addListener(::leaveWorld)
@@ -21,7 +24,7 @@ internal object ClientBootstrap {
     }
 
     private fun registerReloadListeners(event: RegisterClientReloadListenersEvent) {
-        event.registerReloadListener(ThemeReloadListener)
+        event.registerReloadListener(SchemeReloadListener)
         event.registerReloadListener(ResourceManagerReloadListener { RendererResources.reloaded() })
     }
 

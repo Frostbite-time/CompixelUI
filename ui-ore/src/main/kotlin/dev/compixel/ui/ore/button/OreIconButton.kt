@@ -27,6 +27,7 @@ import dev.compixel.ui.ore.internal.oreOutline
 import dev.compixel.ui.ore.overlay.OreTooltip
 import dev.compixel.ui.ore.overlay.OreTooltipMode
 import dev.compixel.ui.ore.theme.LocalOreContentColor
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 
 /** Convenience overload for the bundled pixel glyphs. */
@@ -71,17 +72,17 @@ fun OreIconButton(
                     .size(18.dp)
                     .semantics { this.contentDescription = contentDescription }
                     .background(
-                        if (enabled && pressed) colors.panel
-                        else if (enabled && hovered) colors.hovered else Color.Transparent
+                        if (enabled && pressed) colors[OreColors.panel]
+                        else if (enabled && hovered) colors[OreColors.hovered] else Color.Transparent
                     )
-                    .oreOutline(if (focused && enabled) colors.focus else null)
+                    .oreOutline(if (focused && enabled) colors[OreColors.focus] else null)
                     .clickable(interactions, indication = null, enabled = enabled, role = Role.Button) {
                         onClick()
                         feedback.activate()
                     },
                 contentAlignment = Alignment.Center,
             ) {
-                val contentColor = if (enabled) colors.text else colors.mutedText
+                val contentColor = if (enabled) colors[OreColors.text] else colors[OreColors.mutedText]
                 CompositionLocalProvider(LocalOreContentColor provides contentColor) {
                     icon(contentColor)
                 }

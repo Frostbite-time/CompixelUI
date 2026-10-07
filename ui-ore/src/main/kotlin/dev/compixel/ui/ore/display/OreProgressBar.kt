@@ -9,6 +9,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.unit.dp
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 import kotlin.math.roundToInt
 
@@ -22,10 +23,10 @@ fun OreProgressBar(progress: Float, modifier: Modifier = Modifier) {
             val width = (size.width - 2 * p).coerceAtLeast(0f)
             val height = (size.height - 2 * p).coerceAtLeast(0f)
             val filled = (width * progress.coerceIn(0f, 1f)).roundToInt().toFloat()
-            drawRect(colors.edge)
-            drawRect(colors.panel, Offset(p, p), Size(width, height))
-            drawRect(colors.primary, Offset(p, p), Size(filled, height))
-            drawRect(colors.primaryHover, Offset(p, p), Size(filled, minOf(p, height)))
+            drawRect(colors[OreColors.edge])
+            drawRect(colors[OreColors.panel], Offset(p, p), Size(width, height))
+            drawRect(colors[OreColors.primary], Offset(p, p), Size(filled, height))
+            drawRect(colors[OreColors.primaryHover], Offset(p, p), Size(filled, minOf(p, height)))
         }
     )
 }

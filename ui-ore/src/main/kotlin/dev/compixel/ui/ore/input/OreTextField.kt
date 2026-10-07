@@ -25,6 +25,7 @@ import dev.compixel.ui.ore.display.OreIcon
 import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.internal.oreFrame
 import dev.compixel.ui.ore.internal.oreOutline
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 
 @Composable
@@ -46,7 +47,7 @@ fun OreTextField(
     val colors = OreTheme.colors
     val interactions = remember { MutableInteractionSource() }
     val focused by interactions.collectIsFocusedAsState()
-    val outline = if (isError) colors.danger else if (focused && enabled) colors.focus else null
+    val outline = if (isError) colors[OreColors.danger] else if (focused && enabled) colors[OreColors.focus] else null
     Column(modifier, verticalArrangement = Arrangement.spacedBy(3.dp)) {
         if (label != null) OreText(label)
         BasicTextField(
@@ -55,29 +56,34 @@ fun OreTextField(
             modifier =
                 Modifier.fillMaxWidth()
                     .heightIn(min = 21.dp)
-                    .oreFrame(if (enabled) colors.panel else colors.raised, colors.edge, colors.highlight)
+                    .oreFrame(
+                        if (enabled) colors[OreColors.panel] else colors[OreColors.raised],
+                        colors[OreColors.edge],
+                        colors[OreColors.highlight],
+                    )
                     .oreOutline(outline),
             enabled = enabled,
             readOnly = readOnly,
             singleLine = singleLine,
-            textStyle = textStyle.copy(color = if (enabled) colors.text else colors.mutedText),
+            textStyle = textStyle.copy(color = if (enabled) colors[OreColors.text] else colors[OreColors.mutedText]),
             keyboardOptions = keyboardOptions,
             keyboardActions = keyboardActions,
             interactionSource = interactions,
-            cursorBrush = SolidColor(colors.text),
+            cursorBrush = SolidColor(colors[OreColors.text]),
             decorationBox = { inner ->
                 Row(
                     Modifier.padding(horizontal = 6.dp, vertical = 5.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
-                    if (leadingIcon != null) OreIcon(leadingIcon, color = colors.mutedText)
+                    if (leadingIcon != null) OreIcon(leadingIcon, color = colors[OreColors.mutedText])
                     // The empty editor and fallback-font placeholder can have different heights.
                     Box(
                         Modifier.weight(1f),
                         contentAlignment = if (singleLine) Alignment.CenterStart else Alignment.TopStart,
                     ) {
-                        if (value.isEmpty()) OreText(placeholder, color = colors.mutedText, style = textStyle)
+                        if (value.isEmpty())
+                            OreText(placeholder, color = colors[OreColors.mutedText], style = textStyle)
                         inner()
                     }
                 }

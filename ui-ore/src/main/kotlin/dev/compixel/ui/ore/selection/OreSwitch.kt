@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import dev.compixel.ui.LocalUiFeedback
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 import kotlin.math.roundToInt
 
@@ -37,24 +38,26 @@ fun OreSwitch(
     val pressed by interactions.collectIsPressedAsState()
     val colors = OreTheme.colors
     val feedback = LocalUiFeedback.current
-    val edge = if (enabled) colors.edge else colors.disabledEdge
+    val edge = if (enabled) colors[OreColors.edge] else colors[OreColors.disabledEdge]
     val thumbOffset by
         animateDpAsState(
             targetValue = if (checked) 13.dp else 0.dp,
             animationSpec = spring(dampingRatio = .78f, stiffness = Spring.StiffnessMedium),
             label = "OreSwitchThumbPosition",
         )
-    val trackFill = if (!enabled) colors.secondary else if (checked) colors.primary else colors.switchTrack
-    val trackHighlight = lerp(trackFill, colors.bevelLight, .20f)
+    val trackFill =
+        if (!enabled) colors[OreColors.secondary]
+        else if (checked) colors[OreColors.primary] else colors[OreColors.switchTrack]
+    val trackHighlight = lerp(trackFill, colors[OreColors.bevelLight], .20f)
     val thumbFill =
         when {
-            !enabled -> colors.secondary
-            pressed -> colors.secondaryPressed
-            hovered -> colors.secondaryHover
-            else -> colors.secondary
+            !enabled -> colors[OreColors.secondary]
+            pressed -> colors[OreColors.secondaryPressed]
+            hovered -> colors[OreColors.secondaryHover]
+            else -> colors[OreColors.secondary]
         }
-    val thumbHighlight = lerp(thumbFill, colors.bevelLight, if (hovered) .80f else .40f)
-    val thumbShadow = if (!enabled) colors.secondaryPressed else colors.secondaryEdge
+    val thumbHighlight = lerp(thumbFill, colors[OreColors.bevelLight], if (hovered) .80f else .40f)
+    val thumbShadow = if (!enabled) colors[OreColors.secondaryPressed] else colors[OreColors.secondaryEdge]
     Box(
         modifier.size(28.dp, 15.dp).toggleable(
             checked,
@@ -86,7 +89,9 @@ fun OreSwitch(
                     Offset(2 * unit, 2 * unit),
                     Size((size.width - 4 * unit).coerceAtLeast(0f), (size.height - 4 * unit).coerceAtLeast(0f)),
                 )
-                val ink = if (!enabled) colors.disabledText else if (checked) colors.onPrimary else colors.onSecondary
+                val ink =
+                    if (!enabled) colors[OreColors.disabledText]
+                    else if (checked) colors[OreColors.onPrimary] else colors[OreColors.onSecondary]
                 val left = (size.width / 2).roundToInt().toFloat() - 4 * unit
                 val top = (size.height / 2).roundToInt().toFloat() - 4 * unit
                 if (checked) {

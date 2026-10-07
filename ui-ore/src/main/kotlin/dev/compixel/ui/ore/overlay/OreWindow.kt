@@ -50,6 +50,7 @@ import dev.compixel.ui.ore.display.OreGlyph
 import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.layout.OreDivider
 import dev.compixel.ui.ore.layout.OreSurface
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 
 @Stable
@@ -132,10 +133,10 @@ fun OreWindow(
                 .onPointerEvent(PointerEventType.Press) { event -> event.changes.forEach { it.consume() } }
                 .onPointerEvent(PointerEventType.Scroll) { event -> event.changes.forEach { it.consume() } }
         ) {
-            OreSurface(Modifier.fillMaxSize(), bottomLedge = 2.dp, ledgeColor = colors.ledge) {
+            OreSurface(Modifier.fillMaxSize(), bottomLedge = 2.dp, ledgeColor = colors[OreColors.ledge]) {
                 Column(Modifier.fillMaxSize()) {
                     Row(
-                        Modifier.fillMaxWidth().background(colors.raised),
+                        Modifier.fillMaxWidth().background(colors[OreColors.raised]),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(

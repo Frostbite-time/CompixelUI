@@ -24,7 +24,7 @@ import dev.compixel.forge.render.RendererResources
 import dev.compixel.forge.render.ScreenRenderDestination
 import dev.compixel.forge.render.configuredRenderBackend
 import dev.compixel.forge.render.createScreenRenderer
-import dev.compixel.forge.theme.ThemeReloadListener
+import dev.compixel.forge.theme.ColorSchemes
 import dev.compixel.host.ScreenMetrics
 import dev.compixel.host.UiLayer
 import dev.compixel.host.UiLayerSurface
@@ -37,8 +37,7 @@ import dev.compixel.render.RenderBackend
 import dev.compixel.render.UiFrameProfiler
 import dev.compixel.ui.UiDesign
 import dev.compixel.ui.ore.theme.OreDesign
-import dev.compixel.ui.theme.ThemeCatalog
-import dev.compixel.ui.theme.ThemeId
+import dev.compixel.ui.theme.Schemes
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.input.CharacterEvent
@@ -56,8 +55,7 @@ internal class ComposeLayer(
     guiUnitsPerDp: Float = 1f,
     private val nativeItemOptions: NativeItemOptions = NativeItemOptions(),
     minimumUiDensity: Float = 1f,
-    theme: ThemeId = ThemeId.Default,
-    design: UiDesign = OreDesign,
+    design: UiDesign = OreDesign(),
     private val nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
     windowFocused: () -> Boolean,
     /** Adapter-owned layout-to-snapshot handoff, on the game thread before presentation. */
@@ -66,18 +64,20 @@ internal class ComposeLayer(
     contentState: UiStateBinding<*, *>,
     /** Closes the host when its content asks to. */
     closeHost: () -> Unit = {},
+    /** Opens the color editor over the host; null where none can open, as in HUD layers. */
+    openColorEditor: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) :
     UiLayer<GuiGraphicsExtractor, ScreenRenderDestination>(
         renderBackend,
         guiUnitsPerDp,
         minimumUiDensity,
-        theme,
         design,
         windowFocused,
         prepareFrameContent,
         contentState,
         closeHost,
+        openColorEditor,
         content,
     ) {
     private val logger = LogUtils.getLogger()
@@ -136,8 +136,8 @@ internal class ComposeLayer(
     override val resourceEpoch: Long
         get() = RendererResources.epoch
 
-    override val themes: ThemeCatalog
-        get() = ThemeReloadListener.catalog
+    override val schemes: Schemes
+        get() = ColorSchemes.current
 
     override fun warn(message: String) = logger.warn("{}", message)
 

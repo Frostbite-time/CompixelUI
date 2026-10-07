@@ -27,6 +27,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 import kotlin.math.max
 import kotlinx.coroutines.launch
@@ -149,8 +150,8 @@ internal fun OreScrollbar(
                 val pixel = 1.dp.toPx().coerceAtLeast(1f)
                 val trackWidth = 4f * pixel
                 val trackLeft = ((size.width - trackWidth) / 2f).coerceAtLeast(0f)
-                val trackEdge = if (scrollable) colors.edge else colors.disabledEdge
-                val rail = if (scrollable) colors.trackEmptyLight else colors.highlight
+                val trackEdge = if (scrollable) colors[OreColors.edge] else colors[OreColors.disabledEdge]
+                val rail = if (scrollable) colors[OreColors.trackEmptyLight] else colors[OreColors.highlight]
                 // A plain, recessed 2dp light-grey rail inside its 1dp black frame.
                 drawRect(trackEdge, Offset(trackLeft, 0f), Size(trackWidth.coerceAtMost(size.width), size.height))
                 drawRect(
@@ -171,14 +172,14 @@ internal fun OreScrollbar(
                     }
                 val thumbHovered =
                     scrollable && pointerY?.let { it >= thumbTop && it <= thumbTop + thumbHeight } == true
-                val thumbEdge = if (scrollable) colors.buttonBorder else colors.disabledEdge
+                val thumbEdge = if (scrollable) colors[OreColors.buttonBorder] else colors[OreColors.disabledEdge]
                 val thumbLight =
-                    if (scrollable && thumbHovered) colors.secondaryButtonCorner
-                    else if (scrollable) colors.secondaryButtonLightEdge else colors.highlight
+                    if (scrollable && thumbHovered) colors[OreColors.secondaryButtonCorner]
+                    else if (scrollable) colors[OreColors.secondaryButtonLightEdge] else colors[OreColors.highlight]
                 val thumbFace =
-                    if (scrollable && thumbHovered) colors.secondaryHover
-                    else if (scrollable) colors.secondary else colors.raised
-                val thumbLedge = if (scrollable) colors.secondaryEdge else colors.disabledText
+                    if (scrollable && thumbHovered) colors[OreColors.secondaryHover]
+                    else if (scrollable) colors[OreColors.secondary] else colors[OreColors.raised]
+                val thumbLedge = if (scrollable) colors[OreColors.secondaryEdge] else colors[OreColors.disabledText]
                 val ledgeHeight = (2.dp.toPx()).coerceAtMost((thumbHeight - 2f * pixel).coerceAtLeast(0f))
                 val brightHeight = (thumbHeight - 2f * pixel - ledgeHeight).coerceAtLeast(0f)
                 val faceHeight = (thumbHeight - 4f * pixel - ledgeHeight).coerceAtLeast(0f)

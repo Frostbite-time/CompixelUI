@@ -25,10 +25,15 @@ import dev.compixel.ui.LocalOverlayVisibility
 import dev.compixel.ui.LocalUiFeedback
 import dev.compixel.ui.UiDesign
 import dev.compixel.ui.UiFeedback
-import dev.compixel.ui.theme.LocalThemeCatalog
-import dev.compixel.ui.theme.ThemeCatalog
-import dev.compixel.ui.theme.ThemeId
-import dev.compixel.ui.theme.ThemeLayer
+import dev.compixel.ui.theme.ColorSchema
+import dev.compixel.ui.theme.LocalColorEditor
+import dev.compixel.ui.theme.LocalSchemes
+import dev.compixel.ui.theme.SchemeCatalog
+import dev.compixel.ui.theme.SchemeFile
+import dev.compixel.ui.theme.SchemeId
+import dev.compixel.ui.theme.SchemeOwner
+import dev.compixel.ui.theme.SchemeSettings
+import dev.compixel.ui.theme.Schemes
 import kotlin.test.*
 import org.junit.jupiter.api.Test
 
@@ -82,41 +87,51 @@ class UiLayerTest {
         }
     }
 
-    private var theme: ThemeId? = null
-    private var catalog: ThemeCatalog? = null
+    private var schemes: Schemes? = null
+    private var editor: (() -> Unit)? = null
     private var feedback: UiFeedback? = null
+
+    private object TestColors : ColorSchema("test") {
+        val panel = color("panel", "surfaces", androidx.compose.ui.graphics.Color.Black)
+    }
 
     private val design =
         object : UiDesign {
+            override val owner = SchemeOwner("test", TestColors)
+
             @Composable
-            override fun Decorate(theme: ThemeId, content: @Composable () -> Unit) {
-                val catalog = LocalThemeCatalog.current
+            override fun Decorate(content: @Composable () -> Unit) {
+                val schemes = LocalSchemes.current
+                val editor = LocalColorEditor.current
                 val feedback = LocalUiFeedback.current
                 SideEffect {
-                    this@UiLayerTest.theme = theme
-                    this@UiLayerTest.catalog = catalog
+                    this@UiLayerTest.schemes = schemes
+                    this@UiLayerTest.editor = editor
                     this@UiLayerTest.feedback = feedback
                 }
                 content()
             }
+
+            override fun preview(): @Composable () -> Unit = {}
         }
 
     private inner class TestLayer(
         contentState: UiStateBinding<*, *>,
         private val failItemsClose: Boolean = false,
         closeHost: () -> Unit = {},
+        openColorEditor: (() -> Unit)? = null,
         content: @Composable () -> Unit = {},
     ) :
         UiLayer<Unit, String>(
             RenderBackend.CPU_RASTER,
             guiUnitsPerDp = 1f,
             minimumUiDensity = 0f,
-            theme = ThemeId("test", "screen"),
             design = design,
             windowFocused = { true },
             prepareFrameContent = { false },
             contentState = contentState,
             closeHost = closeHost,
+            openColorEditor = openColorEditor,
             content = content,
         ) {
         lateinit var renderer: FakeRenderer
@@ -124,7 +139,7 @@ class UiLayerTest {
         lateinit var tooltips: FakeImages
         var feedbackPlayed = 0
         var epoch = 0L
-        var currentThemes = ThemeCatalog.Empty
+        var currentSchemes = Schemes.Empty
         val warnings = mutableListOf<String>()
 
         override fun assertRenderThread() {}
@@ -143,8 +158,8 @@ class UiLayerTest {
         override val resourceEpoch
             get() = epoch
 
-        override val themes
-            get() = currentThemes
+        override val schemes
+            get() = currentSchemes
 
         override fun warn(message: String) {
             warnings += message
@@ -253,22 +268,37 @@ class UiLayerTest {
     }
 
     @Test
-    fun `content gets the theme, the current theme files and feedback played on the game thread`() {
-        val layer = TestLayer(state())
+    fun `content gets the current schemes, the color editor and feedback, which act on the game thread`() {
+        var opened = 0
+        val layer = TestLayer(state(), openColorEditor = { opened++ })
         layer.open(200, 100)
         layer.render(Unit, 200, 100)
-        assertEquals(ThemeId("test", "screen"), theme)
-        assertEquals(ThemeCatalog.Empty, catalog)
-        val reloaded = ThemeCatalog.create(mapOf(ThemeId("test") to listOf(ThemeLayer("test", mapOf("format" to 1)))))
-        layer.currentThemes = reloaded
+        assertSame(Schemes.Empty, schemes)
+        val catalog =
+            SchemeCatalog.create(
+                mapOf(SchemeId("test", "x") to listOf(SchemeFile("test", mapOf("format" to 1)))),
+                emptyMap(),
+            )
+        val reloaded = Schemes(catalog, SchemeSettings())
+        layer.currentSchemes = reloaded
         layer.render(Unit, 200, 100)
-        assertSame(reloaded, catalog)
+        assertSame(reloaded, schemes)
+        ComposeThread.call { checkNotNull(editor).invoke() }
+        assertEquals(0, opened)
+        layer.tickContent()
+        assertEquals(1, opened)
         ComposeThread.call { checkNotNull(feedback).activate() }
         assertEquals(0, layer.feedbackPlayed)
         layer.tick()
         layer.tick()
         assertEquals(1, layer.feedbackPlayed)
         layer.close()
+        // A host that cannot open the editor, such as a HUD layer, offers none.
+        val hud = TestLayer(state())
+        hud.open(200, 100)
+        hud.render(Unit, 200, 100)
+        assertNull(editor)
+        hud.close()
     }
 
     // What a ScreenTransition's content saw, written on the Compose thread.

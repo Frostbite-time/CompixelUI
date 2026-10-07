@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 
 /**
@@ -33,7 +34,7 @@ fun OreScreen(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     BoxWithConstraints(
-        modifier.fillMaxSize().background(OreTheme.colors.backdrop).padding(8.dp),
+        modifier.fillMaxSize().background(OreTheme.colors[OreColors.backdrop]).padding(8.dp),
         contentAlignment = Alignment.Center,
     ) {
         OrePanel(

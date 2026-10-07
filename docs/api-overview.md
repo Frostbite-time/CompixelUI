@@ -8,8 +8,9 @@ This reference lists the public Kotlin and Java API of CompixelUI for the Minecr
 
 ### Where to start / 从哪里开始
 
-- `dev.compixel.forge`: screens, container screens and HUD layers, which show game state through `snapshot`, `handle` and `Content`; `item`, `slots` and `sync` hold items and tooltips, menu slots and menu sync. / 界面、容器界面与 HUD 层，通过 `snapshot`、`handle` 和 `Content` 显示游戏状态；`item`、`slots`、`sync` 分别对应物品与提示、菜单槽位和菜单同步。
-- `dev.compixel.ui.ore`: Ore UI components and theme. / Ore UI 组件与主题。
+- `dev.compixel.forge`: screens, container screens and HUD layers, which show game state through `snapshot`, `handle` and `Content`; `item`, `slots`, `sync` and `theme` hold items and tooltips, menu slots, menu sync and the color editor screen. / 界面、容器界面与 HUD 层，通过 `snapshot`、`handle` 和 `Content` 显示游戏状态；`item`、`slots`、`sync`、`theme` 分别对应物品与提示、菜单槽位、菜单同步和颜色编辑器界面。
+- `dev.compixel.ui.ore`: Ore UI components, Ore's colors and the color editor. / Ore UI 组件、Ore 的颜色与颜色编辑器。
+- `dev.compixel.ui.theme`: color schemas that designs declare their colors with, color schemes and the entry to the color editor. / 设计用来声明颜色的颜色表、配色，以及颜色编辑器的入口。
 - `dev.compixel.host`: UI sessions, `UiBinding`, the `UiStateBinding` that state screens use, and `ScreenTransition` for screen enter and exit animations. / 界面会话、`UiBinding`、状态界面使用的 `UiStateBinding`，以及用于界面进出场动画的 `ScreenTransition`。
 - `dev.compixel.sync`: the menu synchronization protocol, which also runs on servers. / 菜单同步协议，也可在服务端运行。
 - `dev.compixel.slots`: slot rules and shift-click routes. / 槽位规则与 Shift 点击路线。

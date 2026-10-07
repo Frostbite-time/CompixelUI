@@ -6,11 +6,11 @@ import dev.compixel.forge.item.NativeItemOptions
 import dev.compixel.forge.item.NativeItemStatistics
 import dev.compixel.forge.item.NativeTooltipStatistics
 import dev.compixel.forge.render.configuredRenderBackend
+import dev.compixel.forge.theme.ColorEditorScreen
 import dev.compixel.host.UiStateBinding
 import dev.compixel.render.*
 import dev.compixel.ui.UiDesign
 import dev.compixel.ui.ore.theme.OreDesign
-import dev.compixel.ui.theme.ThemeId
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.gui.components.EditBox
@@ -42,8 +42,7 @@ abstract class ComposeScreen<S, A>(
     nativeItemOptions: NativeItemOptions = NativeItemOptions(),
     nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
     minimumUiDensity: Float = 1f,
-    theme: ThemeId = ThemeId.Default,
-    design: UiDesign = OreDesign,
+    design: UiDesign = OreDesign(),
 ) : Screen(title) {
     /** The content's game state, opened and closed with each Compose session. */
     internal val contentState = UiStateBinding<S, A>(::snapshot, ::handle)
@@ -53,12 +52,12 @@ abstract class ComposeScreen<S, A>(
             guiUnitsPerDp,
             nativeItemOptions,
             minimumUiDensity,
-            theme = theme,
             design = design,
             nativeDrawingOptions = nativeDrawingOptions,
             windowFocused = { isUiWindowFocused() },
             contentState = contentState,
             closeHost = ::onClose,
+            openColorEditor = { Minecraft.getInstance().gui.setScreen(ColorEditorScreen(this, design)) },
             content = { Content(contentState.value) },
         )
     private var nativeCapture: GuiEventListener? = null

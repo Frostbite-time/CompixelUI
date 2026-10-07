@@ -7,8 +7,8 @@
 | Topic · 主题 | English | 简体中文 |
 | --- | --- | --- |
 | Add the library and open a first screen · 接入并打开第一个界面 | [Getting started](en/getting-started.md) | [快速开始](zh-CN/getting-started.md) |
-| Controls, popups and theme · 控件、弹出层与主题 | [Ore UI](en/ore-ui.md) | [Ore UI](zh-CN/ore-ui.md) |
-| Built-in themes and resource-pack colors · 内置主题与资源包配色 | [Themes](en/themes.md) | [主题](zh-CN/themes.md) |
+| Controls, popups and colors · 控件、弹出层与配色 | [Ore UI](en/ore-ui.md) | [Ore UI](zh-CN/ore-ui.md) |
+| Color schemes, the color editor and resource-pack colors · 配色、颜色编辑器与资源包配色 | [Color schemes](en/themes.md) | [配色](zh-CN/themes.md) |
 | Item icons and tooltips · 物品图标与提示 | [Items and tooltips](en/items.md) | [物品与提示](zh-CN/items.md) |
 | Menus with slots · 带槽位的菜单 | [Container screens](en/inventory.md) | [容器界面](zh-CN/inventory.md) |
 | Animate screens in and out · 界面进出场动画 | [Screen transitions](en/transitions.md) | [进出场动画](zh-CN/transitions.md) |

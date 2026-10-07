@@ -1,10 +1,13 @@
 package dev.compixel.testing.ui
 
+import androidx.compose.foundation.LocalContextMenuRepresentation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
@@ -12,212 +15,126 @@ import dev.compixel.bridge.ComposeThread
 import dev.compixel.host.UiSession
 import dev.compixel.platform.Viewport
 import dev.compixel.ui.ore.overlay.OreDialog
+import dev.compixel.ui.ore.overlay.OreTextContextMenu
 import dev.compixel.ui.ore.theme.*
-import dev.compixel.ui.theme.LocalThemeCatalog
-import dev.compixel.ui.theme.ThemeCatalog
-import dev.compixel.ui.theme.ThemeId
-import dev.compixel.ui.theme.ThemeLayer
+import dev.compixel.ui.theme.ColorValues
+import dev.compixel.ui.theme.LocalSchemes
+import dev.compixel.ui.theme.SchemeCatalog
+import dev.compixel.ui.theme.SchemeFile
+import dev.compixel.ui.theme.SchemeId
+import dev.compixel.ui.theme.SchemeSettings
+import dev.compixel.ui.theme.Schemes
 import kotlin.test.*
 import org.junit.jupiter.api.Test
 
 class OreThemeTest {
-    // One theme file holding only an Ore section.
-    private fun patch(vararg fields: Pair<String, Any?>) =
-        ThemeLayer("test", mapOf("format" to 1, "ore" to mapOf(*fields)))
+    private val owner = OreDesign().owner
 
-    private fun ThemeLayer.applyTo(colors: OreColors) = OreThemeSection.apply(colors, document["ore"])
-
-    private fun catalog(layers: Map<ThemeId, List<ThemeLayer>>) = ThemeCatalog.create(layers) { error(it) }
-
-    private fun ThemeCatalog.colors(id: ThemeId) = this[id, OreThemeSection]
+    private fun pack(path: String, vararg colors: Pair<String, String>) =
+        SchemeCatalog.create(
+            mapOf(
+                SchemeId("compixel", path) to
+                    listOf(SchemeFile("pack", mapOf("format" to 1, "colors" to mapOf(*colors))))
+            ),
+            emptyMap(),
+        ) {
+            error(it)
+        }
 
     @Test
-    fun `defaults are unchanged and missing themes fall back by namespace`() {
-        assertEquals(OreColors(), ThemeCatalog.Empty.colors(ThemeId.Default))
-        assertEquals(OreColors(), ThemeCatalog.Empty.colors(ThemeId("missing", "page")))
-        val catalog = catalog(mapOf(ThemeId("a") to listOf(patch("colors" to mapOf("panel" to "#123456")))))
-        assertEquals(Color(0xFF123456), catalog.colors(ThemeId("a", "nested/page")).panel)
-        assertEquals(OreColors(), catalog.colors(ThemeId("b", "page")))
+    fun `CompixelUI offers the built-in schemes and a pack changes one while keeping the rest`() {
+        val schemes = Schemes(pack("light", "panel" to "#EEEEEE"), SchemeSettings())
+        assertEquals(listOf("default", "light", "twilight"), schemes.paths(owner))
+        assertEquals(OreColors.defaults, schemes.colors(owner))
+        val light = schemes.colors(owner, "light")
+        assertEquals(Color(0xFFEEEEEE), light[OreColors.panel])
+        assertEquals(OreColors.scheme("light")[OreColors.text], light[OreColors.text])
+        assertEquals(OreColors.scheme("light")[OreColors.primaryHover], light[OreColors.primaryHover])
+        assertReadable(OreColors.scheme("light"))
+        assertReadable(OreColors.scheme("twilight"))
     }
 
     @Test
-    fun `global namespace named and pack layers compose without losing omitted fields`() {
-        val id = ThemeId("a", "storage")
-        val catalog =
-            catalog(
-                mapOf(
-                    ThemeId.Default to listOf(patch("colors" to mapOf("text" to "#112233"))),
-                    ThemeId("a") to listOf(patch("colors" to mapOf("panel" to "#223344"))),
-                    id to
-                        listOf(
-                            patch("palette" to mapOf("primary" to "#556699")),
-                            patch("colors" to mapOf("panel" to "#334455")),
-                        ),
-                )
-            )
-        val colors = catalog.colors(id)
-        assertEquals(Color(0xFF112233), colors.text)
-        assertEquals(Color(0xFF334455), colors.panel)
-        assertEquals(Color(0xFF556699), colors.primary)
-        assertEquals(OreColors().panel, catalog.colors(ThemeId("b")).panel)
+    fun `a pack that changes a base color recolors the shades that follow it`() {
+        val light = Schemes(pack("light", "primary" to "#3355AA"), SchemeSettings()).colors(owner, "light")
+        val primary = Color(0xFF3355AA)
+        assertEquals(primary, light[OreColors.trackFilled])
+        assertEquals(lerp(primary, Color.Black, .16f), light[OreColors.primaryHover])
+        assertEquals(lerp(light[OreColors.slot], primary, .22f), light[OreColors.markedSlot])
+        assertTrue(light.follows(OreColors.primaryHover))
+        // Colors that do not follow the primary keep Light's own.
+        assertEquals(OreColors.scheme("light")[OreColors.dangerHover], light[OreColors.dangerHover])
     }
 
     @Test
-    fun `higher palette resets the whole family then exact overrides win`() {
-        val lower =
-            patch("colors" to mapOf("primaryHover" to "#FF0000", "trackFilled" to "#00FF00")).applyTo(OreColors())
-        val changed =
-            patch("palette" to mapOf("primary" to "#3355AA"), "colors" to mapOf("primaryPressed" to "#123456"))
-                .applyTo(lower)
-        assertNotEquals(lower.primaryHover, changed.primaryHover)
-        assertEquals(Color(0xFF3355AA), changed.trackFilled)
-        assertEquals(Color(0xFF123456), changed.primaryPressed)
-        assertNotEquals(lower.markedSlot, changed.markedSlot)
-    }
-
-    @Test
-    fun `colors are RGBA and exact values remain exact`() {
-        val colors = patch("colors" to mapOf("backdrop" to "#12345678", "text" to "#abcdef")).applyTo(OreColors())
-        assertEquals(Color(0x78123456), colors.backdrop)
-        assertEquals(Color(0xFFABCDEF), colors.text)
-    }
-
-    @Test
-    fun `bad sections fail as a whole and report the key`() {
-        for (section in
-            listOf(
-                "dark",
-                mapOf("colours" to emptyMap<String, String>()),
-                mapOf("colors" to mapOf("panel" to "red")),
-                mapOf("colors" to mapOf("panel" to "#112233", "typo" to "#123456")),
-                mapOf("palette" to mapOf("panel" to "#112233")),
-                mapOf("preset" to null),
-            )) assertFailsWith<IllegalArgumentException> { OreThemeSection.apply(OreColors(), section) }
-        assertContains(
-            assertFailsWith<IllegalArgumentException> {
-                    patch("colors" to mapOf("panel" to "#123")).applyTo(OreColors())
+    fun `the theme gives text fields Ore's selection and menu`() {
+        var selection = Color.Unspecified
+        var menu: Any? = null
+        UiSession(Viewport(40, 40)) {
+                OreTheme(OreColors.scheme("twilight")) {
+                    val colors = LocalTextSelectionColors.current
+                    val representation = LocalContextMenuRepresentation.current
+                    SideEffect {
+                        selection = colors.backgroundColor
+                        menu = representation
+                    }
                 }
-                .message
-                .orEmpty(),
-            "colors.panel",
-        )
-        // In a catalog, an invalid top file leaves the lower files in effect.
-        val warnings = mutableListOf<String>()
-        val layered =
-            ThemeCatalog.create(
-                mapOf(
-                    ThemeId("a") to
-                        listOf(patch("colors" to mapOf("panel" to "#112233")), patch("colors" to mapOf("typo" to "#1")))
-                ),
-                warnings::add,
-            )
-        assertEquals(Color(0xFF112233), layered.colors(ThemeId("a")).panel)
-        assertContains(warnings.single(), "ore section of theme a:default")
+            }
+            .use { session -> session.frame(1_000_000_000L)?.close() }
+        ComposeThread.call {
+            assertEquals(OreColors.scheme("twilight")[OreColors.selection], selection)
+            assertSame(OreTextContextMenu, menu)
+        }
     }
 
-    @Test
-    fun `snapshots own their data and removed files restore defaults`() {
-        val tokens = mutableMapOf("panel" to "#112233")
-        val layers = mutableMapOf(ThemeId("a") to mutableListOf(patch("colors" to tokens)))
-        val snapshot = catalog(layers)
-        tokens["panel"] = "#FFFFFF"
-        layers.clear()
-        assertEquals(Color(0xFF112233), snapshot.colors(ThemeId("a")).panel)
-        assertEquals(OreColors(), catalog(layers).colors(ThemeId("a")))
-        assertEquals(ThemeCatalog.Empty, catalog(emptyMap()))
-    }
-
-    @Test
-    fun `light preset is reusable and permits pack overrides`() {
-        val catalog =
-            catalog(
-                mapOf(
-                    ThemeId("a") to
-                        listOf(
-                            patch("preset" to "light"),
-                            patch("colors" to mapOf("panel" to "#EEEEEE")),
-                        )
-                )
-            )
-        assertEquals(OrePalettes.Light, ThemeCatalog.Empty.colors(ThemeId.Light))
-        assertEquals(Color(0xFFEEEEEE), catalog.colors(ThemeId("a", "storage")).panel)
-        assertEquals(OrePalettes.Light.primary, catalog.colors(ThemeId("a")).primary)
-        assertReadable(OrePalettes.Light)
-    }
-
-    @Test
-    fun `twilight is built in as a theme and a preset`() {
-        assertEquals(OrePalettes.Twilight, ThemeCatalog.Empty.colors(ThemeId.Twilight))
-        assertEquals(OrePalettes.Twilight, patch("preset" to "twilight").applyTo(OrePalettes.Light))
-        val catalog =
-            catalog(
-                mapOf(
-                    ThemeId.Default to listOf(patch("colors" to mapOf("panel" to "#123456"))),
-                    ThemeId.Twilight to listOf(patch("colors" to mapOf("text" to "#FFFFFF"))),
-                )
-            )
-        // Like light, twilight skips the global default but still applies its own theme files.
-        assertEquals(OrePalettes.Twilight.panel, catalog.colors(ThemeId.Twilight).panel)
-        assertEquals(Color.White, catalog.colors(ThemeId.Twilight).text)
-        assertReadable(OrePalettes.Twilight)
-    }
-
-    private fun assertReadable(colors: OreColors) {
+    private fun assertReadable(colors: ColorValues) {
         fun contrast(a: Color, b: Color): Float =
             (maxOf(a.luminance(), b.luminance()) + .05f) / (minOf(a.luminance(), b.luminance()) + .05f)
         for ((foreground, background) in
             listOf(
-                colors.text to colors.panel,
-                colors.mutedText to colors.raised,
-                colors.onPrimary to colors.primary,
-                colors.onPrimary to colors.primaryHover,
-                colors.onSecondary to colors.secondary,
-                colors.onDanger to colors.danger,
+                OreColors.text to OreColors.panel,
+                OreColors.mutedText to OreColors.raised,
+                OreColors.onPrimary to OreColors.primary,
+                OreColors.onPrimary to OreColors.primaryHover,
+                OreColors.onSecondary to OreColors.secondary,
+                OreColors.onDanger to OreColors.danger,
             )) {
-            assertTrue(contrast(foreground, background) >= 4.5f, "$foreground on $background")
+            assertTrue(contrast(colors[foreground], colors[background]) >= 4.5f, "$foreground on $background")
         }
     }
 
     @Test
-    fun `invalid identifiers cannot escape the theme directory`() {
-        for (path in listOf("", "../x", "/x", "a//b", "a/./b", "A")) {
-            assertFailsWith<IllegalArgumentException> { ThemeId("a", path) }
-        }
-        assertFailsWith<IllegalArgumentException> { ThemeId("Bad Mod") }
-    }
-
-    @Test
-    fun `live catalog updates preserve remembered state and reach dialogs popups and nested themes`() {
-        val id = ThemeId("a")
-        val state = ComposeThread.call { mutableStateOf(ThemeCatalog.Empty) }
+    fun `live scheme changes preserve remembered state and reach dialogs popups and nested themes`() {
+        val state = ComposeThread.call { mutableStateOf(Schemes.Empty) }
         var creations = 0
-        var observed = emptyList<OreColors>()
+        var observed = emptyList<ColorValues>()
         var dialogColor = Color.Unspecified
         var popupColor = Color.Unspecified
         var draft = ""
         var edit: (String) -> Unit = {}
+        val design = OreDesign()
         UiSession(Viewport(320, 240)) {
-                CompositionLocalProvider(LocalThemeCatalog provides state.value) {
-                    OreTheme(id) {
+                CompositionLocalProvider(LocalSchemes provides state.value) {
+                    design.Decorate {
                         var text by remember {
                             creations++
                             mutableStateOf("")
                         }
                         val own = OreTheme.colors
                         var other = own
-                        OreTheme(ThemeId("b")) { other = OreTheme.colors }
+                        OreTheme(OreColors.scheme("twilight")) { other = OreTheme.colors }
                         SideEffect {
                             observed = listOf(own, other)
                             draft = text
                             edit = { text = it }
                         }
                         OreDialog("Theme", {}, buttons = {}) {
-                            val color = OreTheme.colors.panel
+                            val color = OreTheme.colors[OreColors.panel]
                             SideEffect { dialogColor = color }
                             Box(Modifier.size(12.dp))
                         }
                         Popup {
-                            val color = OreTheme.colors.panel
+                            val color = OreTheme.colors[OreColors.panel]
                             SideEffect { popupColor = color }
                             Box(Modifier.size(12.dp))
                         }
@@ -232,21 +149,23 @@ class OreThemeTest {
                         session.frame(time)?.close()
                     }
                 }
+                val light = SchemeSettings().with(design.owner, SchemeSettings.Choice(scheme = "light"))
                 settle()
                 ComposeThread.call {
                     edit("unsaved draft")
-                    state.value = catalog(mapOf(id to listOf(patch("preset" to "light"))))
+                    state.value = Schemes(SchemeCatalog.Empty, light)
                 }
                 settle()
                 ComposeThread.call {
+                    val panel = OreColors.scheme("light")[OreColors.panel]
                     assertEquals(1, creations)
                     assertEquals("unsaved draft", draft)
-                    assertEquals(listOf(OrePalettes.Light, OreColors()), observed)
-                    assertEquals(OrePalettes.Light.panel, dialogColor)
-                    assertEquals(OrePalettes.Light.panel, popupColor)
-                    state.value = catalog(mapOf(id to listOf(patch("preset" to "light"))))
+                    assertEquals(listOf(OreColors.scheme("light"), OreColors.scheme("twilight")), observed)
+                    assertEquals(panel, dialogColor)
+                    assertEquals(panel, popupColor)
+                    state.value = Schemes(SchemeCatalog.Empty, light)
                 }
-                assertNull(session.frame(time + 20_000_000L), "Equal reload must retain the recorded frame")
+                assertNull(session.frame(time + 20_000_000L), "Equal schemes must retain the recorded frame")
             }
     }
 }

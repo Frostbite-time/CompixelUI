@@ -25,6 +25,7 @@ import dev.compixel.ui.ore.button.OreButtonStyle
 import dev.compixel.ui.ore.button.OreIconButton
 import dev.compixel.ui.ore.display.OreGlyph
 import dev.compixel.ui.ore.display.OreText
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 
 /** When [showTitleBar] is false, the title, close button and separator occupy no space. */
@@ -40,12 +41,17 @@ fun OrePanel(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = OreTheme.colors
-    OreSurface(modifier, bottomLedge = 2.dp, ledgeColor = colors.ledge, frameEdge = colors.frameEdge) {
+    OreSurface(
+        modifier,
+        bottomLedge = 2.dp,
+        ledgeColor = colors[OreColors.ledge],
+        frameEdge = colors[OreColors.frameEdge],
+    ) {
         Column(Modifier.fillMaxSize()) {
             if (showTitleBar) {
                 Row(
                     Modifier.fillMaxWidth()
-                        .background(colors.raised)
+                        .background(colors[OreColors.raised])
                         .heightIn(min = 20.dp)
                         .padding(horizontal = 5.dp, vertical = 2.5.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -63,7 +69,7 @@ fun OrePanel(
                     if (onClose != null)
                         OreIconButton(OreGlyph.Cross, closeLabel, onClose, style = OreButtonStyle.Quiet)
                 }
-                Box(Modifier.fillMaxWidth().height(2.dp).background(colors.ledge))
+                Box(Modifier.fillMaxWidth().height(2.dp).background(colors[OreColors.ledge]))
             }
             Column(
                 Modifier.weight(1f).fillMaxWidth().padding(contentPadding),
@@ -71,9 +77,9 @@ fun OrePanel(
                 content = content,
             )
             if (footer != null) {
-                Box(Modifier.fillMaxWidth().height(1.dp).background(colors.highlight))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(colors[OreColors.highlight]))
                 Row(
-                    Modifier.fillMaxWidth().background(colors.raised).padding(5.dp),
+                    Modifier.fillMaxWidth().background(colors[OreColors.raised]).padding(5.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     content = footer,

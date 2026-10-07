@@ -47,6 +47,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import dev.compixel.ui.ore.internal.oreOutline
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 import kotlin.math.max
 import kotlin.math.min
@@ -134,7 +135,7 @@ fun OreColorPicker(
                     emit(s = p.x / size.width.coerceAtLeast(1), v = 1f - p.y / size.height.coerceAtLeast(1))
                 }
                 .focusable(enabled)
-                .oreOutline(if (planeFocused) theme.focus else null)
+                .oreOutline(if (planeFocused) theme[OreColors.focus] else null)
         ) {
             drawRect(Brush.horizontalGradient(listOf(Color.White, Color.hsv(hue, 1f, 1f))))
             drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black)))
@@ -151,7 +152,7 @@ fun OreColorPicker(
                 Size(6.dp.toPx(), 6.dp.toPx()),
                 style = Stroke(1.dp.toPx()),
             )
-            if (!enabled) drawRect(theme.panel.copy(alpha = .55f))
+            if (!enabled) drawRect(theme[OreColors.panel].copy(alpha = .55f))
         }
         ColorTrack(
             hue / 360f,
@@ -173,7 +174,7 @@ fun OreColorPicker(
             Canvas(Modifier.size(24.dp)) {
                 drawChecker()
                 drawRect(color)
-                drawRect(theme.edge, style = Stroke(1.dp.toPx()))
+                drawRect(theme[OreColors.edge], style = Stroke(1.dp.toPx()))
             }
             OreTextField(
                 hex,
@@ -278,19 +279,19 @@ private fun ColorTrack(
                 onChange((p.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f))
             }
             .focusable(enabled)
-            .oreOutline(if (focused) theme.focus else null)
+            .oreOutline(if (focused) theme[OreColors.focus] else null)
     ) {
         if (checker) drawChecker()
         drawRect(Brush.horizontalGradient(colors))
-        drawRect(theme.edge, style = Stroke(1.dp.toPx()))
+        drawRect(theme[OreColors.edge], style = Stroke(1.dp.toPx()))
         val x = (value * size.width).coerceIn(2.dp.toPx(), (size.width - 2.dp.toPx()).coerceAtLeast(2.dp.toPx()))
-        drawRect(theme.edge, Offset(x - 2.dp.toPx(), 0f), Size(4.dp.toPx(), size.height))
+        drawRect(theme[OreColors.edge], Offset(x - 2.dp.toPx(), 0f), Size(4.dp.toPx(), size.height))
         drawRect(
             Color.White,
             Offset(x - 1.dp.toPx(), 1.dp.toPx()),
             Size(2.dp.toPx(), (size.height - 2.dp.toPx()).coerceAtLeast(0f)),
         )
-        if (!enabled) drawRect(theme.panel.copy(alpha = .55f))
+        if (!enabled) drawRect(theme[OreColors.panel].copy(alpha = .55f))
     }
 }
 

@@ -12,7 +12,7 @@ In mods built with CompixelUI:
 - **Real items**: icons with their animations and enchantment glint, and the same tooltips as in your inventory.
 - **Inventories that work as usual**: clicking, dragging and shift-clicking behave like vanilla, and recipe viewers and other inventory mods keep working.
 - **Proper typing**: text fields follow your keyboard layout and support selection, copy and paste, and input methods for languages such as Chinese and Japanese.
-- **Colors you can change**: resource packs can recolor any CompixelUI screen, and Light and Twilight themes are built in.
+- **Colors you can change**: switch color schemes and change any color in game, or recolor screens with resource packs; Light and Twilight schemes are built in.
 - **Smooth rendering**: screens are drawn on the GPU through the same graphics API as the game, including Vulkan on Minecraft 26.2 and 26.3.
 
 | Controls | Items and tooltips |
@@ -32,20 +32,20 @@ Download the file for your Minecraft version and put it in your `mods` folder, n
 
 ## Change the colors
 
-Resource packs can recolor CompixelUI screens without any code. For example, a resource pack with this file at `assets/compixel/compixel/themes/default.json` switches every CompixelUI screen to the built-in Twilight theme:
+Each mod's screens have their own color schemes. Where a mod offers the color editor, you can switch schemes and change any color, including its opacity, and every screen of that mod follows at once. The editor can export your colors as a resource pack to share or to include in a modpack.
+
+Resource packs can also add or change schemes without any code. For example, a resource pack with this file at `assets/compixel/compixel/schemes.json` makes the built-in Twilight scheme the default for screens in CompixelUI's own Ore style:
 
 ```json
 {
   "format": 1,
-  "ore": {
-    "preset": "twilight"
-  }
+  "default": "twilight"
 }
 ```
 
-Enable the pack, or press F3+T to reload if it's already on. Mods that choose their own theme or colors may keep them. The [theme guide](https://github.com/Frostbite-time/CompixelUI/blob/main/docs/en/themes.md) covers custom colors, per-mod themes and every color name.
+Enable the pack, or press F3+T to reload if it's already on. The [color scheme guide](https://github.com/Frostbite-time/CompixelUI/blob/main/docs/en/themes.md) covers scheme files, per-mod schemes and every color name.
 
-![CompixelUI controls in the Twilight theme](https://raw.githubusercontent.com/Frostbite-time/CompixelUI/main/docs/assets/ore-twilight.png)
+![CompixelUI controls in the Twilight scheme](https://raw.githubusercontent.com/Frostbite-time/CompixelUI/main/docs/assets/ore-twilight.png)
 
 ## Troubleshooting
 

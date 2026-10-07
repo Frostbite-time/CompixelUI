@@ -26,6 +26,7 @@ import dev.compixel.ui.ore.display.OreIcon
 import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.internal.oreFrame
 import dev.compixel.ui.ore.internal.oreOutline
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 
 @Composable
@@ -75,25 +76,32 @@ fun OreCheckbox(
         horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         val fill =
-            if (!enabled) colors.raised
+            if (!enabled) colors[OreColors.raised]
             else if (checked) {
-                if (pressed) colors.primaryPressed else colors.primary
-            } else if (pressed) colors.secondaryPressed else if (hovered) colors.secondaryHover else colors.secondary
+                if (pressed) colors[OreColors.primaryPressed] else colors[OreColors.primary]
+            } else if (pressed) colors[OreColors.secondaryPressed]
+            else if (hovered) colors[OreColors.secondaryHover] else colors[OreColors.secondary]
         Box(
             Modifier.size(13.dp)
                 .oreFrame(
                     fill,
-                    if (enabled) colors.edge else colors.disabledEdge,
-                    lerp(fill, colors.bevelLight, .28f),
+                    if (enabled) colors[OreColors.edge] else colors[OreColors.disabledEdge],
+                    lerp(fill, colors[OreColors.bevelLight], .28f),
                 )
-                .oreOutline(if (focused && enabled) colors.focus else null),
+                .oreOutline(if (focused && enabled) colors[OreColors.focus] else null),
             contentAlignment = Alignment.Center,
         ) {
             if (state == ToggleableState.On)
-                OreIcon(OreGlyph.Checkmark, color = if (enabled) colors.onPrimary else colors.mutedText)
+                OreIcon(
+                    OreGlyph.Checkmark,
+                    color = if (enabled) colors[OreColors.onPrimary] else colors[OreColors.mutedText],
+                )
             else if (state == ToggleableState.Indeterminate)
-                Box(Modifier.size(7.dp, 1.dp).background(if (enabled) colors.onPrimary else colors.mutedText))
+                Box(
+                    Modifier.size(7.dp, 1.dp)
+                        .background(if (enabled) colors[OreColors.onPrimary] else colors[OreColors.mutedText])
+                )
         }
-        if (label != null) OreText(label, color = if (enabled) colors.text else colors.mutedText)
+        if (label != null) OreText(label, color = if (enabled) colors[OreColors.text] else colors[OreColors.mutedText])
     }
 }

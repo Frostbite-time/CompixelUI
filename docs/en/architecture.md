@@ -32,10 +32,10 @@ flowchart TB
 | `platform` | Viewport, input, clipboard and other contracts with the host game |
 | `render` | Frames, GPU resources and profiling |
 | `compose-bridge` | Runs Compose on its own thread, records frames and draws native images |
-| `host` | UI sessions, `UiBinding`, `ScreenTransition`, and `UiLayer`, the Compose layer that every screen and HUD layer is built on |
+| `host` | UI sessions, `UiBinding`, `ScreenTransition`, the store of the player's color choices, and `UiLayer`, the Compose layer that every screen and HUD layer is built on |
 | `render-gl`, `render-vulkan` | The OpenGL and Vulkan renderers |
-| `ui-core` | What a design system plugs into: control feedback, the design around a host's content, the visibility its popups follow during screen transitions, and theme files with a section per design system |
-| `ui-ore` | Ore UI components, theme and font |
+| `ui-core` | What a design system plugs into: control feedback, the design around a host's content, the visibility its popups follow during screen transitions, and color schemes: each design system's declared colors, the scheme files of resource packs and the player's choices |
+| `ui-ore` | Ore UI components, colors, font and the color editor |
 | `menu-sync` | The menu synchronization protocol, with the client's and the server's sessions |
 | `slot-core` | Slot rules and shift-click routes |
 | `minecraft/<loader>-<version>` | Screens, HUD layers, input, items, menus and GPU access for one Minecraft version |

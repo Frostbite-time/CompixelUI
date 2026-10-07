@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.unit.dp
 import dev.compixel.ui.LocalUiFeedback
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 import kotlin.math.roundToInt
 
@@ -112,11 +113,11 @@ fun OreSlider(
                 val trackTop = (size.height / 2 - trackHeight / 2).roundToInt().toFloat()
                 val thumbTop = (size.height / 2 - thumbPx / 2).roundToInt().toFloat()
                 val shadow = 2.dp.roundToPx().toFloat()
-                val edge = if (enabled) colors.edge else colors.disabledEdge
-                val trackFilled = if (enabled) colors.trackFilled else colors.highlight
-                val trackFilledLight = if (enabled) colors.trackFilledLight else colors.highlight
-                val trackEmpty = if (enabled) colors.trackEmpty else colors.highlight
-                val trackEmptyLight = if (enabled) colors.trackEmptyLight else colors.highlight
+                val edge = if (enabled) colors[OreColors.edge] else colors[OreColors.disabledEdge]
+                val trackFilled = if (enabled) colors[OreColors.trackFilled] else colors[OreColors.highlight]
+                val trackFilledLight = if (enabled) colors[OreColors.trackFilledLight] else colors[OreColors.highlight]
+                val trackEmpty = if (enabled) colors[OreColors.trackEmpty] else colors[OreColors.highlight]
+                val trackEmptyLight = if (enabled) colors[OreColors.trackEmptyLight] else colors[OreColors.highlight]
                 fun track(left: Float, right: Float, light: Color, fill: Color) {
                     drawRect(edge, Offset(left, trackTop), Size((right - left).coerceAtLeast(0f), trackHeight))
                     drawRect(
@@ -135,13 +136,13 @@ fun OreSlider(
                 val pressed = dragging
                 val thumbFill =
                     when {
-                        !enabled -> colors.secondary
-                        pressed -> colors.secondaryPressed
-                        hovered -> colors.secondaryHover
-                        else -> colors.secondary
+                        !enabled -> colors[OreColors.secondary]
+                        pressed -> colors[OreColors.secondaryPressed]
+                        hovered -> colors[OreColors.secondaryHover]
+                        else -> colors[OreColors.secondary]
                     }
-                val thumbHighlight = lerp(thumbFill, colors.bevelLight, if (hovered) .80f else .40f)
-                val thumbShadow = if (!enabled) colors.secondaryPressed else colors.secondaryEdge
+                val thumbHighlight = lerp(thumbFill, colors[OreColors.bevelLight], if (hovered) .80f else .40f)
+                val thumbShadow = if (!enabled) colors[OreColors.secondaryPressed] else colors[OreColors.secondaryEdge]
                 // Same face as the switch thumb: 1px frame, 1px light ring on three
                 // sides, 2px face inset, lower shadow. Geometry stays local here.
                 val frame = p

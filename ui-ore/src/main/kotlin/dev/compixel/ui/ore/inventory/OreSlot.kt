@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.dp
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 import kotlin.math.roundToInt
 
@@ -32,18 +33,20 @@ fun OreSlot(
     content: @Composable BoxScope.() -> Unit,
 ) {
     val colors = OreTheme.colors
-    val well = if (marked) colors.markedSlot else colors.slot
-    val fill = if (highlighted) lerp(well, colors.slotHover, .7f) else well
+    val well = if (marked) colors[OreColors.markedSlot] else colors[OreColors.slot]
+    val fill = if (highlighted) lerp(well, colors[OreColors.slotHover], .7f) else well
     val outline =
         if (!highlighted) null
-        else if (marked) lerp(colors.slotHoverEdge, colors.primary, .32f) else colors.slotHoverEdge
+        else if (marked) lerp(colors[OreColors.slotHoverEdge], colors[OreColors.primary], .32f)
+        else colors[OreColors.slotHoverEdge]
     Box(
         modifier
             .defaultMinSize(18.dp, 18.dp)
             .oreSlotFrame(
                 fill,
-                if (marked) colors.edge else colors.slotEdge,
-                if (marked) lerp(colors.highlight, colors.primary, .35f) else colors.highlight,
+                if (marked) colors[OreColors.edge] else colors[OreColors.slotEdge],
+                if (marked) lerp(colors[OreColors.highlight], colors[OreColors.primary], .35f)
+                else colors[OreColors.highlight],
                 outline = outline,
             )
             .oreSlotContentClip()

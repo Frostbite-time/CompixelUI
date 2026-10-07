@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.compixel.ui.ore.internal.oreFrame
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 
 enum class OreSurfaceStyle {
@@ -23,8 +24,8 @@ fun OreSurface(
     modifier: Modifier = Modifier,
     color: Color = Color.Unspecified,
     bottomLedge: Dp = Dp.Unspecified,
-    ledgeColor: Color = OreTheme.colors.ledge,
-    frameEdge: Color = OreTheme.colors.frameEdge,
+    ledgeColor: Color = OreTheme.colors[OreColors.ledge],
+    frameEdge: Color = OreTheme.colors[OreColors.frameEdge],
     drawTopEdge: Boolean = true,
     drawEndEdge: Boolean = true,
     drawBottomEdge: Boolean = true,
@@ -34,7 +35,8 @@ fun OreSurface(
 ) {
     val colors = OreTheme.colors
     val fill =
-        if (color != Color.Unspecified) color else if (style == OreSurfaceStyle.Raised) colors.raised else colors.panel
+        if (color != Color.Unspecified) color
+        else if (style == OreSurfaceStyle.Raised) colors[OreColors.raised] else colors[OreColors.panel]
     val layoutDirection = LocalLayoutDirection.current
     val effectiveLedge =
         when {
@@ -47,7 +49,7 @@ fun OreSurface(
         modifier.oreFrame(
             fill,
             frameEdge,
-            colors.highlight,
+            colors[OreColors.highlight],
             effectiveLedge,
             ledgeColor,
             drawTopEdge,
@@ -56,7 +58,7 @@ fun OreSurface(
             drawStartEdge,
             layoutDirection,
             style,
-            colors.edge,
+            colors[OreColors.edge],
         )
     if (style != OreSurfaceStyle.Flat) {
         Box(

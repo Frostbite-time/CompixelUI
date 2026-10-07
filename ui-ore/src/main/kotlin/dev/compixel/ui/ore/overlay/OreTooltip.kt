@@ -42,6 +42,7 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.layout.OreSurface
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 
 enum class OreTooltipMode {
@@ -215,7 +216,7 @@ fun OreTooltip(
                                     true
                                 } else false
                             },
-                        color = OreTheme.colors.raised,
+                        color = OreTheme.colors[OreColors.raised],
                     ) {
                         Column {
                             Column(
@@ -225,11 +226,11 @@ fun OreTooltip(
                             )
                             if (delayed) {
                                 val colors = OreTheme.colors
-                                Box(Modifier.fillMaxWidth().height(1.dp).background(colors.edge)) {
+                                Box(Modifier.fillMaxWidth().height(1.dp).background(colors[OreColors.edge])) {
                                     Box(
                                         Modifier.fillMaxWidth(if (branch.locked) 1f else progress.value)
                                             .height(1.dp)
-                                            .background(colors.primary)
+                                            .background(colors[OreColors.primary])
                                     )
                                 }
                             }

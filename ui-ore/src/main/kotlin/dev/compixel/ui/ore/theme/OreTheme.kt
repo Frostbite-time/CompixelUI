@@ -1,21 +1,27 @@
 package dev.compixel.ui.ore.theme
 
+import androidx.compose.foundation.LocalContextMenuRepresentation
+import androidx.compose.foundation.text.selection.LocalTextSelectionColors
+import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import dev.compixel.ui.UiDesign
-import dev.compixel.ui.theme.ThemeId
-import dev.compixel.ui.theme.ThemeSection
-import dev.compixel.ui.theme.current
+import dev.compixel.ui.ore.overlay.OreTextContextMenu
+import dev.compixel.ui.theme.ColorValues
+import dev.compixel.ui.theme.SchemeOwner
+import dev.compixel.ui.theme.colors
 
-private val LocalOreColors = staticCompositionLocalOf { OreColors() }
+private val LocalOreColors = staticCompositionLocalOf { OreColors.defaults }
 private val LocalOreTypography = staticCompositionLocalOf { OreTypography() }
 internal val LocalOreContentColor = compositionLocalOf { Color(0xFFF2F3F4) }
 
 object OreTheme {
-    val colors: OreColors
+    /** The Ore colors of the surrounding [OreTheme], read with `colors[OreColors.panel]`. */
+    val colors: ColorValues
         @Composable get() = LocalOreColors.current
 
     val typography: OreTypography
@@ -23,49 +29,40 @@ object OreTheme {
 }
 
 /**
- * Ore's colors in theme files, under `"ore"`: a `preset`, generated `palette` families and exact `colors` roles. The
- * built-in [ThemeId.Light] and [ThemeId.Twilight] themes start from Ore's light and twilight palettes.
+ * Gives [content] Ore's [colors] and [typography]: its controls, text selection and text-field menus. A mod's own
+ * design can pass Ore colors made from its own, as `OreColors.values(OreColors.slot to modColors[ModColors.slot],
+ * ...)`.
  */
-object OreThemeSection : ThemeSection<OreColors>("ore") {
-    override val default = OreColors()
-
-    override fun builtIn(id: ThemeId): OreColors? =
-        when (id) {
-            ThemeId.Light -> OrePalettes.Light
-            ThemeId.Twilight -> OrePalettes.Twilight
-            else -> null
-        }
-
-    override fun apply(value: OreColors, layer: Any?): OreColors {
-        require(layer is Map<*, *>) { "expected an object" }
-        return OreThemePatch.parse(layer).applyTo(value)
-    }
-}
-
-/** Ore as a host's design system: the content gets the Ore theme of the host's [ThemeId]. */
-object OreDesign : UiDesign {
-    @Composable
-    override fun Decorate(theme: ThemeId, content: @Composable () -> Unit) {
-        OreTheme(theme, content = content)
-    }
-}
-
-/** Resolves a named theme from the current theme files without replacing the composition. */
-@Composable
-fun OreTheme(id: ThemeId, typography: OreTypography = OreTheme.typography, content: @Composable () -> Unit) {
-    OreTheme(OreThemeSection.current(id), typography, content)
-}
-
 @Composable
 fun OreTheme(
-    colors: OreColors = OreTheme.colors,
+    colors: ColorValues = OreTheme.colors,
     typography: OreTypography = OreTheme.typography,
     content: @Composable () -> Unit,
 ) {
+    require(colors.schema === OreColors) { "OreTheme needs Ore colors, not ${colors.schema}" }
+    val selection = remember(colors) { TextSelectionColors(colors[OreColors.primary], colors[OreColors.selection]) }
     CompositionLocalProvider(
         LocalOreColors provides colors,
         LocalOreTypography provides typography,
-        LocalOreContentColor provides colors.text,
+        LocalOreContentColor provides colors[OreColors.text],
+        LocalTextSelectionColors provides selection,
+        LocalContextMenuRepresentation provides OreTextContextMenu,
         content = content,
     )
+}
+
+/**
+ * Ore as a host's design: its content gets the Ore scheme that [owner]'s player chose. Screens use CompixelUI's own
+ * schemes by default; a mod that styles its screens with Ore can name itself, `OreDesign("examplemod")`, to offer
+ * schemes of its own.
+ */
+class OreDesign(namespace: String = "compixel") : UiDesign {
+    override val owner = SchemeOwner(namespace, OreColors)
+
+    @Composable
+    override fun Decorate(content: @Composable () -> Unit) {
+        OreTheme(owner.colors(), content = content)
+    }
+
+    override fun preview(): @Composable () -> Unit = { OrePreview() }
 }

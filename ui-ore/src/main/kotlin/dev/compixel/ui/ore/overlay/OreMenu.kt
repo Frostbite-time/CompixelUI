@@ -50,6 +50,7 @@ import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.layout.OreSurface
 import dev.compixel.ui.ore.navigation.OreListItem
 import dev.compixel.ui.ore.scroll.OreScrollbar
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 import kotlinx.coroutines.launch
 
@@ -168,9 +169,10 @@ fun OreMenu(
                                 item.label,
                                 Modifier.weight(1f),
                                 color =
-                                    if (!item.enabled) OreTheme.colors.mutedText
-                                    else if (item.destructive) lerp(OreTheme.colors.danger, OreTheme.colors.text, .65f)
-                                    else OreTheme.colors.text,
+                                    if (!item.enabled) OreTheme.colors[OreColors.mutedText]
+                                    else if (item.destructive)
+                                        lerp(OreTheme.colors[OreColors.danger], OreTheme.colors[OreColors.text], .65f)
+                                    else OreTheme.colors[OreColors.text],
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -178,7 +180,7 @@ fun OreMenu(
                                 OreText(
                                     item.shortcut,
                                     style = OreTheme.typography.caption,
-                                    color = OreTheme.colors.mutedText,
+                                    color = OreTheme.colors[OreColors.mutedText],
                                 )
                         }
                     }

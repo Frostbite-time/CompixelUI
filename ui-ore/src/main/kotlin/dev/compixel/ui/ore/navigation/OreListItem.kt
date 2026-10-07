@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import dev.compixel.ui.LocalUiFeedback
 import dev.compixel.ui.ore.internal.oreFrame
 import dev.compixel.ui.ore.internal.oreOutline
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 
 @Composable
@@ -58,17 +59,18 @@ internal fun OreListItem(
         modifier
             .heightIn(min = minimumHeight)
             .oreFrame(
-                if (enabled && pressed) colors.panel
-                else if (enabled && hovered) colors.hovered
-                else if (selected) lerp(colors.raised, colors.primary, .18f) else colors.raised,
-                colors.edge,
-                colors.highlight,
+                if (enabled && pressed) colors[OreColors.panel]
+                else if (enabled && hovered) colors[OreColors.hovered]
+                else if (selected) lerp(colors[OreColors.raised], colors[OreColors.primary], .18f)
+                else colors[OreColors.raised],
+                colors[OreColors.edge],
+                colors[OreColors.highlight],
             )
-            .oreOutline(if (focused && enabled) colors.focus else null)
+            .oreOutline(if (focused && enabled) colors[OreColors.focus] else null)
             .drawBehind {
                 if (selected)
                     drawRect(
-                        colors.primaryHover,
+                        colors[OreColors.primaryHover],
                         Offset(1.dp.roundToPx().toFloat(), 1.dp.roundToPx().toFloat()),
                         Size(1.5.dp.roundToPx().toFloat(), (size.height - 2.dp.roundToPx()).coerceAtLeast(0f)),
                     )

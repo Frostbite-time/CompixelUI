@@ -24,6 +24,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import dev.compixel.ui.LocalUiFeedback
 import dev.compixel.ui.ore.display.OreText
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 import kotlin.math.roundToInt
 
@@ -62,21 +63,21 @@ fun OreRadioButton(
             Modifier.size(17.dp).drawBehind {
                 val face =
                     when {
-                        !enabled -> colors.secondary
-                        selected && pressed -> colors.primaryPressed
-                        selected && hovered -> lerp(colors.primary, colors.bevelLight, .12f)
-                        selected -> colors.primary
-                        pressed -> colors.secondaryEdge
-                        hovered -> colors.secondaryHover
-                        else -> colors.switchTrack
+                        !enabled -> colors[OreColors.secondary]
+                        selected && pressed -> colors[OreColors.primaryPressed]
+                        selected && hovered -> lerp(colors[OreColors.primary], colors[OreColors.bevelLight], .12f)
+                        selected -> colors[OreColors.primary]
+                        pressed -> colors[OreColors.secondaryEdge]
+                        hovered -> colors[OreColors.secondaryHover]
+                        else -> colors[OreColors.switchTrack]
                     }
                 val edge =
                     when {
-                        !enabled -> colors.disabledEdge
-                        selected -> colors.primaryEdge
-                        else -> colors.frameEdge
+                        !enabled -> colors[OreColors.disabledEdge]
+                        selected -> colors[OreColors.primaryEdge]
+                        else -> colors[OreColors.frameEdge]
                     }
-                val light = if (enabled) lerp(face, colors.bevelLight, .24f) else colors.mutedText
+                val light = if (enabled) lerp(face, colors[OreColors.bevelLight], .24f) else colors[OreColors.mutedText]
                 // Rasterize the straight diamond edges on framebuffer pixels. The body
                 // is 13dp; its separate focus diamond has a one-dp transparent gap.
                 val unit = size.minDimension / 17f
@@ -102,19 +103,23 @@ fun OreRadioButton(
                         val outer = span(8.5f * unit, y)
                         val inner = span(7.5f * unit, y)
                         if (outer.isEmpty()) continue
-                        if (inner.isEmpty()) strip(outer.first, outer.last, y, colors.focus)
+                        if (inner.isEmpty()) strip(outer.first, outer.last, y, colors[OreColors.focus])
                         else {
-                            strip(outer.first, inner.first - 1, y, colors.focus)
-                            strip(inner.last + 1, outer.last, y, colors.focus)
+                            strip(outer.first, inner.first - 1, y, colors[OreColors.focus])
+                            strip(inner.last + 1, outer.last, y, colors[OreColors.focus])
                         }
                     }
                 }
                 diamond(6.5f * unit, edge)
                 diamond(5.5f * unit, light, edge)
                 diamond(4.5f * unit, face)
-                if (selected) diamond(2.5f * unit, if (enabled) colors.onPrimary else colors.secondaryButtonLightEdge)
+                if (selected)
+                    diamond(
+                        2.5f * unit,
+                        if (enabled) colors[OreColors.onPrimary] else colors[OreColors.secondaryButtonLightEdge],
+                    )
             }
         )
-        if (label != null) OreText(label, color = if (enabled) colors.text else colors.mutedText)
+        if (label != null) OreText(label, color = if (enabled) colors[OreColors.text] else colors[OreColors.mutedText])
     }
 }

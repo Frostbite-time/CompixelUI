@@ -43,6 +43,7 @@ import dev.compixel.ui.ore.internal.oreOutline
 import dev.compixel.ui.ore.layout.OreSurface
 import dev.compixel.ui.ore.scroll.OreScrollbar
 import dev.compixel.ui.ore.theme.LocalOreContentColor
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 import kotlinx.coroutines.launch
 
@@ -185,7 +186,9 @@ fun OreTreeView(
                     },
                     Modifier.fillMaxWidth()
                         .padding(start = (row.depth.coerceAtMost(32) * 10).dp)
-                        .oreOutline(if (focusedId == node.id && enabled && hasFocus) OreTheme.colors.focus else null)
+                        .oreOutline(
+                            if (focusedId == node.id && enabled && hasFocus) OreTheme.colors[OreColors.focus] else null
+                        )
                         .semantics { contentDescription = node.label },
                     enabled && node.enabled,
                 ) {
@@ -204,7 +207,8 @@ fun OreTreeView(
                     else Spacer(Modifier.width(16.dp))
                     CompositionLocalProvider(
                         LocalOreContentColor provides
-                            if (enabled && node.enabled) OreTheme.colors.text else OreTheme.colors.mutedText
+                            if (enabled && node.enabled) OreTheme.colors[OreColors.text]
+                            else OreTheme.colors[OreColors.mutedText]
                     ) {
                         if (nodeContent != null) nodeContent(node)
                         else OreText(node.label, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)

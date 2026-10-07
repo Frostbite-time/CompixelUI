@@ -22,6 +22,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.compixel.ui.ore.display.OreText as Text
 import dev.compixel.ui.ore.navigation.OreTab
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 
 class ItemBrowserModel {
@@ -53,7 +54,7 @@ fun ItemBrowserDemo(
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OreTab("1k", model.count == 1000, { model.count = 1000 })
             OreTab("10k", model.count == 10000, { model.count = 10000 })
-            Text("Native items", color = OreTheme.colors.mutedText)
+            Text("Native items", color = OreTheme.colors[OreColors.mutedText])
         }
         Row(
             Modifier.fillMaxWidth().height(48.dp),

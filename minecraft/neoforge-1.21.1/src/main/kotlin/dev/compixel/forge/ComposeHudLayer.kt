@@ -10,7 +10,6 @@ import dev.compixel.host.UiStateBinding
 import dev.compixel.render.*
 import dev.compixel.ui.UiDesign
 import dev.compixel.ui.ore.theme.OreDesign
-import dev.compixel.ui.theme.ThemeId
 import net.minecraft.client.DeltaTracker
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphics
@@ -33,8 +32,7 @@ abstract class ComposeHudLayer<S>(
     private val nativeItemOptions: NativeItemOptions = NativeItemOptions(),
     private val nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
     private val minimumUiDensity: Float = 1f,
-    private val theme: ThemeId = ThemeId.Default,
-    private val design: UiDesign = OreDesign,
+    private val design: UiDesign = OreDesign(),
 ) : LayeredDraw.Layer {
     // Created by the first drawn frame, not while Minecraft registers layers during startup.
     private var layer: ComposeLayer? = null
@@ -86,7 +84,6 @@ abstract class ComposeHudLayer<S>(
                         guiUnitsPerDp,
                         nativeItemOptions,
                         minimumUiDensity,
-                        theme = theme,
                         design = design,
                         nativeDrawingOptions = nativeDrawingOptions,
                         // Without input the content never takes focus, or with it Minecraft's text input.

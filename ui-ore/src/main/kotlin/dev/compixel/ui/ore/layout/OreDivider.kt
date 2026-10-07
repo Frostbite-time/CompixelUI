@@ -9,6 +9,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.unit.dp
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 
 @Composable
@@ -16,9 +17,9 @@ fun OreDivider(modifier: Modifier = Modifier) {
     val colors = OreTheme.colors
     Box(
         modifier.fillMaxWidth().height(1.dp).drawBehind {
-            drawRect(colors.edge)
+            drawRect(colors[OreColors.edge])
             drawRect(
-                colors.highlight.copy(alpha = 0.4f),
+                colors[OreColors.highlight].copy(alpha = 0.4f),
                 Offset(0f, size.height / 2),
                 Size(size.width, size.height / 2),
             )

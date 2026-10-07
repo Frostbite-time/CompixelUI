@@ -59,8 +59,8 @@ import dev.compixel.ui.ore.selection.OreRadioButton
 import dev.compixel.ui.ore.selection.OreSelect
 import dev.compixel.ui.ore.selection.OreSwitch
 import dev.compixel.ui.ore.selection.OreTabButton
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
-import dev.compixel.ui.theme.ThemeId
 
 /** Default preview exercises the same Ore components shipped to consumer mods. */
 @Composable
@@ -72,7 +72,7 @@ fun OreDemoScreen(
 ) {
     val zh = model.locale == "zh_cn"
     fun label(english: String, chinese: String) = if (zh) chinese else english
-    OreTheme(id = model.theme) {
+    OreTheme(OreColors.scheme(model.scheme)) {
         OreScreen(
             "CompixelUI",
             maxWidth = 560.dp,
@@ -84,20 +84,20 @@ fun OreDemoScreen(
                     style = OreButtonStyle.Secondary,
                 )
                 Spacer(Modifier.weight(1f))
-                // Cycles through the built-in themes; the label names the next one.
+                // Cycles through the built-in schemes; the label names the next one.
                 val next =
-                    when (model.theme) {
-                        ThemeId.Default -> ThemeId.Light
-                        ThemeId.Light -> ThemeId.Twilight
-                        else -> ThemeId.Default
+                    when (model.scheme) {
+                        "default" -> "light"
+                        "light" -> "twilight"
+                        else -> "default"
                     }
                 OreButton(
                     when (next) {
-                        ThemeId.Light -> label("Light", "浅色")
-                        ThemeId.Twilight -> label("Twilight", "暮光")
+                        "light" -> label("Light", "浅色")
+                        "twilight" -> label("Twilight", "暮光")
                         else -> label("Dark", "深色")
                     },
-                    { model.theme = next },
+                    { model.scheme = next },
                     style = OreButtonStyle.Secondary,
                 )
                 OreButton(label("Apply changes", "应用更改"), { model.dialog = true }, Modifier.demoBounds(model, "apply"))
@@ -195,7 +195,7 @@ private fun SettingsPage(model: DemoModel, label: (String, String) -> String) {
             )
         }
         item {
-            OreSurface(Modifier.fillMaxWidth(), color = OreTheme.colors.raised) {
+            OreSurface(Modifier.fillMaxWidth(), color = OreTheme.colors[OreColors.raised]) {
                 Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OreText(label("Ambient audio", "环境音效"), Modifier.weight(1f))
                     OreSwitch(model.enabled, { model.enabled = it })
@@ -205,7 +205,7 @@ private fun SettingsPage(model: DemoModel, label: (String, String) -> String) {
         item {
             Row(Modifier.fillMaxWidth()) {
                 OreText(label("Volume", "音量"), Modifier.weight(1f))
-                OreText("${(model.volume * 100).toInt()}%", color = OreTheme.colors.mutedText)
+                OreText("${(model.volume * 100).toInt()}%", color = OreTheme.colors[OreColors.mutedText])
             }
             OreSlider(model.volume, { model.volume = it }, enabled = model.enabled)
             val animated by animateFloatAsState(if (model.enabled) model.volume else 0f)
@@ -244,7 +244,7 @@ private fun CatalogPage(model: DemoModel, label: (String, String) -> String) {
             model.fixture == Fixture.EMPTY || indices.isEmpty() ->
                 OreText(label("No entries found", "没有找到条目"), Modifier.weight(1f))
             else -> {
-                OreText("${indices.size} " + label("entries", "个条目"), color = OreTheme.colors.mutedText)
+                OreText("${indices.size} " + label("entries", "个条目"), color = OreTheme.colors[OreColors.mutedText])
                 LazyColumn(
                     Modifier.weight(1f).fillMaxWidth().demoBounds(model, "list"),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -257,7 +257,7 @@ private fun CatalogPage(model: DemoModel, label: (String, String) -> String) {
                         ) {
                             OreIcon(DemoNetworkArt)
                             OreText("Entry ${index.toString().padStart(5, '0')}", Modifier.weight(1f))
-                            OreText("${(index * 37L % 4096) + 1}", color = OreTheme.colors.mutedText)
+                            OreText("${(index * 37L % 4096) + 1}", color = OreTheme.colors[OreColors.mutedText])
                         }
                     }
                 }
@@ -407,7 +407,7 @@ private fun ListsPage(model: DemoModel, label: (String, String) -> String) {
                             OreText(
                                 label("Subtitle", "副标题"),
                                 style = OreTheme.typography.caption,
-                                color = OreTheme.colors.mutedText,
+                                color = OreTheme.colors[OreColors.mutedText],
                             )
                         }
                         OreIcon(OreGlyph.ArrowRight)
@@ -543,7 +543,7 @@ private fun SurfacesPage(model: DemoModel, label: (String, String) -> String) {
                 OreText(
                     label("Recessed content area", "下沉的内容区域"),
                     style = OreTheme.typography.caption,
-                    color = OreTheme.colors.mutedText,
+                    color = OreTheme.colors[OreColors.mutedText],
                 )
             }
         }
@@ -557,7 +557,7 @@ private fun SurfacesPage(model: DemoModel, label: (String, String) -> String) {
                 OreText(
                     label("Elevated content area", "抬起的内容区域"),
                     style = OreTheme.typography.caption,
-                    color = OreTheme.colors.mutedText,
+                    color = OreTheme.colors[OreColors.mutedText],
                 )
             }
         }
@@ -568,7 +568,7 @@ private fun SurfacesPage(model: DemoModel, label: (String, String) -> String) {
                 OreText(
                     label("Scrollable text", "可滚文本"),
                     style = OreTheme.typography.caption,
-                    color = OreTheme.colors.mutedText,
+                    color = OreTheme.colors[OreColors.mutedText],
                 )
                 repeat(12) { OreText(label("Line ${it + 1}", "第 ${it + 1} 行")) }
             }

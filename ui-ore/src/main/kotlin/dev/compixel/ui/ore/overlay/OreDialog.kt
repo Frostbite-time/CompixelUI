@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -29,10 +28,8 @@ import dev.compixel.ui.ore.button.OreIconButton
 import dev.compixel.ui.ore.display.OreGlyph
 import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.layout.OreSurface
+import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
-
-/** Compose's default dialog scrim. */
-private val Scrim = Color.Black.copy(alpha = 0.6f)
 
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
@@ -49,13 +46,14 @@ fun OreDialog(
     // the scrim's blending with the screen beneath, and its panel through an alpha layer.
     val visibility = LocalOverlayVisibility.current?.animate()
     val shown = visibility?.value ?: 1f
+    val scrim = OreTheme.colors[OreColors.scrim]
     Dialog(
         onDismissRequest,
         properties =
             DialogProperties(
                 usePlatformDefaultWidth = false,
                 animateTransition = false,
-                scrimColor = Scrim.copy(alpha = Scrim.alpha * shown),
+                scrimColor = scrim.copy(alpha = scrim.alpha * shown),
             ),
     ) {
         val colors = OreTheme.colors
@@ -65,13 +63,13 @@ fun OreDialog(
                 .fillMaxWidth()
                 .then(if (visibility == null) Modifier else Modifier.graphicsLayer { alpha = visibility.value }),
             bottomLedge = 2.dp,
-            ledgeColor = colors.ledge,
-            frameEdge = colors.frameEdge,
+            ledgeColor = colors[OreColors.ledge],
+            frameEdge = colors[OreColors.frameEdge],
         ) {
             Column(Modifier.fillMaxWidth()) {
                 Row(
                     Modifier.fillMaxWidth()
-                        .background(colors.raised)
+                        .background(colors[OreColors.raised])
                         .heightIn(min = 20.dp)
                         .padding(horizontal = 5.dp, vertical = 2.5.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -88,15 +86,15 @@ fun OreDialog(
                     )
                     OreIconButton(OreGlyph.Cross, closeLabel, onDismissRequest, style = OreButtonStyle.Quiet)
                 }
-                Box(Modifier.fillMaxWidth().height(2.dp).background(colors.edge))
+                Box(Modifier.fillMaxWidth().height(2.dp).background(colors[OreColors.edge]))
                 Column(
                     Modifier.fillMaxWidth().padding(10.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                     content = content,
                 )
-                Box(Modifier.fillMaxWidth().height(1.dp).background(colors.highlight))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(colors[OreColors.highlight]))
                 Column(
-                    Modifier.fillMaxWidth().background(colors.raised).padding(5.dp),
+                    Modifier.fillMaxWidth().background(colors[OreColors.raised]).padding(5.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                     content = buttons,
                 )

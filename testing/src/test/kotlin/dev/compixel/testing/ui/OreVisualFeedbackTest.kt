@@ -36,7 +36,7 @@ import org.junit.jupiter.api.Test
 class OreVisualFeedbackTest {
     @Test
     fun `immediate tooltip renders the bottom frame where delayed tooltip renders lock progress`() {
-        val colors = OreColors(frameEdge = Color.Magenta, primary = Color.Cyan)
+        val colors = OreColors.values(OreColors.frameEdge to Color.Magenta, OreColors.primary to Color.Cyan)
         for (mode in OreTooltipMode.entries) {
             var body = Rect.Zero
             UiSession(Viewport(200, 120)) {
@@ -67,7 +67,9 @@ class OreVisualFeedbackTest {
                             }
                         val bounds = ComposeThread.call { body }
                         assertTrue(bounds.height > 0, "Tooltip did not open: $mode")
-                        val expected = if (mode == OreTooltipMode.Immediate) colors.frameEdge else colors.primary
+                        val expected =
+                            if (mode == OreTooltipMode.Immediate) colors[OreColors.frameEdge]
+                            else colors[OreColors.primary]
                         assertEquals(
                             expected.toArgb(),
                             image.getRGB(bounds.center.x.toInt(), bounds.bottom.toInt() + 6),
@@ -81,7 +83,14 @@ class OreVisualFeedbackTest {
     @Test
     fun `custom icon canvas renders with the themed foreground including disabled styles`() {
         val colors =
-            OreColors(text = Color.Magenta, ink = Color.Cyan, disabledText = Color.Yellow, mutedText = Color.Green)
+            OreColors.values(
+                OreColors.text to Color.Magenta,
+                OreColors.onPrimary to Color.Magenta,
+                OreColors.onDanger to Color.Magenta,
+                OreColors.onSecondary to Color.Cyan,
+                OreColors.disabledText to Color.Yellow,
+                OreColors.mutedText to Color.Green,
+            )
         for (style in OreButtonStyle.entries) for (enabled in listOf(true, false)) {
             UiSession(Viewport(40, 40)) {
                     OreTheme(colors = colors) {
@@ -104,9 +113,11 @@ class OreVisualFeedbackTest {
                             }
                         val expected =
                             when {
-                                !enabled -> if (style == OreButtonStyle.Quiet) colors.mutedText else colors.disabledText
-                                style == OreButtonStyle.Secondary -> colors.ink
-                                else -> colors.text
+                                !enabled ->
+                                    if (style == OreButtonStyle.Quiet) colors[OreColors.mutedText]
+                                    else colors[OreColors.disabledText]
+                                style == OreButtonStyle.Secondary -> colors[OreColors.onSecondary]
+                                else -> colors[OreColors.text]
                             }
                         assertEquals(
                             expected.toArgb(),
@@ -128,12 +139,12 @@ class OreVisualFeedbackTest {
                         Row {
                             OreSurface(
                                 Modifier.size(100.dp, 40.dp),
-                                color = OreTheme.colors.panel,
+                                color = OreTheme.colors[OreColors.panel],
                                 style = OreSurfaceStyle.Inset,
                             ) {}
                             OreSurface(
                                 Modifier.size(100.dp, 40.dp),
-                                color = OreTheme.colors.panel,
+                                color = OreTheme.colors[OreColors.panel],
                                 style = OreSurfaceStyle.Raised,
                             ) {}
                         }
@@ -223,12 +234,12 @@ class OreVisualFeedbackTest {
                     Row {
                         OreSurface(
                             Modifier.size(100.dp, 40.dp),
-                            color = OreTheme.colors.panel,
+                            color = OreTheme.colors[OreColors.panel],
                             style = OreSurfaceStyle.Inset,
                         ) {}
                         OreSurface(
                             Modifier.size(100.dp, 40.dp),
-                            color = OreTheme.colors.panel,
+                            color = OreTheme.colors[OreColors.panel],
                             style = OreSurfaceStyle.Raised,
                         ) {}
                     }

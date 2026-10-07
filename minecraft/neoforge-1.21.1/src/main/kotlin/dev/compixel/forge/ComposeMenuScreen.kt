@@ -5,7 +5,6 @@ import dev.compixel.forge.drawing.NativeDrawingOptions
 import dev.compixel.forge.item.NativeItemOptions
 import dev.compixel.ui.UiDesign
 import dev.compixel.ui.ore.theme.OreDesign
-import dev.compixel.ui.theme.ThemeId
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.screens.inventory.MenuAccess
 import net.minecraft.network.chat.Component
@@ -21,10 +20,9 @@ abstract class ComposeMenuScreen<M : AbstractContainerMenu, S, A>(
     title: Component,
     guiUnitsPerDp: Float = 1f,
     minimumUiDensity: Float = 1f,
-    theme: ThemeId = ThemeId.Default,
     nativeItemOptions: NativeItemOptions = NativeItemOptions(),
     nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
-    design: UiDesign = OreDesign,
+    design: UiDesign = OreDesign(),
 ) :
     ComposeScreen<S, A>(
         title,
@@ -32,7 +30,6 @@ abstract class ComposeMenuScreen<M : AbstractContainerMenu, S, A>(
         minimumUiDensity = minimumUiDensity,
         nativeItemOptions = nativeItemOptions,
         nativeDrawingOptions = nativeDrawingOptions,
-        theme = theme,
         design = design,
     ),
     MenuAccess<M> {

@@ -72,7 +72,9 @@ enum class AcceptanceStep(val report: String) {
     COMPONENTS(
         "Ore component pages: selection, menus, numbers, colors, tree, tooltips, windows, fields, slots, surfaces and items"
     ),
-    THEME_RELOAD("resource themes merge packs, isolate mods, recover invalid layers and preserve live state"),
+    THEME_RELOAD(
+        "color schemes stack packs, skip invalid colors, keep the player's colors on top, open the color editor, export a pack and preserve live state"
+    ),
     STRESS("12 repeated screen opens/renders/closes release their sessions and surfaces"),
 }
 
