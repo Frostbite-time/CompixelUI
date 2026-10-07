@@ -1,3 +1,5 @@
 # CompixelUI 0.1.10-alpha.9
 
 - Added: `CompixelGuiLayers.SCREEN_EXITS` names the HUD layer in which closed screens play their exit. Register a layer of your own below it to draw beneath closing screens, for example an effect that should last until their exit has finished. See [Screen transitions](https://github.com/Frostbite-time/CompixelUI/blob/main/docs/en/transitions.md#when-the-screen-closes).
+- Added: `slots.Slot(id, overlay = { slot -> ... })` keeps Ore's look and draws a mark of your own above it, with the same slot state as a slot you draw yourself. See [Container screens](https://github.com/Frostbite-time/CompixelUI/blob/main/docs/en/inventory.md#draw-slots-yourself).
+- Changed: a slot has one hover state. `MenuSlotState.hovered` marks the slot a click would reach: it follows Minecraft's pointer, also while a button is held, and is false while the screen's slot interactions are disabled. Slots in Ore's look light up by the same state. `highlighted` is removed: it was described as a drag highlight but marked the hovered slot by another route, so the two could disagree while dragging.

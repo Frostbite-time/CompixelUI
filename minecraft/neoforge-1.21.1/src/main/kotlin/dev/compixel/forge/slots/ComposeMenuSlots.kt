@@ -1,8 +1,5 @@
 package dev.compixel.forge.slots
 
-import androidx.compose.foundation.hoverable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -51,9 +48,10 @@ data class MenuSlotState(
     val compactAmount: String,
     /** Whether the adapter marked the slot, for example as a filter. */
     val marked: Boolean,
-    /** Whether a native drag spreads the carried stack over this slot. */
-    val highlighted: Boolean,
-    /** Whether the pointer is over the slot. */
+    /**
+     * Whether the pointer is over the slot, so that a click goes to it. It follows Minecraft's pointer, also while a
+     * button is held, and is false while the screen's slot interactions are disabled.
+     */
     val hovered: Boolean,
 )
 
@@ -194,7 +192,7 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
     private var nativeActive = false
     private var nativeDragIds: Set<Int> = emptySet()
     private var nativeButton = 0
-    private var highlighted by mutableStateOf(-1)
+    private var hoveredSlot by mutableStateOf(-1)
     val interacting
         get() = nativeActive
 
@@ -213,36 +211,47 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
         synchronized(layoutLock) { area = position.boundsInRoot() }
     }
 
-    /** A slot in Ore's look: its frame, item icon and amount. */
+    /**
+     * A slot in Ore's look: its frame, item icon and amount, lit while the slot is [MenuSlotState.hovered]. [overlay]
+     * draws above that look across the slot's bounds, for example a hover mark of your own.
+     */
+    // The JVM name keeps it apart from the overload that draws its own content.
+    @JvmName("OreLookSlot")
     @Composable
-    fun Slot(slotId: Int, modifier: Modifier = Modifier) {
+    fun Slot(
+        slotId: Int,
+        modifier: Modifier = Modifier,
+        overlay: (@Composable BoxScope.(MenuSlotState) -> Unit)? = null,
+    ) {
         val region = slotRegion(slotId)
-        val visual = visuals[slotId] ?: MenuSlotVisual()
-        OreSlot(
-            modifier.then(region),
-            marked = visual.marked,
-            highlighted = highlighted == slotId,
-            contentModifier = Modifier.size(16.dp),
-        ) {
-            BoxWithConstraints(Modifier.fillMaxSize()) {
-                visual.icon?.let { MinecraftItemIcon(it, Modifier.fillMaxSize()) }
-                val amount = if (maxWidth < 19.dp) visual.compactAmount else visual.amount
-                // Amount labels formerly shared the adapter's 0.5 density. With one dp now
-                // representing one Minecraft GUI unit, retain their intentionally compact
-                // inventory treatment rather than doubling their visual footprint.
-                val font =
-                    (minOf(12f, (maxWidth.value - 1) / (amount.length.coerceAtLeast(1) * 0.7f)).coerceAtLeast(8f) / 2f)
-                        .sp
-                if (amount.isNotEmpty())
-                    OreText(
-                        amount,
-                        Modifier.align(Alignment.BottomEnd),
-                        style = OreTheme.typography.caption.copy(fontSize = font),
-                        maxLines = 1,
-                    )
+        val state = state(slotId)
+        // The slot fills a size given by modifier and otherwise keeps Ore's minimum size.
+        Box(modifier.then(region), propagateMinConstraints = true) {
+            OreSlot(marked = state.marked, highlighted = state.hovered, contentModifier = Modifier.size(16.dp)) {
+                OreSlotContent(state)
             }
+            if (overlay != null) Box(Modifier.matchParentSize()) { overlay(state) }
         }
     }
+
+    @Composable
+    private fun OreSlotContent(state: MenuSlotState) =
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            state.icon?.let { MinecraftItemIcon(it, Modifier.fillMaxSize()) }
+            val amount = if (maxWidth < 19.dp) state.compactAmount else state.amount
+            // Amount labels formerly shared the adapter's 0.5 density. With one dp now
+            // representing one Minecraft GUI unit, retain their intentionally compact
+            // inventory treatment rather than doubling their visual footprint.
+            val font =
+                (minOf(12f, (maxWidth.value - 1) / (amount.length.coerceAtLeast(1) * 0.7f)).coerceAtLeast(8f) / 2f).sp
+            if (amount.isNotEmpty())
+                OreText(
+                    amount,
+                    Modifier.align(Alignment.BottomEnd),
+                    style = OreTheme.typography.caption.copy(fontSize = font),
+                    maxLines = 1,
+                )
+        }
 
     /**
      * A slot that draws itself: [content] gets what the slot shows and fills the bounds that [modifier] gives the slot,
@@ -252,19 +261,14 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
     @Composable
     fun Slot(slotId: Int, modifier: Modifier = Modifier, content: @Composable BoxScope.(MenuSlotState) -> Unit) {
         val region = slotRegion(slotId)
-        val interactions = remember { MutableInteractionSource() }
-        val hovered by interactions.collectIsHoveredAsState()
+        val state = state(slotId)
+        Box(modifier.then(region)) { content(state) }
+    }
+
+    // Read during composition, so a slot recomposes when its visual or the hovered slot changes.
+    private fun state(slotId: Int): MenuSlotState {
         val visual = visuals[slotId] ?: MenuSlotVisual()
-        val state =
-            MenuSlotState(
-                visual.icon,
-                visual.amount,
-                visual.compactAmount,
-                visual.marked,
-                highlighted == slotId,
-                hovered,
-            )
-        Box(modifier.then(region).hoverable(interactions)) { content(state) }
+        return MenuSlotState(visual.icon, visual.amount, visual.compactAmount, visual.marked, hoveredSlot == slotId)
     }
 
     // Registers where the slot is laid out as its hit region, and leaves a focused text field when it is pressed.
@@ -331,7 +335,7 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
     internal fun move(x: Double, y: Double): Boolean {
         checkOwner()
         val hovered = if (blocked.get()) -1 else slotAt(x, y)
-        ComposeThread.call { highlighted = hovered }
+        ComposeThread.call { hoveredSlot = hovered }
         return nativeActive
     }
 

@@ -317,6 +317,8 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
             } else false
         mirrorDrag()
         inventory.refresh()
+        // The hovered slot follows the pointer while a button is held, as it does when the pointer moves.
+        inventory.move(event.x(), event.y())
         return layer.handled(layer.move(event.x(), event.y())) || handled
     }
 
