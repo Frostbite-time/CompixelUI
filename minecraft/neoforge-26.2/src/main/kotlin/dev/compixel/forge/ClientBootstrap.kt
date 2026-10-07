@@ -1,5 +1,6 @@
 package dev.compixel.forge
 
+import dev.compixel.forge.constants.CompixelGuiLayers
 import dev.compixel.forge.render.FrameRetirement
 import dev.compixel.forge.render.RendererResources
 import dev.compixel.forge.theme.ThemeReloadListener
@@ -34,7 +35,7 @@ internal object ClientBootstrap {
 
     // Screens play their exits above every HUD layer.
     private fun registerLayers(event: RegisterGuiLayersEvent) =
-        event.registerAboveAll(Identifier.fromNamespaceAndPath("compixel", "screen_exits"), ScreenExits)
+        event.registerAboveAll(CompixelGuiLayers.SCREEN_EXITS, ScreenExits)
 
     // HUD layers publish their content's state once per client tick; covered screens and exits follow their menus.
     private fun tick(event: ClientTickEvent.Post) {

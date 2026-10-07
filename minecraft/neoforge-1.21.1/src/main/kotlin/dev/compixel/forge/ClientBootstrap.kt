@@ -1,8 +1,8 @@
 package dev.compixel.forge
 
+import dev.compixel.forge.constants.CompixelGuiLayers
 import dev.compixel.forge.render.RendererResources
 import dev.compixel.forge.theme.ThemeReloadListener
-import net.minecraft.resources.ResourceLocation
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener
 import net.neoforged.bus.api.IEventBus
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent
@@ -27,7 +27,7 @@ internal object ClientBootstrap {
 
     // Screens play their exits above every HUD layer.
     private fun registerLayers(event: RegisterGuiLayersEvent) =
-        event.registerAboveAll(ResourceLocation.fromNamespaceAndPath("compixel", "screen_exits"), ScreenExits)
+        event.registerAboveAll(CompixelGuiLayers.SCREEN_EXITS, ScreenExits)
 
     // HUD layers publish their content's state once per client tick; covered screens and exits follow their menus.
     private fun tick(event: ClientTickEvent.Post) {

@@ -55,6 +55,7 @@ ScreenTransition(enter = fadeIn(), exit = fadeOut()) {
 Whether the player presses Escape, the content calls `requestClose()` or the server closes the menu, the player gets control back at once: the next screen opens, or the game takes input again, while the content plays its exit.
 
 - The exit draws above the game view and beneath any screen that opens next. It takes no input.
+- Exits draw in the HUD layer `CompixelGuiLayers.SCREEN_EXITS`, above the other HUD layers. Register a layer of your own below it to draw beneath closing screens, for example an effect that should last until their exit has finished.
 - The content keeps showing its last snapshot, and `send` returns `false`. In a container screen, slots keep showing their last items.
 - When every exit has finished, the screen releases its Compose session and its graphics.
 - Opening the same screen object during its exit stops the exit, and the screen enters from the start. A new screen, such as the same container opened again, enters while the old exit finishes beneath it.
