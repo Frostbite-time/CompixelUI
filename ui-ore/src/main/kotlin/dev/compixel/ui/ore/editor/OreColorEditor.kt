@@ -4,11 +4,13 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,6 +30,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.coerceIn
 import androidx.compose.ui.unit.dp
 import dev.compixel.ui.ore.button.OreButton
 import dev.compixel.ui.ore.button.OreButtonStyle
@@ -108,84 +111,103 @@ fun OreColorEditor(
     val colors = OreTheme.colors
     var role by remember(owner) { mutableStateOf(owner.schema.roles.first()) }
     var exporting by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf<String?>(null) }
     fun name(role: ColorRole) = text.colors[role.key] ?: role.key
-    // The editor takes the whole screen, so the preview and the colors get all the room there is.
-    OrePanel(
-        text.title,
-        Modifier.fillMaxSize(),
-        onClose = onClose,
-        closeLabel = text.close,
-        footer = {
-            OreText(
-                message.orEmpty(),
-                Modifier.weight(1f),
-                color = colors[OreColors.mutedText],
-                style = OreTheme.typography.caption,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            OreButton(
-                text.restoreAll,
-                { editing.restore(owner, scheme) },
-                enabled = edited.isNotEmpty(),
-                style = OreButtonStyle.Secondary,
-            )
-            OreButton(text.export, { exporting = true })
-        },
-    ) {
+    // The editor takes the whole screen, so the preview and the colors get all the room there is. It has no footer:
+    // at Minecraft's automatic GUI scale a 1080p screen is only 270 units tall, and the list needs that height.
+    OrePanel(text.title, Modifier.fillMaxSize(), onClose = onClose, closeLabel = text.close) {
         Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                // The preview is not a screen of its own: it offers no way into another editor.
-                CompositionLocalProvider(LocalColorEditor provides null, content = preview)
-            }
-            Column(Modifier.width(224.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                OreSelect(
-                    schemes.paths(owner),
-                    scheme,
-                    { editing.select(owner, it) },
-                    Modifier.fillMaxWidth(),
-                    optionLabel = { text.schemes[it] ?: it },
-                )
-                ColorList(owner, values, edited, role, { role = it }, text, Modifier.weight(1f).fillMaxWidth())
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        OreText(name(role), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (values.follows(role))
-                            OreText(
-                                text.follows.format(role.follows.joinToString(", ") { name(it) }),
-                                color = colors[OreColors.mutedText],
-                                style = OreTheme.typography.caption,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
+            Preview(Modifier.weight(1f).fillMaxHeight(), preview)
+            BoxWithConstraints(Modifier.width(224.dp).fillMaxHeight()) {
+                // On a short screen the picker's plane gives up height before the list drops below about three rows.
+                val plane = (maxHeight - CONTROLS_AND_SHORT_LIST).coerceIn(32.dp, 100.dp)
+                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        OreSelect(
+                            schemes.paths(owner),
+                            scheme,
+                            { editing.select(owner, it) },
+                            Modifier.weight(1f),
+                            optionLabel = { text.schemes[it] ?: it },
+                        )
+                        OreButton(text.export, { exporting = true })
                     }
-                    OreButton(
-                        text.restore,
-                        { editing.edit(owner, scheme, role, null) },
-                        enabled = role in edited,
-                        style = OreButtonStyle.Secondary,
-                    )
-                }
-                // A new color starts the picker over, without the previous color's remembered hue.
-                key(role) {
-                    OreColorPicker(
-                        values[role],
-                        { editing.edit(owner, scheme, role, it) },
-                        Modifier.fillMaxWidth(),
-                        planeLabel = text.plane,
-                        hueLabel = text.hue,
-                        alphaLabel = text.alpha,
-                    )
+                    ColorList(owner, values, edited, role, { role = it }, text, Modifier.weight(1f).fillMaxWidth())
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            OreText(name(role), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (values.follows(role))
+                                OreText(
+                                    text.follows.format(role.follows.joinToString(", ") { name(it) }),
+                                    color = colors[OreColors.mutedText],
+                                    style = OreTheme.typography.caption,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                        }
+                        OreButton(
+                            text.restore,
+                            { editing.edit(owner, scheme, role, null) },
+                            enabled = role in edited,
+                            style = OreButtonStyle.Secondary,
+                        )
+                        OreButton(
+                            text.restoreAll,
+                            { editing.restore(owner, scheme) },
+                            enabled = edited.isNotEmpty(),
+                            style = OreButtonStyle.Secondary,
+                        )
+                    }
+                    // A new color starts the picker over, without the previous color's remembered hue.
+                    key(role) {
+                        OreColorPicker(
+                            values[role],
+                            { editing.edit(owner, scheme, role, it) },
+                            Modifier.fillMaxWidth(),
+                            planeHeight = plane,
+                            planeLabel = text.plane,
+                            hueLabel = text.hue,
+                            alphaLabel = text.alpha,
+                        )
+                    }
                 }
             }
         }
     }
     if (exporting) {
         ExportDialog(text.schemes[scheme] ?: scheme, text, { exporting = false }) { name, asNew, makeDefault ->
-            exporting = false
-            message = onExport(OreColorExport(scheme, name, asNew, makeDefault))
+            onExport(OreColorExport(scheme, name, asNew, makeDefault))
         }
+    }
+}
+
+// The scheme row, the name row and the picker without its plane take about 125 dp; three rows of the list about 60.
+private val CONTROLS_AND_SHORT_LIST = 185.dp
+
+/**
+ * The design's preview at its own size and centered. When it is taller than the room beside the colors, it scrolls
+ * instead of being squeezed.
+ */
+@Composable
+private fun Preview(modifier: Modifier, preview: @Composable () -> Unit) {
+    val scroll = rememberScrollState()
+    BoxWithConstraints(modifier) {
+        Box(
+            // The end keeps room for the scrollbar, so it never covers the preview.
+            Modifier.fillMaxWidth().padding(end = 7.dp).verticalScroll(scroll).heightIn(min = maxHeight),
+            contentAlignment = Alignment.Center,
+        ) {
+            // The preview is not a screen of its own: it offers no way into another editor.
+            CompositionLocalProvider(LocalColorEditor provides null, content = preview)
+        }
+        // A new scroll state reports Int.MAX_VALUE until its content is laid out.
+        if (scroll.maxValue in 1 until Int.MAX_VALUE)
+            OreScrollbar(scroll, Modifier.align(Alignment.CenterEnd).fillMaxHeight())
     }
 }
 
@@ -266,38 +288,47 @@ private fun Swatch(color: Color, modifier: Modifier) {
 
 private val CHECKER = Color(0xFFBFBFBF)
 
+/** The export choices; once exported, the dialog shows only what [onExport] reported. */
 @Composable
 private fun ExportDialog(
     schemeName: String,
     text: OreColorEditorText,
     onDismiss: () -> Unit,
-    onExport: (name: String, asNew: Boolean, makeDefault: Boolean) -> Unit,
+    onExport: (name: String, asNew: Boolean, makeDefault: Boolean) -> String,
 ) {
     var asNew by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf(schemeName) }
     var makeDefault by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<String?>(null) }
     OreDialog(
         text.export,
         onDismiss,
         closeLabel = text.close,
         buttons = {
-            OreButton(
-                text.export,
-                { onExport(name.trim(), asNew, makeDefault) },
-                Modifier.fillMaxWidth(),
-                name.isNotBlank(),
-            )
-            OreButton(text.cancel, onDismiss, Modifier.fillMaxWidth(), style = OreButtonStyle.Secondary)
+            if (result != null) OreButton(text.close, onDismiss, Modifier.fillMaxWidth())
+            else {
+                OreButton(
+                    text.export,
+                    { result = onExport(name.trim(), asNew, makeDefault) },
+                    Modifier.fillMaxWidth(),
+                    name.isNotBlank(),
+                )
+                OreButton(text.cancel, onDismiss, Modifier.fillMaxWidth(), style = OreButtonStyle.Secondary)
+            }
         },
     ) {
-        OreRadioButton(!asNew, { asNew = false }, label = text.exportReplace.format(schemeName))
-        OreRadioButton(asNew, { asNew = true }, label = text.exportNew)
-        OreTextField(name, { name = it }, Modifier.fillMaxWidth(), label = text.exportName)
-        OreCheckbox(makeDefault, { makeDefault = it }, label = text.exportDefault)
-        OreText(
-            text.exportHint,
-            color = OreTheme.colors[OreColors.mutedText],
-            style = OreTheme.typography.caption,
-        )
+        val reported = result
+        if (reported != null) OreText(reported)
+        else {
+            OreRadioButton(!asNew, { asNew = false }, label = text.exportReplace.format(schemeName))
+            OreRadioButton(asNew, { asNew = true }, label = text.exportNew)
+            OreTextField(name, { name = it }, Modifier.fillMaxWidth(), label = text.exportName)
+            OreCheckbox(makeDefault, { makeDefault = it }, label = text.exportDefault)
+            OreText(
+                text.exportHint,
+                color = OreTheme.colors[OreColors.mutedText],
+                style = OreTheme.typography.caption,
+            )
+        }
     }
 }

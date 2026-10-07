@@ -268,7 +268,7 @@ class StorageScreen :
 
 - 用 `LocalStorageColors.current[StorageColors.accent]` 读取颜色。配色或颜色每次变化，已打开的界面都会跟着换色，并保留自己的状态。
 - `owner` 指定设计的配色文件和玩家选择所在的命名空间。没有文件定义名为 `default` 的配色时，它就是颜色表的默认值；`SchemeOwner("examplemod", StorageColors, default = "dark")` 则改从你的 `dark.json` 开始。
-- `preview()` 给编辑器一小块界面样例，显示在颜色旁边。编辑器打开时在游戏线程调用它，所以可以在这里用 `ItemIcon.snapshot` 取出物品、读取翻译，再返回内容。
+- `preview()` 给编辑器一小块界面样例，显示在颜色旁边。编辑器打开时在游戏线程调用它，所以可以在这里用 `ItemIcon.snapshot` 取出物品、读取翻译，再返回内容。编辑器按预览自身的尺寸显示它，屏幕更矮时让它滚动。Minecraft 自动界面缩放下，1080p 屏幕只有 270 个单位高，留给预览的约 230，所以预览最好与你的一个窗口差不多大。
 - `OreColors.values(...)` 精确设置 Ore 的颜色；没设置的 Ore 颜色保持 Ore 的默认值，或跟随你设置的颜色。
 
 `OreTheme(OreColors.scheme("light")) { … }` 使用固定颜色，资源包和玩家都无法修改。Minecraft 之外的宿主通过 `LocalSchemes` 以 `Schemes` 的形式提供配色文件和玩家的选择。

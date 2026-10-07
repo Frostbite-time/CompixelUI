@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.compixel.ui.ore.button.OreButton
 import dev.compixel.ui.ore.button.OreButtonStyle
-import dev.compixel.ui.ore.display.OreProgressBar
 import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.input.OreSlider
 import dev.compixel.ui.ore.input.OreTextField
@@ -40,7 +39,7 @@ internal fun OrePreview() {
     var value by remember { mutableFloatStateOf(.6f) }
     var text by remember { mutableStateOf("Aa 123") }
     val colors = OreTheme.colors
-    OrePanel("Ore", Modifier.width(220.dp).heightIn(max = 250.dp)) {
+    OrePanel("Ore", Modifier.width(220.dp).heightIn(max = 226.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             OreTabButton(listOf("I", "II", "III"), tab, { tab = it })
             Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -64,7 +63,6 @@ internal fun OrePreview() {
             }
             OreListItem(true, {}, Modifier.fillMaxWidth()) { OreText("Aa") }
             OreListItem(false, {}, Modifier.fillMaxWidth()) { OreText("Aa", color = colors[OreColors.mutedText]) }
-            OreProgressBar(value)
         }
     }
 }

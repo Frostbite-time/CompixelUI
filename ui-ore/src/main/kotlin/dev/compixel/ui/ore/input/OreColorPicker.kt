@@ -44,6 +44,7 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import dev.compixel.ui.ore.internal.oreOutline
@@ -52,7 +53,10 @@ import dev.compixel.ui.ore.theme.OreTheme
 import kotlin.math.max
 import kotlin.math.min
 
-/** RGBA picker with an HSV plane, hue/alpha tracks and a #RRGGBB / #RRGGBBAA editor. */
+/**
+ * RGBA picker with an HSV plane, hue/alpha tracks and a #RRGGBB / #RRGGBBAA editor. [planeHeight] lets a short screen
+ * give the plane less room.
+ */
 @Composable
 fun OreColorPicker(
     value: Color,
@@ -60,6 +64,7 @@ fun OreColorPicker(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     showAlpha: Boolean = true,
+    planeHeight: Dp = 100.dp,
     planeLabel: String = "Saturation and brightness",
     hueLabel: String = "Hue",
     alphaLabel: String = "Opacity",
@@ -98,7 +103,7 @@ fun OreColorPicker(
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Canvas(
             Modifier.fillMaxWidth()
-                .height(100.dp)
+                .height(planeHeight)
                 .focusRequester(planeFocus)
                 .onFocusChanged { planeFocused = it.isFocused }
                 .semantics {

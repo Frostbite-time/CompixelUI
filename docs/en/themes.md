@@ -268,7 +268,7 @@ class StorageScreen :
 
 - Read your colors with `LocalStorageColors.current[StorageColors.accent]`. Open screens follow every change of scheme or color and keep their state.
 - `owner` names the namespace of the design's scheme files and of the player's choices. Its scheme `default` uses the schema's defaults when no file defines it; `SchemeOwner("examplemod", StorageColors, default = "dark")` starts from your `dark.json` instead.
-- `preview()` gives the editor a small sample of your screens to show beside the colors. The editor calls it on the game thread as it opens, so it can snapshot items with `ItemIcon.snapshot` and read translations there before returning the content.
+- `preview()` gives the editor a small sample of your screens to show beside the colors. The editor calls it on the game thread as it opens, so it can snapshot items with `ItemIcon.snapshot` and read translations there before returning the content. The editor shows it at its own size and scrolls it when the screen is shorter. At Minecraft's automatic GUI scale a 1080p screen is 270 units tall, which leaves about 230 for the preview, so keep it about the size of one of your windows.
 - `OreColors.values(...)` sets Ore's colors exactly; Ore colors you don't set keep Ore's defaults or follow the colors you set.
 
 `OreTheme(OreColors.scheme("light")) { … }` applies fixed colors that neither packs nor players change. Hosts outside Minecraft provide scheme files and choices as `Schemes` through `LocalSchemes`.
