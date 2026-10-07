@@ -21,7 +21,7 @@ import org.jetbrains.skia.IRect
 /**
  * Draws native GUI command streams into owned image targets, with one renderer for each GUI scale drawn, so none of
  * them discards its item cache for a different scale. Buffers are redrawn completely, while pages keep their pixels
- * between draws.
+ * between draws. Each page has its own copy buffers, so pages drawn in one frame can be copied independently.
  */
 internal class NativeGuiCapture(private var imageWidth: Int, private var imageHeight: Int, buffers: Int = 1) :
     AutoCloseable {
@@ -39,6 +39,7 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
     private val pageItemSizes = HashMap<Int, Int>()
     private val targets = arrayOfNulls<TextureTarget>(buffers)
     private val pages = ArrayList<TextureTarget?>()
+    private val copies = HashMap<Int, Array<TextureTarget?>>()
     private var closed = false
 
     /**
@@ -223,11 +224,11 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
 
     fun pageTexture(page: Int): GpuTexture = checkNotNull(pages.getOrNull(page)?.colorTexture)
 
-    /** Copies [page] into [buffer], for a snapshot that consumes its source. */
+    /** Copies [page] into its own [buffer], for a snapshot that consumes its source. */
     fun copyPage(page: Int, buffer: Int) {
         RenderSystem.assertOnRenderThread()
         check(!closed)
-        val output = target(buffer, imageWidth, imageHeight)
+        val output = target(copies.getOrPut(page) { arrayOfNulls(targets.size) }, buffer, imageWidth, imageHeight)
         RenderSystem.getDevice()
             .createCommandEncoder()
             .copyTextureToTexture(
@@ -243,10 +244,14 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
             )
     }
 
+    /** The copy of [page] in [buffer]. */
+    fun pageCopy(page: Int, buffer: Int): GpuTexture = checkNotNull(copies[page]?.get(buffer)?.colorTexture)
+
     /** Frees [page] once the queued work that uses it finished; drawing it again starts transparent. */
     fun discardPage(page: Int) {
         RenderSystem.assertOnRenderThread()
         retireUnusedItemSize(pageItemSizes.remove(page))
+        copies.remove(page)?.forEach { copy -> copy?.let { FrameRetirement.afterFrame { it.destroyBuffers() } } }
         val target = pages.getOrNull(page) ?: return
         pages[page] = null
         FrameRetirement.afterFrame { target.destroyBuffers() }
@@ -301,7 +306,9 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
 
     fun texture(buffer: Int): GpuTexture = checkNotNull(targets[buffer]?.colorTexture)
 
-    private fun target(buffer: Int, width: Int, height: Int): TextureTarget {
+    private fun target(buffer: Int, width: Int, height: Int) = target(targets, buffer, width, height)
+
+    private fun target(targets: Array<TextureTarget?>, buffer: Int, width: Int, height: Int): TextureTarget {
         require(width in 1..imageWidth && height in 1..imageHeight)
         val old = targets[buffer]
         if (old?.colorTexture?.getWidth(0) == width && old.colorTexture?.getHeight(0) == height) return old
@@ -413,6 +420,7 @@ internal class NativeGuiCapture(private var imageWidth: Int, private var imageHe
             itemAtlases.values.forEach { it.close() }
             targets.forEach { it?.destroyBuffers() }
             pages.forEach { it?.destroyBuffers() }
+            copies.values.forEach { buffers -> buffers.forEach { it?.destroyBuffers() } }
         }
     }
 }

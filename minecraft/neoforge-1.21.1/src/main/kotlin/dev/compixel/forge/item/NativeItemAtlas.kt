@@ -72,7 +72,7 @@ internal class NativeItemAtlas(
         generation = frameGeneration
     }
 
-    /** At most one bounded page is prepared per host frame. */
+    /** Draws at most preparationsPerFrame icons per host frame, on pages of up to 64. */
     override fun prepare(now: Long, current: ScreenMetrics): Boolean {
         RenderSystem.assertOnRenderThread()
         return atlas.prepare(now, NativeDrawingClock.tick(), Minecraft.getInstance().window.guiScale)

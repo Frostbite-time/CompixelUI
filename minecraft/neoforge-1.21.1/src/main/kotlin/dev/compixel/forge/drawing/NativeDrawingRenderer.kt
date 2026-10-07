@@ -22,8 +22,7 @@ internal class NativeDrawingRenderer(
 
     private val surfaces = ArrayList<Surface?>()
     private var metrics: ScreenMetrics? = null
-    private val atlas =
-        NativeImageAtlas(options.cacheCapacity, options.preparationsPerFrame, Pages(), options.preparationsPerFrame)
+    private val atlas = NativeImageAtlas(options.cacheCapacity, options.preparationsPerFrame, Pages(), pageCapacity = 1)
     val statistics
         get() = atlas.statistics
 

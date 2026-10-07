@@ -59,7 +59,8 @@ private constructor(
  *   sizes is drawn at both. A fixed size draws every icon once at that size and resamples it on screen.
  * @param cacheCapacity icons kept while fewer are displayed: an icon that leaves the screen stays cached while it fits,
  *   so it returns without drawing again.
- * @param preparationsPerFrame icons drawn in one frame at most, which is also the size of one atlas page.
+ * @param preparationsPerFrame icons drawn in one frame at most. An atlas page holds up to 64 icons, so a larger value
+ *   draws several pages in one frame.
  */
 data class NativeItemOptions(
     val imageSize: Int? = null,
@@ -73,7 +74,7 @@ data class NativeItemOptions(
     init {
         require(imageSize == null || imageSize in IMAGE_SIZES)
         require(cacheCapacity in 1..1024)
-        require(preparationsPerFrame in 1..64)
+        require(preparationsPerFrame in 1..1024)
     }
 }
 

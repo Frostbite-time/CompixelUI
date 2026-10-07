@@ -281,7 +281,7 @@ class NativeImageAtlasTest {
     }
 
     @Test
-    fun deferredHostsPublishOnTheNextFrameAndAlternateBuffers() {
+    fun deferredHostsPublishOnTheNextFrameAndAlternateBuffersPerPage() {
         val host = Host(immediate = false)
         val atlas = NativeImageAtlas(4, 2, host)
         atlas.recorded(at(icons(4, NativeImageRefresh.FRAME)))
@@ -291,7 +291,7 @@ class NativeImageAtlasTest {
         assertEquals(setOf(0L, 1), host.ids())
         atlas.prepare()
         assertEquals(setOf(0L, 1, 2, 3), host.ids())
-        assertEquals(listOf(0 to 0, 1 to 1, 0 to 0), host.draws.map { it.page to it.buffer })
+        assertEquals(listOf(0 to 0, 1 to 0, 0 to 1), host.draws.map { it.page to it.buffer })
         atlas.close()
     }
 
@@ -308,7 +308,7 @@ class NativeImageAtlasTest {
         host.copyReady = true
         assertTrue(atlas.prepare())
         assertEquals(setOf(0L, 1), host.ids())
-        assertEquals(listOf(0, 1), host.draws.map { it.buffer })
+        assertEquals(listOf(0 to 0, 1 to 0), host.draws.map { it.page to it.buffer })
         assertTrue(atlas.prepare())
         assertEquals(setOf(0L, 1, 2, 3), host.ids())
         atlas.close()
@@ -443,7 +443,7 @@ class NativeImageAtlasTest {
     @Test
     fun rectangularSurfacesShareOneBudgetAndKeepTheirActualDimensions() {
         val host = Host(surfaces = true)
-        val atlas = NativeImageAtlas(0, 3, host, pagesPerFrame = 3)
+        val atlas = NativeImageAtlas(0, 3, host, pageCapacity = 1)
         val dimensions = listOf(320 to 80, 80 to 320, 512 to 96, 100 to 40)
         atlas.recorded(
             dimensions.mapIndexed { index, (width, height) ->
@@ -475,7 +475,7 @@ class NativeImageAtlasTest {
     @Test
     fun independentDeferredTargetsWaitForTheirCopiesAndRetireOnReset() {
         val host = Host(immediate = false, surfaces = true)
-        val atlas = NativeImageAtlas(0, 2, host, pagesPerFrame = 2)
+        val atlas = NativeImageAtlas(0, 2, host, pageCapacity = 1)
         atlas.recorded(
             listOf(
                 NativeImageAtlas.Request(Icon(1), NativeImageAtlas.Size(300, 90)),
@@ -500,6 +500,38 @@ class NativeImageAtlasTest {
         atlas.reset()
         assertTrue(host.published.isEmpty())
         assertEquals(2, host.released.size)
+        atlas.close()
+    }
+
+    @Test
+    fun aBudgetBeyondOnePageDrawsSeveralPagesInOneFrame() {
+        val host = Host()
+        val atlas = NativeImageAtlas(0, 130, host)
+        assertEquals(NativeImageAtlas.PAGE_CAPACITY, atlas.pageCapacity)
+        atlas.recorded(at(icons(200)))
+        assertTrue(atlas.prepare())
+        assertEquals(listOf(64, 64, 2), host.draws.map { it.icons.size })
+        assertEquals(listOf(0, 1, 2), host.draws.map { it.page })
+        assertEquals(130, host.ids().size)
+        assertTrue(atlas.prepare())
+        assertEquals(200, host.ids().size)
+        assertEquals(listOf(62, 8), host.draws.drop(3).map { it.icons.size })
+        atlas.close()
+    }
+
+    @Test
+    fun deferredPagesOfOneFrameWaitTogetherAndKeepTheirOwnBuffers() {
+        val host = Host(immediate = false)
+        val atlas = NativeImageAtlas(0, 128, host)
+        atlas.recorded(at(icons(128, NativeImageRefresh.FRAME)))
+        assertFalse(atlas.prepare())
+        host.copyReady = false
+        assertFalse(atlas.prepare())
+        assertEquals(2, host.draws.size)
+        host.copyReady = true
+        assertTrue(atlas.prepare())
+        assertEquals(128, host.ids().size)
+        assertEquals(listOf(0 to 0, 1 to 0, 0 to 1, 1 to 1), host.draws.map { it.page to it.buffer })
         atlas.close()
     }
 }

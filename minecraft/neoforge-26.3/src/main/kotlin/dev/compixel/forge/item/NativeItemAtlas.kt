@@ -11,7 +11,7 @@ import dev.compixel.forge.render.FrameRetirement
 import dev.compixel.forge.render.NativeSnapshots
 import dev.compixel.host.NativeImageSource
 import dev.compixel.host.ScreenMetrics
-import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.ceil
 import net.minecraft.client.Minecraft
 import org.jetbrains.skia.ColorAlphaType
@@ -51,10 +51,10 @@ internal class NativeItemAtlas(
     private val atlas = NativeImageAtlas(options.cacheCapacity, options.preparationsPerFrame, Pages())
     private var capture: NativeGuiCapture? = null
     private var generation = 0L
-    // Copies may complete on another thread. At most one page is pending, so any other copy is stale.
-    private val readbacks = ConcurrentLinkedQueue<Readback>()
+    // Copies may complete on another thread. Only the latest request of each page is current.
+    private val readbacks = ConcurrentHashMap<Int, Readback>()
+    private val requested = HashMap<Int, Long>()
     private var requests = 0L
-    private var requested = 0L
 
     val statistics
         get() =
@@ -84,7 +84,7 @@ internal class NativeItemAtlas(
         generation = frameGeneration
     }
 
-    /** At most one bounded page is prepared per host frame. */
+    /** Draws at most preparationsPerFrame icons per host frame, on pages of up to 64. */
     override fun prepare(now: Long, current: ScreenMetrics): Boolean {
         RenderSystem.assertOnRenderThread()
         return atlas.prepare(now, NativeDrawingClock.tick(), Minecraft.getInstance().window.guiScale.toDouble())
@@ -92,7 +92,7 @@ internal class NativeItemAtlas(
 
     override fun reset() {
         RenderSystem.assertOnRenderThread()
-        requested = 0
+        requested.clear()
         readbacks.clear()
         try {
             atlas.reset()
@@ -104,7 +104,7 @@ internal class NativeItemAtlas(
 
     override fun close() {
         RenderSystem.assertOnRenderThread()
-        requested = 0
+        requested.clear()
         readbacks.clear()
         try {
             atlas.close()
@@ -164,9 +164,11 @@ internal class NativeItemAtlas(
             when {
                 snapshots == null -> {
                     val request = ++requests
-                    requested = request
+                    requested[page] = request
                     target.readbackPage(page) { pixels, width, height ->
-                        readbacks.add(Readback(request, pixels, width, height))
+                        readbacks.merge(page, Readback(request, pixels, width, height)) { old, new ->
+                            if (new.request > old.request) new else old
+                        }
                     }
                 }
                 !snapshots.immediate -> target.copyPage(page, buffer)
@@ -176,18 +178,16 @@ internal class NativeItemAtlas(
         override fun snapshot(page: Int, buffer: Int, width: Int, height: Int): Image? {
             val target = checkNotNull(capture)
             if (snapshots != null) {
-                val texture = if (snapshots.immediate) target.pageTexture(page) else target.texture(buffer)
+                val texture = if (snapshots.immediate) target.pageTexture(page) else target.pageCopy(page, buffer)
                 return snapshots.snapshot(texture, width, height)
             }
-            while (true) {
-                val copy = readbacks.poll() ?: return null
-                if (copy.request == requested)
-                    return Image.makeRaster(
-                        ImageInfo(copy.width, copy.height, ColorType.RGBA_8888, ColorAlphaType.PREMUL),
-                        copy.pixels,
-                        copy.width * 4,
-                    )
-            }
+            val copy = readbacks[page]?.takeIf { it.request == requested[page] } ?: return null
+            readbacks.remove(page, copy)
+            return Image.makeRaster(
+                ImageInfo(copy.width, copy.height, ColorType.RGBA_8888, ColorAlphaType.PREMUL),
+                copy.pixels,
+                copy.width * 4,
+            )
         }
 
         override fun release(image: Image) {
@@ -195,6 +195,8 @@ internal class NativeItemAtlas(
         }
 
         override fun discard(page: Int) {
+            requested.remove(page)
+            readbacks.remove(page)
             capture?.discardPage(page)
         }
 

@@ -58,15 +58,16 @@ class NativeImageRefresh private constructor(val kind: Kind, val intervalMillis:
  * carry physical width and height; the host chooses a grid or an independent target for each size. Only due cells are
  * redrawn, and unchanged regions follow the new page snapshot without invalidating Compose. Visible content is retained
  * regardless of cache capacity, which limits only inactive cached variants. A changed size settles for [SETTLE_FRAMES]
- * frames while its nearest published image remains available. A bounded number of pages is drawn per prepare call;
- * deferred snapshots are published before reusing their buffers. All scheduling and retirement runs on the owner
- * thread; publication runs on the Compose thread.
+ * frames while its nearest published image remains available. A prepare call draws at most [preparationsPerFrame]
+ * icons, on as many pages as they need; a deferred host publishes those pages before any more are drawn. All scheduling
+ * and retirement runs on the owner thread; publication runs on the Compose thread.
  */
 class NativeImageAtlas<I : Any>(
     private val cacheCapacity: Int,
-    preparationsPerFrame: Int,
+    private val preparationsPerFrame: Int,
     private val host: Host<I>,
-    private val pagesPerFrame: Int = 1,
+    /** Slots per page: the frame budget, at most [PAGE_CAPACITY] by default. */
+    val pageCapacity: Int = minOf(preparationsPerFrame, PAGE_CAPACITY),
 ) : AutoCloseable {
     /** Exact physical dimensions. Logical/native GUI coordinates belong to the adapter. */
     data class Size(val width: Int, val height: Int) {
@@ -121,7 +122,10 @@ class NativeImageAtlas<I : Any>(
          */
         fun appearance(icon: I): Any? = null
 
-        /** Draws due cells into a persistent page; placements and dimensions are framebuffer pixels. */
+        /**
+         * Draws due cells into a persistent page; placements and dimensions are framebuffer pixels. [buffer] alternates
+         * between the draws of one page, so a deferred host can copy into one while the other may still be read.
+         */
         fun draw(page: Int, buffer: Int, size: Size, width: Int, height: Int, icons: List<Placement<I>>)
 
         /**
@@ -174,18 +178,18 @@ class NativeImageAtlas<I : Any>(
     private class Page<I : Any>(val size: Size, val layout: Layout, retire: (Image) -> Unit) {
         val slots = arrayOfNulls<Entry<I>>(layout.capacity)
         var used = 0
+        var buffer = -1
         val owner = NativeImageOwner(retire)
     }
 
     private class Pending<I : Any>(val buffer: Int, val page: Int, val entries: List<Entry<I>>)
 
     init {
-        require(cacheCapacity >= 0 && preparationsPerFrame > 0 && pagesPerFrame in 1..preparationsPerFrame)
+        require(cacheCapacity >= 0 && preparationsPerFrame > 0 && pageCapacity in 1..preparationsPerFrame)
     }
 
-    /** Slots per page. A page never holds more icons than one frame may draw. */
-    val pageCapacity = preparationsPerFrame
-    /** Copy buffers a deferred host must provide. */
+    private val pagesPerFrame = (preparationsPerFrame + pageCapacity - 1) / pageCapacity
+    /** Copy buffers a deferred host must provide for each page. */
     val buffers = if (host.immediate) 1 else 2
 
     private val pages = ArrayList<Page<I>?>()
@@ -194,7 +198,6 @@ class NativeImageAtlas<I : Any>(
     /** New sizes of icons that already have an image, and the frame since which each has been demanded. */
     private val settling = HashMap<Variant, Long>()
     private val pending = ArrayList<Pending<I>>()
-    private var buffer = -1
     private var frame = 0L
     private var prepared = 0L
     private var retired = 0L
@@ -257,7 +260,7 @@ class NativeImageAtlas<I : Any>(
             changed = true
         }
 
-        var remaining = pageCapacity
+        var remaining = preparationsPerFrame
         repeat(pagesPerFrame) {
             val index = duePage(now, tick, guiScale) ?: return changed
             val page = checkNotNull(pages[index])
@@ -267,11 +270,11 @@ class NativeImageAtlas<I : Any>(
                     .filter { it.variant in visible && due(it, now, tick, guiScale) }
                     .take(remaining)
             if (entries.isEmpty()) return changed
-            buffer = (buffer + 1) % buffers
+            page.buffer = (page.buffer + 1) % buffers
             val size = page.size
             host.draw(
                 index,
-                buffer,
+                page.buffer,
                 size,
                 width(page),
                 height(page),
@@ -290,7 +293,7 @@ class NativeImageAtlas<I : Any>(
                 if (entry.refresh.kind == NativeImageRefresh.Kind.ON_CHANGE)
                     entry.drawnAppearance = appearance(entry, tick)
             }
-            val next = Pending(buffer, index, entries)
+            val next = Pending(page.buffer, index, entries)
             if (host.immediate) {
                 check(publish(next)) { "An immediate host must copy its page in the frame that drew it" }
                 changed = true
@@ -472,7 +475,6 @@ class NativeImageAtlas<I : Any>(
         pending.clear()
         byVariant.clear()
         settling.clear()
-        buffer = -1
         ComposeThread.call { host.clear() }
         pages.forEachIndexed { index, page ->
             if (page == null) return@forEachIndexed
@@ -495,5 +497,8 @@ class NativeImageAtlas<I : Any>(
     companion object {
         /** Frames a new size of an already drawn icon must stay demanded before it is drawn. */
         const val SETTLE_FRAMES = 2
+
+        /** The most slots a page has by default; a larger frame budget draws several pages. */
+        const val PAGE_CAPACITY = 64
     }
 }
