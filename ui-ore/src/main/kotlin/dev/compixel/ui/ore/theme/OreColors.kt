@@ -36,6 +36,9 @@ object OreColors : ColorSchema("ore") {
     val focus = color("focus", "text", Color.White)
     val slot = color("slot", "slots", Color(0xFF252627))
     val slotEdge = color("slotEdge", "slots", Color(0xFF101112))
+    // A slot's amount and its one-pixel shadow: white over blue-gray, legible over any item in every scheme.
+    val slotAmount = color("slotAmount", "slots", Color.White)
+    val slotAmountShadow = color("slotAmountShadow", "slots", Color(0xFF413F54))
     val primary = color("primary", "primary", Color(0xFF3C8527))
     val secondary = color("secondary", "secondary", Color(0xFFD0D1D4))
     // The secondary button has a fixed pixel-art face; its border is a color of its own.

@@ -11,16 +11,14 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.compixel.bridge.ComposeThread
 import dev.compixel.forge.drawing.NativeRefresh
 import dev.compixel.forge.item.ItemIcon
 import dev.compixel.forge.item.MinecraftItemIcon
 import dev.compixel.host.ScreenMetrics
 import dev.compixel.slots.*
-import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.inventory.OreSlot
-import dev.compixel.ui.ore.theme.OreTheme
+import dev.compixel.ui.ore.inventory.OreSlotAmount
 import java.util.concurrent.atomic.AtomicBoolean
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphics
@@ -239,18 +237,7 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
         BoxWithConstraints(Modifier.fillMaxSize()) {
             state.icon?.let { MinecraftItemIcon(it, Modifier.fillMaxSize()) }
             val amount = if (maxWidth < 19.dp) state.compactAmount else state.amount
-            // Amount labels formerly shared the adapter's 0.5 density. With one dp now
-            // representing one Minecraft GUI unit, retain their intentionally compact
-            // inventory treatment rather than doubling their visual footprint.
-            val font =
-                (minOf(12f, (maxWidth.value - 1) / (amount.length.coerceAtLeast(1) * 0.7f)).coerceAtLeast(8f) / 2f).sp
-            if (amount.isNotEmpty())
-                OreText(
-                    amount,
-                    Modifier.align(Alignment.BottomEnd),
-                    style = OreTheme.typography.caption.copy(fontSize = font),
-                    maxLines = 1,
-                )
+            if (amount.isNotEmpty()) OreSlotAmount(amount, Modifier.align(Alignment.BottomEnd), maxWidth)
         }
 
     /**

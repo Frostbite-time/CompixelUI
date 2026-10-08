@@ -48,6 +48,8 @@
   "color.ore.selection": "文字选区",
   "color.ore.slot": "槽位",
   "color.ore.slotEdge": "槽位暗边",
+  "color.ore.slotAmount": "槽位数量文字",
+  "color.ore.slotAmountShadow": "槽位数量文字投影",
   "color.ore.markedSlot": "标记槽位",
   "color.ore.slotHover": "悬停槽位",
   "color.ore.slotHoverEdge": "悬停槽位描边",

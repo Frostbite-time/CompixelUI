@@ -130,11 +130,13 @@ SlotBehavior inspect = SlotBehavior.standard()
 slots.Slot(id, Modifier.size(18.dp)) { slot ->
     Box(Modifier.matchParentSize().background(if (slot.hovered) Color(0xFFC6C6C6) else Color(0xFF8B8B8B)))
     slot.icon?.let { MinecraftItemIcon(it, Modifier.fillMaxSize().padding(1.dp)) }
-    if (slot.amount.isNotEmpty()) BasicText(slot.amount, Modifier.align(Alignment.BottomEnd))
+    if (slot.amount.isNotEmpty()) OreSlotAmount(slot.amount, Modifier.align(Alignment.BottomEnd))
 }
 ```
 
 `slot` 包含槽位要显示的内容：图标 `icon`、数量文字 `amount` 和更短的 `compactAmount`、是否被标记 `marked`，以及指针是否悬停在它上面 `hovered`。`hovered` 标出点击会落到的槽位，按住按键时也一样；停用槽位交互时它为 false。点击、拖动、Shift 点击和提示框都与 Ore 外观的槽位一样，图标和数量文字仍由 `MenuSlotAdapter` 的 `visual` 决定。
+
+`OreSlotAmount` 按 Ore 槽位的样子画数量：`slotAmount` 色的数字下面是一像素的 `slotAmountShadow` 投影，与原版物品数量的画法相同。
 
 想保留 Ore 的外观、再加上自己的标记时，传入 `overlay`。它拿到同样的 `slot`，绘制在 Ore 外观之上：
 

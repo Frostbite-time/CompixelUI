@@ -132,11 +132,13 @@ Return it from your `MenuSlotAdapter`'s `behavior` hook, or override `slotBehavi
 slots.Slot(id, Modifier.size(18.dp)) { slot ->
     Box(Modifier.matchParentSize().background(if (slot.hovered) Color(0xFFC6C6C6) else Color(0xFF8B8B8B)))
     slot.icon?.let { MinecraftItemIcon(it, Modifier.fillMaxSize().padding(1.dp)) }
-    if (slot.amount.isNotEmpty()) BasicText(slot.amount, Modifier.align(Alignment.BottomEnd))
+    if (slot.amount.isNotEmpty()) OreSlotAmount(slot.amount, Modifier.align(Alignment.BottomEnd))
 }
 ```
 
 `slot` holds what the slot shows: its `icon`, the `amount` label and a shorter `compactAmount`, whether it is `marked`, and whether the pointer is over it (`hovered`). `hovered` marks the slot a click would reach, also while a button is held, and is false while slot interactions are disabled. Clicks, drags, shift-clicks and tooltips work as for slots in Ore's look, and your `MenuSlotAdapter`'s `visual` still decides the icon and labels.
+
+`OreSlotAmount` draws an amount as Ore's slots do: `slotAmount` digits over a one-pixel `slotAmountShadow`, like vanilla item counts.
 
 To keep Ore's look and add a mark of your own, pass `overlay`. It gets the same `slot` and draws above Ore's look:
 

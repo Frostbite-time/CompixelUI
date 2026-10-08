@@ -142,6 +142,8 @@ Ore 自带三套配色：
 | `focus` | 获得焦点的控件的外框 |
 | `slot` | 物品槽背景 |
 | `slotEdge` | 物品槽暗边 |
+| `slotAmount` | 物品槽上的数量 |
+| `slotAmountShadow` | 物品槽数量下方一像素的投影 |
 | `primary` | 主要按钮和选中状态 |
 | `secondary` | 次要按钮等 |
 | `buttonBorder` | 按钮外框，以及滚动条滑块的外框 |

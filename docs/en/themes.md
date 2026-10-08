@@ -142,6 +142,8 @@ Each file changes only the colors it contains. `name`, `extends` and each field 
 | `focus` | The outline around the focused control |
 | `slot` | Item slot background |
 | `slotEdge` | Item slot dark edge |
+| `slotAmount` | Amounts on item slots |
+| `slotAmountShadow` | The one-pixel shadow under slot amounts |
 | `primary` | Primary buttons and selected states |
 | `secondary` | Secondary buttons and similar |
 | `buttonBorder` | Button frames, and scrollbar thumb frames |

@@ -48,6 +48,8 @@
   "color.ore.selection": "Text selection",
   "color.ore.slot": "Slot",
   "color.ore.slotEdge": "Slot edge",
+  "color.ore.slotAmount": "Slot amount",
+  "color.ore.slotAmountShadow": "Slot amount shadow",
   "color.ore.markedSlot": "Marked slot",
   "color.ore.slotHover": "Hovered slot",
   "color.ore.slotHoverEdge": "Hovered slot outline",
