@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -73,12 +74,17 @@ fun OreColorPicker(
     val color = value.convert(androidx.compose.ui.graphics.colorspace.ColorSpaces.Srgb)
     val hsv = colorHsv(color)
     var retainedHue by remember { mutableFloatStateOf(hsv[0]) }
-    val hue = if (hsv[1] > 0f && hsv[2] > 0f) hsv[0] else retainedHue
-    val saturation = hsv[1]
-    val brightness = hsv[2]
+    val choice = remember { Choice() }
+    val chosen = choice.hsv.takeIf { choice.represents(color) }
+    SideEffect { choice.settle(color) }
+    val hue = chosen?.get(0) ?: if (hsv[1] > 0f && hsv[2] > 0f) hsv[0] else retainedHue
+    val saturation = chosen?.get(1) ?: hsv[1]
+    val brightness = chosen?.get(2) ?: hsv[2]
     fun emit(h: Float = hue, s: Float = saturation, v: Float = brightness, a: Float = color.alpha) {
-        retainedHue = h
-        val next = Color.hsv(h.coerceIn(0f, 360f), s.coerceIn(0f, 1f), v.coerceIn(0f, 1f), a.coerceIn(0f, 1f))
+        val picked = floatArrayOf(h.coerceIn(0f, 360f), s.coerceIn(0f, 1f), v.coerceIn(0f, 1f))
+        retainedHue = picked[0]
+        val next = Color.hsv(picked[0], picked[1], picked[2], a.coerceIn(0f, 1f))
+        choice.choose(picked, color, next)
         if (next != color) onValueChange(next)
     }
     var hex by remember { mutableStateOf(colorHex(color, showAlpha)) }
@@ -224,6 +230,42 @@ fun OreColorPicker(
                 isError = dirty && parseColorHex(hex, showAlpha, color.alpha) == null,
             )
         }
+    }
+}
+
+/**
+ * The HSV the picker chose last. A color keeps 8 bits per channel, so reading the HSV back from it would move the
+ * pointer and the next step, the more the darker the color. The picker shows its own choice until the value changes to
+ * a color it did not choose; a host that applies changes later still returns the earlier choices first.
+ */
+private class Choice {
+    var hsv by mutableStateOf<FloatArray?>(null)
+        private set
+
+    // The value the choice stands for, and the chosen colors not yet returned as the value, oldest first. Both change
+    // only with hsv or the value, so they need no state of their own.
+    private var confirmed = Color.Unspecified
+    private var pending = emptyList<Color>()
+
+    fun represents(value: Color) = value == confirmed || value in pending
+
+    fun choose(picked: FloatArray, value: Color, next: Color) {
+        if (pending.isEmpty()) confirmed = value
+        hsv = picked
+        if (next != value) pending = (pending + next).takeLast(PENDING_CHOICES)
+    }
+
+    /** Called with each value shown: a returned choice confirms it, any other value replaces the choice. */
+    fun settle(value: Color) {
+        if (value == confirmed) return
+        val index = pending.indexOf(value)
+        if (index < 0) hsv = null
+        confirmed = value
+        pending = if (index < 0) emptyList() else pending.drop(index + 1)
+    }
+
+    private companion object {
+        const val PENDING_CHOICES = 32
     }
 }
 

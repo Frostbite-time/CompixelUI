@@ -523,6 +523,67 @@ class OreExtendedControlsTest {
     }
 
     @Test
+    fun `color plane keeps its own saturation in dark colors`() {
+        val color = mutableStateOf(Color.Red)
+        Fixture { b -> OreColorPicker(color.value, { color.value = it }, b("picker").width(220.dp)) }
+            .use { f ->
+                fun hsv(): FloatArray = colorHsv(ComposeThread.call { color.value })
+                val rect = f.rect("picker")
+                // 30 % saturation at 3 % brightness: 8 bits per channel turn it into 37.5 %
+                f.clickAt(Offset(rect.left + 66f, rect.top + 97f))
+                repeat(8) { f.key(UiKey.UP, Modifiers(shift = true)) }
+                assertEquals(.3f, hsv()[1], .01f)
+                assertEquals(.83f, hsv()[2], .01f)
+                // A color the picker did not choose replaces its own
+                ComposeThread.call { color.value = Color(0xFF336699) }
+                f.frame()
+                f.key(UiKey.RIGHT)
+                assertEquals(.6f, hsv()[2], .01f)
+            }
+    }
+
+    @Test
+    fun `color plane keeps its hue while the value returns step by step`() {
+        val color = mutableStateOf(Color.hsv(200f, 1f, 1f))
+        var frame = 0L
+        val requests = ArrayDeque<Pair<Long, Color>>()
+        Fixture { b ->
+            // Returns each change two frames later, at most one per frame, as a host passing changes through the
+            // game thread and back in snapshots may
+            LaunchedEffect(Unit) {
+                while (true) withFrameNanos {
+                    frame++
+                    if (requests.firstOrNull()?.let { it.first <= frame - 2 } == true)
+                        color.value = requests.removeFirst().second
+                }
+            }
+            OreColorPicker(color.value, { requests.addLast(frame to it) }, b("picker").width(220.dp))
+        }
+            .use { f ->
+                val rect = f.rect("picker")
+                fun pointer(action: PointerAction, x: Float, y: Float) =
+                    f.session.pointer(PointerInput(action, rect.left + x, rect.top + y, MouseButton.LEFT))
+                // Three steps at 2 % brightness; read back from 8-bit channels, their hues are 200°, 195° and 204°
+                f.hoverAt(Offset(rect.left + 150f, rect.top + 98f))
+                pointer(PointerAction.PRESS, 150f, 98f)
+                pointer(PointerAction.MOVE, 180f, 98f)
+                pointer(PointerAction.MOVE, 210f, 98f)
+                f.advance(8)
+                pointer(PointerAction.MOVE, 219f, 0f)
+                pointer(PointerAction.RELEASE, 219f, 0f)
+                f.advance(8)
+                assertEquals(200f, colorHsv(ComposeThread.call { color.value })[0], 1f)
+            }
+    }
+
+    private fun colorHsv(c: Color): FloatArray {
+        val argb = c.toArgb()
+        return java.awt.Color.RGBtoHSB(argb shr 16 and 255, argb shr 8 and 255, argb and 255, null).also {
+            it[0] *= 360f
+        }
+    }
+
+    @Test
     fun `floating window drags resizes and clamps when its viewport shrinks`() {
         val state = OreWindowState(DpOffset(30.dp, 40.dp), DpSize(200.dp, 150.dp))
         var closed = false
