@@ -19,7 +19,7 @@ public final class MenuSyncNetworking {
     private static final ServerSyncSessions<ServerPlayer> SESSIONS = new ServerSyncSessions<>(new ServerHost());
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("5").optional();
+        var registrar = event.registrar("6").optional();
         registrar.playToServer(SyncPayloads.Control.TYPE, SyncPayloads.Control.CODEC, (payload, context) -> {
             if (context.player() instanceof ServerPlayer player) SESSIONS.receive(player, payload.message());
         });
@@ -40,9 +40,13 @@ public final class MenuSyncNetworking {
         registrar.playToClient(SyncPayloads.ActionReply.TYPE, SyncPayloads.ActionReply.CODEC, (payload, context) -> {
             if (FMLEnvironment.getDist() == Dist.CLIENT) ClientMenuSync.receive(payload.message());
         });
+        registrar.playToClient(
+                SyncPayloads.ActionProgress.TYPE, SyncPayloads.ActionProgress.CODEC, (payload, context) -> {
+                    if (FMLEnvironment.getDist() == Dist.CLIENT) ClientMenuSync.receive(payload.message());
+                });
     }
 
-    /** Starts the session of a synchronized menu; its state follows once the client confirms the policy. */
+    /** Starts the session of a synchronized menu; its state follows right behind the menu's opening. */
     public static void opened(PlayerContainerEvent.Open event) {
         if (event.getEntity() instanceof ServerPlayer player && event.getContainer() instanceof SyncedMenu synced)
             SESSIONS.opened(player, event.getContainer(), synced.menuSync());
@@ -78,20 +82,10 @@ public final class MenuSyncNetworking {
         }
 
         @Override
-        public Object connection(ServerPlayer player) {
-            return player.connection.getConnection();
-        }
-
-        @Override
         public boolean channelsAvailable(ServerPlayer player) {
             return player.connection.hasChannel(SyncPayloads.Bootstrap.TYPE)
                     && player.connection.hasChannel(SyncPayloads.Control.TYPE)
                     && player.connection.hasChannel(SyncPayloads.Data.TYPE);
-        }
-
-        @Override
-        public boolean writable(ServerPlayer player) {
-            return player.connection.getConnection().channel().isWritable();
         }
 
         @Override

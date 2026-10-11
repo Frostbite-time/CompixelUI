@@ -26,12 +26,12 @@ public final class MenuSyncNetworking {
 
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation("compixel", "menu_sync"),
-            () -> "5",
+            () -> "6",
             MenuSyncNetworking::acceptVersion,
             MenuSyncNetworking::acceptVersion);
 
     private static boolean acceptVersion(String version) {
-        return version.equals("5")
+        return version.equals("6")
                 || version.equals(NetworkRegistry.ABSENT.version())
                 || version.equals(NetworkRegistry.ACCEPTVANILLA);
     }
@@ -75,6 +75,14 @@ public final class MenuSyncNetworking {
                 (p, c) -> {
                     if (FMLEnvironment.dist == Dist.CLIENT) ClientMenuSync.receive(p.message());
                 });
+        packet(
+                SyncPayloads.ActionProgress.class,
+                6,
+                NetworkDirection.PLAY_TO_CLIENT,
+                SyncPayloads.ActionProgress.CODEC,
+                (p, c) -> {
+                    if (FMLEnvironment.dist == Dist.CLIENT) ClientMenuSync.receive(p.message());
+                });
     }
 
     private static <T> void packet(
@@ -98,7 +106,7 @@ public final class MenuSyncNetworking {
         CHANNEL.sendToServer(message);
     }
 
-    /** Starts the session of a synchronized menu; its state follows once the client confirms the policy. */
+    /** Starts the session of a synchronized menu; its state follows right behind the menu's opening. */
     public static void opened(PlayerContainerEvent.Open event) {
         if (event.getEntity() instanceof ServerPlayer player && event.getContainer() instanceof SyncedMenu synced)
             SESSIONS.opened(player, event.getContainer(), synced.menuSync());
@@ -134,18 +142,8 @@ public final class MenuSyncNetworking {
         }
 
         @Override
-        public Object connection(ServerPlayer player) {
-            return player.connection.connection;
-        }
-
-        @Override
         public boolean channelsAvailable(ServerPlayer player) {
             return hasChannel(player.connection.connection);
-        }
-
-        @Override
-        public boolean writable(ServerPlayer player) {
-            return player.connection.connection.channel().isWritable();
         }
 
         @Override

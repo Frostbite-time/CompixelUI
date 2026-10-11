@@ -45,7 +45,7 @@ class MinecraftSyncCodecsTest {
     @Test
     void oneSharedCodecUsesTheRegistriesOfEachSide() throws Exception {
         List<RegistryAccess> seen = Collections.synchronizedList(new ArrayList<>());
-        var codec = MinecraftSyncCodecs.registry("test:number", 16, recording(seen));
+        var codec = MinecraftSyncCodecs.registry("test:number", recording(seen));
         var server = registries();
         var client = registries();
         var bytes = new ByteArrayOutputStream();
@@ -70,7 +70,7 @@ class MinecraftSyncCodecsTest {
 
     @Test
     void registryCodecsWorkOnlyWhileMenusSynchronize() {
-        var codec = MinecraftSyncCodecs.registry("test:number", 16, recording(new ArrayList<>()));
+        var codec = MinecraftSyncCodecs.registry("test:number", recording(new ArrayList<>()));
         var outside = assertThrows(
                 IllegalStateException.class, () -> codec.write(new DataOutputStream(new ByteArrayOutputStream()), 1));
         assertTrue(outside.getMessage().contains("synchronizes a menu"));

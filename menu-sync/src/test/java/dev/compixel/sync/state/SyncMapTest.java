@@ -92,54 +92,57 @@ class SyncMapTest {
             "test:map_row/1",
             (out, value) -> {
                 out.writeInt(value.id());
-                SyncCodecs.string(1024).write(out, value.text());
+                SyncCodecs.STRING.write(out, value.text());
             },
-            in -> new Row(in.readInt(), SyncCodecs.string(1024).read(in)));
+            in -> new Row(in.readInt(), SyncCodecs.STRING.read(in)));
     static final SyncSchema<Model> SCHEMA = SyncSchema.<Model>builder("test:map", 1)
             .keyedMap(
                     "rows", SyncCodecs.INT, CODEC, Row::id, model -> model.rows, (model, values) -> model.rows = values)
             .build();
 
     @Test
-    void mapUpdatesStayAtomicAndReplaceAtCapacityWithoutResendingUnchangedValues() {
-        var limits = new SyncLimits(
-                96, dev.compixel.sync.transport.TransferBudget.steady(96), 2, 2048, 1024 * 1024, 1000, 100);
+    void mapUpdatesStayAtomicWithoutResendingUnchangedValues() {
         var server = new Model();
         var client = new Model();
         for (int i = 0; i < 1000; i++) server.rows = server.rows.with(i, new Row(i, "initial"));
-        try (var sender = new SyncPublisher<>(SCHEMA, limits);
-                var receiver = new SyncReceiver<>(SCHEMA, limits)) {
+        try (var sender = new SyncPublisher<>(SCHEMA);
+                var receiver = new SyncReceiver<>(SCHEMA)) {
             long tick = 0;
             while (sender.revision() == 0) {
                 long now = ++tick;
                 sender.pump(server, now, batch -> {
-                    receiver.accept(client, batch, now);
-                    sender.acknowledge(batch.revision(), batch.index(), now);
+                    receiver.accept(client, batch);
+                    sender.acknowledge(batch.revision(), batch.index());
                 });
             }
             var before = client.rows;
             long operations = sender.sentOperations(), bytes = sender.sentBytes();
+            // One value larger than a batch, so the update spans several.
+            String large = "x".repeat(3 * SyncPublisher.BATCH_BYTES / 2);
             server.rows =
-                    server.rows.without(0).with(1000, new Row(1000, "new")).with(1, new Row(1, "x".repeat(600)));
-            long first = ++tick;
-            sender.pump(server, first, batch -> {
-                receiver.accept(client, batch, first);
-                sender.acknowledge(batch.revision(), batch.index(), first);
-            });
+                    server.rows.without(0).with(1000, new Row(1000, "new")).with(1, new Row(1, large));
+            var update = new ArrayList<SyncBatch>();
+            sender.pump(server, ++tick, update::add);
+            assertTrue(update.size() > 1);
+            receiver.accept(client, update.get(0));
             assertTrue(receiver.receiving());
             assertSame(before, client.rows);
             assertEquals("initial", before.get(1).text());
+            for (var batch : update) {
+                receiver.accept(client, batch);
+                sender.acknowledge(batch.revision(), batch.index());
+            }
             while (sender.revision() < 2) {
                 long now = ++tick;
                 sender.pump(server, now, batch -> {
-                    receiver.accept(client, batch, now);
-                    sender.acknowledge(batch.revision(), batch.index(), now);
+                    receiver.accept(client, batch);
+                    sender.acknowledge(batch.revision(), batch.index());
                 });
             }
             assertEquals(server.rows, client.rows);
             assertEquals(1000, client.rows.size());
             assertEquals(3, sender.sentOperations() - operations);
-            assertTrue(sender.sentBytes() - bytes < 1024);
+            assertTrue(sender.sentBytes() - bytes < large.length() + 1024);
             assertSame(before.get(500), client.rows.get(500));
             assertTrue(before.containsKey(0));
         }
@@ -157,8 +160,8 @@ class SyncMapTest {
         try (var sender = new SyncPublisher<>(schema);
                 var receiver = new SyncReceiver<>(schema)) {
             sender.pump(server, 0, batch -> {
-                receiver.accept(client, batch, 0);
-                sender.acknowledge(batch.revision(), batch.index(), 0);
+                receiver.accept(client, batch);
+                sender.acknowledge(batch.revision(), batch.index());
             });
             assertEquals(server.child.rows, client.child.rows);
             server.child.rows = server.child.rows.with(3, new Row(4, "mismatch"));

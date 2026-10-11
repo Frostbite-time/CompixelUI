@@ -10,6 +10,7 @@ import dev.compixel.bridge.ComposeThread
 import dev.compixel.forge.ComposeMenuScreen
 import dev.compixel.sync.action.ActionStatus
 import dev.compixel.sync.session.SyncStatus
+import dev.compixel.sync.state.SyncPublisher
 import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.Component
 import net.minecraft.world.SimpleMenuProvider
@@ -84,8 +85,9 @@ internal class SyncAcceptanceScreen(
 }
 
 /**
- * A real server-opened menu: bounded multi-batch snapshot, fragmented action round trip from the screen's content, a
- * native value through one shared codec in both directions, and screen release on a close request from the content.
+ * A real server-opened menu: a snapshot longer than one window of unacknowledged batches, fragmented action round trip
+ * from the screen's content, a native value through one shared codec in both directions, and screen release on a close
+ * request from the content.
  */
 internal class MenuSyncAcceptanceProbe(private val done: () -> Unit) {
     private val mc
@@ -129,7 +131,12 @@ internal class MenuSyncAcceptanceProbe(private val done: () -> Unit) {
                         check(menu.item.item == Items.DIAMOND && menu.item.count == 3) {
                             "The native value in the initial snapshot is wrong: ${menu.item}"
                         }
-                        check(menu.sync.statistics().largestBatch() <= menu.sync.options().state().batchBytes()) {
+                        check(
+                            menu.sync.statistics().batches() > SyncPublisher.WINDOW_BYTES / SyncPublisher.BATCH_BYTES
+                        ) {
+                            "The initial snapshot fit in one window"
+                        }
+                        check(menu.sync.statistics().largestBatch() <= SyncPublisher.BATCH_BYTES) {
                             "A state batch exceeded its bound"
                         }
                         stage++
@@ -165,7 +172,7 @@ internal class MenuSyncAcceptanceProbe(private val done: () -> Unit) {
                     check(result.status() == ActionStatus.APPLIED) {
                         "The action was not applied: ${result.status()}"
                     }
-                    check(menu.sync.statistics().largestBatch() <= menu.sync.options().state().batchBytes()) {
+                    check(menu.sync.statistics().largestBatch() <= SyncPublisher.BATCH_BYTES) {
                         "A state batch exceeded its bound"
                     }
                     // The client encodes this native value and the server decodes it with the same shared codec.

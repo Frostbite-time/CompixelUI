@@ -2,22 +2,22 @@ package dev.compixel.sync.session;
 
 import dev.compixel.sync.SyncException;
 import dev.compixel.sync.action.ActionFailure;
+import dev.compixel.sync.action.ActionQueue;
 import dev.compixel.sync.action.ActionResult;
 import dev.compixel.sync.action.ActionStatus;
 import dev.compixel.sync.action.RequestWindow;
 import dev.compixel.sync.transport.MessageAssembly;
-import dev.compixel.sync.transport.TokenBucket;
+import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.WeakHashMap;
 
 /**
  * The server side of menu synchronization: one session per player, from the menu opening until it closes. A session
- * sends the binding's state once the client confirms the transport policy, and validates, assembles and applies the
- * client's actions. Use it on the server thread: pass it menu openings, every message from clients, each server tick
- * and the server stopping.
+ * sends the binding's state right behind its bootstrap, at most a window of unacknowledged batches at a time, and
+ * validates, assembles and applies the client's actions. Use it on the server thread: pass it menu openings, every
+ * message from clients, each server tick and the server stopping.
  */
 public final class ServerSyncSessions<P> {
     /** What the sessions need from the server. Every call happens on the server thread. */
@@ -33,14 +33,8 @@ public final class ServerSyncSessions<P> {
         /** Whether the player is still its server's player; one who left or respawned is not. */
         boolean current(P player);
 
-        /** The player's connection, compared by identity. Its transfer credit outlives menus and respawns. */
-        Object connection(P player);
-
         /** Whether the player's client handles the bootstrap, control and data messages. */
         boolean channelsAvailable(P player);
-
-        /** Whether the player's connection takes more data now. */
-        boolean writable(P player);
 
         /** The menu the player has open, compared by identity. */
         Object openMenu(P player);
@@ -51,6 +45,7 @@ public final class ServerSyncSessions<P> {
         /** The codec context of the player's side of the server, for menu values and actions. */
         CodecScope codecs(P player);
 
+        /** Sends a message to the player's client, behind everything sent to it before. */
         void send(P player, SyncMessage message);
 
         SyncLog log();
@@ -69,37 +64,36 @@ public final class ServerSyncSessions<P> {
         }
     }
 
-    private static final class StartGate {
-        final long openedAt;
-        boolean ready;
+    private static final class Session<P> {
+        final P player;
+        final SyncBinding<?, P, ?> binding;
+        final UUID nonce, token;
+        final ActionInput input = new ActionInput();
+        long request;
+        RequestWindow actions;
 
-        StartGate(long openedAt) {
-            this.openedAt = openedAt;
+        Session(P player, SyncBinding<?, P, ?> binding) {
+            this.player = player;
+            this.binding = binding;
+            nonce = UUID.randomUUID();
+            token = UUID.randomUUID();
         }
     }
 
-    private record Session<P>(
-            P player,
-            SyncBinding<?, P, ?> binding,
-            UUID nonce,
-            long request,
-            UUID token,
-            RequestWindow actions,
-            ActionInput input,
-            StartGate start) {}
-
-    private record ConnectionBudget(Object server, TokenBucket bucket) {}
+    private static final SecureRandom STEPS = new SecureRandom();
 
     private final Host<P> host;
     private final Map<UUID, Session<P>> sessions = new HashMap<>();
-    // The connection survives both menu replacement and player respawn.
-    private final Map<Object, ConnectionBudget> bandwidth = new WeakHashMap<>();
 
     public ServerSyncSessions(Host<P> host) {
         this.host = Objects.requireNonNull(host);
     }
 
-    /** Starts the session for a menu the player opened; its state follows once the client confirms the policy. */
+    /**
+     * Starts the session for a menu the player opened, and sends its state right behind the bootstrap. Call it after
+     * the client has been told to open the menu, so that the menu exists there when its state arrives; a client that
+     * opens it later asks for the state again.
+     */
     public void opened(P player, Object menu, SyncBinding<?, P, ?> binding) {
         if (!host.channelsAvailable(player) || binding.menu() != menu) return;
         var old = sessions.remove(host.id(player));
@@ -107,61 +101,27 @@ public final class ServerSyncSessions<P> {
             old.input.clear();
             if (old.binding != binding) old.binding.close();
         }
-        long tick = host.tick(player);
-        var bucket = bandwidth
-                .computeIfAbsent(
-                        host.connection(player),
-                        ignored -> new ConnectionBudget(
-                                host.server(player),
-                                new TokenBucket(binding.limits().bandwidth(), tick)))
-                .bucket();
-        bucket.configure(binding.limits().bandwidth(), tick);
-        binding.serverStart(bucket);
-        UUID nonce = UUID.randomUUID(), token = UUID.randomUUID();
-        var session = new Session<>(
-                player,
-                binding,
-                nonce,
-                1,
-                token,
-                new RequestWindow(token, binding.options().actions().actionsPerTick()),
-                new ActionInput(),
-                new StartGate(tick));
+        var session = new Session<>(player, binding);
         sessions.put(host.id(player), session);
-        host.send(
-                player,
-                new SyncMessage.Bootstrap(
-                        binding.menuId(),
-                        nonce,
-                        1,
-                        token,
-                        binding.schemaId(),
-                        binding.fingerprint(),
-                        binding.limits()));
+        start(session);
     }
 
     public void receive(P player, SyncMessage.Control message) {
         var session = sessions.get(host.id(player));
         if (!matches(session, message)) return;
         if (message.kind() == SyncMessage.Control.CLOSE) {
-            session.input.clear();
-            session.binding.close();
-            sessions.remove(host.id(player));
+            end(session);
             return;
         }
         if (host.openMenu(player) != session.binding.menu()) return;
-        long tick = host.tick(player);
-        if (message.kind() == SyncMessage.Control.READY && !session.start.ready) {
-            session.start.ready = true;
-            pump(session, tick);
+        if (message.kind() == SyncMessage.Control.RESTART) {
+            start(session);
             return;
         }
-        if (message.kind() == SyncMessage.Control.ACK) {
-            try {
-                session.binding.acknowledge(message.revision(), message.batch(), tick);
-            } catch (RuntimeException failure) {
-                fail(session, failure);
-            }
+        try {
+            session.binding.acknowledge(message.revision(), message.batch());
+        } catch (RuntimeException failure) {
+            fail(session, failure);
         }
     }
 
@@ -189,16 +149,15 @@ public final class ServerSyncSessions<P> {
                     "Action overtook unfinished fragments");
             return;
         }
-        int fragmentBytes = session.binding.options().actions().fragmentBytes();
-        if (message.data().length > fragmentBytes) {
+        if (message.data().length > ActionQueue.FRAGMENT_BYTES) {
             reject(
                     session,
                     message.sequence(),
                     message.action(),
-                    ActionFailure.BODY_BYTES,
+                    ActionFailure.MALFORMED,
                     message.data().length,
-                    fragmentBytes,
-                    "Inline action exceeds configured fragment size");
+                    ActionQueue.FRAGMENT_BYTES,
+                    "Inline action exceeds the fragment size");
             return;
         }
         reply(session, message.sequence(), apply(session, message.action(), message.data()));
@@ -207,7 +166,6 @@ public final class ServerSyncSessions<P> {
     public void receive(P player, SyncMessage.ActionFragment message) {
         var session = actionSession(player, message);
         if (session == null) return;
-        long tick = host.tick(player);
         var input = session.input;
         if (input.assembly == null || input.sequence != message.sequence()) {
             if (message.offset() != 0 || !admit(session, message.sequence(), message.action())) return;
@@ -234,7 +192,7 @@ public final class ServerSyncSessions<P> {
                         "Action body exceeds declaration");
                 return;
             }
-            input.assembly = new MessageAssembly(message.total(), limit, tick);
+            input.assembly = new MessageAssembly(message.total(), limit);
             input.sequence = message.sequence();
             input.action = message.action();
             input.total = message.total();
@@ -242,23 +200,32 @@ public final class ServerSyncSessions<P> {
         try {
             if (!input.action.equals(message.action())
                     || input.total != message.total()
-                    || message.data().length
-                            > session.binding.options().actions().fragmentBytes())
+                    || message.data().length > ActionQueue.FRAGMENT_BYTES)
                 throw new SyncException("Invalid action fragment metadata/size");
-            byte[] data = input.assembly.append(message.offset(), message.data(), tick);
-            if (data != null) {
-                input.clear();
-                if (mayAct(session)) reply(session, message.sequence(), apply(session, message.action(), data));
-                else
-                    reject(
-                            session,
-                            message.sequence(),
-                            message.action(),
-                            ActionFailure.REJECTED,
-                            -1,
-                            -1,
-                            "Menu became unavailable");
+            byte[] data = input.assembly.append(message.offset(), message.data());
+            if (data == null) {
+                host.send(
+                        session.player,
+                        new SyncMessage.ActionProgress(
+                                session.binding.menuId(),
+                                session.nonce,
+                                session.request,
+                                session.token,
+                                message.sequence(),
+                                input.assembly.received()));
+                return;
             }
+            input.clear();
+            if (mayAct(session)) reply(session, message.sequence(), apply(session, message.action(), data));
+            else
+                reject(
+                        session,
+                        message.sequence(),
+                        message.action(),
+                        ActionFailure.REJECTED,
+                        -1,
+                        -1,
+                        "Menu became unavailable");
         } catch (RuntimeException invalid) {
             input.clear();
             reject(
@@ -272,7 +239,7 @@ public final class ServerSyncSessions<P> {
         }
     }
 
-    /** Ends stale sessions of {@code server}, expires stalled action assembly and sends pending state. */
+    /** Ends stale sessions of {@code server} and sends pending state. */
     public void tick(Object server) {
         var iterator = sessions.values().iterator();
         while (iterator.hasNext()) {
@@ -284,24 +251,11 @@ public final class ServerSyncSessions<P> {
                 iterator.remove();
                 continue;
             }
-            long tick = host.tick(session.player);
-            long progressTimeout = session.binding.options().actions().progressTimeoutTicks();
-            if (session.input.assembly != null && session.input.assembly.expired(tick, progressTimeout)) {
-                reject(
-                        session,
-                        session.input.sequence,
-                        session.input.action,
-                        ActionFailure.ASSEMBLY_TIMEOUT,
-                        -1,
-                        progressTimeout,
-                        "Action assembly made no progress");
-                session.input.clear();
-            }
-            pump(session, tick);
+            pump(session, host.tick(session.player));
         }
     }
 
-    /** Ends the sessions of a stopped server and forgets its connections. */
+    /** Ends the sessions of a stopped server. */
     public void stopped(Object server) {
         sessions.values().removeIf(session -> {
             if (host.server(session.player) != server) return false;
@@ -309,7 +263,34 @@ public final class ServerSyncSessions<P> {
             session.binding.close();
             return true;
         });
-        bandwidth.values().removeIf(account -> account.server() == server);
+    }
+
+    /**
+     * Starts the state over: a new request number, a fresh snapshot right behind a new bootstrap, and a new action
+     * window for the client's new queue. Request numbers grow by unpredictable steps, so a client can only ask to start
+     * over a bootstrap it has received, never several ahead in one burst.
+     */
+    private void start(Session<P> session) {
+        session.input.clear();
+        session.request += 1 + STEPS.nextInt(1 << 30);
+        session.actions = new RequestWindow(session.token, ActionQueue.ACTIONS_PER_TICK);
+        session.binding.serverStart();
+        host.send(
+                session.player,
+                new SyncMessage.Bootstrap(
+                        session.binding.menuId(),
+                        session.nonce,
+                        session.request,
+                        session.token,
+                        session.binding.schemaId(),
+                        session.binding.fingerprint()));
+        pump(session, host.tick(session.player));
+    }
+
+    private void end(Session<P> session) {
+        session.input.clear();
+        session.binding.close();
+        sessions.remove(host.id(session.player));
     }
 
     private boolean matches(Session<P> session, SyncMessage message) {
@@ -339,7 +320,7 @@ public final class ServerSyncSessions<P> {
                     action,
                     ActionFailure.THROTTLED,
                     -1,
-                    session.binding.options().actions().actionsPerTick(),
+                    ActionQueue.ACTIONS_PER_TICK,
                     "Per-tick action admission exceeded");
             return false;
         }
@@ -410,24 +391,16 @@ public final class ServerSyncSessions<P> {
             String detail) {
         var status = reason == ActionFailure.THROTTLED
                 ? ActionStatus.THROTTLED
-                : reason == ActionFailure.ASSEMBLY_TIMEOUT
-                        ? ActionStatus.EXPIRED
-                        : reason == ActionFailure.REJECTED ? ActionStatus.REJECTED : ActionStatus.INVALID;
+                : reason == ActionFailure.REJECTED ? ActionStatus.REJECTED : ActionStatus.INVALID;
         reply(session, sequence, new ActionResult(sequence, action, status, reason, actual, limit, detail));
     }
 
     private void pump(Session<P> session, long tick) {
         try {
             if (session.binding.status() == SyncStatus.FAILED || session.binding.status() == SyncStatus.CLOSED) return;
-            if (!session.start.ready) {
-                if (tick - session.start.openedAt > session.binding.limits().timeoutTicks())
-                    throw new SyncException("Client did not confirm menu transport policy");
-                return;
-            }
             session.binding.serverPump(
                     host.codecs(session.player),
                     tick,
-                    () -> host.writable(session.player),
                     batch -> host.send(
                             session.player,
                             new SyncMessage.Data(

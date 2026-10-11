@@ -27,7 +27,7 @@ class SyncActionTest {
     @Test
     void actionEncodingHasItsOwnSmallPayloadBudget() throws Exception {
         var action = new TestBindings.Action<Object, Object, String>(
-                "text", SyncCodecs.string(16384), (menu, player, value) -> true);
+                "text", SyncCodecs.STRING, (menu, player, value) -> true);
         assertEquals(8192, action.encode("x".repeat(8188)).length);
         assertThrows(IOException.class, () -> action.encode("x".repeat(8189)));
     }
@@ -35,9 +35,11 @@ class SyncActionTest {
     @Test
     void consumerCanOptIntoBodiesLargerThanTwoMiB() throws Exception {
         var action = new TestBindings.Action<Object, Object, String>(
-                "large", SyncCodecs.string(4 * 1024 * 1024), 4 * 1024 * 1024, (menu, player, value) -> true);
+                "large", SyncCodecs.STRING, 4 * 1024 * 1024, (menu, player, value) -> true);
         assertEquals(3 * 1024 * 1024 + 4, action.encode("x".repeat(3 * 1024 * 1024)).length);
-        var failure = assertThrows(SizeLimitException.class, () -> action.encode("x".repeat(200), 100));
+        var small = new TestBindings.Action<Object, Object, String>(
+                "small", SyncCodecs.STRING, 100, (menu, player, value) -> true);
+        var failure = assertThrows(SizeLimitException.class, () -> small.encode("x".repeat(200)));
         assertEquals(100, failure.limit());
         assertEquals(204, failure.actual());
     }

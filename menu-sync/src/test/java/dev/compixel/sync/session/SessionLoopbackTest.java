@@ -2,11 +2,11 @@ package dev.compixel.sync.session;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import dev.compixel.sync.MenuSyncOptions;
 import dev.compixel.sync.action.ActionFailure;
-import dev.compixel.sync.action.ActionResult;
+import dev.compixel.sync.action.ActionQueue;
 import dev.compixel.sync.action.ActionStatus;
 import dev.compixel.sync.state.SyncCodecs;
+import dev.compixel.sync.state.SyncPublisher;
 import dev.compixel.sync.state.SyncSchema;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -28,7 +28,7 @@ class SessionLoopbackTest {
     }
 
     static final SyncSchema<Menu> SCHEMA = SyncSchema.<Menu>builder("test:loopback", 1)
-            .field("text", SyncCodecs.string(64 * 1024), m -> m.text, (m, v) -> m.text = v)
+            .field("text", SyncCodecs.STRING, m -> m.text, (m, v) -> m.text = v)
             .field("counter", SyncCodecs.INT, m -> m.counter, (m, v) -> m.counter = v)
             .build();
     static final TestBindings.Action<Menu, Player, Integer> ADD =
@@ -38,7 +38,7 @@ class SessionLoopbackTest {
                 return true;
             });
     static final TestBindings.Action<Menu, Player, String> TEXT =
-            new TestBindings.Action<>("text", SyncCodecs.string(64 * 1024), 64 * 1024, (menu, player, value) -> {
+            new TestBindings.Action<>("text", SyncCodecs.STRING, 8 * 1024 * 1024, (menu, player, value) -> {
                 menu.text = value;
                 return true;
             });
@@ -70,15 +70,7 @@ class SessionLoopbackTest {
             return p.present;
         }
 
-        public Object connection(Player p) {
-            return connection;
-        }
-
         public boolean channelsAvailable(Player p) {
-            return true;
-        }
-
-        public boolean writable(Player p) {
             return true;
         }
 
@@ -124,10 +116,6 @@ class SessionLoopbackTest {
             return true;
         }
 
-        public boolean writable() {
-            return true;
-        }
-
         public boolean onGameThread() {
             return true;
         }
@@ -146,24 +134,33 @@ class SessionLoopbackTest {
     });
 
     private static TestBindings.Binding<Menu, Player> binding(Menu menu) {
-        return new TestBindings.Binding<Menu, Player>(menu, SCHEMA, MenuSyncOptions.DEFAULT, 7)
+        return new TestBindings.Binding<Menu, Player>(menu, SCHEMA, 7)
                 .action(ADD)
                 .action(TEXT);
     }
 
+    private void toServer(SyncMessage up) {
+        if (up instanceof SyncMessage.Control control) sessions.receive(player, control);
+        else if (up instanceof SyncMessage.ActionRequest request) sessions.receive(player, request);
+        else if (up instanceof SyncMessage.ActionFragment fragment) sessions.receive(player, fragment);
+        else fail("Unexpected client message " + up);
+    }
+
+    private void toClient(SyncMessage down) {
+        if (down instanceof SyncMessage.Bootstrap bootstrap) client.receive(bootstrap);
+        else if (down instanceof SyncMessage.Data data) client.receive(data);
+        else if (down instanceof SyncMessage.ActionProgress progress) client.receive(progress);
+        else if (down instanceof SyncMessage.ActionReply reply) client.receive(reply);
+        else fail("Unexpected server message " + down);
+    }
+
     /** Delivers queued messages both ways until none are left. */
     private void deliver() {
-        for (int i = 0; i < 1000 && (!toClient.isEmpty() || !toServer.isEmpty()); i++) {
+        for (int i = 0; i < 100_000 && (!toClient.isEmpty() || !toServer.isEmpty()); i++) {
             var up = toServer.poll();
-            if (up instanceof SyncMessage.Control control) sessions.receive(player, control);
-            else if (up instanceof SyncMessage.ActionRequest request) sessions.receive(player, request);
-            else if (up instanceof SyncMessage.ActionFragment fragment) sessions.receive(player, fragment);
-            else if (up != null) fail("Unexpected client message " + up);
+            if (up != null) toServer(up);
             var down = toClient.poll();
-            if (down instanceof SyncMessage.Bootstrap bootstrap) client.receive(bootstrap);
-            else if (down instanceof SyncMessage.Data data) client.receive(data);
-            else if (down instanceof SyncMessage.ActionReply reply) client.receive(reply);
-            else if (down != null) fail("Unexpected server message " + down);
+            if (down != null) toClient(down);
         }
         assertTrue(toClient.isEmpty() && toServer.isEmpty(), "Messages kept bouncing");
     }
@@ -195,7 +192,6 @@ class SessionLoopbackTest {
         var bindings = open(serverMenu, clientMenu);
         var serverSide = bindings.get(0);
         var clientSide = bindings.get(1);
-        var results = new ArrayList<ActionResult>();
         assertTrue(clientSide.hasSnapshot());
         assertEquals("server state", clientMenu.text);
         assertEquals(SyncStatus.READY, serverSide.status());
@@ -203,9 +199,8 @@ class SessionLoopbackTest {
         assertTrue(client.request(clientSide, ADD, 5).queued());
         deliver();
         assertEquals(5, serverMenu.counter);
-        results.add(clientSide.lastActionResult());
-        assertEquals(ActionStatus.APPLIED, results.get(0).status());
-        assertEquals(1, results.get(0).sequence());
+        assertEquals(ActionStatus.APPLIED, clientSide.lastActionResult().status());
+        assertEquals(1, clientSide.lastActionResult().sequence());
         step();
         assertEquals(5, clientMenu.counter);
 
@@ -224,6 +219,136 @@ class SessionLoopbackTest {
         assertEquals(ActionStatus.REJECTED, clientSide.lastActionResult().status());
         assertEquals(5, serverMenu.counter);
         assertFalse(client.sending(clientSide));
+        assertTrue(warnings.stream().noneMatch(w -> w.contains("failed")), () -> String.join("\n", warnings));
+    }
+
+    @Test
+    void theFirstStateFollowsTheBootstrapWithoutWaitingForTheClient() {
+        var serverMenu = new Menu();
+        serverMenu.text = "opened";
+        var clientMenu = new Menu();
+        this.clientMenu = clientMenu;
+        clientBinding = binding(clientMenu);
+        player.openMenu = serverMenu;
+        sessions.opened(player, serverMenu, binding(serverMenu));
+        // Nothing has gone back to the server yet, and the state is already on its way.
+        assertTrue(toServer.isEmpty());
+        var sent = List.copyOf(toClient);
+        assertInstanceOf(SyncMessage.Bootstrap.class, sent.get(0));
+        assertInstanceOf(SyncMessage.Data.class, sent.get(1));
+        while (!toClient.isEmpty()) toClient(toClient.poll());
+        assertTrue(clientBinding.hasSnapshot());
+        assertEquals("opened", clientMenu.text);
+        assertTrue(toServer.stream().allMatch(m -> m instanceof SyncMessage.Control c && c.kind() == 0));
+    }
+
+    @Test
+    void aMenuThatOpensAfterItsStateArrivedAsksForItAgain() {
+        var serverMenu = new Menu();
+        serverMenu.text = "x".repeat(3 * SyncPublisher.WINDOW_BYTES / 2);
+        serverMenu.counter = 3;
+        var serverBinding = binding(serverMenu);
+        player.openMenu = serverMenu;
+        sessions.opened(player, serverMenu, serverBinding);
+        // The client's menu does not exist yet: its bootstrap and first batches arrive and are dropped.
+        while (!toClient.isEmpty()) toClient(toClient.poll());
+        assertTrue(toServer.isEmpty());
+        var clientMenu = new Menu();
+        this.clientMenu = clientMenu;
+        var clientSide = binding(clientMenu);
+        clientBinding = clientSide;
+        for (int i = 0; i < 10 && !clientSide.hasSnapshot(); i++) step();
+        assertTrue(clientSide.hasSnapshot());
+        assertEquals(serverMenu.text, clientMenu.text);
+        assertEquals(3, clientMenu.counter);
+        assertTrue(client.request(clientSide, ADD, 2).queued());
+        deliver();
+        assertEquals(5, serverMenu.counter);
+        assertEquals(ActionStatus.APPLIED, clientSide.lastActionResult().status());
+    }
+
+    @Test
+    void aClientCanOnlyAskToStartOverABootstrapItReceived() {
+        var serverMenu = new Menu();
+        serverMenu.text = "state";
+        player.openMenu = serverMenu;
+        sessions.opened(player, serverMenu, binding(serverMenu));
+        var first = (SyncMessage.Bootstrap) toClient.peekFirst();
+        toClient.clear();
+        // Asking for this bootstrap and the request numbers after it in one burst starts over once.
+        for (long ahead = 0; ahead < 4; ahead++)
+            sessions.receive(
+                    player,
+                    new SyncMessage.Control(
+                            SyncMessage.Control.RESTART,
+                            first.menu(),
+                            first.nonce(),
+                            first.request() + ahead,
+                            first.session(),
+                            0,
+                            0));
+        assertEquals(
+                1,
+                toClient.stream()
+                        .filter(m -> m instanceof SyncMessage.Bootstrap)
+                        .count());
+    }
+
+    @Test
+    void largeStatesAndActionsArriveAtAnySize() {
+        var serverMenu = new Menu();
+        var clientMenu = new Menu();
+        var bindings = open(serverMenu, clientMenu);
+        var clientSide = bindings.get(1);
+        // About 3 MB each way, larger than any Minecraft payload and many windows long.
+        String state = "中文😀".repeat(300_000);
+        serverMenu.text = state;
+        for (int i = 0; i < 50 && !clientMenu.text.equals(state); i++) step();
+        assertEquals(state, clientMenu.text);
+        String action = "片段".repeat(500_000);
+        assertTrue(client.request(clientSide, TEXT, action).queued());
+        for (int i = 0; i < 50 && !serverMenu.text.equals(action); i++) step();
+        assertEquals(action, serverMenu.text);
+        assertEquals(ActionStatus.APPLIED, clientSide.lastActionResult().status());
+        assertFalse(client.sending(clientSide));
+    }
+
+    @Test
+    void actionsWaitForConfirmationBeyondTheirWindow() {
+        var clientSide = open(new Menu(), new Menu()).get(1);
+        String action = "x".repeat(2 * ActionQueue.WINDOW_BYTES);
+        assertTrue(client.request(clientSide, TEXT, action).queued());
+        long sent = toServer.stream()
+                .mapToLong(m -> m instanceof SyncMessage.ActionFragment f ? f.data().length : 0)
+                .sum();
+        assertEquals(ActionQueue.WINDOW_BYTES, sent);
+        deliver();
+        assertEquals(ActionStatus.APPLIED, clientSide.lastActionResult().status());
+    }
+
+    @Test
+    void aClientThatRejectsTheStateStopsTheServer() {
+        var serverMenu = new Menu();
+        serverMenu.text = "x".repeat(3 * SyncPublisher.WINDOW_BYTES / 2);
+        var serverBinding = binding(serverMenu);
+        var clientMenu = new Menu();
+        this.clientMenu = clientMenu;
+        // The client's setter throws, so its receiver rejects the snapshot.
+        SyncSchema<Menu> failing = SyncSchema.<Menu>builder("test:loopback", 1)
+                .field("text", SyncCodecs.STRING, m -> m.text, (m, v) -> {
+                    throw new IllegalStateException("setter");
+                })
+                .field("counter", SyncCodecs.INT, m -> m.counter, (m, v) -> m.counter = v)
+                .build();
+        var clientSide = new TestBindings.Binding<Menu, Player>(clientMenu, failing, 7)
+                .action(ADD)
+                .action(TEXT);
+        clientBinding = clientSide;
+        player.openMenu = serverMenu;
+        sessions.opened(player, serverMenu, serverBinding);
+        for (int i = 0; i < 10; i++) step();
+        assertEquals(SyncStatus.FAILED, clientSide.status());
+        assertEquals(SyncStatus.CLOSED, serverBinding.status());
     }
 
     @Test
@@ -237,20 +362,19 @@ class SessionLoopbackTest {
     }
 
     @Test
-    void mismatchedDeclarationsFailTheClientInsteadOfSyncing() {
+    void mismatchedDeclarationsFailTheClientAndStopTheServer() {
         var serverBinding = binding(new Menu());
         var clientMenu = new Menu();
-        var clientSide = new TestBindings.Binding<Menu, Player>(clientMenu, SCHEMA, MenuSyncOptions.DEFAULT, 7);
+        var clientSide = new TestBindings.Binding<Menu, Player>(clientMenu, SCHEMA, 7);
         this.clientMenu = clientMenu;
         clientBinding = clientSide;
         player.openMenu = serverBinding.menu();
         sessions.opened(player, serverBinding.menu(), serverBinding);
         deliver();
         assertEquals(SyncStatus.FAILED, clientSide.status());
-        assertEquals(
-                "Menu schema or transport options mismatch",
-                clientSide.statistics().failure());
+        assertEquals("Menu schema mismatch", clientSide.statistics().failure());
         assertFalse(clientSide.hasSnapshot());
+        assertEquals(SyncStatus.CLOSED, serverBinding.status());
     }
 
     @Test
@@ -277,5 +401,22 @@ class SessionLoopbackTest {
         sessions.stopped(server);
         assertEquals(SyncStatus.CLOSED, bindings.get(0).status());
         assertTrue(warnings.isEmpty(), () -> String.join("\n", warnings));
+    }
+
+    @Test
+    void aSessionWithoutTrafficNeverExpires() {
+        var serverMenu = new Menu();
+        var bindings = open(serverMenu, new Menu());
+        for (int i = 0; i < 10_000; i++) {
+            serverTick++;
+            sessions.tick(server);
+            client.tick();
+        }
+        deliver();
+        assertEquals(SyncStatus.READY, bindings.get(0).status());
+        assertEquals(SyncStatus.READY, bindings.get(1).status());
+        serverMenu.counter = 9;
+        step();
+        assertEquals(9, ((Menu) bindings.get(1).menu()).counter);
     }
 }

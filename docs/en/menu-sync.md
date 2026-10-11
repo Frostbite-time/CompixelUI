@@ -8,9 +8,9 @@ Menu sync keeps the state of a server-side menu on the client, and carries typed
 sequenceDiagram
     participant S as Server menu
     participant C as Client menu
-    S->>C: Full snapshot when the menu opens
+    S->>C: Full snapshot right behind the menu's opening
     loop While the menu is open
-        S->>C: Changed values, in bounded batches
+        S->>C: Changed values, in batches
     end
     C->>S: Request, such as set.enabled = false
     S-->>C: Result: applied, rejected, …
@@ -66,17 +66,19 @@ Getters must return immutable, non-null values. To change a value, replace it; d
 | Codec | For |
 | --- | --- |
 | `SyncCodecs.INT`, `LONG`, `BOOLEAN`, `UUID` | Plain values |
-| `SyncCodecs.string(maxBytes)` | Strings up to a UTF-8 size |
+| `SyncCodecs.STRING` | Strings |
 | `SyncCodecs.enumeration(MyEnum.class)` | Enums with up to 256 constants |
 | `SyncCodec.of(id, writer, reader)` | Your own types |
-| `MinecraftSyncCodecs.registry(id, maxBytes, streamCodec)` | Minecraft values such as `ItemStack` |
+| `MinecraftSyncCodecs.registry(id, streamCodec)` | Minecraft values such as `ItemStack` |
 
 ```java
 private static final SyncCodec<ItemStack> ITEM =
-    MinecraftSyncCodecs.registry("example:item/1", 64 * 1024, ItemStack.OPTIONAL_STREAM_CODEC);
+    MinecraftSyncCodecs.registry("example:item/1", ItemStack.OPTIONAL_STREAM_CODEC);
 ```
 
-On Forge 1.20.1, use `MinecraftSyncCodecs.buffer(id, maxBytes, codec)` with a `FriendlyByteBuf` codec instead. Change a codec's ID or the schema version whenever its wire format changes.
+On Forge 1.20.1, use `MinecraftSyncCodecs.buffer(id, codec)` with a `FriendlyByteBuf` codec instead. Change a codec's ID or the schema version whenever its wire format changes.
+
+Values can be any size. One larger than a Minecraft packet, such as a shulker box full of written books, is split into batches and applied once all of it has arrived.
 
 ## Collections
 
@@ -87,10 +89,9 @@ final class CatalogState {
     record Entry(int id, String name) {}
     private SyncMap<Integer, Entry> entries = SyncMap.empty();
 
-    private static final SyncCodec<String> NAME = SyncCodecs.string(256);
     private static final SyncCodec<Entry> ENTRY = SyncCodec.of("example:entry/1",
-        (out, entry) -> { out.writeInt(entry.id()); NAME.write(out, entry.name()); },
-        in -> new Entry(in.readInt(), NAME.read(in)));
+        (out, entry) -> { out.writeInt(entry.id()); SyncCodecs.STRING.write(out, entry.name()); },
+        in -> new Entry(in.readInt(), SyncCodecs.STRING.read(in)));
 
     static final SyncSchema<CatalogState> SCHEMA = SyncSchema.<CatalogState>builder("example:catalog", 1)
         .keyedMap("entries", SyncCodecs.INT, ENTRY, Entry::id, m -> m.entries, (m, v) -> m.entries = v)
@@ -109,46 +110,20 @@ A map has no order; sort it where you display it. `current.forEachChange(previou
 
 | Failure | Meaning |
 | --- | --- |
-| `QUEUE_BYTES`, `PENDING_ACTIONS` | Too much is already waiting. Try again later. |
 | `BODY_BYTES`, `CODEC` | The value is too large or invalid for this action. |
 | `NOT_READY`, `CLOSED`, `TRANSPORT_UNAVAILABLE`, `UNKNOWN_ACTION` | The menu or connection can't take requests now. |
 
 `actual()` and `limit()` give the sizes involved. Nothing is retried automatically.
 
-Register `onActionResult(listener)` before the menu opens to hear back from the server. Each `ActionResult` has an `ActionStatus`: `APPLIED`, `REJECTED`, `INVALID`, `THROTTLED` or `EXPIRED`; the new state itself arrives through normal syncing. Rejections are also logged, at most once per 100 ticks per menu.
+An action's value is limited to 8 KiB unless you declare more with `MenuAction.of(id, codec, maxBytes, handler)`; the server refuses anything larger. Larger values are split into packets automatically.
 
-## Limits
+Register `onActionResult(listener)` before the menu opens to hear back from the server. Each `ActionResult` has an `ActionStatus`: `APPLIED`, `REJECTED`, `INVALID` or `THROTTLED`, the last when a player starts more than 16 requests in one tick. The new state itself arrives through normal syncing. Rejections are also logged, at most once per 100 ticks per menu.
 
-Every limit can be changed by passing `MenuSyncOptions` to `MenuSync.bind`. Both sides must use the same options. The defaults:
+## How data travels
 
-| Server → client | Default |
-| --- | --- |
-| Batch size | 128 KiB |
-| Transfer rate | 32 KiB per tick, bursts up to 4 MiB, at most 256 KiB per tick |
-| Batches awaiting acknowledgement | 16 |
-| Largest single value | 1 MiB |
-| Largest snapshot or update | 32 MiB |
-| Collection entries in total | 100,000 |
-| Timeout without progress | 200 ticks |
+Menu sync has no settings. The server sends a menu's state right behind the menu's opening, in batches of up to 128 KiB, and keeps at most 512 KiB on its way that the client hasn't acknowledged. A state therefore moves at up to 512 KiB per tick on a fast connection, and at the connection's own speed on a slow one, while the rest of the game's traffic keeps moving. Requests sent in parts wait for the server to confirm what arrived in the same way.
 
-| Client → server | Default |
-| --- | --- |
-| Packet size | 16 KiB |
-| Transfer rate | 32 KiB per tick, bursts up to 4 MiB, at most 256 KiB per tick |
-| Queued request data | 4 MiB |
-| Requests waiting for a result | 32 |
-| Requests per tick | 16 |
-| Timeouts (queue, progress, reply) | 200 ticks each |
-
-A single action is limited to 8 KiB unless you declare more with `MenuAction.of(id, codec, maxBytes, handler)`. Larger values are split into packets automatically.
-
-```java
-static final MenuSyncOptions OPTIONS = MenuSyncOptions.DEFAULT
-    .withState(new SyncLimits(128 * 1024, new TransferBudget(64 * 1024, 8L * 1024 * 1024, 512 * 1024),
-        16, 2 * 1024 * 1024, 64L * 1024 * 1024, 250_000, 400));
-
-MenuSync.bind(this, SCHEMA, OPTIONS);
-```
+Nothing times out. A menu stays in sync until it closes or the player disconnects.
 
 ## Readiness
 

@@ -1,16 +1,13 @@
 package dev.compixel.sync.session;
 
-import dev.compixel.sync.MenuSyncOptions;
 import dev.compixel.sync.SyncException;
 import dev.compixel.sync.action.ActionFailure;
 import dev.compixel.sync.action.ActionResult;
 import dev.compixel.sync.action.ActionStatus;
 import dev.compixel.sync.state.SyncBatch;
-import dev.compixel.sync.state.SyncLimits;
 import dev.compixel.sync.state.SyncPublisher;
 import dev.compixel.sync.state.SyncReceiver;
 import dev.compixel.sync.state.SyncSchema;
-import dev.compixel.sync.transport.TokenBucket;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -19,7 +16,6 @@ import java.util.HexFormat;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
@@ -28,9 +24,11 @@ import java.util.function.Consumer;
  * of each side. Adapters subclass it to fix the menu and player types and to name the menu's network id.
  */
 public abstract class SyncBinding<M, P, B extends SyncBinding<M, P, B>> implements AutoCloseable {
+    /** Refused actions are logged at most once per this many ticks per menu. */
+    private static final long WARNING_INTERVAL_TICKS = 100;
+
     private final M menu;
     private final SyncSchema<M> schema;
-    private final MenuSyncOptions options;
     private final SyncLog log;
     private SyncPublisher<M> publisher;
     private SyncReceiver<M> receiver;
@@ -47,10 +45,9 @@ public abstract class SyncBinding<M, P, B extends SyncBinding<M, P, B>> implemen
     private Consumer<ActionResult> onActionResult;
     private long lastWarning = Long.MIN_VALUE, suppressedWarnings;
 
-    protected SyncBinding(M menu, SyncSchema<M> schema, MenuSyncOptions options, SyncLog log) {
+    protected SyncBinding(M menu, SyncSchema<M> schema, SyncLog log) {
         this.menu = menu;
         this.schema = Objects.requireNonNull(schema);
-        this.options = Objects.requireNonNull(options);
         this.log = Objects.requireNonNull(log);
     }
 
@@ -59,10 +56,6 @@ public abstract class SyncBinding<M, P, B extends SyncBinding<M, P, B>> implemen
 
     public final M menu() {
         return menu;
-    }
-
-    public final MenuSyncOptions options() {
-        return options;
     }
 
     public final B action(SyncAction<? super M, P, ?> action) {
@@ -108,14 +101,13 @@ public abstract class SyncBinding<M, P, B extends SyncBinding<M, P, B>> implemen
         return schema.id();
     }
 
-    /** Identifies the schema, the wire policy and the declared actions; both sides must agree on it. */
+    /** Identifies the schema and the declared actions; both sides must agree on it. */
     public final String fingerprint() {
         if (fingerprint == null)
             try {
                 var bytes = new ByteArrayOutputStream();
                 try (var out = new DataOutputStream(bytes)) {
                     out.writeUTF(schema.fingerprint());
-                    options.writePolicy(out);
                     out.writeInt(actions.size());
                     for (var entry : actions.entrySet()) {
                         out.writeUTF(entry.getKey());
@@ -142,10 +134,6 @@ public abstract class SyncBinding<M, P, B extends SyncBinding<M, P, B>> implemen
         return (B) this;
     }
 
-    final SyncLimits limits() {
-        return options.state();
-    }
-
     final long revision() {
         return revision;
     }
@@ -165,11 +153,10 @@ public abstract class SyncBinding<M, P, B extends SyncBinding<M, P, B>> implemen
         if (onActionResult != null) onActionResult.accept(result);
     }
 
-    /** Logs a refused action, at most once per configured interval. */
+    /** Logs a refused action, at most once per {@link #WARNING_INTERVAL_TICKS}. */
     final void warnAction(ActionResult result, long tick) {
-        long interval = options.rejectionLogIntervalTicks();
-        if (result.status() == ActionStatus.APPLIED || interval < 0) return;
-        if (lastWarning != Long.MIN_VALUE && tick - lastWarning < interval) {
+        if (result.status() == ActionStatus.APPLIED) return;
+        if (lastWarning != Long.MIN_VALUE && tick - lastWarning < WARNING_INTERVAL_TICKS) {
             suppressedWarnings++;
             return;
         }
@@ -217,19 +204,19 @@ public abstract class SyncBinding<M, P, B extends SyncBinding<M, P, B>> implemen
         }
     }
 
-    final void serverStart(TokenBucket bandwidth) {
+    final void serverStart() {
         started = true;
         closeEngines();
-        publisher = new SyncPublisher<>(schema, limits(), bandwidth);
+        publisher = new SyncPublisher<>(schema);
         status = SyncStatus.SYNCING;
         failure = "";
         revision = 0;
     }
 
-    final void serverPump(CodecScope codecs, long tick, BooleanSupplier writable, Consumer<SyncBatch> send) {
+    final void serverPump(CodecScope codecs, long tick, Consumer<SyncBatch> send) {
         if (publisher == null || status == SyncStatus.FAILED) return;
         try (var ignored = codecs.enter()) {
-            publisher.pump(menu, tick, writable, batch -> {
+            publisher.pump(menu, tick, batch -> {
                 count(batch);
                 status = SyncStatus.SYNCING;
                 send.accept(batch);
@@ -239,9 +226,9 @@ public abstract class SyncBinding<M, P, B extends SyncBinding<M, P, B>> implemen
         if (revision > 0 && !publisher.busy()) status = SyncStatus.READY;
     }
 
-    final void acknowledge(long revision, int batch, long tick) {
+    final void acknowledge(long revision, int batch) {
         if (publisher != null) {
-            publisher.acknowledge(revision, batch, tick);
+            publisher.acknowledge(revision, batch);
             this.revision = publisher.revision();
             if (this.revision > 0 && !publisher.busy()) status = SyncStatus.READY;
         }
@@ -250,7 +237,7 @@ public abstract class SyncBinding<M, P, B extends SyncBinding<M, P, B>> implemen
     final void clientStart() {
         started = true;
         closeEngines();
-        receiver = new SyncReceiver<>(schema, limits());
+        receiver = new SyncReceiver<>(schema);
         status = SyncStatus.SYNCING;
         failure = "";
         revision = 0;
@@ -258,11 +245,11 @@ public abstract class SyncBinding<M, P, B extends SyncBinding<M, P, B>> implemen
         lastActionResult = null;
     }
 
-    final SyncReceiver.Result receive(CodecScope codecs, SyncBatch batch, long tick) {
+    final SyncReceiver.Result receive(CodecScope codecs, SyncBatch batch) {
         if (receiver == null) throw new SyncException("No active receiver");
         SyncReceiver.Result result;
         try (var ignored = codecs.enter()) {
-            result = receiver.accept(menu, batch, tick);
+            result = receiver.accept(menu, batch);
         }
         if (result == SyncReceiver.Result.STAGED || result == SyncReceiver.Result.COMMITTED) count(batch);
         revision = receiver.revision();
@@ -270,10 +257,6 @@ public abstract class SyncBinding<M, P, B extends SyncBinding<M, P, B>> implemen
         progress = status == SyncStatus.READY ? 1 : receiver.progress();
         if (result == SyncReceiver.Result.COMMITTED && onUpdate != null) onUpdate.accept(menu);
         return result;
-    }
-
-    final boolean expired(long tick) {
-        return receiver != null && receiver.expired(tick);
     }
 
     final void fail(String reason) {

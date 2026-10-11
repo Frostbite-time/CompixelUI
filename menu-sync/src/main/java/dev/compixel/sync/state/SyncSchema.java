@@ -1,6 +1,5 @@
 package dev.compixel.sync.state;
 
-import dev.compixel.sync.SizeLimitException;
 import dev.compixel.sync.SyncException;
 import java.io.*;
 import java.security.MessageDigest;
@@ -210,9 +209,8 @@ public final class SyncSchema<M> {
     record Operation(int field, int kind, Object key, Object value) {}
 
     @SuppressWarnings("unchecked")
-    State capture(M menu, State previous, SyncLimits limits) {
+    State capture(M menu, State previous) {
         State state = new State(bindings.size());
-        long entries = 0;
         for (int i = 0; i < bindings.size(); i++) {
             Binding<M> b = bindings.get(i);
             Object value = Objects.requireNonNull(b.getter.apply(menu), "Null sync value: " + b.name);
@@ -222,8 +220,6 @@ public final class SyncSchema<M> {
                 Map<Object, Object> map;
                 if (b.mapSnapshot) {
                     var snapshot = (SyncMap<Object, Object>) value;
-                    if (snapshot.size() > limits.maxEntries())
-                        throw new SyncException("Collection entry limit exceeded");
                     var prior = previous == null
                             ? SyncMap.<Object, Object>empty()
                             : (SyncMap<Object, Object>) previous.values[i];
@@ -236,15 +232,12 @@ public final class SyncSchema<M> {
                     map = (Map<Object, Object>) previous.values[i];
                 else {
                     Collection<?> values = (Collection<?>) value;
-                    if (values.size() > limits.maxEntries()) throw new SyncException("Collection entry limit exceeded");
                     map = new LinkedHashMap<>();
                     for (Object item : values) {
                         Object key = Objects.requireNonNull(b.key.apply(Objects.requireNonNull(item)));
                         if (map.putIfAbsent(key, item) != null) throw new SyncException("Duplicate key in " + b.name);
                     }
                 }
-                entries += map.size();
-                if (entries > limits.maxEntries()) throw new SyncException("Total collection entry limit exceeded");
                 state.values[i] = map;
             }
         }
@@ -277,7 +270,6 @@ public final class SyncSchema<M> {
                                 if (value == null) ops.add(new Operation(field, REMOVE, key, null));
                                 else puts.add(new Operation(field, PUT, key, value));
                             });
-                    // Remove before insert so replacing entries at the configured limit stays within the budget.
                     ops.addAll(puts);
                     continue;
                 }
@@ -291,26 +283,9 @@ public final class SyncSchema<M> {
         return ops;
     }
 
-    byte[] encode(Operation op, int limit) {
+    byte[] encode(Operation op) {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        try (DataOutputStream out = new DataOutputStream(new FilterOutputStream(bytes) {
-            private int size;
-
-            private void count(int n) throws IOException {
-                if (n > limit - size) throw new SizeLimitException((long) size + n, limit);
-                size += n;
-            }
-
-            public void write(int value) throws IOException {
-                count(1);
-                this.out.write(value);
-            }
-
-            public void write(byte[] b, int off, int len) throws IOException {
-                count(len);
-                this.out.write(b, off, len);
-            }
-        })) {
+        try (DataOutputStream out = new DataOutputStream(bytes)) {
             out.writeInt(op.field);
             out.writeByte(op.kind);
             Binding<M> b = bindings.get(op.field);

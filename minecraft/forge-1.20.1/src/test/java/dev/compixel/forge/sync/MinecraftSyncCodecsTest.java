@@ -14,7 +14,7 @@ class MinecraftSyncCodecsTest {
     @Test
     void oneSharedBufferCodecServesBothSides() throws Exception {
         var codec = MinecraftSyncCodecs.buffer(
-                "test:number", 16, PacketCodec.of(FriendlyByteBuf::writeVarInt, FriendlyByteBuf::readVarInt));
+                "test:number", PacketCodec.of(FriendlyByteBuf::writeVarInt, FriendlyByteBuf::readVarInt));
         var bytes = new ByteArrayOutputStream();
         codec.write(new DataOutputStream(bytes), 42);
         // As with the integrated server and the client, another thread decodes with the same codec.

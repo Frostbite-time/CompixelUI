@@ -33,6 +33,10 @@ public final class ClientMenuSync {
         SESSION.receive(message);
     }
 
+    static void receive(SyncMessage.ActionProgress message) {
+        SESSION.receive(message);
+    }
+
     static <M extends AbstractContainerMenu, V> ActionSubmission request(
             MenuSync<M> binding, SyncAction<? super M, ServerPlayer, V> action, V value) {
         return SESSION.request(binding, action, value);
@@ -68,22 +72,14 @@ public final class ClientMenuSync {
                     && connection.hasChannel(SyncPayloads.Data.TYPE)
                     && connection.hasChannel(SyncPayloads.ActionRequest.TYPE)
                     && connection.hasChannel(SyncPayloads.ActionFragment.TYPE)
-                    && connection.hasChannel(SyncPayloads.ActionReply.TYPE);
+                    && connection.hasChannel(SyncPayloads.ActionReply.TYPE)
+                    && connection.hasChannel(SyncPayloads.ActionProgress.TYPE);
         }
 
         @Override
         public boolean controlAvailable() {
             var connection = Minecraft.getInstance().getConnection();
             return connection != null && connection.hasChannel(SyncPayloads.Control.TYPE);
-        }
-
-        @Override
-        public boolean writable() {
-            return Minecraft.getInstance()
-                    .getConnection()
-                    .getConnection()
-                    .channel()
-                    .isWritable();
         }
 
         @Override

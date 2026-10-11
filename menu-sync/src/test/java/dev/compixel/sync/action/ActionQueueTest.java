@@ -2,118 +2,89 @@ package dev.compixel.sync.action;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import dev.compixel.sync.transport.TokenBucket;
-import dev.compixel.sync.transport.TransferBudget;
 import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class ActionQueueTest {
-    private static ActionLimits limits(long bytes, int pending, int admissions) {
-        return new ActionLimits(16, new TransferBudget(8, 64, 32), bytes, pending, admissions, 10, 3, 5);
-    }
-
     @Test
-    void byteAndCountRejectionNeverConsumeSequenceOrDiscardExistingRequests() {
-        var limits = limits(64, 2, 8);
-        var queue = new ActionQueue(limits, new TokenBucket(limits.bandwidth(), 0));
-        assertEquals(1, queue.offer("first", new byte[40], 0).sequence());
-        var refused = queue.offer("large", new byte[25], 0);
-        assertEquals(ActionFailure.QUEUE_BYTES, refused.failure());
-        assertEquals(65, refused.actual());
-        assertEquals(64, refused.limit());
-        assertEquals(2, queue.offer("second", new byte[24], 0).sequence());
-        assertEquals(
-                ActionFailure.PENDING_ACTIONS,
-                queue.offer("third", new byte[0], 0).failure());
-        assertEquals(64, queue.queuedBytes());
-        assertEquals("first", queue.reply(1));
-        assertEquals(24, queue.queuedBytes());
-        assertEquals(3, queue.offer("third", new byte[1], 0).sequence());
-    }
-
-    @Test
-    void fragmentedRequestsKeepFifoAndWaitForWritableTransport() {
-        var limits = limits(1024, 8, 8);
-        var queue = new ActionQueue(limits, new TokenBucket(limits.bandwidth(), 0));
-        queue.offer("large", new byte[48], 0);
-        queue.offer("small", new byte[] {7}, 0);
+    void fragmentedRequestsKeepFifoOrder() {
+        var queue = new ActionQueue();
+        queue.offer("large", new byte[3 * ActionQueue.FRAGMENT_BYTES]);
+        queue.offer("small", new byte[] {7});
         var wire = new ArrayList<ActionQueue.Part>();
-        queue.pump(0, () -> false, wire::add);
-        assertTrue(wire.isEmpty());
-        queue.pump(0, () -> true, wire::add);
-        assertEquals(2, wire.size());
-        assertEquals(48, wire.get(0).total());
-        assertEquals(16, wire.get(1).offset());
-        queue.pump(1, () -> true, wire::add);
+        queue.pump(0, wire::add);
         assertEquals(4, wire.size());
-        assertEquals("large", wire.get(2).action());
+        assertEquals(3 * ActionQueue.FRAGMENT_BYTES, wire.get(0).total());
+        assertEquals(ActionQueue.FRAGMENT_BYTES, wire.get(1).offset());
+        assertFalse(wire.get(0).single());
         assertEquals("small", wire.get(3).action());
         assertTrue(wire.get(3).single());
         assertFalse(queue.sending());
-        assertEquals(0, queue.queuedBytes());
         assertEquals(2, queue.pendingActions());
+        assertEquals("large", queue.reply(1));
+        assertEquals("small", queue.reply(2));
+        assertEquals(0, queue.inFlightBytes());
     }
 
     @Test
-    void smallRequestsUseAvailableCreditWithoutWaitingForAFullFragment() {
-        var limits = new ActionLimits(128, TransferBudget.steady(3), 100, 10, 10, 100, 10, 10);
-        var queue = new ActionQueue(limits, new TokenBucket(limits.bandwidth(), 0));
-        queue.offer("small", new byte[8], 0);
-        var wire = new ArrayList<ActionQueue.Part>();
-        for (int tick = 0; tick < 3; tick++) queue.pump(tick, () -> true, wire::add);
-        assertEquals(
-                java.util.List.of(3, 3, 2),
-                wire.stream().map(p -> p.data().length).toList());
-        assertTrue(wire.stream().noneMatch(ActionQueue.Part::single));
-    }
-
-    @Test
-    void activeProgressDoesNotExpireAgainstTheOriginalEnqueueTime() {
-        var limits = new ActionLimits(8, TransferBudget.steady(1), 100, 10, 10, 2, 2, 3);
-        var queue = new ActionQueue(limits, new TokenBucket(limits.bandwidth(), 0));
-        queue.offer("slow", new byte[10], 0);
-        for (int tick = 0; tick < 10; tick++) {
-            queue.pump(tick, () -> true, part -> {});
-            assertNull(queue.expired(tick));
+    void unconfirmedBytesStayWithinTheWindow() {
+        var queue = new ActionQueue();
+        int size = 3 * ActionQueue.WINDOW_BYTES;
+        queue.offer("large", new byte[size]);
+        long[] sent = {0};
+        queue.pump(0, part -> sent[0] += part.data().length);
+        assertEquals(ActionQueue.WINDOW_BYTES, sent[0]);
+        assertEquals(ActionQueue.WINDOW_BYTES, queue.inFlightBytes());
+        // Nothing more until the server confirms what arrived.
+        queue.pump(1, part -> sent[0] += part.data().length);
+        assertEquals(ActionQueue.WINDOW_BYTES, sent[0]);
+        queue.progress(1, ActionQueue.FRAGMENT_BYTES * 2);
+        queue.pump(2, part -> sent[0] += part.data().length);
+        assertEquals(ActionQueue.WINDOW_BYTES + 2L * ActionQueue.FRAGMENT_BYTES, sent[0]);
+        // A lower confirmation changes nothing; one beyond what was sent confirms only what was sent.
+        queue.progress(1, 1);
+        assertEquals(ActionQueue.WINDOW_BYTES, queue.inFlightBytes());
+        queue.progress(1, size);
+        assertEquals(0, queue.inFlightBytes());
+        for (int tick = 3; queue.sending(); tick++) {
+            queue.progress(1, (int) sent[0]);
+            queue.pump(tick, part -> sent[0] += part.data().length);
+            assertTrue(tick < 100);
         }
-        assertNull(queue.expired(11));
-        assertEquals(ActionFailure.REPLY_TIMEOUT, queue.expired(12).failure());
+        assertEquals(size, sent[0]);
+        assertEquals("large", queue.reply(1));
+        assertEquals(0, queue.inFlightBytes());
     }
 
     @Test
-    void distinguishesWaitingAndStalledPartialTransfer() {
-        var limits = limits(100, 10, 10);
-        var waiting = new ActionQueue(limits, new TokenBucket(limits.bandwidth(), 0));
-        waiting.offer("waiting", new byte[60], 0);
-        assertEquals(ActionFailure.QUEUE_TIMEOUT, waiting.expired(10).failure());
-        waiting.pump(0, () -> true, part -> {});
-        assertEquals(ActionFailure.SEND_TIMEOUT, waiting.expired(3).failure());
+    void aReplyRetiresTheUnsentTailOfARefusedAction() {
+        var queue = new ActionQueue();
+        queue.offer("refused", new byte[2 * ActionQueue.WINDOW_BYTES]);
+        queue.offer("next", new byte[] {1});
+        var wire = new ArrayList<ActionQueue.Part>();
+        queue.pump(0, wire::add);
+        assertTrue(queue.sending());
+        assertEquals("refused", queue.reply(1));
+        assertEquals(0, queue.inFlightBytes());
+        queue.pump(1, wire::add);
+        assertEquals("next", wire.get(wire.size() - 1).action());
+        assertFalse(queue.sending());
     }
 
     @Test
     void zeroBodyCommandsAndRepeatedPumpsRespectPerTickAdmission() {
-        var limits = limits(1, 10, 2);
-        var queue = new ActionQueue(limits, new TokenBucket(limits.bandwidth(), 0));
-        for (int i = 0; i < 5; i++)
-            assertTrue(queue.offer("empty", new byte[0], 0).queued());
+        var queue = new ActionQueue();
+        for (int i = 0; i < ActionQueue.ACTIONS_PER_TICK + 4; i++)
+            assertTrue(queue.offer("empty", new byte[0]).queued());
         var wire = new ArrayList<ActionQueue.Part>();
-        queue.pump(0, () -> true, wire::add);
-        queue.pump(0, () -> true, wire::add);
-        assertEquals(2, wire.size());
-        queue.pump(1, () -> true, wire::add);
-        assertEquals(4, wire.size());
-    }
-
-    @Test
-    void configurableQueueCanTransmitBodiesAboveTwoMiB() {
-        int size = 3 * 1024 * 1024;
-        var limits = new ActionLimits(
-                16 * 1024, new TransferBudget(32 * 1024, size, 1024 * 1024), 8L * 1024 * 1024, 100, 40, 400, 400, 400);
-        var queue = new ActionQueue(limits, new TokenBucket(limits.bandwidth(), 0));
-        assertTrue(queue.offer("large", new byte[size], 0).queued());
-        long[] bytes = {0};
-        for (int tick = 0; tick < 3; tick++) queue.pump(tick, () -> true, part -> bytes[0] += part.data().length);
-        assertEquals(size, bytes[0]);
-        assertFalse(queue.sending());
+        queue.pump(0, wire::add);
+        queue.pump(0, wire::add);
+        assertEquals(ActionQueue.ACTIONS_PER_TICK, wire.size());
+        queue.pump(1, wire::add);
+        assertEquals(ActionQueue.ACTIONS_PER_TICK + 4, wire.size());
+        assertTrue(wire.stream().allMatch(ActionQueue.Part::single));
+        assertEquals(
+                List.of(0), wire.stream().map(p -> p.data().length).distinct().toList());
     }
 }

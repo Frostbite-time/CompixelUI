@@ -25,7 +25,7 @@ class StringCodecTest {
     @Test
     void aShortBodyCannotAllocateItsDeclaredStringLength() throws Exception {
         int length = 64 * 1024 * 1024;
-        var codec = SyncCodecs.string(length);
+        var codec = SyncCodecs.STRING;
         // Link the rejection path first so one-time bootstrap work is not mistaken for decoding memory.
         assertThrows(EOFException.class, () -> codec.read(input(declared(length))));
         var body = input(declared(length));
@@ -34,15 +34,9 @@ class StringCodecTest {
     }
 
     @Test
-    void lengthsBeyondTheLimitOrTheReceivedBytesAreRejected() throws IOException {
-        var codec = SyncCodecs.string(64 * 1024);
+    void negativeLengthsAndMissingBytesAreRejected() throws IOException {
+        var codec = SyncCodecs.STRING;
         assertThrows(IOException.class, () -> codec.read(input(declared(-1))));
-        // Fully present bytes still cannot exceed the configured limit.
-        assertThrows(
-                IOException.class,
-                () -> codec.read(input(ByteBuffer.allocate(4 + 64 * 1024 + 1)
-                        .putInt(64 * 1024 + 1)
-                        .array())));
         byte[] complete = encode(codec, "x".repeat(50_000));
         for (int kept : new int[] {4, 5, 4 + 4096, 4 + 4097, complete.length - 1})
             assertThrows(EOFException.class, () -> codec.read(input(Arrays.copyOf(complete, kept))), "kept=" + kept);
@@ -50,7 +44,7 @@ class StringCodecTest {
 
     @Test
     void valuesSpanningSeveralReadStepsRoundTrip() throws IOException {
-        var codec = SyncCodecs.string(4 * 1024 * 1024);
+        var codec = SyncCodecs.STRING;
         for (int size : new int[] {0, 1, 4095, 4096, 4097, 8193, 3 * 1024 * 1024 + 1}) {
             String value = "x".repeat(size);
             assertEquals(value, codec.read(input(encode(codec, value))), "size=" + size);

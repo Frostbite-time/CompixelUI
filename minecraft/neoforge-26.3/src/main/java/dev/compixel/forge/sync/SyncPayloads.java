@@ -4,7 +4,6 @@ import dev.compixel.sync.action.ActionFailure;
 import dev.compixel.sync.action.ActionStatus;
 import dev.compixel.sync.session.SyncMessage;
 import dev.compixel.sync.state.SyncBatch;
-import dev.compixel.sync.state.SyncLimits;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.ByteBufOutputStream;
 import java.io.IOException;
@@ -24,6 +23,7 @@ final class SyncPayloads {
             case SyncMessage.Data data -> new Data(data);
             case SyncMessage.ActionRequest request -> new ActionRequest(request);
             case SyncMessage.ActionFragment fragment -> new ActionFragment(fragment);
+            case SyncMessage.ActionProgress progress -> new ActionProgress(progress);
             case SyncMessage.ActionReply reply -> new ActionReply(reply);
         };
     }
@@ -110,11 +110,6 @@ final class SyncPayloads {
                     b.writeUUID(m.session());
                     b.writeUtf(m.schema(), 128);
                     b.writeUtf(m.fingerprint(), 64);
-                    try {
-                        m.limits().write(new ByteBufOutputStream(b));
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
                 },
                 b -> {
                     int menu = b.readInt();
@@ -122,15 +117,7 @@ final class SyncPayloads {
                     long request = b.readLong();
                     UUID session = b.readUUID();
                     String schema = b.readUtf(128), fingerprint = b.readUtf(64);
-                    try {
-                        var limits = SyncLimits.read(new ByteBufInputStream(b));
-                        if (limits.batchBytes() > MenuTransportLimits.MAX_STATE_BATCH_BYTES)
-                            throw new IOException("State batch exceeds transport envelope");
-                        return new Bootstrap(
-                                new SyncMessage.Bootstrap(menu, nonce, request, session, schema, fingerprint, limits));
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
+                    return new Bootstrap(new SyncMessage.Bootstrap(menu, nonce, request, session, schema, fingerprint));
                 });
 
         @Override
@@ -196,6 +183,28 @@ final class SyncPayloads {
 
         @Override
         public Type<ActionFragment> type() {
+            return TYPE;
+        }
+    }
+
+    record ActionProgress(SyncMessage.ActionProgress message) implements CustomPacketPayload {
+        static final Type<ActionProgress> TYPE =
+                new Type<>(Identifier.fromNamespaceAndPath("compixel", "menu_action_progress"));
+        static final StreamCodec<RegistryFriendlyByteBuf, ActionProgress> CODEC = StreamCodec.of(
+                (b, p) -> {
+                    var m = p.message;
+                    b.writeVarInt(m.menu());
+                    b.writeUUID(m.nonce());
+                    b.writeVarLong(m.request());
+                    b.writeUUID(m.session());
+                    b.writeVarLong(m.sequence());
+                    b.writeVarInt(m.received());
+                },
+                b -> new ActionProgress(new SyncMessage.ActionProgress(
+                        b.readVarInt(), b.readUUID(), b.readVarLong(), b.readUUID(), b.readVarLong(), b.readVarInt())));
+
+        @Override
+        public Type<ActionProgress> type() {
             return TYPE;
         }
     }

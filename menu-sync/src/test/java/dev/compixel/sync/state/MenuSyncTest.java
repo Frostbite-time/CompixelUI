@@ -22,15 +22,14 @@ class MenuSyncTest {
     }
 
     static final AtomicInteger writes = new AtomicInteger();
-    static final SyncCodec<String> NAME = SyncCodecs.string(128);
     static final SyncCodec<Row> ROW = SyncCodec.of(
             "test:row/1",
             (out, row) -> {
                 writes.incrementAndGet();
                 out.writeInt(row.id);
-                NAME.write(out, row.name);
+                SyncCodecs.STRING.write(out, row.name);
             },
-            in -> new Row(in.readInt(), NAME.read(in)));
+            in -> new Row(in.readInt(), SyncCodecs.STRING.read(in)));
     static final SyncSchema<Model> SCHEMA = SyncSchema.<Model>builder("test:menu", 1)
             .field("selected", SyncCodecs.INT, m -> m.selected, (m, v) -> m.selected = v)
             .keyedCollection("rows", SyncCodecs.INT, ROW, Row::id, m -> m.rows, (m, v) -> {
@@ -43,22 +42,22 @@ class MenuSyncTest {
         return IntStream.range(0, count).mapToObj(i -> new Row(i, "网络 " + i)).toList();
     }
 
+    /** Pumps once per tick and delivers and acknowledges every batch at once, through the wire format. */
     static long transfer(Model server, Model client, SyncPublisher<Model> tx, SyncReceiver<Model> rx, long tick) {
         long expected = rx.revision() + 1;
         for (; tick < 10_000; tick++) {
-            long now = tick;
             tx.pump(server, tick, batch -> {
                 try {
                     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
                     batch.write(new DataOutputStream(bytes));
-                    assertTrue(batch.dataSize() <= SyncLimits.DEFAULT.batchBytes());
+                    assertTrue(batch.dataSize() <= SyncPublisher.BATCH_BYTES);
                     SyncBatch decoded = SyncBatch.read(
                             new DataInputStream(new ByteArrayInputStream(bytes.toByteArray())),
-                            SyncLimits.DEFAULT.batchBytes());
+                            SyncPublisher.BATCH_BYTES);
                     int before = client.publications;
-                    rx.accept(client, decoded, now);
+                    rx.accept(client, decoded);
                     if (!batch.last()) assertEquals(before, client.publications);
-                    tx.acknowledge(batch.revision(), batch.index(), now);
+                    tx.acknowledge(batch.revision(), batch.index());
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -101,51 +100,56 @@ class MenuSyncTest {
     }
 
     @Test
-    void flowControlCapsInFlightAndTickBudgetAndCoalescesChanges() {
+    void unacknowledgedBatchesStayWithinTheWindowAndChangesCoalesce() {
         Model server = new Model(), client = new Model();
-        server.rows = rows(2000);
-        SyncLimits limits = new SyncLimits(
-                256, dev.compixel.sync.transport.TransferBudget.steady(512), 3, 1024, 1_000_000, 3000, 20);
+        server.rows = rows(40_000);
+        int window = SyncPublisher.WINDOW_BYTES / SyncPublisher.BATCH_BYTES;
         List<SyncBatch> pending = new ArrayList<>();
-        try (var tx = new SyncPublisher<>(SCHEMA, limits);
-                var rx = new SyncReceiver<>(SCHEMA, limits)) {
+        try (var tx = new SyncPublisher<>(SCHEMA);
+                var rx = new SyncReceiver<>(SCHEMA)) {
             tx.pump(server, 0, pending::add);
-            assertEquals(2, pending.size());
+            assertEquals(window, pending.size());
+            assertEquals(SyncPublisher.WINDOW_BYTES, tx.inFlightBytes());
+            // Once per tick, and nothing more until the receiver acknowledges.
             tx.pump(server, 0, pending::add);
-            assertEquals(2, pending.size());
             tx.pump(server, 1, pending::add);
-            assertEquals(3, pending.size());
+            assertEquals(window, pending.size());
+            for (int i = 0; i < 2; i++) assertEquals(SyncReceiver.Result.STAGED, rx.accept(client, pending.get(i)));
+            tx.acknowledge(1, 1);
+            assertEquals(SyncPublisher.WINDOW_BYTES - 2L * SyncPublisher.BATCH_BYTES, tx.inFlightBytes());
             tx.pump(server, 2, pending::add);
-            assertEquals(3, pending.size());
+            assertEquals(window + 2, pending.size());
             server.selected = 77;
             long tick = 3;
-            while (tx.busy()) {
-                for (SyncBatch b : List.copyOf(pending)) {
-                    rx.accept(client, b, tick);
-                    tx.acknowledge(b.revision(), b.index(), tick);
+            int delivered = 2;
+            while (client.selected != 77) {
+                for (; delivered < pending.size(); delivered++) {
+                    var batch = pending.get(delivered);
+                    rx.accept(client, batch);
+                    tx.acknowledge(batch.revision(), batch.index());
                 }
-                pending.clear();
                 tx.pump(server, tick++, pending::add);
-                if (client.selected == 77) break;
                 assertTrue(tick < 1000);
             }
-            assertEquals(77, client.selected);
+            // The change made during the snapshot followed it as the next revision.
+            assertEquals(2, rx.revision());
+            assertEquals(server.rows, client.rows);
+            assertEquals(0, tx.inFlightBytes());
         }
     }
 
     @Test
     void duplicateTruncatedAndReorderedBatchesNeverPublishPartialData() {
         Model server = new Model(), client = new Model();
-        server.rows = rows(100);
-        SyncLimits limits =
-                new SyncLimits(128, dev.compixel.sync.transport.TransferBudget.steady(512), 4, 1024, 100_000, 1000, 20);
+        server.rows = rows(15_000);
         List<SyncBatch> packets = new ArrayList<>();
-        try (var tx = new SyncPublisher<>(SCHEMA, limits);
-                var rx = new SyncReceiver<>(SCHEMA, limits)) {
+        try (var tx = new SyncPublisher<>(SCHEMA);
+                var rx = new SyncReceiver<>(SCHEMA)) {
             tx.pump(server, 0, packets::add);
-            assertEquals(SyncReceiver.Result.STAGED, rx.accept(client, packets.get(0), 0));
-            assertEquals(SyncReceiver.Result.DUPLICATE, rx.accept(client, packets.get(0), 0));
-            assertThrows(SyncException.class, () -> rx.accept(client, packets.get(2), 1));
+            assertTrue(packets.size() >= 3);
+            assertEquals(SyncReceiver.Result.STAGED, rx.accept(client, packets.get(0)));
+            assertEquals(SyncReceiver.Result.DUPLICATE, rx.accept(client, packets.get(0)));
+            assertThrows(SyncException.class, () -> rx.accept(client, packets.get(2)));
             SyncBatch earlyEnd = new SyncBatch(
                     1,
                     true,
@@ -153,7 +157,7 @@ class MenuSyncTest {
                     packets.get(1).operations(),
                     true,
                     packets.get(1).data());
-            assertThrows(SyncException.class, () -> rx.accept(client, earlyEnd, 1));
+            assertThrows(SyncException.class, () -> rx.accept(client, earlyEnd));
             assertTrue(client.rows.isEmpty());
             assertEquals(-1, client.selected);
             assertEquals(0, client.publications);
@@ -165,7 +169,7 @@ class MenuSyncTest {
         Model client = new Model();
         SyncBatch malformed = new SyncBatch(1, true, 0, 1, true, new byte[] {0, 0, 0, 1, 0});
         try (var rx = new SyncReceiver<>(SCHEMA)) {
-            assertThrows(SyncException.class, () -> rx.accept(client, malformed, 0));
+            assertThrows(SyncException.class, () -> rx.accept(client, malformed));
             assertEquals(0, client.publications);
             assertEquals(0, rx.revision());
         }
@@ -175,7 +179,7 @@ class MenuSyncTest {
         assertThrows(
                 EOFException.class,
                 () -> SyncBatch.read(
-                        new DataInputStream(new ByteArrayInputStream(truncated)), SyncLimits.DEFAULT.batchBytes()));
+                        new DataInputStream(new ByteArrayInputStream(truncated)), SyncPublisher.BATCH_BYTES));
     }
 
     @Test
@@ -197,23 +201,15 @@ class MenuSyncTest {
         long batch = Allocations.measure(() -> assertThrows(EOFException.class, () -> SyncBatch.read(wire, declared)));
         assertTrue(batch < 1024 * 1024, "A truncated batch declaring 64 MiB allocated " + batch + " bytes");
 
-        var limits = new SyncLimits(
-                SyncLimits.DEFAULT.batchBytes(),
-                SyncLimits.DEFAULT.bandwidth(),
-                16,
-                declared,
-                declared + 4L,
-                100_000,
-                200);
         var header = new SyncBatch(
                 1, true, 0, 1, false, ByteBuffer.allocate(4).putInt(declared).array());
-        try (var warm = new SyncReceiver<>(SCHEMA, limits)) {
-            warm.accept(new Model(), header, 0);
+        try (var warm = new SyncReceiver<>(SCHEMA)) {
+            warm.accept(new Model(), header);
         }
-        try (var rx = new SyncReceiver<>(SCHEMA, limits)) {
+        try (var rx = new SyncReceiver<>(SCHEMA)) {
             var client = new Model();
             long record =
-                    Allocations.measure(() -> assertEquals(SyncReceiver.Result.STAGED, rx.accept(client, header, 0)));
+                    Allocations.measure(() -> assertEquals(SyncReceiver.Result.STAGED, rx.accept(client, header)));
             assertTrue(record < 1024 * 1024, "A record header declaring 64 MiB allocated " + record + " bytes");
         }
     }
@@ -221,31 +217,21 @@ class MenuSyncTest {
     @Test
     void oneLargeValueIsFragmentedAndPublishedOnce() {
         SyncSchema<Model> schema = SyncSchema.<Model>builder("test:large", 1)
-                .field("text", SyncCodecs.string(1_000_000), m -> m.text, (m, v) -> m.text = v)
+                .field("text", SyncCodecs.STRING, m -> m.text, (m, v) -> m.text = v)
                 .build();
         Model server = new Model(), client = new Model();
-        server.text = "中文😀".repeat(80000);
+        // Larger than a window and than any single Minecraft payload: about 3 MB.
+        server.text = "中文😀".repeat(300_000);
         try (var tx = new SyncPublisher<>(schema);
                 var rx = new SyncReceiver<>(schema)) {
             transfer(server, client, tx, rx, 0);
             assertEquals(server.text, client.text);
-            assertTrue(tx.sentBatches() > 1);
+            assertTrue(tx.sentBytes() > 2L * SyncPublisher.WINDOW_BYTES);
         }
     }
 
     @Test
-    void limitsAndTimeoutFailBoundedly() {
-        Model model = new Model();
-        model.rows = rows(10);
-        var small = new SyncLimits(64, dev.compixel.sync.transport.TransferBudget.steady(64), 1, 64, 100, 20, 2);
-        try (var tx = new SyncPublisher<>(SCHEMA, small)) {
-            tx.pump(model, 0, b -> {});
-            assertThrows(SyncException.class, () -> tx.pump(model, 3, b -> {}));
-        }
-        try (var tx = new SyncPublisher<>(SCHEMA, small);
-                var rx = new SyncReceiver<>(SCHEMA, small)) {
-            assertThrows(SyncException.class, () -> transfer(model, new Model(), tx, rx, 0));
-        }
+    void duplicateKeysAreRejectedBeforeTransport() {
         Model duplicate = new Model();
         duplicate.rows = List.of(new Row(1, "a"), new Row(1, "b"));
         try (var tx = new SyncPublisher<>(SCHEMA)) {
@@ -262,11 +248,11 @@ class MenuSyncTest {
                 var rx = new SyncReceiver<>(SCHEMA)) {
             tx.pump(server, 0, packets::add);
             SyncBatch packet = packets.get(0);
-            assertEquals(SyncReceiver.Result.COMMITTED, rx.accept(client, packet, 0));
-            assertEquals(SyncReceiver.Result.STALE, rx.accept(client, packet, 1));
+            assertEquals(SyncReceiver.Result.COMMITTED, rx.accept(client, packet));
+            assertEquals(SyncReceiver.Result.STALE, rx.accept(client, packet));
             assertEquals(1, client.publications);
             rx.close();
-            assertThrows(IllegalStateException.class, () -> rx.accept(client, packet, 2));
+            assertThrows(IllegalStateException.class, () -> rx.accept(client, packet));
             tx.close();
             tx.pump(server, 3, b -> fail("Closed publisher sent data"));
         }
@@ -303,14 +289,14 @@ class MenuSyncTest {
                 var rx = new SyncReceiver<>(SCHEMA)) {
             tx.pump(server, 0, b -> {
                 first.add(b);
-                rx.accept(client, b, 0);
-                tx.acknowledge(b.revision(), b.index(), 0);
+                rx.accept(client, b);
+                tx.acknowledge(b.revision(), b.index());
             });
             server.rows = rows(20_000);
             var next = new ArrayList<SyncBatch>();
             tx.pump(server, 1, next::add);
-            rx.accept(client, next.get(0), 1);
-            assertEquals(SyncReceiver.Result.STALE, rx.accept(client, first.get(0), 1));
+            rx.accept(client, next.get(0));
+            assertEquals(SyncReceiver.Result.STALE, rx.accept(client, first.get(0)));
             assertTrue(rx.receiving());
             assertTrue(client.rows.isEmpty());
         }
@@ -320,7 +306,7 @@ class MenuSyncTest {
     void failedClientSetterRollsBackAssignmentsAndInvalidUnicodeIsRejected() {
         SyncSchema<Model> schema = SyncSchema.<Model>builder("test:rollback", 1)
                 .field("selected", SyncCodecs.INT, m -> m.selected, (m, v) -> m.selected = v)
-                .field("text", SyncCodecs.string(128), m -> m.text, (m, v) -> {
+                .field("text", SyncCodecs.STRING, m -> m.text, (m, v) -> {
                     if (v.equals("fail")) throw new IllegalStateException("setter");
                     m.text = v;
                 })
@@ -336,7 +322,7 @@ class MenuSyncTest {
         }
         assertThrows(
                 IOException.class,
-                () -> SyncCodecs.string(128).write(new DataOutputStream(new ByteArrayOutputStream()), "\uD83D"));
+                () -> SyncCodecs.STRING.write(new DataOutputStream(new ByteArrayOutputStream()), "\uD83D"));
     }
 
     @Test
@@ -344,7 +330,7 @@ class MenuSyncTest {
         try (ServerSocket listener = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
             CompletableFuture<Void> sending = CompletableFuture.runAsync(() -> {
                 Model server = new Model();
-                server.rows = rows(10_000);
+                server.rows = rows(100_000);
                 server.selected = 12;
                 try (Socket socket = listener.accept();
                         var tx = new SyncPublisher<>(SCHEMA)) {
@@ -362,7 +348,7 @@ class MenuSyncTest {
                                 throw new UncheckedIOException(e);
                             }
                         });
-                        for (int i = 0; i < sent.get(); i++) tx.acknowledge(in.readLong(), in.readInt(), tick);
+                        for (int i = 0; i < sent.get(); i++) tx.acknowledge(in.readLong(), in.readInt());
                     }
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
@@ -375,15 +361,15 @@ class MenuSyncTest {
                 DataInputStream in = new DataInputStream(socket.getInputStream());
                 DataOutputStream out = new DataOutputStream(socket.getOutputStream());
                 while (rx.revision() == 0) {
-                    SyncBatch b = SyncBatch.read(in, SyncLimits.DEFAULT.batchBytes());
-                    rx.accept(client, b, 0);
+                    SyncBatch b = SyncBatch.read(in, SyncPublisher.BATCH_BYTES);
+                    rx.accept(client, b);
                     out.writeLong(b.revision());
                     out.writeInt(b.index());
                     out.flush();
                 }
             }
             sending.get(10, TimeUnit.SECONDS);
-            assertEquals(10_000, client.rows.size());
+            assertEquals(100_000, client.rows.size());
             assertEquals(12, client.selected);
         }
     }

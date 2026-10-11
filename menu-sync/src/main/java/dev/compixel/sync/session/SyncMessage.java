@@ -3,7 +3,6 @@ package dev.compixel.sync.session;
 import dev.compixel.sync.action.ActionFailure;
 import dev.compixel.sync.action.ActionStatus;
 import dev.compixel.sync.state.SyncBatch;
-import dev.compixel.sync.state.SyncLimits;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -24,22 +23,24 @@ public sealed interface SyncMessage {
 
     UUID session();
 
-    /** Client to server: confirms the transport policy, acknowledges a state batch, or closes the session. */
+    /**
+     * Client to server: acknowledges a state batch, closes the session, or asks to start the state over because the
+     * menu opened on the client after its first batches arrived.
+     */
     record Control(int kind, int menu, UUID nonce, long request, UUID session, long revision, int batch)
             implements SyncMessage {
-        public static final int ACK = 0, CLOSE = 1, READY = 2;
+        public static final int ACK = 0, CLOSE = 1, RESTART = 2;
 
         public Control {
-            if (kind < ACK || kind > READY || menu < 0 || request < 1)
+            if (kind < ACK || kind > RESTART || menu < 0 || request < 1)
                 throw new IllegalArgumentException("Invalid menu control");
             Objects.requireNonNull(nonce);
             Objects.requireNonNull(session);
         }
     }
 
-    /** Server to client: the first message for an opened menu, naming its schema and transport policy. */
-    record Bootstrap(
-            int menu, UUID nonce, long request, UUID session, String schema, String fingerprint, SyncLimits limits)
+    /** Server to client: starts a menu's state, naming its schema; the state's batches follow right behind it. */
+    record Bootstrap(int menu, UUID nonce, long request, UUID session, String schema, String fingerprint)
             implements SyncMessage {
         public Bootstrap {
             if (menu < 0 || request < 1 || NO_SESSION.equals(session))
@@ -47,7 +48,6 @@ public sealed interface SyncMessage {
             Objects.requireNonNull(nonce);
             Objects.requireNonNull(schema);
             Objects.requireNonNull(fingerprint);
-            Objects.requireNonNull(limits);
         }
     }
 
@@ -91,6 +91,16 @@ public sealed interface SyncMessage {
             Objects.requireNonNull(action);
             if (total < 1 || offset < 0 || offset >= total || data.length < 1 || data.length > total - offset)
                 throw new IllegalArgumentException("Invalid menu action fragment");
+        }
+    }
+
+    /** Server to client: how many bytes of a larger action have arrived; its reply follows once all have. */
+    record ActionProgress(int menu, UUID nonce, long request, UUID session, long sequence, int received)
+            implements SyncMessage {
+        public ActionProgress {
+            Objects.requireNonNull(nonce);
+            Objects.requireNonNull(session);
+            if (received < 1) throw new IllegalArgumentException("Invalid menu action progress");
         }
     }
 

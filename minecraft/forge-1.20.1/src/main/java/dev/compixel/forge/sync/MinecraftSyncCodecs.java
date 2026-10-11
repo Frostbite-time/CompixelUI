@@ -11,13 +11,12 @@ import net.minecraft.network.FriendlyByteBuf;
  * codec may be a shared constant that the server and the client both use.
  */
 public final class MinecraftSyncCodecs {
-    public static <T> SyncCodec<T> buffer(String id, int maximumBytes, PacketCodec<T> codec) {
-        if (maximumBytes < 1) throw new IllegalArgumentException("Invalid native codec limit");
+    public static <T> SyncCodec<T> buffer(String id, PacketCodec<T> codec) {
         Objects.requireNonNull(codec);
         return SyncCodec.of(
-                "buffer:" + id + ":" + maximumBytes,
+                "buffer:" + id,
                 (out, value) -> {
-                    var bytes = Unpooled.buffer(Math.min(256, maximumBytes), maximumBytes);
+                    var bytes = Unpooled.buffer(256);
                     try {
                         var buffer = new FriendlyByteBuf(bytes);
                         codec.encode(buffer, value);
@@ -29,17 +28,14 @@ public final class MinecraftSyncCodecs {
                             out.write(scratch, 0, count);
                         }
                     } catch (IndexOutOfBoundsException | io.netty.handler.codec.EncoderException invalid) {
-                        throw new IOException(
-                                "Native value cannot be encoded within its codec limit: maximumBytes=" + maximumBytes
-                                        + "",
-                                invalid);
+                        throw new IOException("Native value cannot be encoded", invalid);
                     } finally {
                         bytes.release();
                     }
                 },
                 in -> {
                     int size = in.readInt();
-                    if (size < 0 || size > maximumBytes) throw new IOException("Invalid native value size");
+                    if (size < 0) throw new IOException("Invalid native value size");
                     var bytes = Unpooled.buffer(Math.min(4096, size), Math.max(1, size));
                     try {
                         // Grow only after bytes actually arrive; a truncated length prefix must not allocate the

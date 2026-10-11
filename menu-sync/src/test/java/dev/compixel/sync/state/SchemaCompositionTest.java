@@ -18,8 +18,8 @@ class SchemaCompositionTest {
         try (var tx = new SyncPublisher<>(schema);
                 var rx = new SyncReceiver<>(schema)) {
             tx.pump(source, 0, batch -> {
-                rx.accept(target, batch, 0);
-                tx.acknowledge(batch.revision(), batch.index(), 0);
+                rx.accept(target, batch);
+                tx.acknowledge(batch.revision(), batch.index());
             });
             assertArrayEquals(source, target);
         }
@@ -56,8 +56,8 @@ class SchemaCompositionTest {
         try (var tx = new SyncPublisher<>(schema);
                 var rx = new SyncReceiver<>(schema)) {
             tx.pump(server, 0, b -> {
-                rx.accept(client, b, 0);
-                tx.acknowledge(b.revision(), b.index(), 0);
+                rx.accept(client, b);
+                tx.acknowledge(b.revision(), b.index());
             });
             assertEquals(3, client.input.value);
             assertEquals(7, client.output.value);
@@ -66,8 +66,8 @@ class SchemaCompositionTest {
             server.input.rows = List.of(2, 3);
             server.input.value = 5;
             tx.pump(server, 1, b -> {
-                rx.accept(client, b, 1);
-                tx.acknowledge(b.revision(), b.index(), 1);
+                rx.accept(client, b);
+                tx.acknowledge(b.revision(), b.index());
             });
             assertEquals(List.of(2, 3), client.input.rows);
             assertEquals(5, client.input.value);

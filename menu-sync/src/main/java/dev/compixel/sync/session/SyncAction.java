@@ -46,11 +46,7 @@ public class SyncAction<M, P, V> {
     }
 
     final byte[] encode(V value) throws IOException {
-        return encode(value, maximumBytes);
-    }
-
-    final byte[] encode(V value, int availableQueueBytes) throws IOException {
-        int encodingLimit = Math.min(maximumBytes, availableQueueBytes);
+        int encodingLimit = maximumBytes;
         var bytes = new ByteArrayOutputStream();
         try (var output = new DataOutputStream(new FilterOutputStream(bytes) {
             private int count;

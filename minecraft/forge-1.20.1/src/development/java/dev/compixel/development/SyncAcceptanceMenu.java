@@ -26,11 +26,12 @@ public final class SyncAcceptanceMenu extends AbstractContainerMenu implements S
             DeferredRegister.create(Registries.MENU, "compixel_development");
     public static final RegistryObject<MenuType<SyncAcceptanceMenu>> TYPE = MENUS.register(
             "sync_acceptance", () -> new MenuType<>(SyncAcceptanceMenu::new, FeatureFlags.DEFAULT_FLAGS));
-    public static final String INITIAL = "initial-汉字-".repeat(5000);
+    // About 900 KB, more than one window of unacknowledged batches.
+    public static final String INITIAL = "initial-汉字-".repeat(60_000);
     public static final String REPLACEMENT = "replacement-界面-".repeat(6000);
     // One shared native codec: the integrated server and the client both encode and decode with it.
     private static final SyncCodec<ItemStack> ITEM = MinecraftSyncCodecs.buffer(
-            "compixel:item/1", 64 * 1024, PacketCodec.of(FriendlyByteBuf::writeItem, FriendlyByteBuf::readItem));
+            "compixel:item/1", PacketCodec.of(FriendlyByteBuf::writeItem, FriendlyByteBuf::readItem));
     public static final MenuAction<SyncAcceptanceMenu, ItemStack> GIVE =
             MenuAction.of("give", ITEM, (menu, player, value) -> {
                 if (value.getItem() != Items.EMERALD || value.getCount() != 5) return false;
@@ -38,7 +39,7 @@ public final class SyncAcceptanceMenu extends AbstractContainerMenu implements S
                 return true;
             });
     public static final MenuAction<SyncAcceptanceMenu, String> REPLACE =
-            MenuAction.of("replace", SyncCodecs.string(256 * 1024), 256 * 1024, (menu, player, value) -> {
+            MenuAction.of("replace", SyncCodecs.STRING, 256 * 1024, (menu, player, value) -> {
                 if (!value.equals(REPLACEMENT)) return false;
                 menu.text = value;
                 menu.counter = 42;
@@ -47,7 +48,7 @@ public final class SyncAcceptanceMenu extends AbstractContainerMenu implements S
     private static final SyncSchema<SyncAcceptanceMenu> SCHEMA = SyncSchema.<SyncAcceptanceMenu>builder(
                     "compixel:port_test", 1)
             .field("counter", SyncCodecs.INT, m -> m.counter, (m, v) -> m.counter = v)
-            .field("text", SyncCodecs.string(256 * 1024), m -> m.text, (m, v) -> m.text = v)
+            .field("text", SyncCodecs.STRING, m -> m.text, (m, v) -> m.text = v)
             .field("item", ITEM, m -> m.item, (m, v) -> m.item = v)
             .build();
     public int counter;

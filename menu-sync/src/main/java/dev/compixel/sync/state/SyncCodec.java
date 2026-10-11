@@ -5,7 +5,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Objects;
 
-/** Stable wire identity plus bounded value encoding. Values must be immutable snapshots. */
+/** Stable wire identity plus value encoding. Values must be immutable snapshots. */
 public interface SyncCodec<T> {
     String id();
 

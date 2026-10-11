@@ -28,8 +28,8 @@ public final class SyncMapPerformance {
         while (sender.revision() < wanted) {
             long now = ++tick;
             sender.pump(server, now, b -> {
-                receiver.accept(client, b, now);
-                sender.acknowledge(b.revision(), b.index(), now);
+                receiver.accept(client, b);
+                sender.acknowledge(b.revision(), b.index());
             });
         }
     }

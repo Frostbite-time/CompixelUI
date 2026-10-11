@@ -1,24 +1,32 @@
 package dev.compixel.sync.state;
 
 import dev.compixel.sync.SyncException;
-import dev.compixel.sync.transport.TokenBucket;
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
 import java.util.List;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
-/** Owner-thread publisher. Encodes one record at a time and waits for cumulative batch ACKs. */
+/**
+ * Owner-thread publisher. Encodes one record at a time and keeps at most {@link #WINDOW_BYTES} of batches in flight
+ * that the receiver has not acknowledged.
+ */
 public final class SyncPublisher<M> implements AutoCloseable {
+    /** The largest batch. */
+    public static final int BATCH_BYTES = 128 * 1024;
+    /** Batch bytes sent and not yet acknowledged, at most. */
+    public static final int WINDOW_BYTES = 512 * 1024;
+
     private final Thread owner = Thread.currentThread();
     private final SyncSchema<M> schema;
-    private final SyncLimits limits;
-    private TokenBucket bandwidth;
     private SyncSchema.State baseline;
     private Pending pending;
-    private long revision, lastProgress, lastPump = Long.MIN_VALUE;
+    private long revision, lastPump = Long.MIN_VALUE;
     private boolean closed;
     private long batches, bytes, operations;
+    // Sizes of the pending update's unacknowledged batches, oldest first.
+    private final ArrayDeque<Integer> unacknowledged = new ArrayDeque<>();
+    private long inFlightBytes;
 
     private final class Pending {
         final SyncSchema.State target;
@@ -26,7 +34,6 @@ public final class SyncPublisher<M> implements AutoCloseable {
         final boolean snapshot;
         int operation, cursor, sequence, acknowledged = -1;
         byte[] record;
-        long encodedBytes;
         boolean ended;
 
         Pending(SyncSchema.State target, List<SyncSchema.Operation> ops) {
@@ -36,18 +43,8 @@ public final class SyncPublisher<M> implements AutoCloseable {
         }
     }
 
-    public SyncPublisher(SyncSchema<M> schema, SyncLimits limits) {
-        this.schema = schema;
-        this.limits = limits;
-    }
-
-    public SyncPublisher(SyncSchema<M> schema, SyncLimits limits, TokenBucket bandwidth) {
-        this(schema, limits);
-        this.bandwidth = bandwidth;
-    }
-
     public SyncPublisher(SyncSchema<M> schema) {
-        this(schema, SyncLimits.DEFAULT);
+        this.schema = schema;
     }
 
     public long revision() {
@@ -70,55 +67,34 @@ public final class SyncPublisher<M> implements AutoCloseable {
         return pending != null;
     }
 
-    public boolean expired(long tick) {
-        return pending != null && tick - lastProgress > limits.timeoutTicks();
-    }
-
-    public int inFlight() {
-        return pending == null ? 0 : pending.sequence - pending.acknowledged - 1;
+    /** Batch bytes sent and not yet acknowledged. */
+    public long inFlightBytes() {
+        return inFlightBytes;
     }
 
     /** At most once per logical tick. Intermediate model states coalesce while an update is in flight. */
     public void pump(M model, long tick, Consumer<SyncBatch> transport) {
-        pump(model, tick, () -> true, transport);
-    }
-
-    /** Rechecks transport backpressure between batches; partial batches need no full-batch credit. */
-    public void pump(M model, long tick, BooleanSupplier writable, Consumer<SyncBatch> transport) {
         checkOwner();
         if (closed) return;
         if (tick < lastPump) throw new IllegalArgumentException("Non-monotonic sync clock");
         if (tick == lastPump) return;
         lastPump = tick;
-        if (bandwidth == null) bandwidth = new TokenBucket(limits.bandwidth(), tick);
-        if (pending != null && tick - lastProgress > limits.timeoutTicks())
-            throw new SyncException("Menu sync ACK timeout");
         if (pending == null) {
-            SyncSchema.State target = schema.capture(model, baseline, limits);
+            SyncSchema.State target = schema.capture(model, baseline);
             List<SyncSchema.Operation> ops = schema.difference(baseline, target);
             if (ops.isEmpty()) {
                 baseline = target;
                 return;
             }
             pending = new Pending(target, ops);
-            lastProgress = tick;
         }
-        while (pending != null
-                && !pending.ended
-                && inFlight() < limits.inFlightBatches()
-                && bandwidth.available(tick) > 0
-                && writable.getAsBoolean()) {
+        while (pending != null && !pending.ended && inFlightBytes + BATCH_BYTES <= WINDOW_BYTES) {
             Pending p = pending;
-            int capacity = Math.min(limits.batchBytes(), bandwidth.available(tick));
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream(Math.min(capacity, 4096));
-            while (buffer.size() < capacity) {
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream(4096);
+            while (buffer.size() < BATCH_BYTES) {
                 if (p.record == null) {
                     if (p.operation == p.ops.size()) break;
-                    byte[] value = schema.encode(p.ops.get(p.operation++), limits.maxRecordBytes());
-                    if (4L + value.length > limits.maxUpdateBytes() - p.encodedBytes)
-                        throw new SyncException(
-                                "Menu sync update byte limit exceeded: limit=" + limits.maxUpdateBytes());
-                    p.encodedBytes += 4L + value.length;
+                    byte[] value = schema.encode(p.ops.get(p.operation++));
                     p.record = ByteBuffer.allocate(4 + value.length)
                             .putInt(value.length)
                             .put(value)
@@ -126,7 +102,7 @@ public final class SyncPublisher<M> implements AutoCloseable {
                     p.cursor = 0;
                     operations++;
                 }
-                int length = Math.min(capacity - buffer.size(), p.record.length - p.cursor);
+                int length = Math.min(BATCH_BYTES - buffer.size(), p.record.length - p.cursor);
                 buffer.write(p.record, p.cursor, length);
                 p.cursor += length;
                 if (p.cursor == p.record.length) p.record = null;
@@ -134,21 +110,23 @@ public final class SyncPublisher<M> implements AutoCloseable {
             p.ended = p.record == null && p.operation == p.ops.size();
             byte[] data = buffer.toByteArray();
             SyncBatch batch = new SyncBatch(revision + 1, p.snapshot, p.sequence++, p.ops.size(), p.ended, data);
-            bandwidth.consume(data.length, tick);
+            unacknowledged.addLast(data.length);
+            inFlightBytes += data.length;
             batches++;
             bytes += data.length;
             transport.accept(batch);
         }
     }
 
-    public void acknowledge(long acknowledgedRevision, int index, long tick) {
+    /** Acknowledges every batch of the pending update up to {@code index}. */
+    public void acknowledge(long acknowledgedRevision, int index) {
         checkOwner();
         if (closed || pending == null || acknowledgedRevision <= revision) return;
         if (acknowledgedRevision != revision + 1 || index < 0 || index >= pending.sequence)
             throw new SyncException("Invalid sync acknowledgement");
         if (index <= pending.acknowledged) return;
+        for (int i = pending.acknowledged; i < index; i++) inFlightBytes -= unacknowledged.removeFirst();
         pending.acknowledged = index;
-        lastProgress = tick;
         if (pending.ended && index == pending.sequence - 1) {
             baseline = pending.target;
             revision++;
@@ -162,6 +140,8 @@ public final class SyncPublisher<M> implements AutoCloseable {
         closed = true;
         baseline = null;
         pending = null;
+        unacknowledged.clear();
+        inFlightBytes = 0;
     }
 
     private void checkOwner() {

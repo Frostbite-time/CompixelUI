@@ -1,6 +1,6 @@
 package dev.compixel.sync;
 
-/** Invalid/incomplete protocol data or a configured resource limit being exceeded. */
+/** Invalid or incomplete protocol data, or a value that cannot be encoded. */
 public final class SyncException extends RuntimeException {
     public SyncException(String message) {
         super(message);

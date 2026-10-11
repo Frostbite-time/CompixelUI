@@ -32,6 +32,10 @@ public final class ClientMenuSync {
         SESSION.receive(message);
     }
 
+    static void receive(SyncMessage.ActionProgress message) {
+        SESSION.receive(message);
+    }
+
     static <M extends AbstractContainerMenu, V> ActionSubmission request(
             MenuSync<M> binding, SyncAction<? super M, ServerPlayer, V> action, V value) {
         return SESSION.request(binding, action, value);
@@ -68,15 +72,6 @@ public final class ClientMenuSync {
         @Override
         public boolean controlAvailable() {
             return channelsAvailable();
-        }
-
-        @Override
-        public boolean writable() {
-            return Minecraft.getInstance()
-                    .getConnection()
-                    .getConnection()
-                    .channel()
-                    .isWritable();
         }
 
         @Override

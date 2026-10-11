@@ -1,7 +1,6 @@
 package dev.compixel.forge.sync;
 
 import com.mojang.logging.LogUtils;
-import dev.compixel.sync.MenuSyncOptions;
 import dev.compixel.sync.action.ActionSubmission;
 import dev.compixel.sync.session.SyncAction;
 import dev.compixel.sync.session.SyncBinding;
@@ -19,23 +18,12 @@ import net.neoforged.fml.loading.FMLEnvironment;
 public final class MenuSync<M extends AbstractContainerMenu> extends SyncBinding<M, ServerPlayer, MenuSync<M>> {
     static final SyncLog LOG = (message, error) -> LogUtils.getLogger().warn(message, error);
 
-    private MenuSync(M menu, SyncSchema<M> schema, MenuSyncOptions options) {
-        super(menu, schema, options, LOG);
-        if (options.state().batchBytes() > MenuTransportLimits.MAX_STATE_BATCH_BYTES)
-            throw new IllegalArgumentException("S2C batch exceeds Minecraft transport envelope: "
-                    + options.state().batchBytes());
-        if (options.actions().fragmentBytes() > MenuTransportLimits.MAX_ACTION_FRAGMENT_BYTES)
-            throw new IllegalArgumentException("C2S fragment exceeds Minecraft transport envelope: "
-                    + options.actions().fragmentBytes());
+    private MenuSync(M menu, SyncSchema<M> schema) {
+        super(menu, schema, LOG);
     }
 
     public static <M extends AbstractContainerMenu> MenuSync<M> bind(M menu, SyncSchema<M> schema) {
-        return bind(menu, schema, MenuSyncOptions.DEFAULT);
-    }
-
-    public static <M extends AbstractContainerMenu> MenuSync<M> bind(
-            M menu, SyncSchema<M> schema, MenuSyncOptions options) {
-        return new MenuSync<>(menu, schema, options);
+        return new MenuSync<>(menu, schema);
     }
 
     /**

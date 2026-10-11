@@ -1,6 +1,5 @@
 package dev.compixel.sync.session;
 
-import dev.compixel.sync.MenuSyncOptions;
 import dev.compixel.sync.state.SyncCodec;
 import dev.compixel.sync.state.SyncSchema;
 
@@ -9,17 +8,13 @@ final class TestBindings {
     static final class Binding<M, P> extends SyncBinding<M, P, Binding<M, P>> {
         private final int id;
 
-        Binding(M menu, SyncSchema<M> schema, MenuSyncOptions options, int id) {
-            super(menu, schema, options, SyncLog.NONE);
+        Binding(M menu, SyncSchema<M> schema, int id) {
+            super(menu, schema, SyncLog.NONE);
             this.id = id;
         }
 
-        Binding(M menu, SyncSchema<M> schema, MenuSyncOptions options) {
-            this(menu, schema, options, 0);
-        }
-
         Binding(M menu, SyncSchema<M> schema) {
-            this(menu, schema, MenuSyncOptions.DEFAULT);
+            this(menu, schema, 0);
         }
 
         @Override

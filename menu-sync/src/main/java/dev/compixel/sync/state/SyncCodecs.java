@@ -51,36 +51,34 @@ public final class SyncCodecs {
                 });
     }
 
-    /** UTF-8 byte limit, independent of writeUTF's 64K format and Minecraft NBT quotas. Decoding allocates for received bytes, not the declared length. */
-    public static SyncCodec<String> string(int maxBytes) {
-        if (maxBytes < 1) throw new IllegalArgumentException("Invalid string limit");
-        return SyncCodec.of(
-                "utf8:" + maxBytes,
-                (out, value) -> {
-                    if (value.length() > maxBytes) throw new IOException("String exceeds codec limit");
-                    ByteBuffer encoded = StandardCharsets.UTF_8
-                            .newEncoder()
-                            .onMalformedInput(CodingErrorAction.REPORT)
-                            .onUnmappableCharacter(CodingErrorAction.REPORT)
-                            .encode(CharBuffer.wrap(value));
-                    byte[] bytes = new byte[encoded.remaining()];
-                    encoded.get(bytes);
-                    if (bytes.length > maxBytes) throw new IOException("String exceeds codec limit");
-                    out.writeInt(bytes.length);
-                    out.write(bytes);
-                },
-                in -> {
-                    int length = in.readInt();
-                    if (length < 0 || length > maxBytes) throw new IOException("Invalid string length: " + length);
-                    byte[] bytes = DeclaredBytes.read(in, length, "string");
-                    return StandardCharsets.UTF_8
-                            .newDecoder()
-                            .onMalformedInput(CodingErrorAction.REPORT)
-                            .onUnmappableCharacter(CodingErrorAction.REPORT)
-                            .decode(ByteBuffer.wrap(bytes))
-                            .toString();
-                });
-    }
+    /**
+     * UTF-8 strings of any length, independent of writeUTF's 64K format and Minecraft NBT quotas. Decoding allocates
+     * for received bytes, not the declared length.
+     */
+    public static final SyncCodec<String> STRING = SyncCodec.of(
+            "utf8",
+            (out, value) -> {
+                ByteBuffer encoded = StandardCharsets.UTF_8
+                        .newEncoder()
+                        .onMalformedInput(CodingErrorAction.REPORT)
+                        .onUnmappableCharacter(CodingErrorAction.REPORT)
+                        .encode(CharBuffer.wrap(value));
+                byte[] bytes = new byte[encoded.remaining()];
+                encoded.get(bytes);
+                out.writeInt(bytes.length);
+                out.write(bytes);
+            },
+            in -> {
+                int length = in.readInt();
+                if (length < 0) throw new IOException("Invalid string length: " + length);
+                byte[] bytes = DeclaredBytes.read(in, length, "string");
+                return StandardCharsets.UTF_8
+                        .newDecoder()
+                        .onMalformedInput(CodingErrorAction.REPORT)
+                        .onUnmappableCharacter(CodingErrorAction.REPORT)
+                        .decode(ByteBuffer.wrap(bytes))
+                        .toString();
+            });
 
     private SyncCodecs() {}
 }

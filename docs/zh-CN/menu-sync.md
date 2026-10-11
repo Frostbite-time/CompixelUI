@@ -8,9 +8,9 @@
 sequenceDiagram
     participant S as 服务端菜单
     participant C as 客户端菜单
-    S->>C: 菜单打开时发送完整快照
+    S->>C: 紧随菜单打开发送完整快照
     loop 菜单打开期间
-        S->>C: 变化的值，分批且有上限
+        S->>C: 变化的值，分批发送
     end
     C->>S: 请求，例如 set.enabled = false
     S-->>C: 结果：已应用、已拒绝……
@@ -66,17 +66,19 @@ getter 必须返回不可变且非空的值。要修改某个值，请替换它�
 | 编解码器 | 用途 |
 | --- | --- |
 | `SyncCodecs.INT`、`LONG`、`BOOLEAN`、`UUID` | 基本值 |
-| `SyncCodecs.string(maxBytes)` | 限定 UTF-8 字节数的字符串 |
+| `SyncCodecs.STRING` | 字符串 |
 | `SyncCodecs.enumeration(MyEnum.class)` | 最多 256 个常量的枚举 |
 | `SyncCodec.of(id, writer, reader)` | 自定义类型 |
-| `MinecraftSyncCodecs.registry(id, maxBytes, streamCodec)` | `ItemStack` 等 Minecraft 值 |
+| `MinecraftSyncCodecs.registry(id, streamCodec)` | `ItemStack` 等 Minecraft 值 |
 
 ```java
 private static final SyncCodec<ItemStack> ITEM =
-    MinecraftSyncCodecs.registry("example:item/1", 64 * 1024, ItemStack.OPTIONAL_STREAM_CODEC);
+    MinecraftSyncCodecs.registry("example:item/1", ItemStack.OPTIONAL_STREAM_CODEC);
 ```
 
-Forge 1.20.1 改用 `MinecraftSyncCodecs.buffer(id, maxBytes, codec)`，配合基于 `FriendlyByteBuf` 的编解码器。编码格式变化时，请修改编解码器 ID 或结构版本号。
+Forge 1.20.1 改用 `MinecraftSyncCodecs.buffer(id, codec)`，配合基于 `FriendlyByteBuf` 的编解码器。编码格式变化时，请修改编解码器 ID 或结构版本号。
+
+取值大小不限。超过一个 Minecraft 数据包的值，例如装满成书的潜影盒，会分批发送，全部到达后一次性生效。
 
 ## 集合
 
@@ -87,10 +89,9 @@ final class CatalogState {
     record Entry(int id, String name) {}
     private SyncMap<Integer, Entry> entries = SyncMap.empty();
 
-    private static final SyncCodec<String> NAME = SyncCodecs.string(256);
     private static final SyncCodec<Entry> ENTRY = SyncCodec.of("example:entry/1",
-        (out, entry) -> { out.writeInt(entry.id()); NAME.write(out, entry.name()); },
-        in -> new Entry(in.readInt(), NAME.read(in)));
+        (out, entry) -> { out.writeInt(entry.id()); SyncCodecs.STRING.write(out, entry.name()); },
+        in -> new Entry(in.readInt(), SyncCodecs.STRING.read(in)));
 
     static final SyncSchema<CatalogState> SCHEMA = SyncSchema.<CatalogState>builder("example:catalog", 1)
         .keyedMap("entries", SyncCodecs.INT, ENTRY, Entry::id, m -> m.entries, (m, v) -> m.entries = v)
@@ -109,46 +110,20 @@ final class CatalogState {
 
 | 失败原因 | 含义 |
 | --- | --- |
-| `QUEUE_BYTES`、`PENDING_ACTIONS` | 等待中的内容太多，请稍后再试。 |
 | `BODY_BYTES`、`CODEC` | 取值对这个动作来说太大或无效。 |
 | `NOT_READY`、`CLOSED`、`TRANSPORT_UNAVAILABLE`、`UNKNOWN_ACTION` | 菜单或连接此时无法接收请求。 |
 
 `actual()` 和 `limit()` 给出相关的大小。请求不会自动重试。
 
-在菜单打开前注册 `onActionResult(listener)`，即可收到服务端的处理结果。每个 `ActionResult` 带有一个 `ActionStatus`：`APPLIED`、`REJECTED`、`INVALID`、`THROTTLED` 或 `EXPIRED`。新状态本身仍通过正常同步到达。被拒绝的请求也会写入日志，每个菜单每 100 刻最多一次。
+动作的取值默认最多 8 KiB，可以用 `MenuAction.of(id, codec, maxBytes, handler)` 声明更大的上限；服务端会拒绝超过上限的取值。较大的值会自动拆分成多个数据包。
 
-## 上限
+在菜单打开前注册 `onActionResult(listener)`，即可收到服务端的处理结果。每个 `ActionResult` 带有一个 `ActionStatus`：`APPLIED`、`REJECTED`、`INVALID` 或 `THROTTLED`；玩家在一刻内发起超过 16 个请求时，多出的请求得到 `THROTTLED`。新状态本身仍通过正常同步到达。被拒绝的请求也会写入日志，每个菜单每 100 刻最多一次。
 
-所有上限都可以通过传给 `MenuSync.bind` 的 `MenuSyncOptions` 修改，两端必须使用相同的设置。默认值如下：
+## 数据如何传输
 
-| 服务端 → 客户端 | 默认值 |
-| --- | --- |
-| 批大小 | 128 KiB |
-| 传输速率 | 每刻 32 KiB，突发最多 4 MiB，每刻最多 256 KiB |
-| 等待确认的批次 | 16 |
-| 单个值上限 | 1 MiB |
-| 快照或更新上限 | 32 MiB |
-| 集合条目总数 | 100,000 |
-| 无进展超时 | 200 刻 |
+菜单同步没有任何设置。服务端紧随菜单打开发送它的状态，每批最多 128 KiB，途中尚未得到客户端确认的数据最多 512 KiB。因此连接快时，状态每刻最多传输 512 KiB；连接慢时按连接本身的速度传输，游戏的其他流量照常进行。分成多个数据包的请求同样会等待服务端确认已收到的部分。
 
-| 客户端 → 服务端 | 默认值 |
-| --- | --- |
-| 数据包大小 | 16 KiB |
-| 传输速率 | 每刻 32 KiB，突发最多 4 MiB，每刻最多 256 KiB |
-| 排队的请求数据 | 4 MiB |
-| 等待结果的请求 | 32 |
-| 每刻请求数 | 16 |
-| 超时（排队、传输、回复） | 各 200 刻 |
-
-单个动作默认最多 8 KiB，可以用 `MenuAction.of(id, codec, maxBytes, handler)` 声明更大的上限。较大的值会自动拆分成多个数据包。
-
-```java
-static final MenuSyncOptions OPTIONS = MenuSyncOptions.DEFAULT
-    .withState(new SyncLimits(128 * 1024, new TransferBudget(64 * 1024, 8L * 1024 * 1024, 512 * 1024),
-        16, 2 * 1024 * 1024, 64L * 1024 * 1024, 250_000, 400));
-
-MenuSync.bind(this, SCHEMA, OPTIONS);
-```
+任何环节都不会超时。菜单会一直保持同步，直到它关闭或玩家断开连接。
 
 ## 就绪状态
 

@@ -5,6 +5,5 @@ public enum ActionStatus {
     APPLIED,
     REJECTED,
     INVALID,
-    THROTTLED,
-    EXPIRED
+    THROTTLED
 }
