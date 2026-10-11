@@ -25,8 +25,8 @@ enum class AcceptanceStep(val report: String) {
     RENDERER("renderer backend matches CPU reference pixels"),
     WORLD("fresh flat creative test world loaded"),
     INVENTORY(
-        "native left/right container input, per-slot render hooks, server acknowledgement, screen state and actions, " +
-            "and release on a close request from the content"
+        "native left/right container input, per-slot render hooks, the slot tooltip while a button is held, server " +
+            "acknowledgement, screen state and actions, and release on a close request from the content"
     ),
     MENU_SYNC(
         "bounded multi-batch snapshot, fragmented action round trip from a state screen's content, a native value " +

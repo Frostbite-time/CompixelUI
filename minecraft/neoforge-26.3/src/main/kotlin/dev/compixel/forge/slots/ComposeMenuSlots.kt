@@ -178,13 +178,9 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
     private var cursor = ItemStack.EMPTY
     private var cursorIcon: ItemIcon? = null
     private var closed = false
-    private var nativeActive = false
     private var nativeDragIds: Set<Int> = emptySet()
     private var nativeButton = 0
     private var hoveredSlot by mutableStateOf(-1)
-    val interacting
-        get() = nativeActive
-
     val interactionsEnabled
         get() = !blocked.get()
 
@@ -310,20 +306,17 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
                 menuInputBounds(it, metrics)
             }
 
-    internal fun move(x: Double, y: Double): Boolean {
+    internal fun move(x: Double, y: Double) {
         checkOwner()
         val hovered = if (blocked.get()) -1 else slotAt(x, y)
         ComposeThread.call { hoveredSlot = hovered }
-        return nativeActive
     }
 
     internal fun reset() {
-        nativeActive = false
         nativeDragIds = emptySet()
     }
 
-    internal fun nativeInteraction(active: Boolean, button: Int, ids: Set<Int>) {
-        nativeActive = active
+    internal fun nativeInteraction(button: Int, ids: Set<Int>) {
         nativeButton = button
         nativeDragIds = ids
     }
@@ -436,7 +429,7 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
                 graphics.item(image, x - 8, y - 8)
                 graphics.itemDecorations(mc.font, image, x - 8, y - 8)
             }
-        } else if (!interacting) {
+        } else {
             val id = slotAt(x.toDouble(), y.toDouble())
             val rendered = renderPoint(x.toDouble(), y.toDouble())
             menu.slots.getOrNull(id)?.let {

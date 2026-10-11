@@ -13,6 +13,7 @@ import dev.compixel.forge.ComposeInventoryScreen
 import dev.compixel.forge.item.MinecraftItemIcon
 import dev.compixel.forge.slots.ComposeMenuSlots
 import dev.compixel.forge.slots.MenuSlotState
+import dev.compixel.forge.slots.VanillaMenuSlotAdapter
 import java.util.concurrent.CompletableFuture
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
@@ -23,9 +24,9 @@ import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.Items
 
 /**
- * Real native container prediction, slot-render hooks, mouse translation, server acknowledgement, the screen's state
- * and actions, handled at the next tick or during the click that sent them, and screen release on a close request from
- * its content.
+ * Real native container prediction, slot-render hooks, mouse translation, the slot tooltip while a button is held,
+ * server acknowledgement, the screen's state and actions, handled at the next tick or during the click that sent them,
+ * and screen release on a close request from its content.
  */
 internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
     private val mc
@@ -37,6 +38,9 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
     private var stage = 0
     private var ticks = 0
     private var slotHooks = 0
+    private var tooltips = 0
+    private var heldTooltips = 0
+    private var heldHooks = 0
     private var initialized: CompletableFuture<Void>? = null
     private var serverVerified: CompletableFuture<Boolean>? = null
     private var screen: AcceptanceScreen? = null
@@ -48,6 +52,15 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
         ComposeInventoryScreen<InventoryMenu, Int, Unit>(
             player.inventoryMenu,
             Component.literal("Native inventory acceptance"),
+            ComposeMenuSlots(
+                player.inventoryMenu,
+                // Counts the tooltips the screen asks for instead of drawing them.
+                object : VanillaMenuSlotAdapter(player.inventoryMenu) {
+                    override fun tooltip(graphics: GuiGraphicsExtractor, slot: Slot, x: Int, y: Int) {
+                        if (!slot.item.isEmpty) tooltips++
+                    }
+                },
+            ),
         ) {
         /** The latest state the content composed. Compose thread. */
         var composed = -1
@@ -67,6 +80,12 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
 
         /** What the slot that draws itself showed in its latest composition. */
         var drawnSlot: MenuSlotState? = null
+
+        /** Where the probe's pointer is while the screen draws; the hidden window's own cursor is elsewhere. */
+        var pointer: Pair<Int, Int>? = null
+
+        override fun extractRenderState(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, partialTick: Float) =
+            super.extractRenderState(graphics, pointer?.first ?: mouseX, pointer?.second ?: mouseY, partialTick)
 
         override fun isUiWindowFocused() = SuiteEnvironment.uiFocused(super.isUiWindowFocused())
 
@@ -160,7 +179,34 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
                 }
                 stage++
             }
-            5 ->
+            5 -> {
+                // A button held with an empty cursor keeps the tooltip of the slot under the pointer, as a vanilla
+                // container does: press on the empty slot, then move over the filled one.
+                val active = checkNotNull(screen)
+                val (emptyX, emptyY) = center(36)
+                val (filledX, filledY) = center(37)
+                active.mouseMoved(emptyX, emptyY)
+                active.mouseClicked(emptyX, emptyY, SuitePlatform.MOUSE_LEFT)
+                active.mouseMoved(filledX, filledY)
+                active.pointer = filledX.toInt() to filledY.toInt()
+                heldTooltips = tooltips
+                heldHooks = slotHooks
+                stage++
+            }
+            6 ->
+                // Once a frame has been drawn with the button still held
+                if (slotHooks > heldHooks) {
+                    val active = checkNotNull(screen)
+                    check(tooltips > heldTooltips) { "The slot tooltip was hidden while a mouse button was held" }
+                    val (x, y) = center(37)
+                    active.mouseReleased(x, y, SuitePlatform.MOUSE_LEFT)
+                    active.pointer = null
+                    check(player.containerMenu.carried.isEmpty && player.inventory.getItem(1).count == 8) {
+                        "Holding a button over a slot moved its items"
+                    }
+                    stage++
+                }
+            7 ->
                 // The next tick's snapshot shows the placed stack, and the content sends an action back.
                 if (ComposeThread.call { screen!!.composed } == 8) {
                     val drawn = ComposeThread.call { screen!!.drawnSlot }
@@ -170,7 +216,7 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
                     check(ComposeThread.call { screen!!.press() }) { "The screen rejected its content's action" }
                     stage++
                 }
-            6 ->
+            8 ->
                 if (screen!!.presses == 1) {
                     // A click on the press button runs its action and takes one snapshot before the input event
                     // returns, as a vanilla button acts, not at the next tick.
@@ -183,7 +229,7 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
                     }
                     stage++
                 }
-            7 -> {
+            9 -> {
                 serverVerified =
                     checkNotNull(mc.singleplayerServer)
                         .submit(
@@ -196,16 +242,16 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
                         )
                 stage++
             }
-            8 ->
+            10 ->
                 if (serverVerified!!.isDone) {
                     if (serverVerified!!.join()) {
                         // The close button closes the screen before its input event returns.
                         clickButton(1)
                         check(SuitePlatform.screen !== screen) { "The close button did not close the screen at once" }
                         stage++
-                    } else stage = 7 // Client packets may arrive after the queued server task.
+                    } else stage = 9 // Client packets may arrive after the queued server task.
                 }
-            9 ->
+            11 ->
                 if (SuitePlatform.screen !== screen) {
                     val closed = checkNotNull(screen)
                     check(
@@ -227,8 +273,13 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
     }
 
     private fun click(slot: Int, button: Int) {
+        val (x, y) = center(slot)
+        clickAt(x, y, button)
+    }
+
+    private fun center(slot: Int): Pair<Double, Double> {
         val bounds = checkNotNull(checkNotNull(screen).inventory.bounds(slot)) { "Slot $slot is not laid out" }
-        clickAt((bounds.left + bounds.right) / 2, (bounds.top + bounds.bottom) / 2, button)
+        return (bounds.left + bounds.right) / 2 to (bounds.top + bounds.bottom) / 2
     }
 
     /** Clicks the content's button [index]; the buttons follow the last slot and have its size. */

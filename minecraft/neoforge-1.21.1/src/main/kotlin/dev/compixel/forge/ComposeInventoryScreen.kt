@@ -175,7 +175,6 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
 
     private fun mirrorDrag() {
         inventory.nativeInteraction(
-            nativePress,
             dragButton,
             if (isQuickCrafting) quickCraftSlots.mapTo(linkedSetOf()) { it.index } else emptySet(),
         )
