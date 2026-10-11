@@ -8,7 +8,7 @@ Menu sync keeps the state of a server-side menu on the client, and carries typed
 sequenceDiagram
     participant S as Server menu
     participant C as Client menu
-    S->>C: Full snapshot right behind the menu's opening
+    S->>C: Full snapshot when the menu opens
     loop While the menu is open
         S->>C: Changed values, in batches
     end
@@ -78,8 +78,6 @@ private static final SyncCodec<ItemStack> ITEM =
 
 On Forge 1.20.1, use `MinecraftSyncCodecs.buffer(id, codec)` with a `FriendlyByteBuf` codec instead. Change a codec's ID or the schema version whenever its wire format changes.
 
-Values can be any size. One larger than a Minecraft packet, such as a shulker box full of written books, is split into batches and applied once all of it has arrived.
-
 ## Collections
 
 `keyedCollection` syncs a list whose entries have unique keys. For large collections with frequent small changes, use a `SyncMap` with `keyedMap`: only changed entries are sent.
@@ -115,16 +113,12 @@ A map has no order; sort it where you display it. `current.forEachChange(previou
 
 `actual()` and `limit()` give the sizes involved. Nothing is retried automatically.
 
-An action's value is limited to 8 KiB unless you declare more with `MenuAction.of(id, codec, maxBytes, handler)`; the server refuses anything larger. Larger values are split into packets automatically.
+An action's value can be up to 8 KiB. To allow more, declare a maximum with `MenuAction.of(id, codec, maxBytes, handler)`: larger values are sent in parts, and the server refuses any value above the maximum.
 
-Register `onActionResult(listener)` before the menu opens to hear back from the server. Each `ActionResult` has an `ActionStatus`: `APPLIED`, `REJECTED`, `INVALID` or `THROTTLED`, the last when a player starts more than 16 requests in one tick. The new state itself arrives through normal syncing. Rejections are also logged, at most once per 100 ticks per menu.
+Register `onActionResult(listener)` before the menu opens to hear back from the server. Each `ActionResult` has an `ActionStatus`: `APPLIED`, `REJECTED`, `INVALID` or `THROTTLED`, the last for requests beyond 16 that one player starts in one tick. The new state itself arrives through normal syncing. Rejections are also logged, at most once per 100 ticks per menu.
 
-## How data travels
+## When the state arrives
 
-Menu sync has no settings. The server sends a menu's state right behind the menu's opening, in batches of up to 128 KiB, and keeps at most 512 KiB on its way that the client hasn't acknowledged. A state therefore moves at up to 512 KiB per tick on a fast connection, and at the connection's own speed on a slow one, while the rest of the game's traffic keeps moving. Requests sent in parts wait for the server to confirm what arrived in the same way.
+The server sends the state when the menu opens, then the values that change. A small state arrives together with the menu. A large one, such as a storage holding tens of thousands of different items, arrives in parts over the next ticks while the rest of the game's traffic keeps moving; a single value larger than a packet is split the same way. Each update takes effect all at once, so the UI never shows half of one.
 
-Nothing times out. A menu stays in sync until it closes or the player disconnects.
-
-## Readiness
-
-`hasSnapshot()` becomes true once the first complete state has arrived, and stays true while later updates stream in. `status()` returns a `SyncStatus`, and `statistics()` reports progress. Updates are applied all at once, so the UI never sees half an update.
+`hasSnapshot()` becomes true once the first complete state has arrived, and stays true while later updates arrive. `status()` returns a `SyncStatus`, and `statistics()` reports progress.

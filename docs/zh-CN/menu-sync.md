@@ -8,7 +8,7 @@
 sequenceDiagram
     participant S as 服务端菜单
     participant C as 客户端菜单
-    S->>C: 紧随菜单打开发送完整快照
+    S->>C: 菜单打开时发送完整快照
     loop 菜单打开期间
         S->>C: 变化的值，分批发送
     end
@@ -78,8 +78,6 @@ private static final SyncCodec<ItemStack> ITEM =
 
 Forge 1.20.1 改用 `MinecraftSyncCodecs.buffer(id, codec)`，配合基于 `FriendlyByteBuf` 的编解码器。编码格式变化时，请修改编解码器 ID 或结构版本号。
 
-取值大小不限。超过一个 Minecraft 数据包的值，例如装满成书的潜影盒，会分批发送，全部到达后一次性生效。
-
 ## 集合
 
 `keyedCollection` 同步条目带唯一键的列表。条目多、变化小的集合请用 `SyncMap` 配合 `keyedMap`，只发送变化的条目：
@@ -115,16 +113,12 @@ final class CatalogState {
 
 `actual()` 和 `limit()` 给出相关的大小。请求不会自动重试。
 
-动作的取值默认最多 8 KiB，可以用 `MenuAction.of(id, codec, maxBytes, handler)` 声明更大的上限；服务端会拒绝超过上限的取值。较大的值会自动拆分成多个数据包。
+动作的取值默认最多 8 KiB。需要更大时，用 `MenuAction.of(id, codec, maxBytes, handler)` 声明上限：较大的值会分成多个数据包发送，超过上限的取值会被服务端拒绝。
 
-在菜单打开前注册 `onActionResult(listener)`，即可收到服务端的处理结果。每个 `ActionResult` 带有一个 `ActionStatus`：`APPLIED`、`REJECTED`、`INVALID` 或 `THROTTLED`；玩家在一刻内发起超过 16 个请求时，多出的请求得到 `THROTTLED`。新状态本身仍通过正常同步到达。被拒绝的请求也会写入日志，每个菜单每 100 刻最多一次。
+在菜单打开前注册 `onActionResult(listener)`，即可收到服务端的处理结果。每个 `ActionResult` 带有一个 `ActionStatus`：`APPLIED`、`REJECTED`、`INVALID` 或 `THROTTLED`；同一玩家在一刻内发起的请求超过 16 个时，多出的得到 `THROTTLED`。新状态本身仍通过正常同步到达。被拒绝的请求也会写入日志，每个菜单每 100 刻最多一次。
 
-## 数据如何传输
+## 状态何时到达
 
-菜单同步没有任何设置。服务端紧随菜单打开发送它的状态，每批最多 128 KiB，途中尚未得到客户端确认的数据最多 512 KiB。因此连接快时，状态每刻最多传输 512 KiB；连接慢时按连接本身的速度传输，游戏的其他流量照常进行。分成多个数据包的请求同样会等待服务端确认已收到的部分。
+服务端在菜单打开时发送状态，之后发送变化的值。较小的状态随菜单一起到达；较大的状态，例如存有几万种不同物品的存储，会在之后几刻内分批到达，期间游戏的其他流量照常传输；超过一个数据包的单个值也同样拆分发送。每次更新都整体生效，界面不会看到只更新了一半的状态。
 
-任何环节都不会超时。菜单会一直保持同步，直到它关闭或玩家断开连接。
-
-## 就绪状态
-
-第一份完整状态到达后，`hasSnapshot()` 变为 `true`，后续更新传输期间也保持为 `true`。`status()` 返回 `SyncStatus`，`statistics()` 报告进度。更新总是整体应用，界面不会看到只更新了一半的状态。
+第一份完整状态到达后，`hasSnapshot()` 变为 `true`，后续更新传输期间也保持为 `true`。`status()` 返回 `SyncStatus`，`statistics()` 报告进度。
