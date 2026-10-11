@@ -1,6 +1,3 @@
-import org.gradle.api.services.BuildService
-import org.gradle.api.services.BuildServiceParameters
-
 plugins {
     id("compixel.jvm-library") apply false
     id("compixel.skiko-profile") apply false
@@ -14,24 +11,12 @@ plugins {
     alias(libs.plugins.spotless)
 }
 
-abstract class ApiDocumentationWorkers : BuildService<BuildServiceParameters.None>
-
-val apiDocumentationWorkers =
-    gradle.sharedServices.registerIfAbsent("apiDocumentationWorkers", ApiDocumentationWorkers::class) {
-        maxParallelUsages.set(1)
-    }
-
 allprojects {
     group = "dev.compixel"
     version = providers.gradleProperty("mod_version").get()
 }
 
 subprojects {
-    tasks
-        .matching { it.name.startsWith("dokkaGeneratePublication") }
-        .configureEach {
-            usesService(apiDocumentationWorkers)
-        }
     plugins.withId("java") {
         tasks.withType<Jar>().configureEach {
             from(rootProject.file("LICENSE")) { into("META-INF/compixel") }
