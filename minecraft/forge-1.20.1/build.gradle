@@ -17,8 +17,13 @@ repositories {
     mavenCentral()
     google()
 }
-// Minecraft supplies epoll only on Linux; keep the lock portable across hosts.
-dependencyLocking.ignoredDependencies.add('io.netty:netty-transport-native-epoll')
+// Minecraft adds some runtime libraries on one host only: netty epoll on Linux, netty kqueue and the Objective-C
+// bridge on macOS. Keep them out of the lock so that it stays portable across hosts.
+dependencyLocking.ignoredDependencies.addAll(
+    'io.netty:netty-transport-native-epoll',
+    'io.netty:netty-transport-native-kqueue',
+    'ca.weblite:java-objc-bridge'
+)
 
 apply from: rootProject.file('gradle/minecraft/sources.gradle')
 apply from: rootProject.file('gradle/minecraft/artifacts.gradle')
