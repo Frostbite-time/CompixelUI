@@ -23,7 +23,22 @@ CompixelUI is built with Kotlin 2.4.10 and Compose 1.12.0.
 | `dev.compixel:compixel-<loader>-<minecraft>` | The library; Gradle adds the Compose runtime it needs |
 | `dev.compixel:compixel-<loader>-<minecraft>-with-kotlin` | The same, plus the Kotlin libraries |
 
-The loader is `forge` for 1.20.1 and `neoforge` for the others. The 1.20.1 artifact uses SRG names; add it through your toolchain's remapping configuration, as with other Forge mods. Each version also publishes `sources`, `javadoc` and `development` (the F8 preview) classifiers.
+The loader is `forge` for 1.20.1 and `neoforge` for the others. Each version also publishes `sources`, `javadoc` and `development` (the F8 preview) classifiers.
+
+### Forge 1.20.1
+
+The 1.20.1 artifact uses SRG names, so add it through a remapping configuration, as with other Forge mods. In ModDevGradle Legacy, the `mod…` configurations don't bring dependencies along, so also add the `-with-kotlin` coordinate through plain configurations for the Compose runtime and the Kotlin libraries; the CompixelUI library that comes in this way is remapped too.
+
+```groovy
+dependencies {
+    modCompileOnly "dev.compixel:compixel-forge-1.20.1:${compixel_version}"
+    modLocalRuntime "dev.compixel:compixel-forge-1.20.1:${compixel_version}"
+    compileOnly "dev.compixel:compixel-forge-1.20.1-with-kotlin:${compixel_version}"
+    localRuntime "dev.compixel:compixel-forge-1.20.1-with-kotlin:${compixel_version}"
+}
+```
+
+`localRuntime` and `modLocalRuntime` are the configurations that the ModDevGradle Legacy MDK sets up. If your mod depends on Kotlin for Forge, use `compixel-forge-1.20.1` on the last two lines as well and let KFF supply Kotlin.
 
 ## Kotlin
 

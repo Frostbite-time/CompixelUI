@@ -23,7 +23,22 @@ CompixelUI 使用 Kotlin 2.4.10 和 Compose 1.12.0 构建。
 | `dev.compixel:compixel-<加载器>-<Minecraft>` | 库本身；所需的 Compose 运行时由 Gradle 自动添加 |
 | `dev.compixel:compixel-<加载器>-<Minecraft>-with-kotlin` | 同上，另加 Kotlin 库 |
 
-1.20.1 的加载器为 `forge`，其余为 `neoforge`。1.20.1 的产物使用 SRG 名称，请像其他 Forge 模组一样通过构建工具的重映射配置添加。每个版本还发布 `sources`、`javadoc` 和 `development`（F8 预览）分类器。
+1.20.1 的加载器为 `forge`，其余为 `neoforge`。每个版本还发布 `sources`、`javadoc` 和 `development`（F8 预览）分类器。
+
+### Forge 1.20.1
+
+1.20.1 的产物使用 SRG 名称，请像其他 Forge 模组一样通过重映射配置添加。ModDevGradle Legacy 的 `mod…` 配置不会带上依赖，所以还要通过普通配置添加 `-with-kotlin` 坐标，以带上 Compose 运行时和 Kotlin 库；经普通配置引入的 CompixelUI 库同样会被重映射。
+
+```groovy
+dependencies {
+    modCompileOnly "dev.compixel:compixel-forge-1.20.1:${compixel_version}"
+    modLocalRuntime "dev.compixel:compixel-forge-1.20.1:${compixel_version}"
+    compileOnly "dev.compixel:compixel-forge-1.20.1-with-kotlin:${compixel_version}"
+    localRuntime "dev.compixel:compixel-forge-1.20.1-with-kotlin:${compixel_version}"
+}
+```
+
+`localRuntime` 和 `modLocalRuntime` 是 ModDevGradle Legacy MDK 中设置的配置。如果你的模组依赖 Kotlin for Forge，后两行也改用 `compixel-forge-1.20.1`，由 KFF 提供 Kotlin。
 
 ## Kotlin
 
