@@ -7,6 +7,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
@@ -245,15 +246,21 @@ private fun CatalogPage(model: DemoModel, label: (String, String) -> String) {
                 OreText(label("No entries found", "没有找到条目"), Modifier.weight(1f))
             else -> {
                 OreText("${indices.size} " + label("entries", "个条目"), color = OreTheme.colors[OreColors.mutedText])
+                val list = rememberLazyListState()
                 LazyColumn(
                     Modifier.weight(1f).fillMaxWidth().demoBounds(model, "list"),
+                    state = list,
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    items(indices, key = { it }) { index ->
+                    itemsIndexed(indices, key = { _, index -> index }) { position, index ->
+                        DisposableEffect(index) { onDispose { model.visibleEntries.remove(index) } }
                         OreListItem(
                             model.selected == index,
                             { model.selected = index },
-                            Modifier.fillMaxWidth().demoBounds(model, "entry:$index"),
+                            Modifier.fillMaxWidth().onGloballyPositioned {
+                                model.visibleEntries[index] = it.boundsInRoot()
+                                if (position == list.firstVisibleItemIndex) model.firstVisibleEntry = index
+                            },
                         ) {
                             OreIcon(DemoNetworkArt)
                             OreText("Entry ${index.toString().padStart(5, '0')}", Modifier.weight(1f))
@@ -894,6 +901,5 @@ private fun Modifier.componentBounds(model: DemoModel, id: String): Modifier {
 }
 
 private fun Modifier.demoBounds(model: DemoModel, key: String): Modifier = onGloballyPositioned {
-    // Only keep fixed controls and the one row used by the input probe, not a dataset-sized map.
-    if (!key.startsWith("entry:") || key == "entry:1") model.bounds[key] = it.boundsInRoot()
+    model.bounds[key] = it.boundsInRoot()
 }

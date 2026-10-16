@@ -43,6 +43,9 @@ class DemoModel {
     var count by mutableIntStateOf(1000)
     var dialog by mutableStateOf(false)
     var selected by mutableIntStateOf(0)
+    // The catalog's first visible entry and the bounds of the entries laid out now, for the input checks.
+    var firstVisibleEntry by mutableIntStateOf(0)
+    val visibleEntries = mutableMapOf<Int, androidx.compose.ui.geometry.Rect>()
     var page by mutableStateOf(DemoPage.Settings)
     var intValue by mutableIntStateOf(20)
     var intUnbounded by mutableIntStateOf(20)

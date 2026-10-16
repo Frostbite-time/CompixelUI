@@ -36,7 +36,7 @@ internal class PreviewAcceptance(
     private val themes = ThemeAcceptance(session, script, log)
     private var reference: IntArray? = null
     private var reload: CompletableFuture<Void>? = null
-    private var entry = 0.0 to 0.0
+    private var scrolledEntry = 0
     private var epoch = 0L
     private var allocations = 0L
     private var prepared = 0L
@@ -166,20 +166,22 @@ internal class PreviewAcceptance(
             }
         }
         script.until("the catalog laid out") {
-            model { page == DemoPage.Catalog && count == 100000 && "entry:1" in bounds && "list" in bounds }
+            model { page == DemoPage.Catalog && count == 100000 && 1 in visibleEntries && "list" in bounds }
         }
-        script.act("click entry 1") {
-            entry = control("entry:1")
-            click(entry)
-        }
+        script.act("click entry 1") { click(catalogEntry(1)) }
         script.until("list hit testing selected entry 1") { model { selected } == 1 }
         script.act("scroll the list") {
             val list = control("list")
             screen.mouseScrolled(list.first, list.second, 0.0, -8.0)
         }
         script.pause(400)
-        script.act("click the same point") { click(entry) }
-        script.until("wheel scrolling moved the list") { model { selected } > 1 }
+        script.until("wheel scrolling moved the list") { model { firstVisibleEntry } > 0 }
+        script.act("click an entry scrolled into view") {
+            // The first visible entry may be cut off at the top; the one after it is whole.
+            scrolledEntry = model { firstVisibleEntry } + 1
+            click(catalogEntry(scrolledEntry))
+        }
+        script.until("list hit testing after scrolling") { model { selected } == scrolledEntry }
         script.act("check texture reuse") {
             val renderer = screen.rendererStatistics
             allocations = renderer.surfaceAllocations
@@ -435,6 +437,12 @@ internal class PreviewAcceptance(
 
     private fun control(id: String) =
         ComposeThread.call { checkNotNull(screen.model.bounds[id]) { "Missing preview control $id" }.center }
+            .let { gui(it.x, it.y) }
+
+    private fun catalogEntry(index: Int) =
+        ComposeThread.call {
+                checkNotNull(screen.model.visibleEntries[index]) { "Catalog entry $index is not laid out" }.center
+            }
             .let { gui(it.x, it.y) }
 
     private fun cell(index: Int) =
