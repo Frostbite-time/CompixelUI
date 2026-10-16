@@ -203,12 +203,17 @@ class OpenGlFrameRenderer(
         retiredImages.release()
     }
 
-    private fun directContext(): DirectContext =
-        context
-            ?: DirectContext.makeGL().also {
-                it.resourceCacheLimit = 64L * 1024 * 1024
-                context = it
-            }
+    private fun directContext(): DirectContext {
+        context?.let {
+            return it
+        }
+        // Skiko refuses OpenGL on macOS unless this is set, but this backend draws into the game's own context.
+        System.setProperty("skiko.macos.opengl.enabled", "true")
+        return DirectContext.makeGL().also {
+            it.resourceCacheLimit = 64L * 1024 * 1024
+            context = it
+        }
+    }
 
     private fun drawFrame(frame: RecordedFrame) {
         val skia = directContext()
