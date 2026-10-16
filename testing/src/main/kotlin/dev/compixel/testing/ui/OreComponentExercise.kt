@@ -73,7 +73,7 @@ class OreComponentExercise(private val model: DemoModel, private val page: DemoP
                 when (frame) {
                     20 -> {
                         click("long-field")
-                        key(UiKey.A, Modifiers(control = true))
+                        key(UiKey.A, textShortcut)
                         session.commitText("9223372036854775806")
                         key(UiKey.ENTER)
                     }

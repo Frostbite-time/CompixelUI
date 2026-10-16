@@ -410,6 +410,9 @@ class UiSessionTest {
 
     @Test
     fun `consecutive select copy cut paste uses current text and selection`() {
+        // Compose's text shortcuts use Command on macOS and Control elsewhere, picked by the same os.name test.
+        val shortcut =
+            if (System.getProperty("os.name") == "Mac OS X") Modifiers(meta = true) else Modifiers(control = true)
         val value = ComposeThread.call { mutableStateOf(TextFieldValue("hello")) }
         val clipboard = MemoryClipboard()
         val pasted = CountDownLatch(1)
@@ -433,13 +436,13 @@ class UiSessionTest {
                 session.pointer(PointerInput(PointerAction.PRESS, 10f, 10f, MouseButton.LEFT))
                 session.pointer(PointerInput(PointerAction.RELEASE, 10f, 10f, MouseButton.LEFT))
                 session.frame(2_000_000)?.close()
-                assertTrue(session.key(KeyInput(UiKey.A, true, Modifiers(control = true))))
+                assertTrue(session.key(KeyInput(UiKey.A, true, shortcut)))
                 assertEquals(TextRange(0, 5), ComposeThread.call { value.value.selection })
-                assertTrue(session.key(KeyInput(UiKey.C, true, Modifiers(control = true))))
+                assertTrue(session.key(KeyInput(UiKey.C, true, shortcut)))
                 assertEquals("hello", clipboard.readText())
-                session.key(KeyInput(UiKey.X, true, Modifiers(control = true)))
+                session.key(KeyInput(UiKey.X, true, shortcut))
                 assertEquals("", ComposeThread.call { value.value.text })
-                session.key(KeyInput(UiKey.V, true, Modifiers(control = true)))
+                session.key(KeyInput(UiKey.V, true, shortcut))
                 // Compose reads clipboard data on Dispatchers.IO after key delivery returns.
                 assertTrue(pasted.await(2, TimeUnit.SECONDS), "Paste did not update the text field")
                 assertEquals("hello", ComposeThread.call { value.value.text })

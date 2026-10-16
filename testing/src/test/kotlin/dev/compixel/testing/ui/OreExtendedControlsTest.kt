@@ -740,7 +740,7 @@ class OreExtendedControlsTest {
         }
 
         fun replace(text: String) {
-            key(UiKey.A, Modifiers(control = true))
+            key(UiKey.A, textShortcut)
             session.commitText(text)
             frame()
         }
