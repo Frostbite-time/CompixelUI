@@ -110,7 +110,7 @@ internal class PreviewAcceptance(
         script.act("type supplementary Unicode text") { TEXT.forEach { screen.charTyped(it, 0) } }
         script.until("the typed text reached the field") { model { query } == TEXT }
         script.act("select all and delete") {
-            key(SuitePlatform.KEY_A, SuitePlatform.MOD_CONTROL)
+            key(SuitePlatform.KEY_A, SuitePlatform.MOD_SHORTCUT)
             key(SuitePlatform.KEY_BACKSPACE)
         }
         script.until("select-all delete emptied the field") { model { query }.isEmpty() }

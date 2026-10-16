@@ -132,7 +132,7 @@ internal class ClientAcceptanceProbe {
         script.act("type Unicode text") { PORT_TEXT.forEach { port.charTyped(it, 0) } }
         script.until("Unicode text entry") { ComposeThread.call { port.model.text } == PORT_TEXT }
         script.act("select all and delete") {
-            key(SuitePlatform.KEY_A, SuitePlatform.MOD_CONTROL)
+            key(SuitePlatform.KEY_A, SuitePlatform.MOD_SHORTCUT)
             key(SuitePlatform.KEY_BACKSPACE)
         }
         script.until("the select-all/backspace shortcut") { ComposeThread.call { port.model.text }.isEmpty() }
@@ -246,10 +246,10 @@ internal class ClientAcceptanceProbe {
         capture("native-drawing-layout")
         script.act("resize rectangular drawing viewport") {
             SuitePlatform.setGuiScale(3)
-            SuitePlatform.setWindowSize(1001, 751)
+            SuitePlatform.setWindowSize(1000, 752)
         }
         script.until("rectangular viewport resized") {
-            minecraft.window.width == 1001 && minecraft.window.height == 751 && SuitePlatform.guiScale == 3
+            minecraft.window.width == 1000 && minecraft.window.height == 752 && SuitePlatform.guiScale == 3
         }
         capture("native-drawing-scale")
         script.act("reload rectangular drawing resources") { reload = minecraft.reloadResourcePacks() }

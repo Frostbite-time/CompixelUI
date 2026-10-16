@@ -6,6 +6,7 @@ import dev.compixel.forge.render.RendererResources
 import dev.compixel.forge.render.configuredRenderBackend
 import dev.compixel.render.RenderBackend
 import dev.compixel.testing.suite.ScreenPixels
+import dev.compixel.testing.ui.textShortcut
 import java.io.File
 import java.util.function.Consumer
 import net.minecraft.client.InactivityFpsLimit
@@ -56,7 +57,8 @@ internal object SuitePlatform {
     const val KEY_A = GLFW.GLFW_KEY_A
     const val KEY_BACKSPACE = GLFW.GLFW_KEY_BACKSPACE
     const val KEY_ESCAPE = GLFW.GLFW_KEY_ESCAPE
-    const val MOD_CONTROL = GLFW.GLFW_MOD_CONTROL
+    /** The text shortcut modifier Compose expects: Command on macOS, Control elsewhere. */
+    val MOD_SHORTCUT = if (textShortcut.meta) GLFW.GLFW_MOD_SUPER else GLFW.GLFW_MOD_CONTROL
 
     private val minecraft
         get() = Minecraft.getInstance()
@@ -125,7 +127,18 @@ internal object SuitePlatform {
         minecraft.resizeGui()
     }
 
-    fun setWindowSize(width: Int, height: Int) = GLFW.glfwSetWindowSize(window, width, height)
+    /**
+     * Sizes the window for a [width] x [height] pixel framebuffer. GLFW counts in screen points, which cover several
+     * pixels on a Retina display.
+     */
+    fun setWindowSize(width: Int, height: Int) {
+        val points = IntArray(1)
+        val pixels = IntArray(1)
+        GLFW.glfwGetWindowSize(window, points, null)
+        GLFW.glfwGetFramebufferSize(window, pixels, null)
+        val density = (pixels[0] / points[0].coerceAtLeast(1)).coerceAtLeast(1)
+        GLFW.glfwSetWindowSize(window, width / density, height / density)
+    }
 
     fun hideWindow() {
         GLFW.glfwHideWindow(window)

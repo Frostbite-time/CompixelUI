@@ -7,8 +7,10 @@ import dev.compixel.forge.render.RendererResources
 import dev.compixel.forge.render.configuredRenderBackend
 import dev.compixel.render.RenderBackend
 import dev.compixel.testing.suite.ScreenPixels
+import dev.compixel.testing.ui.textShortcut
 import java.io.File
 import java.util.function.Consumer
+import kotlin.math.roundToInt
 import net.minecraft.client.InactivityFpsLimit
 import net.minecraft.client.KeyboardHandler
 import net.minecraft.client.Minecraft
@@ -60,7 +62,8 @@ internal object SuitePlatform {
     const val KEY_A = InputConstants.KEY_A
     const val KEY_BACKSPACE = InputConstants.KEY_BACKSPACE
     const val KEY_ESCAPE = InputConstants.KEY_ESCAPE
-    const val MOD_CONTROL = InputConstants.MOD_CONTROL
+    /** The text shortcut modifier Compose expects: Command on macOS, Control elsewhere. */
+    val MOD_SHORTCUT = if (textShortcut.meta) InputConstants.MOD_SUPER else InputConstants.MOD_CONTROL
 
     private val minecraft
         get() = Minecraft.getInstance()
@@ -130,8 +133,13 @@ internal object SuitePlatform {
         minecraft.resizeGui()
     }
 
+    /**
+     * Sizes the window for a [width] x [height] pixel framebuffer. SDL counts in screen points, which cover several
+     * pixels on a Retina display.
+     */
     fun setWindowSize(width: Int, height: Int) {
-        SDLVideo.SDL_SetWindowSize(window, width, height)
+        val density = SDLVideo.SDL_GetWindowPixelDensity(window).roundToInt().coerceAtLeast(1)
+        SDLVideo.SDL_SetWindowSize(window, width / density, height / density)
         SDLVideo.SDL_SyncWindow(window)
     }
 
