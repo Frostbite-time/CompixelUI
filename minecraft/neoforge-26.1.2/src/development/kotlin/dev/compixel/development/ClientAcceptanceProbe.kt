@@ -10,6 +10,7 @@ import dev.compixel.testing.suite.AcceptanceLog
 import dev.compixel.testing.suite.AcceptanceStep
 import dev.compixel.testing.suite.ClientSuite
 import dev.compixel.testing.suite.SuitePixels
+import dev.compixel.testing.ui.ctrlOrCmd
 import java.util.concurrent.CompletableFuture
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.screens.Screen
@@ -132,7 +133,7 @@ internal class ClientAcceptanceProbe {
         script.act("type Unicode text") { PORT_TEXT.forEach { port.charTyped(it, 0) } }
         script.until("Unicode text entry") { ComposeThread.call { port.model.text } == PORT_TEXT }
         script.act("select all and delete") {
-            key(SuitePlatform.KEY_A, SuitePlatform.MOD_SHORTCUT)
+            key(SuitePlatform.KEY_A, SuitePlatform.modifierBits(ctrlOrCmd))
             key(SuitePlatform.KEY_BACKSPACE)
         }
         script.until("the select-all/backspace shortcut") { ComposeThread.call { port.model.text }.isEmpty() }

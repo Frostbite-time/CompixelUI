@@ -101,7 +101,7 @@ class OreControlsTest {
         Fixture { bound -> OreIntField(value.intValue, { value.intValue = it }, bound("number").width(300.dp)) }
             .use { fixture ->
                 fixture.click("number")
-                fixture.key(UiKey.A, textShortcut)
+                fixture.key(UiKey.A, ctrlOrCmd)
                 fixture.session.commitText("-")
                 fixture.frame()
                 ComposeThread.call { value.intValue = 42 }
@@ -112,17 +112,17 @@ class OreControlsTest {
                 assertEquals(-7, value.intValue)
                 val p = fixture.point("number")
                 fixture.session.pointer(
-                    PointerInput(PointerAction.SCROLL, p.x, p.y, scrollY = -1f, modifiers = Modifiers(control = true))
+                    PointerInput(PointerAction.SCROLL, p.x, p.y, scrollY = -1f, modifiers = ctrlOrCmd)
                 )
                 fixture.frame()
                 assertEquals(93, value.intValue)
                 ComposeThread.call { value.intValue = Int.MAX_VALUE - 1 }
                 fixture.frame()
-                fixture.key(UiKey.UP, Modifiers(control = true))
+                fixture.key(UiKey.UP, ctrlOrCmd)
                 assertEquals(Int.MAX_VALUE, value.intValue)
                 ComposeThread.call { value.intValue = Int.MIN_VALUE + 1 }
                 fixture.frame()
-                fixture.key(UiKey.DOWN, Modifiers(control = true))
+                fixture.key(UiKey.DOWN, ctrlOrCmd)
                 assertEquals(Int.MIN_VALUE, value.intValue)
                 fixture.session.pointer(PointerInput(PointerAction.PRESS, p.x + 129, p.y, MouseButton.LEFT))
                 fixture.session.pointer(PointerInput(PointerAction.RELEASE, p.x + 129, p.y, MouseButton.LEFT))
@@ -151,17 +151,17 @@ class OreControlsTest {
         }
             .use { fixture ->
                 fixture.click("number")
-                fixture.key(UiKey.A, textShortcut)
+                fixture.key(UiKey.A, ctrlOrCmd)
                 fixture.session.commitText("90")
                 fixture.frame()
                 assertEquals(20, value.intValue)
                 fixture.key(UiKey.ENTER)
                 assertEquals(listOf(90), updates)
-                fixture.key(UiKey.UP, Modifiers(control = true))
+                fixture.key(UiKey.UP, ctrlOrCmd)
                 assertEquals(100, value.intValue)
                 fixture.key(UiKey.UP)
                 assertEquals(listOf(90, 100), updates)
-                fixture.key(UiKey.A, textShortcut)
+                fixture.key(UiKey.A, ctrlOrCmd)
                 fixture.session.commitText("2147483648")
                 fixture.frame()
                 fixture.key(UiKey.ENTER)
@@ -195,14 +195,14 @@ class OreControlsTest {
         }
             .use { fixture ->
                 fixture.click("number")
-                fixture.key(UiKey.A, textShortcut)
+                fixture.key(UiKey.A, ctrlOrCmd)
                 fixture.session.commitText("200")
                 fixture.frame()
                 fixture.key(UiKey.DOWN)
                 assertEquals(19, value.intValue)
                 assertEquals(listOf(19), updates)
 
-                fixture.key(UiKey.A, textShortcut)
+                fixture.key(UiKey.A, ctrlOrCmd)
                 fixture.session.commitText("2147483648")
                 fixture.frame()
                 fixture.click("other")
@@ -222,14 +222,14 @@ class OreControlsTest {
         }
             .use { fixture ->
                 fixture.click("number")
-                fixture.key(UiKey.A, textShortcut)
+                fixture.key(UiKey.A, ctrlOrCmd)
                 fixture.session.commitText("200")
                 fixture.frame()
                 assertEquals(20, value.intValue)
                 fixture.key(UiKey.ENTER)
                 assertEquals(100, value.intValue)
 
-                fixture.key(UiKey.A, textShortcut)
+                fixture.key(UiKey.A, ctrlOrCmd)
                 fixture.session.commitText("0")
                 fixture.frame()
                 fixture.click("other")
@@ -310,7 +310,7 @@ class OreControlsTest {
                 assertTrue(fixture.session.commitText("石英😀"))
                 fixture.frame()
                 assertEquals("石英😀", ComposeThread.call { value.value })
-                fixture.key(UiKey.A, textShortcut)
+                fixture.key(UiKey.A, ctrlOrCmd)
                 fixture.session.commitText("World")
                 fixture.frame()
                 assertEquals("World", ComposeThread.call { value.value })

@@ -71,7 +71,7 @@ fun ControlsExample() {
 ```
 
 - Button styles are `Primary`, `Secondary`, `Destructive` and `Quiet`.
-- `OreIntField`, `OreLongField` and `OreDoubleField` keep a number inside its range. Arrow keys and the mouse wheel step it; Shift and Ctrl take bigger steps.
+- `OreIntField`, `OreLongField` and `OreDoubleField` keep a number inside its range. Arrow keys and the mouse wheel step it; Shift and Ctrl (Cmd on macOS) take bigger steps.
 - `OreColorPicker` edits a `Color`: drag its color plane and sliders, or type a hex code.
 - `OreGlyph` has the common shapes: arrows, plus, cross, checkmark, magnifying glass, pencil, trash, gear and more. For your own icons, write 16 rows of `#` and `.` as an `OrePixelArt` and draw it with `OreIcon`.
 
@@ -116,7 +116,7 @@ fun ActionMenu() {
 }
 ```
 
-Keep the menu and its button in the same `Box`. `OreContextMenuArea(items) { … }` opens the same kind of menu with a right click. Arrow keys, Enter and Escape work in both. The shortcut label is only text; register the key binding yourself.
+Keep the menu and its button in the same `Box`. `OreContextMenuArea(items) { … }` opens the same kind of menu with a right click. Arrow keys, Enter and Escape work in both. The shortcut label is only text; register the key binding yourself, and check Ctrl-style shortcuts with `isCtrlOrCmdPressed` so that macOS gets Cmd.
 
 Menus are 136 dp wide by default and wrap longer labels; a select's dropdown takes the width of its field.
 

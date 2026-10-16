@@ -18,13 +18,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.platform.LocalFocusManager
@@ -32,6 +30,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import dev.compixel.ui.isCtrlOrCmdPressed
 import dev.compixel.ui.ore.button.OreButton
 import dev.compixel.ui.ore.button.OreButtonStyle
 import dev.compixel.ui.ore.display.OreText
@@ -127,7 +126,7 @@ internal fun <T : Any> OreNumberEditor(
                                 Key.DirectionDown -> {
                                     step(
                                         if (event.key == Key.DirectionUp) 1 else -1,
-                                        if (event.isCtrlPressed) 2 else if (event.isShiftPressed) 1 else 0,
+                                        if (event.isCtrlOrCmdPressed) 2 else if (event.isShiftPressed) 1 else 0,
                                     )
                                     true
                                 }
@@ -139,7 +138,7 @@ internal fun <T : Any> OreNumberEditor(
                         if (enabled && delta != 0.0 && event.changes.none { it.isConsumed }) {
                             step(
                                 if (delta < 0) 1 else -1,
-                                if (event.keyboardModifiers.isCtrlPressed) 2
+                                if (event.keyboardModifiers.isCtrlOrCmdPressed) 2
                                 else if (event.keyboardModifiers.isShiftPressed) 1 else 0,
                             )
                             event.changes.forEach { it.consume() }

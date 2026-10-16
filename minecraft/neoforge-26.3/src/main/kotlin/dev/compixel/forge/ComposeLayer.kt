@@ -2,6 +2,7 @@ package dev.compixel.forge
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import com.mojang.blaze3d.platform.InputConstants
 import com.mojang.blaze3d.systems.RenderSystem
 import com.mojang.logging.LogUtils
 import dev.compixel.bridge.ComposeThread
@@ -130,8 +131,16 @@ internal class ComposeLayer(
         Minecraft.getInstance().soundManager.play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1f))
     }
 
+    // Physical keys, as key events report them, with Command (Super) as meta.
     override fun pointerModifiers() =
-        Minecraft.getInstance().let { Modifiers(it.hasShiftDown(), it.hasControlDown(), it.hasAltDown()) }
+        Minecraft.getInstance().let {
+            Modifiers(
+                it.hasShiftDown(),
+                it.hasControlDown(),
+                it.hasAltDown(),
+                InputConstants.isKeyDown(InputConstants.KEY_LGUI) || InputConstants.isKeyDown(InputConstants.KEY_RGUI),
+            )
+        }
 
     override val resourceEpoch: Long
         get() = RendererResources.epoch

@@ -110,11 +110,11 @@ class OreExtendedControlsTest {
                 assertEquals(9_007_199_254_740_994L, number.longValue)
                 f.replace("9223372036854775807")
                 f.key(UiKey.ENTER)
-                f.key(UiKey.UP, Modifiers(control = true))
+                f.key(UiKey.UP, ctrlOrCmd)
                 assertEquals(Long.MAX_VALUE, number.longValue)
                 f.replace("-9223372036854775808")
                 f.key(UiKey.ENTER)
-                f.key(UiKey.DOWN, Modifiers(control = true))
+                f.key(UiKey.DOWN, ctrlOrCmd)
                 assertEquals(Long.MIN_VALUE, number.longValue)
                 f.replace("9223372036854775808")
                 f.key(UiKey.ENTER)
@@ -740,7 +740,7 @@ class OreExtendedControlsTest {
         }
 
         fun replace(text: String) {
-            key(UiKey.A, textShortcut)
+            key(UiKey.A, ctrlOrCmd)
             session.commitText(text)
             frame()
         }

@@ -34,7 +34,7 @@ flowchart TB
 | `compose-bridge` | Runs Compose on its own thread, records frames and draws native images |
 | `host` | UI sessions, `UiBinding`, `ScreenTransition`, the player's color choices, and `UiLayer`, the Compose layer that every screen and HUD layer is built on |
 | `render-gl`, `render-vulkan` | The OpenGL and Vulkan renderers |
-| `ui-core` | What a design system plugs into: control feedback, the design around a host's content, the visibility its popups follow during screen transitions, and color schemes |
+| `ui-core` | What a design system plugs into: control feedback, the design around a host's content, the visibility its popups follow during screen transitions, color schemes, and `CtrlOrCmd`, the key in Ctrl's role (Command on macOS, Ctrl elsewhere) |
 | `ui-ore` | Ore UI components, colors, font and the color editor |
 | `menu-sync` | The menu synchronization protocol, with the client's and the server's sessions |
 | `slot-core` | Slot rules and shift-click routes |

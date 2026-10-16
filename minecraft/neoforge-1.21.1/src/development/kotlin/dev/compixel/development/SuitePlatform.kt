@@ -3,9 +3,9 @@ package dev.compixel.development
 import dev.compixel.forge.ComposeScreen
 import dev.compixel.forge.render.RendererResources
 import dev.compixel.forge.render.configuredRenderBackend
+import dev.compixel.platform.Modifiers
 import dev.compixel.render.RenderBackend
 import dev.compixel.testing.suite.ScreenPixels
-import dev.compixel.testing.ui.textShortcut
 import java.io.File
 import java.util.function.Consumer
 import net.minecraft.client.Minecraft
@@ -53,8 +53,13 @@ internal object SuitePlatform {
     const val KEY_A = GLFW.GLFW_KEY_A
     const val KEY_BACKSPACE = GLFW.GLFW_KEY_BACKSPACE
     const val KEY_ESCAPE = GLFW.GLFW_KEY_ESCAPE
-    /** The text shortcut modifier Compose expects: Command on macOS, Control elsewhere. */
-    val MOD_SHORTCUT = if (textShortcut.meta) GLFW.GLFW_MOD_SUPER else GLFW.GLFW_MOD_CONTROL
+
+    /** The modifier bits this version's key events carry for [modifiers]. */
+    fun modifierBits(modifiers: Modifiers): Int =
+        (if (modifiers.shift) GLFW.GLFW_MOD_SHIFT else 0) or
+            (if (modifiers.control) GLFW.GLFW_MOD_CONTROL else 0) or
+            (if (modifiers.alt) GLFW.GLFW_MOD_ALT else 0) or
+            (if (modifiers.meta) GLFW.GLFW_MOD_SUPER else 0)
 
     private val minecraft
         get() = Minecraft.getInstance()

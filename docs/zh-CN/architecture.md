@@ -34,7 +34,7 @@ flowchart TB
 | `compose-bridge` | 在独立线程运行 Compose，录制帧并绘制原生图像 |
 | `host` | 界面会话、`UiBinding`、`ScreenTransition`、玩家的颜色选择，以及所有界面和 HUD 层共用的 Compose 层 `UiLayer` |
 | `render-gl`、`render-vulkan` | OpenGL 与 Vulkan 渲染器 |
-| `ui-core` | 设计系统的接入点：控件反馈、宿主内容外层的设计、弹出层在界面进出场时跟随的可见度，以及配色 |
+| `ui-core` | 设计系统的接入点：控件反馈、宿主内容外层的设计、弹出层在界面进出场时跟随的可见度、配色，以及担任 Ctrl 作用的 `CtrlOrCmd`（macOS 上为 Cmd，其他系统为 Ctrl） |
 | `ui-ore` | Ore UI 组件、颜色、字体与颜色编辑器 |
 | `menu-sync` | 菜单同步协议，以及客户端和服务端的会话 |
 | `slot-core` | 槽位规则与 Shift 点击路线 |

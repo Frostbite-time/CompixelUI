@@ -26,6 +26,7 @@ import androidx.compose.ui.window.Dialog
 import dev.compixel.bridge.ComposeThread
 import dev.compixel.platform.*
 import dev.compixel.platform.Viewport
+import dev.compixel.ui.CtrlOrCmd
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -410,9 +411,8 @@ class UiSessionTest {
 
     @Test
     fun `consecutive select copy cut paste uses current text and selection`() {
-        // Compose's text shortcuts use Command on macOS and Control elsewhere, picked by the same os.name test.
-        val shortcut =
-            if (System.getProperty("os.name") == "Mac OS X") Modifiers(meta = true) else Modifiers(control = true)
+        // Compose's text shortcuts use CtrlOrCmd: Command on macOS, Control elsewhere.
+        val shortcut = if (CtrlOrCmd.isCmd) Modifiers(meta = true) else Modifiers(control = true)
         val value = ComposeThread.call { mutableStateOf(TextFieldValue("hello")) }
         val clipboard = MemoryClipboard()
         val pasted = CountDownLatch(1)

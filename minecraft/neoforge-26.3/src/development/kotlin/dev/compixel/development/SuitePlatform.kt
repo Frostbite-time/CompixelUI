@@ -5,9 +5,9 @@ import com.mojang.blaze3d.systems.RenderSystem
 import dev.compixel.forge.ComposeScreen
 import dev.compixel.forge.render.RendererResources
 import dev.compixel.forge.render.configuredRenderBackend
+import dev.compixel.platform.Modifiers
 import dev.compixel.render.RenderBackend
 import dev.compixel.testing.suite.ScreenPixels
-import dev.compixel.testing.ui.textShortcut
 import java.io.File
 import java.util.function.Consumer
 import kotlin.math.roundToInt
@@ -62,8 +62,13 @@ internal object SuitePlatform {
     const val KEY_A = InputConstants.KEY_A
     const val KEY_BACKSPACE = InputConstants.KEY_BACKSPACE
     const val KEY_ESCAPE = InputConstants.KEY_ESCAPE
-    /** The text shortcut modifier Compose expects: Command on macOS, Control elsewhere. */
-    val MOD_SHORTCUT = if (textShortcut.meta) InputConstants.MOD_SUPER else InputConstants.MOD_CONTROL
+
+    /** The modifier bits this version's key events carry for [modifiers]. */
+    fun modifierBits(modifiers: Modifiers): Int =
+        (if (modifiers.shift) InputConstants.MOD_SHIFT else 0) or
+            (if (modifiers.control) InputConstants.MOD_CONTROL else 0) or
+            (if (modifiers.alt) InputConstants.MOD_ALT else 0) or
+            (if (modifiers.meta) InputConstants.MOD_SUPER else 0)
 
     private val minecraft
         get() = Minecraft.getInstance()

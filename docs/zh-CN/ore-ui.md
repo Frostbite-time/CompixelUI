@@ -71,7 +71,7 @@ fun ControlsExample() {
 ```
 
 - 按钮样式有 `Primary`、`Secondary`、`Destructive` 和 `Quiet`。
-- `OreIntField`、`OreLongField` 和 `OreDoubleField` 把数值限制在范围内，可用方向键和鼠标滚轮步进，按住 Shift 或 Ctrl 步长更大。
+- `OreIntField`、`OreLongField` 和 `OreDoubleField` 把数值限制在范围内，可用方向键和鼠标滚轮步进，按住 Shift 或 Ctrl（macOS 上为 Cmd）步长更大。
 - `OreColorPicker` 编辑 `Color`：拖动色板和滑条，或直接输入十六进制颜色。
 - `OreGlyph` 提供常用图形：箭头、加号、叉号、对勾、放大镜、铅笔、垃圾桶、齿轮等。自定义图标可用 16 行 `#` 与 `.` 写成 `OrePixelArt`，再交给 `OreIcon` 绘制。
 
@@ -116,7 +116,7 @@ fun ActionMenu() {
 }
 ```
 
-菜单和触发它的按钮放在同一个 `Box` 里。`OreContextMenuArea(items) { … }` 用右键打开同样的菜单。两者都支持方向键、回车和 Esc。快捷键文字只是显示用，按键绑定需要自己注册。
+菜单和触发它的按钮放在同一个 `Box` 里。`OreContextMenuArea(items) { … }` 用右键打开同样的菜单。两者都支持方向键、回车和 Esc。快捷键文字只是显示用，按键绑定需要自己注册；Ctrl 类快捷键用 `isCtrlOrCmdPressed` 判断，macOS 上会换成 Cmd。
 
 菜单默认宽 136 dp，较长的文字会换行；选择框的下拉菜单与选择框同宽。
 

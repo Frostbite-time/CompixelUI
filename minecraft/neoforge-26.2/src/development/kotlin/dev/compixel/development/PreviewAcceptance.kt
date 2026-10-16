@@ -10,6 +10,7 @@ import dev.compixel.testing.suite.AcceptanceLog
 import dev.compixel.testing.suite.AcceptanceStep
 import dev.compixel.testing.suite.SuitePixels
 import dev.compixel.testing.ui.OreComponentExercise
+import dev.compixel.testing.ui.ctrlOrCmd
 import dev.compixel.testing.ui.oreComponentPages
 import java.util.concurrent.CompletableFuture
 import net.minecraft.client.Minecraft
@@ -110,7 +111,7 @@ internal class PreviewAcceptance(
         script.act("type supplementary Unicode text") { TEXT.forEach { screen.charTyped(it, 0) } }
         script.until("the typed text reached the field") { model { query } == TEXT }
         script.act("select all and delete") {
-            key(SuitePlatform.KEY_A, SuitePlatform.MOD_SHORTCUT)
+            key(SuitePlatform.KEY_A, SuitePlatform.modifierBits(ctrlOrCmd))
             key(SuitePlatform.KEY_BACKSPACE)
         }
         script.until("select-all delete emptied the field") { model { query }.isEmpty() }
