@@ -5,7 +5,8 @@ import java.util.concurrent.atomic.AtomicReference
 
 /**
  * The clipboard as Compose sees it. Compose reads and writes snapshots on its own thread, while the host keeps the
- * system clipboard on the game thread: it [refresh]es the snapshot before input and copies [takeWrite] out afterwards.
+ * system clipboard on the game thread: it [refresh]es the snapshot before input that can paste and copies [takeWrite]
+ * out afterwards.
  */
 internal class ClipboardMailbox : ClipboardPort {
     private val snapshot = AtomicReference("")

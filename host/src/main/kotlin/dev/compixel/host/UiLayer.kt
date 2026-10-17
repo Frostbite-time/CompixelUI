@@ -9,6 +9,7 @@ import dev.compixel.platform.Modifiers
 import dev.compixel.platform.MouseButton
 import dev.compixel.platform.PointerAction
 import dev.compixel.platform.PointerInput
+import dev.compixel.platform.UiKey
 import dev.compixel.render.CpuPhase
 import dev.compixel.render.FrameRenderer
 import dev.compixel.render.RecordedFrame
@@ -22,6 +23,7 @@ import dev.compixel.ui.UiFeedback
 import dev.compixel.ui.theme.LocalColorEditor
 import dev.compixel.ui.theme.LocalSchemes
 import dev.compixel.ui.theme.Schemes
+import java.util.EnumSet
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** Native images that a [UiLayer] prepares before each frame, such as item icons the game draws. */
@@ -81,6 +83,8 @@ abstract class UiLayer<G, D>(
     private var surface: UiLayerSurface<D>? = null
     private val clipboard = ClipboardMailbox()
     private val characters = CommittedCharacters()
+    // Keys pressed and not released yet: another press of one of them is the key repeating while held.
+    private val heldKeys = EnumSet.noneOf(UiKey::class.java)
     private val closeRequested = AtomicBoolean()
     private val editorRequested = AtomicBoolean()
     private val requestColorEditor: (() -> Unit)? = openColorEditor?.let { { editorRequested.set(true) } }
@@ -283,6 +287,7 @@ abstract class UiLayer<G, D>(
         if (metrics != null) pointer(PointerAction.EXIT, -1.0, -1.0)
         dismissTransient()
         characters.reset()
+        heldKeys.clear()
         beforeClose()
     }
 
@@ -470,8 +475,10 @@ abstract class UiLayer<G, D>(
     fun key(input: KeyInput): Boolean {
         if (!shown) return false
         if (input.pressed) {
-            refreshClipboard()
+            if (heldKeys.add(input.key) && input.mayPaste) refreshClipboard()
             dismissTransient()
+        } else {
+            heldKeys.remove(input.key)
         }
         val consumed = session?.key(input) == true
         flushClipboard()
@@ -516,6 +523,7 @@ abstract class UiLayer<G, D>(
         } finally {
             session = null
             characters.reset()
+            heldKeys.clear()
             // After the composition is disposed, so the content reads its state until the end.
             contentState.close()
             surface?.let { closing ->
@@ -592,6 +600,7 @@ abstract class UiLayer<G, D>(
         val now = !suspended && !exiting && windowFocused()
         if (now == windowFocus) return
         characters.reset()
+        heldKeys.clear()
         windowFocus = now
         if (!now) dismissTransient()
         session?.setFocused(now)
@@ -601,6 +610,11 @@ abstract class UiLayer<G, D>(
         flushClipboard()
         clipboard.refresh(systemClipboard)
     }
+
+    // Compose pastes with Ctrl+V, Cmd+V and Shift+Insert. Reading the system clipboard can take tens of milliseconds,
+    // so only these keys read it, once per press: while one is held, its repeats paste what the first press read.
+    private val KeyInput.mayPaste
+        get() = (key == UiKey.V && (modifiers.control || modifiers.meta)) || (key == UiKey.INSERT && modifiers.shift)
 
     private fun flushClipboard() {
         clipboard.takeWrite()?.let { systemClipboard = it }

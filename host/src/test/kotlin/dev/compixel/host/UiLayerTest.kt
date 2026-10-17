@@ -5,22 +5,29 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import dev.compixel.bridge.ComposeThread
+import dev.compixel.platform.KeyInput
 import dev.compixel.platform.Modifiers
+import dev.compixel.platform.MouseButton
+import dev.compixel.platform.UiKey
 import dev.compixel.render.FrameRenderer
 import dev.compixel.render.RecordedFrame
 import dev.compixel.render.RenderBackend
 import dev.compixel.render.RendererStatistics
 import dev.compixel.render.UiFrameProfiler
+import dev.compixel.ui.CtrlOrCmd
 import dev.compixel.ui.LocalOverlayVisibility
 import dev.compixel.ui.LocalUiFeedback
 import dev.compixel.ui.UiDesign
@@ -34,6 +41,8 @@ import dev.compixel.ui.theme.SchemeId
 import dev.compixel.ui.theme.SchemeOwner
 import dev.compixel.ui.theme.SchemeSettings
 import dev.compixel.ui.theme.Schemes
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.test.*
 import org.junit.jupiter.api.Test
 
@@ -147,7 +156,17 @@ class UiLayerTest {
         override val framebufferWidth = 200
         override val framebufferHeight = 100
         override val guiScale = 1f
-        override var systemClipboard = ""
+        var clipboardText = ""
+        var clipboardReads = 0
+
+        override var systemClipboard: String
+            get() {
+                clipboardReads++
+                return clipboardText
+            }
+            set(value) {
+                clipboardText = value
+            }
 
         override fun playFeedback() {
             feedbackPlayed++
@@ -449,6 +468,61 @@ class UiLayerTest {
         // The content's exit takes 20 ms, the popup's fade 150 ms.
         assertTrue(System.nanoTime() - started >= 140_000_000L, "The screen closed before its popup faded")
         assertTrue(drawn.any { it > 0f && it < 1f }, "The popup did not fade: $drawn")
+        layer.close()
+    }
+
+    @Test
+    fun `only keys that can paste read the system clipboard`() {
+        // Compose's text shortcuts use CtrlOrCmd: Command on macOS, Control elsewhere.
+        val shortcut = if (CtrlOrCmd.isCmd) Modifiers(meta = true) else Modifiers(control = true)
+        val value = ComposeThread.call { mutableStateOf(TextFieldValue("")) }
+        val pasted = CountDownLatch(1)
+        val layer =
+            TestLayer(
+                state(),
+                content = {
+                    BasicTextField(
+                        value.value,
+                        {
+                            value.value = it
+                            if (it.text == "copied later") pasted.countDown()
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                },
+            )
+        layer.open(200, 100)
+        layer.render(Unit, 200, 100)
+        layer.press(10.0, 10.0, MouseButton.LEFT)
+        layer.release(10.0, 10.0, MouseButton.LEFT)
+        layer.render(Unit, 200, 100)
+        val reads = layer.clipboardReads
+        // A held key repeats its press many times a second.
+        val held =
+            listOf(
+                KeyInput(UiKey.SHIFT_LEFT, true, Modifiers(shift = true)),
+                KeyInput(UiKey.CTRL_LEFT, true, Modifiers(control = true)),
+                KeyInput(UiKey.SPACE, true),
+                KeyInput(UiKey.V, true),
+            )
+        held.forEach { input ->
+            repeat(20) { layer.key(input) }
+            layer.key(input.copy(pressed = false))
+        }
+        assertEquals(reads, layer.clipboardReads)
+        layer.clipboardText = "copied later"
+        val paste = KeyInput(UiKey.V, true, shortcut)
+        layer.key(paste)
+        // Compose reads clipboard data on Dispatchers.IO after key delivery returns.
+        assertTrue(pasted.await(2, TimeUnit.SECONDS), "The paste did not read text copied after the screen opened")
+        // Holding the shortcut pastes again with each repeat, from the first read.
+        repeat(5) { layer.key(paste) }
+        assertEquals(reads + 1, layer.clipboardReads)
+        layer.key(paste.copy(pressed = false))
+        layer.key(paste)
+        layer.key(paste.copy(pressed = false))
+        layer.key(KeyInput(UiKey.INSERT, true, Modifiers(shift = true)))
+        assertEquals(reads + 3, layer.clipboardReads)
         layer.close()
     }
 
