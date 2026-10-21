@@ -1,10 +1,13 @@
 package dev.compixel.forge
 
+import com.mojang.logging.LogUtils
 import dev.compixel.forge.constants.CompixelGuiLayers
 import dev.compixel.forge.render.RendererResources
 import dev.compixel.forge.theme.ColorEditorScreen
 import dev.compixel.forge.theme.ColorSchemes
 import dev.compixel.forge.theme.SchemeReloadListener
+import dev.compixel.host.internal.UiWarmup
+import dev.compixel.ui.ore.internal.OreWarmUpContent
 import dev.compixel.ui.ore.theme.OreDesign
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener
 import net.minecraftforge.client.ConfigScreenHandler
@@ -17,7 +20,11 @@ import net.minecraftforge.eventbus.api.IEventBus
 import net.minecraftforge.fml.ModLoadingContext
 
 internal object ClientBootstrap {
+    private val logger = LogUtils.getLogger()
+
     fun register(modEventBus: IEventBus) {
+        // Compose warms up in the background while the game loads, so the first screen does not stall the game.
+        UiWarmup.start(OreDesign(), { OreWarmUpContent() }) { logger.warn("CompixelUI warm-up failed", it) }
         // The player's scheme choices and colors, which the color editor saves.
         ColorSchemes.store.reload()
         // The mod list's Config button opens the color editor for CompixelUI's own Ore schemes.
