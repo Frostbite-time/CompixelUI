@@ -15,10 +15,11 @@ CompixelUI 使用下列第三方库和字体，其用途及适用许可列于下
 | JetBrains | Annotations and JBR API / 注解库及 JBR API | Apache-2.0 |
 | JSpecify | Nullness annotations / 空值性注解 | Apache-2.0 |
 | [Skiko](https://github.com/JetBrains/skiko) / [Polyfrost Skiko](https://github.com/Polyfrost/skiko) | Skia bindings, including the Polyfrost fork with Vulkan support / Skia 绑定，含提供 Vulkan 支持的 Polyfrost 分支 | Apache-2.0 |
+| [XZ for Java](https://tukaani.org/xz/java.html) | Unpacking the Skiko native libraries / 解压 Skiko 原生库 | [0BSD](licenses/runtime/xz/LICENSE.txt) |
 
-These libraries are distributed under the [Apache License, Version 2.0](licenses/common/Apache-2.0.txt). Their accompanying copyright and NOTICE files form part of this distribution.
+Except XZ for Java, these libraries are distributed under the [Apache License, Version 2.0](licenses/common/Apache-2.0.txt). Their accompanying copyright and NOTICE files form part of this distribution.
 
-上述库按 [Apache License 2.0](licenses/common/Apache-2.0.txt) 分发，其随附的版权及 NOTICE 声明亦属于本发行包的一部分。
+除 XZ for Java 外，上述库按 [Apache License 2.0](licenses/common/Apache-2.0.txt) 分发，其随附的版权及 NOTICE 声明亦属于本发行包的一部分。
 
 Skiko includes code adapted from the Android Open Source Project. See its [NOTICE](licenses/runtime/skiko/NOTICE.txt).
 

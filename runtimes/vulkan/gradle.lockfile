@@ -88,4 +88,5 @@ org.jetbrains.skiko:skiko-awt:0.999.6=runtimeClasspath
 org.jetbrains.skiko:skiko:0.999.6=runtimeClasspath
 org.jetbrains:annotations:23.0.0=runtimeClasspath
 org.jspecify:jspecify:1.0.0=runtimeClasspath
+org.tukaani:xz:1.12=runtimeClasspath
 empty=kotlinScriptDefExtensions,shadow,testKotlinScriptDefExtensions

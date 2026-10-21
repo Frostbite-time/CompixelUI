@@ -72,6 +72,7 @@ Compose 绘制的 GPU 图像（例如物品图标页）归渲染线程所有。C
 
 - 模组 JAR 包含所有 CompixelUI 模块，不含第三方代码。
 - Compose、Skiko 和 Kotlin 打包为运行时包：`compixel-runtime-standard`、用于 26.2 和 26.3 的 `compixel-runtime-vulkan`，以及 `compixel-kotlin`。Skiko 包含 Windows、Linux 和 macOS 的 x64 与 arm64 原生库。
+- 运行时包以 xz 压缩存放这些原生库，Skia 嵌在 Linux 和 macOS 原生库里的 ICU 数据只存一份。在任何 Compose 代码运行之前，`platform` 中的 `SkikoNatives` 会把当前平台的原生库解压到 Skiko 位于 `~/.skiko` 的缓存目录，Skiko 从那里加载。构建时会还原每个原生库，并与 Skiko 的校验值比对。
 - 每个运行时包有自己的版本号，`bundle.lock` 记录该版本的确切内容。
 - 玩家文件通过 Jar-in-Jar 内嵌运行时包；Maven 用户则把它们作为依赖获取。
 - 启动时，Java 代码会在运行任何 Kotlin 代码之前检查所需的运行时和 Kotlin 库，并指出缺少的部分。

@@ -1,7 +1,9 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import dev.compixel.gradle.SkikoNativesPack
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import groovy.xml.XmlSlurper
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 import org.gradle.api.artifacts.result.ResolvedArtifactResult
 import org.gradle.jvm.JvmLibrary
 import org.gradle.language.base.artifact.SourcesArtifact
@@ -74,8 +76,31 @@ public final class RuntimeInfo {
     sourceSets.main.java.srcDir(info)
 }
 
+// The bundle stores the Skiko libraries xz-compressed, with the ICU data that Skia embeds in each Linux and macOS
+// library kept once; dev.compixel.platform.SkikoNatives unpacks the current platform's library at run time.
+def skikoNatives = layout.buildDirectory.dir('skiko-natives')
+def skikoRuntimes = configurations.runtimeClasspath.incoming.artifactView {
+    componentFilter { it instanceof ModuleComponentIdentifier && it.group == 'org.jetbrains.skiko' && it.module.startsWith('skiko-awt-runtime-') }
+}.artifacts
+def packSkikoNatives = tasks.register('packSkikoNatives') {
+    enabled = !kotlinBundle
+    inputs.files(skikoRuntimes.artifactFiles)
+    outputs.dir(skikoNatives)
+    doLast {
+        def runtimes = skikoRuntimes.artifacts.collectEntries {
+            [(it.id.componentIdentifier.module - 'skiko-awt-runtime-'): it.file]
+        }
+        if (runtimes.keySet() != skikoPlatforms.toSet())
+            throw new GradleException("Skiko runtimes for ${runtimes.keySet()}, expected ${skikoPlatforms}")
+        // The shadow JAR keeps the first copy of a file, taking the runtimes in the order they are declared.
+        SkikoNativesPack.pack(skikoPlatforms.collect { runtimes[it] }, skikoPlatforms, skikoNatives.get().asFile)
+    }
+}
+
 def noticesDirectory = layout.buildDirectory.dir('third-party')
 def licenseGroups = kotlinBundle ? ['common'] : ['common', 'runtime']
+// Libraries under a license other than Apache-2.0, with the declared name and the text the project keeps.
+def reviewedLicenses = ['org.tukaani:xz': [name: '0BSD', text: 'licenses/runtime/xz/LICENSE.txt']]
 def notices = tasks.register('thirdPartyNotices') {
     inputs.files(configurations.runtimeClasspath)
     inputs.file(rootProject.file('THIRD-PARTY-NOTICES.md'))
@@ -122,18 +147,20 @@ def notices = tasks.register('thirdPartyNotices') {
             def pom = new XmlSlurper(false, false).parse(pomFile)
             def licenseNames = pom.licenses.license.collect { it.name.text() }
             def licenseUrls = pom.licenses.license.collect { it.url.text() }
-            // All current JVM dependencies declare Apache-2.0. A new license
+            // JVM dependencies declare Apache-2.0 unless listed in reviewedLicenses. Another license
             // needs its own reviewed text instead of inheriting this fallback.
-            if (licenseNames.empty || !licenseNames.every { it.toLowerCase(Locale.ROOT).contains('apache') && it.contains('2.0') })
+            def reviewed = reviewedLicenses["${id.group}:${id.name}".toString()]
+            if (reviewed ? licenseNames != [reviewed.name] :
+                licenseNames.empty || !licenseNames.every { it.toLowerCase(Locale.ROOT).contains('apache') && it.contains('2.0') })
                 throw new GradleException("Review license declaration for $id: $licenseNames")
             copy { from pomFile; into new File(noticesRoot, prefix); rename { 'pom.xml' } }
-            def entry = [coordinate: id.toString(), declaredLicense: 'Apache-2.0',
+            def entry = [coordinate: id.toString(), declaredLicense: reviewed ? reviewed.name : 'Apache-2.0',
                 declaredNames: licenseNames, licenseUrls: licenseUrls, directory: prefix]
             if (id.group == 'org.jetbrains.skiko')
                 entry.supplementalNotices = ['licenses/runtime/skiko/NOTICE.txt', 'licenses/runtime/skia/']
             licenseIndex.add(entry)
             copy {
-                from rootProject.file('licenses/common/Apache-2.0.txt')
+                from rootProject.file(reviewed ? reviewed.text : 'licenses/common/Apache-2.0.txt')
                 into new File(noticesRoot, prefix)
                 rename { 'LICENSE.txt' }
             }
@@ -155,6 +182,10 @@ def bundle = tasks.named('shadowJar', ShadowJar) {
     archiveBaseName = bundleName
     archiveClassifier = ''
     from(notices) { into 'META-INF/compixel-third-party' }
+    if (!kotlinBundle) {
+        from(packSkikoNatives)
+        exclude 'skiko-*.dll', 'libskiko-*.so', 'libskiko-*.dylib', 'icudtl.dat'
+    }
     dependencies {
         exclude { dependency -> !bundled(dependency.module.id) }
     }
@@ -271,13 +302,14 @@ tasks.register('verifyRuntimeArchive') {
                         it.startsWith('org/lwjgl/') || it.startsWith('androidx/compose/material3/') ||
                         it.toLowerCase(Locale.ROOT).contains('mixin')
                 }
+                // Skiko names its unpacked copy after these checksums.
                 if (entries.count { it.endsWith('.sha256') && it.contains('skiko') } < skikoPlatforms.size())
                     throw new GradleException("Missing Skiko native library checksum for ${skikoPlatforms}")
-                skikoPlatforms.each { skikoPlatform ->
-                    if (!(["skiko-${skikoPlatform}.dll", "libskiko-${skikoPlatform}.so", "libskiko-${skikoPlatform}.dylib"]
-                        .any { it.toString() in entries }))
-                        throw new GradleException("Missing Skiko native library for ${skikoPlatform}")
-                }
+                def unpacked = entries.findAll { it ==~ /(lib)?skiko-[^\/]+\.(dll|so|dylib)/ || it == 'icudtl.dat' }
+                if (unpacked) throw new GradleException("Uncompressed Skiko libraries in ${bundleName}: $unpacked")
+                def restored = SkikoNativesPack.verify(zip)
+                if (restored.toSet() != skikoPlatforms.toSet())
+                    throw new GradleException("Packed Skiko libraries for $restored, expected ${skikoPlatforms}")
             }
             required.each { if (!(it in entries)) throw new GradleException("Missing ${bundleName} entry: $it") }
             def multiRelease = new java.util.jar.JarFile(file).withCloseable { it.manifest.mainAttributes.getValue('Multi-Release') }
@@ -388,6 +420,12 @@ publishing {
                             url = 'https://opensource.org/license/mit'
                             distribution = 'repo'
                             comments = 'The CompixelUI runtime identification class.'
+                        }
+                        license {
+                            name = '0BSD'
+                            url = 'https://opensource.org/license/0bsd'
+                            distribution = 'repo'
+                            comments = 'XZ for Java, which unpacks the Skiko native libraries.'
                         }
                     }
                 }

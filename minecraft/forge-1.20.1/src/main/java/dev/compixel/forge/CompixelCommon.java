@@ -17,6 +17,7 @@ public final class CompixelCommon {
         net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn(net.minecraftforge.api.distmarker.Dist.CLIENT, () -> () -> {
             dev.compixel.platform.ComposeRuntime.requireAvailable();
             dev.compixel.platform.KotlinRuntime.requireAvailable();
+            dev.compixel.platform.SkikoNatives.install();
             ClientBootstrap.INSTANCE.register(bus);
         });
     }

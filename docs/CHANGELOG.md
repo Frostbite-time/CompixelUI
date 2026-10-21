@@ -1,3 +1,3 @@
-# CompixelUI 0.1.12
+# CompixelUI 0.1.13-alpha.1
 
-- Fixed: holding a key such as Shift, Ctrl or Space in a CompixelUI screen no longer makes the game stutter. Every key press, including the repeats of a held key, used to read the system clipboard, which can take tens of milliseconds depending on what was copied. Now only the paste shortcuts read it, once per press: Ctrl+V, Command+V on macOS, and Shift+Insert.
+- Changed: the release JAR is about 28 MB smaller, for example 44.9 MB instead of 73.4 MB on 1.21.1. CompixelUI now stores Skiko's native libraries xz-compressed and keeps the ICU text data, which Skia embeds in each Linux and macOS library, only once. When the game starts, CompixelUI unpacks the library for the current system into Skiko's cache, `.skiko` in the user's home directory, where Skiko used to unpack it itself; a library already there is used as it is. The first start after installing or updating takes less than a second longer.
