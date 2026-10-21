@@ -30,7 +30,7 @@ import org.tukaani.xz.XZOutputStream;
 
 /**
  * Packs the Skiko native libraries of a runtime bundle: each xz-compressed, with the ICU data that Skia embeds in
- * its Linux and macOS libraries stored once. {@code dev.compixel.platform.SkikoNatives} restores the current
+ * its Linux and macOS libraries stored once. {@code dev.compixel.platform.internal.SkikoNatives} restores the current
  * platform's library at run time, byte for byte.
  *
  * <p>{@code META-INF/compixel-natives/natives.properties} names, for each host such as {@code linux-x64}, the

@@ -1,4 +1,4 @@
-package dev.compixel.platform;
+package dev.compixel.platform.internal;
 
 import java.io.IOException;
 import java.util.Properties;

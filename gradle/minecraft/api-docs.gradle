@@ -53,6 +53,11 @@ ext.configureMinecraftApiDocs = { runtime ->
             includes.from(overview.map { new File(it.destinationDir, 'api-overview.md') })
             jdkVersion.set(project.java_version as int)
             reportUndocumented.set(false)
+            // Adapters call into *.internal packages across modules; consumers never use them.
+            perPackageOption {
+                matchingRegex.set('.*\\.internal(\\..*)?')
+                suppress.set(true)
+            }
         }
     }
     def documentation = tasks.register('javadocJar', Jar) {

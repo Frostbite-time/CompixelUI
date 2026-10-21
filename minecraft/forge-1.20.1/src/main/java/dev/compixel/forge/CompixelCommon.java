@@ -15,9 +15,9 @@ public final class CompixelCommon {
         MinecraftForge.EVENT_BUS.addListener(MenuSyncNetworking::tick);
         MinecraftForge.EVENT_BUS.addListener(MenuSyncNetworking::stopped);
         net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn(net.minecraftforge.api.distmarker.Dist.CLIENT, () -> () -> {
-            dev.compixel.platform.ComposeRuntime.requireAvailable();
-            dev.compixel.platform.KotlinRuntime.requireAvailable();
-            dev.compixel.platform.SkikoNatives.install();
+            dev.compixel.platform.internal.ComposeRuntime.requireAvailable();
+            dev.compixel.platform.internal.KotlinRuntime.requireAvailable();
+            dev.compixel.platform.internal.SkikoNatives.install();
             ClientBootstrap.INSTANCE.register(bus);
         });
     }

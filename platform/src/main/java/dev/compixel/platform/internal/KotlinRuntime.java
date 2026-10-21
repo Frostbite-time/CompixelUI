@@ -1,4 +1,4 @@
-package dev.compixel.platform;
+package dev.compixel.platform.internal;
 
 /** Checks the client runtime before entering Kotlin code; safe to load on a server. */
 public final class KotlinRuntime {

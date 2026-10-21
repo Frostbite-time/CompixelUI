@@ -1,8 +1,8 @@
 package dev.compixel.forge;
 
-import dev.compixel.platform.ComposeRuntime;
-import dev.compixel.platform.KotlinRuntime;
-import dev.compixel.platform.SkikoNatives;
+import dev.compixel.platform.internal.ComposeRuntime;
+import dev.compixel.platform.internal.KotlinRuntime;
+import dev.compixel.platform.internal.SkikoNatives;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;

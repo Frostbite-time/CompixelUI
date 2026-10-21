@@ -77,7 +77,7 @@ public final class RuntimeInfo {
 }
 
 // The bundle stores the Skiko libraries xz-compressed, with the ICU data that Skia embeds in each Linux and macOS
-// library kept once; dev.compixel.platform.SkikoNatives unpacks the current platform's library at run time.
+// library kept once; dev.compixel.platform.internal.SkikoNatives unpacks the current platform's library at run time.
 def skikoNatives = layout.buildDirectory.dir('skiko-natives')
 def skikoRuntimes = configurations.runtimeClasspath.incoming.artifactView {
     componentFilter { it instanceof ModuleComponentIdentifier && it.group == 'org.jetbrains.skiko' && it.module.startsWith('skiko-awt-runtime-') }
