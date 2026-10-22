@@ -1,5 +1,6 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import dev.compixel.gradle.SkikoNativesPack
+import dev.compixel.gradle.StoredJar
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import groovy.xml.XmlSlurper
@@ -76,8 +77,9 @@ public final class RuntimeInfo {
     sourceSets.main.java.srcDir(info)
 }
 
-// The bundle stores the Skiko libraries xz-compressed, with the ICU data that Skia embeds in each Linux and macOS
-// library kept once; dev.compixel.platform.internal.SkikoNatives unpacks the current platform's library at run time.
+// The bundle stores the Skiko libraries xz-compressed, one stream per CPU architecture, with the ICU data that Skia
+// embeds in each Linux and macOS library kept once; dev.compixel.platform.internal.SkikoNatives unpacks the current
+// platform's library at run time.
 def skikoNatives = layout.buildDirectory.dir('skiko-natives')
 def skikoRuntimes = configurations.runtimeClasspath.incoming.artifactView {
     componentFilter { it instanceof ModuleComponentIdentifier && it.group == 'org.jetbrains.skiko' && it.module.startsWith('skiko-awt-runtime-') }
@@ -204,6 +206,16 @@ def bundle = tasks.named('shadowJar', ShadowJar) {
     }
 }
 
+// Player JARs embed a copy of the bundle with its entries stored, not compressed: the player JAR then compresses the
+// bundle as one stream, which also finds what its class files have in common. Maven publishes the compressed bundle.
+def bundleFile = bundle.flatMap { it.archiveFile }
+def embeddedFile = layout.buildDirectory.file("embedded/${bundleName}-${project.version}.jar")
+def embedded = tasks.register('embeddedBundle') {
+    inputs.file(bundleFile)
+    outputs.file(embeddedFile)
+    doLast { StoredJar.store(bundleFile.get().asFile, embeddedFile.get().asFile) }
+}
+
 configurations.create('bundledRuntime') {
     canBeConsumed = true
     canBeResolved = false
@@ -215,7 +227,7 @@ configurations.create('bundledRuntime') {
     }
     outgoing.capability("${project.group}:${bundleName}:${project.version}")
 }
-artifacts.add('bundledRuntime', bundle)
+artifacts.add('bundledRuntime', embeddedFile) { builtBy embedded }
 
 // One version always means the same dependencies: Maven Central releases are immutable.
 def bundleLock = file('bundle.lock')
@@ -243,7 +255,7 @@ tasks.register('writeBundleLock') {
 }
 
 tasks.register('verifyRuntimeArchive') {
-    dependsOn bundle, notices
+    dependsOn bundle, notices, embedded
     if (!kotlinBundle) dependsOn ':runtime-kotlin:thirdPartyNotices'
     def kotlinCoordinatesFile = kotlinBundle ? null :
         project(':runtime-kotlin').layout.buildDirectory.file('third-party/dependencies.txt')
@@ -324,6 +336,7 @@ tasks.register('verifyRuntimeArchive') {
             if (entries.any { it.startsWith('META-INF/compixel-third-party/licenses/javadoc/') })
                 throw new GradleException('Documentation licenses leaked into the bundle')
         }
+        StoredJar.verify(file, embeddedFile.get().asFile)
     }
 }
 tasks.named('check') { dependsOn tasks.named('verifyRuntimeArchive') }

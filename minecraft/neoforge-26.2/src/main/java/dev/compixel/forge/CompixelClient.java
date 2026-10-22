@@ -3,6 +3,7 @@ package dev.compixel.forge;
 import dev.compixel.platform.internal.ComposeRuntime;
 import dev.compixel.platform.internal.KotlinRuntime;
 import dev.compixel.platform.internal.SkikoNatives;
+import dev.compixel.ui.ore.internal.CompixelFont;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -16,6 +17,7 @@ public final class CompixelClient {
         ComposeRuntime.requireAvailable();
         KotlinRuntime.requireAvailable();
         SkikoNatives.install();
+        CompixelFont.preload();
         ClientBootstrap.INSTANCE.register(modEventBus, container);
     }
 }

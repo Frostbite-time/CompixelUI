@@ -72,9 +72,10 @@ GPU images that Compose draws, such as item icon pages, belong to the render thr
 
 - The mod JAR contains every CompixelUI module and no third-party code.
 - Compose, Skiko and Kotlin are packaged as runtime bundles: `compixel-runtime-standard`, `compixel-runtime-vulkan` for 26.2 and 26.3, and `compixel-kotlin`. Skiko includes natives for Windows, Linux and macOS on x64 and arm64.
-- The runtime bundles store these natives xz-compressed and keep the ICU data that Skia embeds in its Linux and macOS libraries only once. Before any Compose code runs, `SkikoNatives` in `platform` unpacks the current platform's library into Skiko's cache in `~/.skiko`, where Skiko loads it. The build restores every library and compares it with Skiko's checksum.
+- The runtime bundles store these natives xz-compressed, the libraries of each CPU architecture in one stream so that they share what they have in common, and keep the ICU data that Skia embeds in its Linux and macOS libraries only once. Before any Compose code runs, `SkikoNatives` in `platform` unpacks the current platform's library into Skiko's cache in `~/.skiko`, where Skiko loads it. The build restores every library and compares it with Skiko's checksum.
 - Each bundle has its own version, and `bundle.lock` records exactly what that version contains.
-- Player files embed the bundles through Jar-in-Jar. Maven users get them as dependencies.
+- Player files embed the bundles through Jar-in-Jar, with the bundles' entries stored rather than compressed, so that the player file compresses each bundle as a whole. Maven users get them as dependencies.
+- The Ore font ships xz-compressed. `ui-ore` unpacks it while the game loads and keeps it in memory.
 - At startup, Java code checks that the expected runtime and Kotlin libraries are present before any Kotlin runs, and names whatever is missing.
 
 ## Hooks into the game

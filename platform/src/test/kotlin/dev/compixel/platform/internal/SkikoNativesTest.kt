@@ -23,9 +23,12 @@ class SkikoNativesTest {
     private val icu = Random(1).nextBytes(4096)
     private val prefix = Random(2).nextBytes(1000)
     private val suffix = Random(3).nextBytes(500)
+    // Other libraries of the same architecture, before and after the one under test in their shared stream.
+    private val before = Random(4).nextBytes(300)
+    private val after = Random(5).nextBytes(200)
 
     @Test
-    fun `restores a library with its ICU data inserted`() {
+    fun `restores a library from the middle of its stream with its ICU data inserted`() {
         val library = prefix + icu + suffix
         val resources = pack("linux-x64", "libskiko-linux-x64.so", prefix + suffix, sha256(library), "1000")
         SkikoNatives.install(resources, "linux-x64", cache)
@@ -76,10 +79,11 @@ class SkikoNativesTest {
     private fun pack(host: String, library: String, packed: ByteArray, hash: String, icuPlacement: String) =
         mapOf(
                 "natives.properties" to
-                    "icu=icudtl.dat.xz\n$host.library=$library\n$host.sha256=$hash\n$host.icu=$icuPlacement\n"
+                    ("icu=icudtl.dat.xz\n$host.library=$library\n$host.sha256=$hash\n$host.icu=$icuPlacement\n" +
+                            "$host.stream=x64.xz\n$host.offset=${before.size}\n$host.size=${packed.size}\n")
                         .toByteArray(),
                 "icudtl.dat.xz" to xz(icu),
-                "$library.xz" to xz(packed),
+                "x64.xz" to xz(before + packed + after),
             )
             .mapKeys { SkikoNatives.DIRECTORY + it.key }
             .let { files -> Function<String, InputStream?> { name -> files[name]?.let(::ByteArrayInputStream) } }
