@@ -97,6 +97,9 @@ dependencies {
     runtimeOnly(project(':runtime-kotlin')) {
         capabilities { requireCapability('dev.compixel:compixel-kotlin') }
     }
+    // The client run loads the modules as compiled, naming XZ for Java by its original package, which the
+    // bundles relocate. This loader shows mods a library without FMLModType only on the legacy classpath.
+    clientAdditionalRuntimeClasspath libs.xz
 }
 
 verifyMinecraftArtifacts(artifacts, [

@@ -56,6 +56,9 @@ ext.configureMinecraftArtifacts = { Map spec ->
     sourceSets.main.resources.srcDir metadata
     tasks.named('jar') {
         libraryModules.each { from it.sourceSets.main.output }
+        // The modules compile against the original names of the libraries that the runtime bundles relocate.
+        inputs.property('runtimeRelocations', project.provider { runtime.runtimeRelocations.PACKAGES.sort().toString() })
+        doLast { runtime.runtimeRelocations.relocate(archiveFile.get().asFile) }
     }
 
     def runtimeCapability = "dev.compixel:compixel-runtime-${profile}"

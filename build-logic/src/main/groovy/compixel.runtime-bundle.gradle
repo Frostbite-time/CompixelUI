@@ -1,4 +1,5 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import dev.compixel.gradle.RuntimeRelocations
 import dev.compixel.gradle.SkikoNativesPack
 import dev.compixel.gradle.StoredJar
 import groovy.json.JsonOutput
@@ -187,12 +188,16 @@ def bundle = tasks.named('shadowJar', ShadowJar) {
     if (!kotlinBundle) {
         from(packSkikoNatives)
         exclude 'skiko-*.dll', 'libskiko-*.so', 'libskiko-*.dylib', 'icudtl.dat'
+        // Another mod's copy of a library kept under its own name would share a package with this module, and the
+        // game would not start. Libraries that no API exposes move under dev.compixel.runtime.relocate.
+        doLast { RuntimeRelocations.relocate(archiveFile.get().asFile) }
     }
     dependencies {
         exclude { dependency -> !bundled(dependency.module.id) }
     }
     // Compose splits packages across artifacts; NeoForge 1.21.1 needs one module for them.
-    // Do not relocate or minimize: compiler ABI, service providers and JNI require their names.
+    // Do not minimize or relocate with Shadow: compiler ABI, service providers and JNI require their names, and a
+    // Shadow relocation rewrites every class and Kotlin module file.
     mergeServiceFiles()
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     filesMatching('META-INF/services/**') { duplicatesStrategy = DuplicatesStrategy.INCLUDE }
@@ -205,6 +210,9 @@ def bundle = tasks.named('shadowJar', ShadowJar) {
         attributes 'FMLModType': 'LIBRARY', 'Automatic-Module-Name': kotlinBundle ? 'dev.compixel.kotlin' : 'dev.compixel.runtime'
     }
 }
+
+// Adapters move the references of CompixelUI's own classes, compiled against the original names, with this.
+ext.runtimeRelocations = RuntimeRelocations
 
 // Player JARs embed a copy of the bundle with its entries stored, not compressed: the player JAR then compresses the
 // bundle as one stream, which also finds what its class files have in common. Maven publishes the compressed bundle.
@@ -305,11 +313,16 @@ tasks.register('verifyRuntimeArchive') {
                 required.addAll(['dev/compixel/runtime/RuntimeInfo.class', 'androidx/compose/runtime/SnapshotStateKt.class',
                     'META-INF/services/kotlinx.coroutines.internal.MainDispatcherFactory',
                     'META-INF/compixel-third-party/licenses/runtime/skiko/NOTICE.txt',
-                    'META-INF/compixel-third-party/licenses/runtime/skia/LICENSE.txt'])
+                    'META-INF/compixel-third-party/licenses/runtime/skia/LICENSE.txt',
+                    'dev/compixel/runtime/relocate/xz/XZInputStream.class'])
+                def unrelocated = RuntimeRelocations.originalReferences(file)
+                if (unrelocated) throw new GradleException("${bundleName} refers to relocated libraries by their original names: ${unrelocated.take(10)}")
                 forbidden = entries.findAll {
                     it.startsWith('kotlin/') || it.startsWith('kotlinx/serialization/') ||
                         (it.startsWith('kotlinx/coroutines/') && !it.startsWith('kotlinx/coroutines/swing/')) ||
-                        (it.startsWith('dev/compixel/') && it != 'dev/compixel/runtime/RuntimeInfo.class') ||
+                        (it.startsWith('dev/compixel/') && it != 'dev/compixel/runtime/RuntimeInfo.class' &&
+                            !it.startsWith('dev/compixel/runtime/relocate/')) ||
+                        it.contains('org/tukaani/') ||
                         // The runtime must use Minecraft's LWJGL, not bundle another copy.
                         it.startsWith('org/lwjgl/') || it.startsWith('androidx/compose/material3/') ||
                         it.toLowerCase(Locale.ROOT).contains('mixin')
