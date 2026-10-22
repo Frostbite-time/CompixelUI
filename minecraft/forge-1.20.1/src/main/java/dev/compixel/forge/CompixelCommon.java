@@ -18,6 +18,7 @@ public final class CompixelCommon {
             dev.compixel.platform.internal.ComposeRuntime.requireAvailable();
             dev.compixel.platform.internal.KotlinRuntime.requireAvailable();
             dev.compixel.platform.internal.SkikoNatives.install();
+            dev.compixel.ui.ore.internal.CompixelFont.preload();
             ClientBootstrap.INSTANCE.register(bus);
         });
     }

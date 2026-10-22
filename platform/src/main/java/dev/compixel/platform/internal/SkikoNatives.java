@@ -22,8 +22,9 @@ import org.tukaani.xz.XZInputStream;
 
 /**
  * Unpacks this platform's Skiko native library where Skiko itself would, so that Skiko finds and loads it. Runtime
- * bundles store the libraries xz-compressed and keep the ICU data that Skia embeds in its Linux and macOS libraries
- * only once; the build restores every library from them byte for byte before publishing.
+ * bundles keep the ICU data that Skia embeds in its Linux and macOS libraries only once and store the libraries of
+ * each CPU architecture in one xz stream; the build restores every library from them byte for byte before
+ * publishing.
  */
 public final class SkikoNatives {
     static final String DIRECTORY = "/META-INF/compixel-natives/";
@@ -63,6 +64,9 @@ public final class SkikoNatives {
         if (library == null) throw new IllegalStateException("The CompixelUI runtime has no Skiko library for " + host);
         var hash = manifest.getProperty(host + ".sha256");
         var icu = manifest.getProperty(host + ".icu");
+        var stream = manifest.getProperty(host + ".stream");
+        long start = Long.parseLong(manifest.getProperty(host + ".offset"));
+        long size = Long.parseLong(manifest.getProperty(host + ".size"));
         // Skiko's own cache layout: a directory named after the library's checksum. On Windows, Skia reads the ICU
         // data from a file beside the library; elsewhere it is part of the library.
         var directory = dataPath.resolve("skiko-" + host + "-" + hash);
@@ -85,12 +89,16 @@ public final class SkikoNatives {
                 write(
                         target,
                         out -> {
-                            try (var in = open(resources, library + ".xz")) {
+                            try (var in = open(resources, stream)) {
+                                // The libraries of one architecture share the stream; skip those before this one.
+                                copy(in, OutputStream.nullOutputStream(), start);
                                 if (offset >= 0) {
                                     copy(in, out, offset);
                                     out.write(icuData);
+                                    copy(in, out, size - offset);
+                                } else {
+                                    copy(in, out, size);
                                 }
-                                in.transferTo(out);
                             }
                         },
                         hash);

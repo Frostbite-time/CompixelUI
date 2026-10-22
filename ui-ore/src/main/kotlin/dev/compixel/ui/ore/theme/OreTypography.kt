@@ -5,22 +5,11 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.platform.Font
 import androidx.compose.ui.unit.sp
+import dev.compixel.ui.ore.internal.CompixelFont
 
 // Compixel: Monocraft, with GNU Unifont for the characters Monocraft lacks. tools/build_font.java builds it.
 private object OreFonts {
-    val pixel by lazy {
-        FontFamily(
-            Font(
-                "compixel-font",
-                {
-                    checkNotNull(OreFonts::class.java.getResourceAsStream("/dev/compixel/ui/ore/Compixel.ttf")) {
-                            "The compixel Ore font resource is missing"
-                        }
-                        .use { it.readBytes() }
-                },
-            )
-        )
-    }
+    val pixel by lazy { FontFamily(Font("compixel-font", CompixelFont::data)) }
 }
 
 @Immutable

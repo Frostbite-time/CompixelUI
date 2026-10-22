@@ -2,6 +2,7 @@ package dev.compixel.gradle;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -12,7 +13,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Properties;
 import java.util.TreeMap;
@@ -20,6 +23,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
 import java.util.zip.ZipFile;
 import org.tukaani.xz.ARM64Options;
 import org.tukaani.xz.FilterOptions;
@@ -29,19 +33,26 @@ import org.tukaani.xz.XZInputStream;
 import org.tukaani.xz.XZOutputStream;
 
 /**
- * Packs the Skiko native libraries of a runtime bundle: each xz-compressed, with the ICU data that Skia embeds in
- * its Linux and macOS libraries stored once. {@code dev.compixel.platform.internal.SkikoNatives} restores the current
- * platform's library at run time, byte for byte.
+ * Packs the Skiko native libraries of a runtime bundle. The ICU data that Skia embeds in its Linux and macOS
+ * libraries is stored once, and the libraries of one CPU architecture share one xz stream, where each reuses what it
+ * has in common with the ones before it. {@code dev.compixel.platform.internal.SkikoNatives} restores the current
+ * platform's library at run time, byte for byte, decompressing its stream only up to the end of that library.
  *
  * <p>{@code META-INF/compixel-natives/natives.properties} names, for each host such as {@code linux-x64}, the
- * library, its SHA-256 and where its ICU data goes: a byte offset to insert it at, or the name of the file Skiko
- * keeps beside the library on Windows. The packed library is {@code <library>.xz}; the ICU data is {@code
- * icudtl.dat.xz}.
+ * library, its SHA-256, its stream with the offset and size of the library in the stream's data, and where its ICU
+ * data goes: a byte offset to insert it at, or the name of the file Skiko keeps beside the library on Windows. The
+ * streams are {@code x64.xz} and {@code arm64.xz}; the ICU data is {@code icudtl.dat.xz}.
  */
 public final class SkikoNativesPack {
     public static final String DIRECTORY = "META-INF/compixel-natives";
     private static final String MANIFEST = "natives.properties";
     private static final String ICU = "icudtl.dat";
+    // Restoring a library decompresses its stream from the start, so each architecture's most common host comes first.
+    private static final List<String> STREAM_ORDER =
+            List.of("windows-x64", "linux-x64", "macos-x64", "macos-arm64", "windows-arm64", "linux-arm64");
+    // A stream encoder with a dictionary as large as its stream needs about 450 MB, and both runtime bundles may pack
+    // at once in one Gradle daemon.
+    private static final Semaphore ENCODERS = new Semaphore(2);
 
     private SkikoNativesPack() {}
 
@@ -73,19 +84,18 @@ public final class SkikoNativesPack {
         }
         if (!libraries.keySet().containsAll(hosts))
             throw new IOException("Skiko libraries for " + libraries.keySet() + ", expected " + hosts);
+        if (!STREAM_ORDER.containsAll(hosts)) throw new IOException("No stream order for some of " + hosts);
         if (icu == null) throw new IOException("No Skiko runtime carries " + ICU);
 
         var directory = new File(output, DIRECTORY);
         deleteRecursively(output);
         Files.createDirectories(directory.toPath());
-        var manifest = new ArrayList<String>();
-        manifest.add("icu=" + ICU + ".xz");
-        var jobs = new ArrayList<Callable<Void>>();
-        var shared = icu;
-        jobs.add(() -> compress(shared, new FilterOptions[] {new LZMA2Options(6)}, new File(directory, ICU + ".xz")));
-        for (var entry : libraries.entrySet()) {
-            var host = entry.getKey();
-            var library = entry.getValue();
+        var manifest = new TreeMap<String, String>();
+        manifest.put("icu", ICU + ".xz");
+        var streams = new LinkedHashMap<String, ByteArrayOutputStream>();
+        for (var host : STREAM_ORDER) {
+            var library = libraries.get(host);
+            if (library == null) continue;
             String placement;
             byte[] packed;
             // Skiko keeps the ICU data beside its Windows libraries; Skia embeds it in the others.
@@ -103,19 +113,36 @@ public final class SkikoNativesPack {
                 System.arraycopy(library.bytes, 0, packed, 0, offset);
                 System.arraycopy(library.bytes, offset + icu.length, packed, offset, packed.length - offset);
             }
-            manifest.add(host + ".library=" + library.name);
-            manifest.add(host + ".sha256=" + library.hash);
-            manifest.add(host + ".icu=" + placement);
-            // Branch filters make machine code compress better.
-            FilterOptions branches = host.endsWith("-arm64") ? new ARM64Options() : new X86Options();
-            var filters = new FilterOptions[] {branches, new LZMA2Options(6)};
-            jobs.add(() -> compress(packed, filters, new File(directory, library.name + ".xz")));
+            var stream = architecture(host) + ".xz";
+            var data = streams.computeIfAbsent(stream, name -> new ByteArrayOutputStream());
+            manifest.put(host + ".library", library.name);
+            manifest.put(host + ".sha256", library.hash);
+            manifest.put(host + ".icu", placement);
+            manifest.put(host + ".stream", stream);
+            manifest.put(host + ".offset", Integer.toString(data.size()));
+            manifest.put(host + ".size", Integer.toString(packed.length));
+            data.writeBytes(packed);
+        }
+        var jobs = new ArrayList<Callable<Void>>();
+        var shared = icu;
+        jobs.add(() -> compress(shared, new FilterOptions[] {new LZMA2Options(6)}, new File(directory, ICU + ".xz")));
+        for (var stream : streams.entrySet()) {
+            var data = stream.getValue().toByteArray();
+            var filters = streamFilters(stream.getKey(), data.length);
+            jobs.add(() -> {
+                ENCODERS.acquireUninterruptibly();
+                try {
+                    return compress(data, filters, new File(directory, stream.getKey()));
+                } finally {
+                    ENCODERS.release();
+                }
+            });
         }
         runAll(jobs);
+        var lines = new ArrayList<String>();
+        manifest.forEach((key, value) -> lines.add(key + "=" + value));
         Files.writeString(
-                new File(directory, MANIFEST).toPath(),
-                String.join("\n", manifest) + "\n",
-                StandardCharsets.ISO_8859_1);
+                new File(directory, MANIFEST).toPath(), String.join("\n", lines) + "\n", StandardCharsets.ISO_8859_1);
     }
 
     /**
@@ -128,6 +155,8 @@ public final class SkikoNativesPack {
             manifest.load(in);
         }
         var icu = decompress(bundle, DIRECTORY + "/" + manifest.getProperty("icu"));
+        var streams = new HashMap<String, byte[]>();
+        var ranges = new HashMap<String, TreeMap<Integer, Integer>>();
         var hosts = new ArrayList<String>();
         for (var key : new TreeMap<>(manifest).keySet()) {
             var name = key.toString();
@@ -135,7 +164,18 @@ public final class SkikoNativesPack {
             var host = name.substring(0, name.length() - ".library".length());
             var library = manifest.getProperty(name);
             var placement = manifest.getProperty(host + ".icu");
-            var restored = decompress(bundle, DIRECTORY + "/" + library + ".xz");
+            var stream = manifest.getProperty(host + ".stream");
+            var data = streams.get(stream);
+            if (data == null) {
+                data = decompress(bundle, DIRECTORY + "/" + stream);
+                streams.put(stream, data);
+            }
+            int start = Integer.parseInt(manifest.getProperty(host + ".offset"));
+            int size = Integer.parseInt(manifest.getProperty(host + ".size"));
+            if (start < 0 || size < 0 || start + size > data.length)
+                throw new IOException(library + " lies outside " + stream);
+            ranges.computeIfAbsent(stream, unused -> new TreeMap<>()).put(start, start + size);
+            var restored = Arrays.copyOfRange(data, start, start + size);
             if (!placement.equals(ICU)) {
                 int offset = Integer.parseInt(placement);
                 var whole = new byte[restored.length + icu.length];
@@ -150,6 +190,16 @@ public final class SkikoNativesPack {
                 throw new IOException("Restored " + library + " does not match its checksum");
             hosts.add(host);
         }
+        // The libraries of a stream follow one another and fill it.
+        for (var stream : streams.entrySet()) {
+            int end = 0;
+            for (var range : ranges.get(stream.getKey()).entrySet()) {
+                if (range.getKey() != end) throw new IOException("Gap or overlap in " + stream.getKey());
+                end = range.getValue();
+            }
+            if (end != stream.getValue().length)
+                throw new IOException(stream.getKey() + " holds more than its libraries");
+        }
         return hosts;
     }
 
@@ -161,6 +211,24 @@ public final class SkikoNativesPack {
     }
 
     private record Library(String name, String hash, byte[] bytes) {}
+
+    private static String architecture(String host) {
+        return host.substring(host.lastIndexOf('-') + 1);
+    }
+
+    private static FilterOptions[] streamFilters(String stream, int size) throws IOException {
+        var lzma2 = new LZMA2Options(6);
+        // A dictionary as large as the stream lets each library refer back to all those before it.
+        lzma2.setDictSize(Math.max(LZMA2Options.DICT_SIZE_MIN, size));
+        // Branch filters make machine code compress better.
+        if (stream.equals("arm64.xz")) {
+            // ARM64 instructions are 4 bytes each; the xz manual recommends these settings for its filter.
+            lzma2.setLcLp(2, 2);
+            lzma2.setPb(2);
+            return new FilterOptions[] {new ARM64Options(), lzma2};
+        }
+        return new FilterOptions[] {new X86Options(), lzma2};
+    }
 
     private static Void compress(byte[] data, FilterOptions[] filters, File file) throws IOException {
         try (OutputStream out =
