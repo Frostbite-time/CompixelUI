@@ -56,7 +56,8 @@ class UiLayerSurface<D>(
  * its host, [suspend] keeps the session for [open] to show again; when its host closes for good, [exit] lets a
  * [ScreenTransition] in the content finish before the layer closes. Its content is wrapped in the host's [design],
  * inside [LocalUiFeedback], [LocalSchemes] and [LocalColorEditor]. [prepare] records and renders a frame, so the host
- * can read its layout before drawing beneath Compose, and [render] presents it. The input methods forward events to
+ * can read its layout before drawing beneath Compose, and [render] presents it. Animation time starts with the first
+ * frame that [render] presents: the frames recorded before it share one frame time. The input methods forward events to
  * Compose; [handled] then runs what the content asked for during the event.
  *
  * [G] is the platform's graphics context for drawing and [D] its renderer's presentation destination.
@@ -102,6 +103,7 @@ abstract class UiLayer<G, D>(
     private var closedStatistics = RendererStatistics(renderBackend, 0, 0, 0)
     // The session's visibility, which a ScreenTransition in the content animates.
     private var presence: ScreenPresence? = null
+    private var clock = FrameClock()
 
     /** True while another screen covers the host, which stays open and may show this session again; see [suspend]. */
     var suspended = false
@@ -213,6 +215,7 @@ abstract class UiLayer<G, D>(
             // The first composition already reads the game, not a placeholder.
             contentState.open()
             rejectionsReported = false
+            clock = FrameClock()
             val created = createSurface(frameProfiler)
             val shown = ScreenPresence()
             try {
@@ -294,7 +297,7 @@ abstract class UiLayer<G, D>(
     /** Lays the content out ahead of the first frame, so the host can read layout geometry while it initializes. */
     fun layout() {
         val active = session ?: return
-        active.frame()?.close()
+        active.frame(clock.next())?.close()
         active.invalidate() // The first presented frame records again.
     }
 
@@ -366,7 +369,7 @@ abstract class UiLayer<G, D>(
                 current
             }
         fun recordFrame(): RecordedFrame? =
-            active.frame()?.also {
+            active.frame(clock.next())?.also {
                 frameProfiler?.recorded(it.generation)
                 surface.items.recorded(it.generation)
                 surface.tooltips.recorded(it.generation)
@@ -422,6 +425,7 @@ abstract class UiLayer<G, D>(
             beforePresent(graphics)
             backend.present(destination(graphics, current))
         }
+        clock.presented()
         frameProfiler?.let(::profileResources)
     }
 
@@ -639,5 +643,31 @@ abstract class UiLayer<G, D>(
             ) ?: false
         flushFeedback()
         return consumed
+    }
+}
+
+/**
+ * A session's frame times. They stay at the first recording's time until the session's first frame shows, and then go
+ * on from there with the real time. Otherwise the time a slow first frame took to compose and draw, and frames recorded
+ * before it such as [UiLayer.layout]'s, would count toward an entrance, which could be over before anyone saw it.
+ */
+private class FrameClock {
+    private var start = Long.MIN_VALUE
+    // The real time that passed before the first frame showed.
+    private var hidden = 0L
+    private var running = false
+
+    /** The frame time for a frame recorded now. */
+    fun next(): Long {
+        val now = System.nanoTime()
+        if (start == Long.MIN_VALUE) start = now
+        return if (running) now - hidden else start
+    }
+
+    /** A frame showed; after the first one, time passes. */
+    fun presented() {
+        if (running) return
+        running = true
+        if (start != Long.MIN_VALUE) hidden = System.nanoTime() - start
     }
 }

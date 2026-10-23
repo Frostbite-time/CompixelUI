@@ -383,6 +383,21 @@ class UiLayerTest {
     }
 
     @Test
+    fun `an entrance starts when the first frame shows, however long that took`() {
+        val shown = Shown()
+        val layer = TestLayer(state(), content = transition(shown))
+        layer.open(200, 100)
+        // A container screen lays its content out while it initializes; its first frame may come much later.
+        layer.layout()
+        Thread.sleep(60)
+        layer.render(Unit, 200, 100)
+        val presented = System.nanoTime()
+        frames(layer) { shown.phase == EnterExitState.Visible }
+        assertTrue(System.nanoTime() - presented >= 35_000_000L, "The 40 ms entrance ran before the first frame showed")
+        layer.close()
+    }
+
+    @Test
     fun `without a ScreenTransition the layer closes at once when its host closes`() {
         val layer = TestLayer(state())
         layer.open(200, 100)
