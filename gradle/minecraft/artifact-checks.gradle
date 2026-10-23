@@ -126,7 +126,7 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
                 def hasVulkanProbe = zip.getEntry('dev/compixel/render/vulkan/testing/VulkanRendererProbe.class') != null
                 if (hasVulkanProbe != (artifacts.runtime.runtime_profile == 'vulkan'))
                     throw new GradleException('Incorrect Vulkan probe contents for this adapter')
-                if (zip.getEntry('dev/compixel/render/gl/GlStateSnapshot.class') != null)
+                if (zip.getEntry('dev/compixel/render/gl/OpenGlFrameRenderer.class') != null)
                     throw new GradleException('Development artifact embedded renderer implementation')
                 if (zip.entries().findAll { it.name.startsWith('androidx/') || it.name.startsWith('kotlin/') ||
                     it.name.startsWith('org/jetbrains/skiko/') || it.name.startsWith('org/jetbrains/skia/') ||

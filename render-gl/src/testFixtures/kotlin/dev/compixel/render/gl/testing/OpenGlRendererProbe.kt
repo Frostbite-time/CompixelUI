@@ -7,10 +7,13 @@ import dev.compixel.testing.render.RendererPixels
 import dev.compixel.testing.render.RendererProbeResult
 import kotlin.concurrent.thread
 import org.jetbrains.skia.BlendMode
+import org.jetbrains.skia.ClipMode
 import org.jetbrains.skia.Paint
 import org.jetbrains.skia.PictureRecorder
 import org.jetbrains.skia.Rect
+import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL33C.*
+import org.lwjgl.opengl.NVConservativeRaster.GL_CONSERVATIVE_RASTERIZATION_NV
 import org.lwjgl.system.MemoryUtil
 
 /** Explicit real-context regression probe. Never called by the normal rendering path. */
@@ -19,7 +22,12 @@ object OpenGlRendererProbe {
         val width = frame.viewport.width
         val height = frame.viewport.height
         require(expectedRgba.size == width * height * 4)
-        val original = GlStateSnapshot.capture(glGetInteger(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS))
+        val capabilities = GL.getCapabilities()
+        // Everything this probe changes itself; GlStateDump then checks that the host got all of it back.
+        val probeState = GlScopeStates(capabilities).let { it.skia + it.present } + GlStateSet.readback
+        val original = probeState.capture()
+        val cullFace = glGetInteger(GL_CULL_FACE_MODE)
+        val originalDump = GlStateDump.capture()
         val drawBuffers = glGetInteger(GL_MAX_DRAW_BUFFERS)
         var targetTexture = 0
         var targetFbo = 0
@@ -29,8 +37,9 @@ object OpenGlRendererProbe {
         var worstPixels = 0
         var worstMean = 0.0
         val cycles = 12
+        val clipped = differenceClipFrame(frame)
         try {
-            GlStateSnapshot.preparePixelTransfers()
+            prepareUploads()
             glActiveTexture(GL_TEXTURE0)
             targetTexture = glGenTextures()
             glBindTexture(GL_TEXTURE_2D, targetTexture)
@@ -47,7 +56,7 @@ object OpenGlRendererProbe {
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, hostBuffer)
             glBufferData(GL_ELEMENT_ARRAY_BUFFER, 4096L, GL_STATIC_DRAW)
             repeat(cycles) { cycle ->
-                OpenGlFrameRenderer(verifyState = true).use { renderer ->
+                OpenGlFrameRenderer(stateCheck = GlStateDump).use { renderer ->
                     repeat(3) { iteration ->
                         glBindFramebuffer(GL_FRAMEBUFFER, targetFbo)
                         glDisable(GL_SCISSOR_TEST)
@@ -70,6 +79,12 @@ object OpenGlRendererProbe {
                         glBlendEquationSeparate(GL_FUNC_REVERSE_SUBTRACT, GL_FUNC_ADD)
                         glBlendFuncSeparate(GL_SRC_ALPHA, GL_DST_ALPHA, GL_ZERO, GL_ONE)
                         glColorMask(false, true, false, false)
+                        // Skia turns these on and off; 1.20.1/1.21.1 leave program point size off, 26.x turn it on.
+                        if (iteration % 2 == 0) glEnable(GL_PROGRAM_POINT_SIZE) else glDisable(GL_PROGRAM_POINT_SIZE)
+                        if (capabilities.GL_NV_conservative_raster) {
+                            if (iteration % 2 == 1) glEnable(GL_CONSERVATIVE_RASTERIZATION_NV)
+                            else glDisable(GL_CONSERVATIVE_RASTERIZATION_NV)
+                        }
                         // RenderPearl caches these per draw buffer, including currently unused ones.
                         // Global glEnable/glColorMask restoration must not flatten distinct values.
                         for (index in 0 until drawBuffers) {
@@ -77,6 +92,8 @@ object OpenGlRendererProbe {
                             glColorMaski(index, index % 2 == 0, true, false, index % 2 != 0)
                         }
                         glActiveTexture(GL_TEXTURE3)
+                        // A frame whose last draw sits under difference clips leaves Skia's window rectangles set.
+                        renderer.render(clipped)
                         renderer.render(frame)
                         renderer.present(OpenGlDestination(targetFbo, width, height))
                         for (index in 0 until drawBuffers) {
@@ -162,7 +179,7 @@ object OpenGlRendererProbe {
             // A host that composites through its own pipeline never calls present(); polling alone must deliver
             // timings.
             val profiler = UiFrameProfiler()
-            OpenGlFrameRenderer(verifyState = true, profiler = profiler).use { renderer ->
+            OpenGlFrameRenderer(stateCheck = GlStateDump, profiler = profiler).use { renderer ->
                 profiler.beginFrame()
                 renderer.render(frame)
                 profiler.endFrame()
@@ -175,14 +192,34 @@ object OpenGlRendererProbe {
             }
             return RendererProbeResult(pixels, cycles, worstPixels, worstMean)
         } finally {
+            clipped.close()
             glBindVertexArray(0)
             if (hostBuffer != 0) glDeleteBuffers(hostBuffer)
             if (hostVao != 0) glDeleteVertexArrays(hostVao)
             if (targetFbo != 0) glDeleteFramebuffers(targetFbo)
             if (targetTexture != 0) glDeleteTextures(targetTexture)
-            original.restore()
-            original.assertRestored()
+            probeState.restore(original)
+            glCullFace(cullFace)
+            originalDump.assertUnchanged("the renderer probe")
         }
+    }
+
+    /** Covers part of the frame through two difference clips, so its last draw sits under them. */
+    private fun differenceClipFrame(frame: RecordedFrame): RecordedFrame {
+        val width = frame.viewport.width.toFloat()
+        val height = frame.viewport.height.toFloat()
+        val picture =
+            PictureRecorder().use { recorder ->
+                val canvas = recorder.beginRecording(Rect.makeWH(width, height))
+                canvas.clipRect(Rect.makeXYWH(width / 8, height / 8, width / 4, height / 4), ClipMode.DIFFERENCE)
+                canvas.clipRect(Rect.makeXYWH(width / 2, height / 2, width / 4, height / 4), ClipMode.DIFFERENCE)
+                Paint().use { paint ->
+                    paint.color = 0xFF3366CC.toInt()
+                    canvas.drawRect(Rect.makeWH(width, height), paint)
+                }
+                recorder.finishRecordingAsPicture()
+            }
+        return RecordedFrame(frame.generation, frame.viewport, picture)
     }
 
     /**
@@ -193,7 +230,7 @@ object OpenGlRendererProbe {
         val width = frame.viewport.width
         val height = frame.viewport.height
         val textures = liveTextures()
-        OpenGlFrameRenderer(verifyState = true).use { renderer ->
+        OpenGlFrameRenderer(stateCheck = GlStateDump).use { renderer ->
             repeat(3) {
                 val image = renderer.copyFramebuffer(OpenGlDestination(framebuffer, width, height))
                 val picture =
@@ -224,7 +261,7 @@ object OpenGlRendererProbe {
     }
 
     private fun readRgba(framebuffer: Int, width: Int, height: Int): ByteArray {
-        GlStateSnapshot.preparePixelTransfers()
+        prepareReadback()
         glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer)
         val buffer = MemoryUtil.memAlloc(width * height * 4)
         try {

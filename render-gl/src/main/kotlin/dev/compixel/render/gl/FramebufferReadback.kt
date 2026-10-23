@@ -10,10 +10,10 @@ import org.lwjgl.system.MemoryUtil
 /** Explicit CPU reference path. The normal GL importer uses a GPU copy instead. */
 fun readFramebufferImage(source: OpenGlDestination, width: Int = source.width, height: Int = source.height): Image {
     require(width in 1..source.width && height in 1..source.height)
-    val state = GlStateSnapshot.capture(glGetInteger(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS))
+    val state = GlStateSet.readback.capture()
     val bytes = MemoryUtil.memAlloc(width * height * 4)
     try {
-        GlStateSnapshot.preparePixelTransfers()
+        prepareReadback()
         glBindFramebuffer(GL_READ_FRAMEBUFFER, source.framebuffer)
         glReadPixels(0, source.height - height, width, height, GL_RGBA, GL_UNSIGNED_BYTE, bytes)
         val stride = width * 4
@@ -24,6 +24,6 @@ fun readFramebufferImage(source: OpenGlDestination, width: Int = source.width, h
         return Image.makeRaster(ImageInfo(width, height, ColorType.RGBA_8888, ColorAlphaType.PREMUL), rgba, stride)
     } finally {
         MemoryUtil.memFree(bytes)
-        state.restore()
+        GlStateSet.readback.restore(state)
     }
 }
