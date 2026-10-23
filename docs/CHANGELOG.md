@@ -1,4 +1,4 @@
-# CompixelUI 0.1.15-alpha.1
+# CompixelUI 0.1.15
 
 - Changed: the first CompixelUI screen of a game session stalls the game much less when it opens. CompixelUI now prepares Compose in the background while the game loads; the first opening of a container screen went from about 0.7 to about 0.25 seconds.
 - Changed: around its OpenGL drawing, CompixelUI now saves and restores only the state each step can change, instead of every texture unit the driver offers (192 on NVIDIA). On the test machine this work takes about a quarter of its former time for each screen redraw, and about a thirtieth for each item icon copy.
