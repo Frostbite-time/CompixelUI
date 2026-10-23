@@ -93,6 +93,9 @@ dependencies {
     runtimeOnly(project(':runtime-kotlin')) {
         capabilities { requireCapability('dev.compixel:compixel-kotlin') }
     }
+    // The client run loads the modules as compiled, naming XZ for Java by its original package, which the
+    // bundles relocate.
+    runtimeOnly libs.xz
 }
 
 verifyMinecraftArtifacts(artifacts, [

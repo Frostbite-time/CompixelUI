@@ -59,6 +59,9 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
                     }
                     if (zip.getEntry('dev/compixel/ui/ore/Compixel.ttf') != null)
                         throw new GradleException("${file.name} carries the Compixel font uncompressed")
+                    def unrelocated = artifacts.runtime.runtimeRelocations.originalReferences(file)
+                    if (unrelocated)
+                        throw new GradleException("${file.name} refers to relocated libraries by their original names: ${unrelocated.take(10)}")
                     if ((zip.getEntry('dev/compixel/render/vulkan/VulkanFrameRenderer.class') != null) != (profile == 'vulkan'))
                         throw new GradleException("Incorrect backend contents for the $profile profile in ${file.name}")
                     if (entries.any { it.startsWith('androidx/') || it.startsWith('org/jetbrains/skia') || it.startsWith('dev/compixel/runtime/') ||
