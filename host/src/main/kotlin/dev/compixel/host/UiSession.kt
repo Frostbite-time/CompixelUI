@@ -62,6 +62,8 @@ class UiSession(
 
     fun frame(timeNanos: Long = System.nanoTime()): RecordedFrame? {
         checkOpen()
+        // An idle scene would record nothing; asking the Compose thread costs two thread wake-ups per frame.
+        if (bridge.idle && synchronized(commands) { commands.isEmpty() }) return null
         return ComposeThread.call {
             // New/reentrant posts wait for a later frame, even when the queue initially held one task.
             val count = synchronized(commands) { minOf(commandsPerFrame, commands.size) }

@@ -30,6 +30,7 @@ import dev.compixel.render.RecordedFrame
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.swing.Swing
@@ -39,6 +40,8 @@ import org.jetbrains.skia.Rect
 /** The only module permitted to import Compose's internal embedding API. */
 class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable {
     private val dirty = AtomicBoolean(true)
+    // The change count when the last frame left the scene with nothing pending, or -1.
+    @Volatile private var settledAt = -1L
     private var closed = false
     private var viewport = viewport
     private var generation = 0L
@@ -162,6 +165,28 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
         )
     }
 
+    /**
+     * True on any thread when no frame is due: the last frame left nothing pending, and since then nothing invalidated
+     * the scene and no Compose state changed anywhere. Compose applies a state change in a later task on its thread, so
+     * a write still on its way shows only in the change count, not yet in the scene.
+     */
+    val idle: Boolean
+        get() = settledAt == changes.get() && !dirty.get()
+
+    // Read the count first: a change after the read then keeps the scene from looking idle.
+    private fun settle() {
+        val seen = changes.get()
+        settledAt =
+            if (
+                !dirty.get() &&
+                    !recomposer.hasPendingWork() &&
+                    !scene.hasPendingMeasureOrLayout &&
+                    !scene.hasPendingDraw
+            )
+                seen
+            else -1
+    }
+
     fun recordFrame(timeNanos: Long): RecordedFrame? {
         checkOpen()
         require(timeNanos >= lastFrameTime) { "Frame clock must be monotonic" }
@@ -171,8 +196,11 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
                 !recomposer.hasPendingWork() &&
                 !scene.hasPendingMeasureOrLayout &&
                 !scene.hasPendingDraw
-        )
+        ) {
+            settle()
             return null
+        }
+        settledAt = -1
         if (settleLayout) {
             settleLayout = false
             // The content was composed outside a frame. Lay it out before its first frame callbacks: transitions
@@ -196,13 +224,16 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
         // State applied by this frame invalidated drawing while it recomposed and laid out; the drawing below includes
         // those changes. Work still pending afterwards shows in hasPendingWork() and the scene's pending flags.
         dirty.set(false)
-        PictureRecorder().use { recorder ->
-            val canvas = recorder.beginRecording(Rect.makeWH(viewport.width.toFloat(), viewport.height.toFloat()))
-            // Geometry and drawing stay on the EDT. The adapter may prepare native images
-            // between recordings, then request one bounded replacement frame.
-            scene.draw(canvas.asComposeCanvas())
-            return RecordedFrame(++generation, viewport, recorder.finishRecordingAsPicture())
-        }
+        val frame =
+            PictureRecorder().use { recorder ->
+                val canvas = recorder.beginRecording(Rect.makeWH(viewport.width.toFloat(), viewport.height.toFloat()))
+                // Geometry and drawing stay on the EDT. The adapter may prepare native images
+                // between recordings, then request one bounded replacement frame.
+                scene.draw(canvas.asComposeCanvas())
+                RecordedFrame(++generation, viewport, recorder.finishRecordingAsPicture())
+            }
+        settle()
+        return frame
     }
 
     fun pointer(event: PointerInput): Boolean {
@@ -341,6 +372,16 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
                 owners.viewModelStore.clear()
                 owners.navigationEventDispatcherOwner.navigationEventDispatcher.dispose()
             }
+        }
+    }
+
+    private companion object {
+        /** Counts Compose state writes outside snapshots and applied snapshots, on every thread. */
+        val changes = AtomicLong()
+
+        init {
+            Snapshot.registerGlobalWriteObserver { changes.incrementAndGet() }
+            Snapshot.registerApplyObserver { _, _ -> changes.incrementAndGet() }
         }
     }
 }

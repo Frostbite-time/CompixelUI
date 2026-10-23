@@ -26,6 +26,8 @@ import androidx.compose.ui.window.Dialog
 import dev.compixel.bridge.ComposeThread
 import dev.compixel.platform.*
 import dev.compixel.platform.Viewport
+import dev.compixel.render.RecordedFrame
+import dev.compixel.render.UiFrameProfiler
 import dev.compixel.ui.CtrlOrCmd
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -79,6 +81,58 @@ class UiSessionTest {
                     }
                 // The draw invalidation that frame applied must not request another one.
                 assertNull(session.frame(5_000_000), "One state change recorded a second frame")
+            }
+    }
+
+    @Test
+    fun aSettledSceneSkipsTheComposeThreadUntilStateChanges() {
+        val color = ComposeThread.call { mutableStateOf(Color.Red) }
+        UiSession(Viewport(32, 32)) { Box(Modifier.fillMaxSize().drawBehind { drawRect(color.value) }) }
+            .use { session ->
+                val profiler = UiFrameProfiler()
+                var time = 1_000_000L
+                fun frame(): Pair<RecordedFrame?, Int> {
+                    profiler.beginFrame()
+                    val frame = ComposeThread.traceCalls(profiler) { session.frame(time) }
+                    profiler.endFrame()
+                    time += 1_000_000
+                    return frame to profiler.frames().maxBy { it.frameId }.composeCalls
+                }
+                frame().first?.close()
+                // The first frames may still finish work they scheduled; after that nothing is due.
+                repeat(2) { frame().first?.close() }
+                repeat(3) { assertEquals(null to 0, frame(), "A settled scene still asked the Compose thread") }
+                ComposeThread.call { color.value = Color.Blue }
+                val (changed, calls) = frame()
+                checkNotNull(changed) { "The changed state recorded no frame" }
+                    .use { recorded ->
+                        val image = javax.imageio.ImageIO.read(java.io.ByteArrayInputStream(recorded.encodePng()))
+                        assertEquals(0xff0000ff.toInt(), image.getRGB(16, 16), "The frame drew the previous state")
+                    }
+                assertTrue(calls > 0)
+            }
+    }
+
+    @Test
+    fun aStateTheContentWritesLaterRecordsTheNextFrame() {
+        val written = CountDownLatch(1)
+        UiSession(Viewport(32, 32)) {
+                var color by remember { mutableStateOf(Color.Red) }
+                LaunchedEffect(Unit) {
+                    delay(500)
+                    color = Color.Blue
+                    written.countDown()
+                }
+                Box(Modifier.fillMaxSize().drawBehind { drawRect(color) })
+            }
+            .use { session ->
+                repeat(3) { session.frame(1_000_000L + it * 1_000_000)?.close() }
+                assertTrue(written.await(5, TimeUnit.SECONDS), "The content's effect never ran")
+                checkNotNull(session.frame(4_000_000)) { "A state the content wrote while settled recorded no frame" }
+                    .use { frame ->
+                        val image = javax.imageio.ImageIO.read(java.io.ByteArrayInputStream(frame.encodePng()))
+                        assertEquals(0xff0000ff.toInt(), image.getRGB(16, 16), "The frame drew the previous state")
+                    }
             }
     }
 
