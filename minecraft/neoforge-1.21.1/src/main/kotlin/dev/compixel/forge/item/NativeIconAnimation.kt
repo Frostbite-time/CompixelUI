@@ -24,9 +24,10 @@ internal class NativeIconAnimation {
             stack.hasFoil() || Minecraft.getInstance().itemRenderer.itemModelShaper.getItemModel(stack).isCustomRenderer
         )
             return NativeRefresh.GAME_TICK
-        // Model overrides, such as compass and clock angles, are followed through appearance().
+        // Model overrides, such as compass and clock angles, are followed through appearance(). Only the quads are
+        // drawn; the particle icon belongs to particles and says nothing about the icon.
         for (pass in model(stack).getRenderPasses(stack, true)) {
-            if (pass.isCustomRenderer || animated(pass.particleIcon)) return NativeRefresh.GAME_TICK
+            if (pass.isCustomRenderer) return NativeRefresh.GAME_TICK
             for (face in Direction.entries + listOf(null)) {
                 random.setSeed(42)
                 if (pass.getQuads(null, face, random).any { animated(it.sprite) }) return NativeRefresh.GAME_TICK
@@ -47,7 +48,10 @@ internal class NativeIconAnimation {
     private fun model(stack: ItemStack) =
         Minecraft.getInstance().let { it.itemRenderer.getModel(stack, it.level, it.player, 0) }
 
-    private fun animated(sprite: TextureAtlasSprite): Boolean {
+    // A quad's sprite only names the texture it samples, and drawing never reads it; a quad without one shows no
+    // sign of animation.
+    private fun animated(sprite: TextureAtlasSprite?): Boolean {
+        if (sprite == null) return false
         val contents = sprite.contents()
         return sprites.getOrPut(contents) { contents.uniqueFrames.use { it.limit(2).count() > 1 } }
     }
