@@ -13,7 +13,9 @@ plugins {
 
 allprojects {
     group = "dev.compixel"
-    version = providers.gradleProperty("mod_version").get()
+    // Each Minecraft adapter is released on the mod_version in its own gradle.properties. The shared modules ship only
+    // inside the adapters and have no version; the runtime bundles get theirs below.
+    findProperty("mod_version")?.let { version = it }
 }
 
 subprojects {

@@ -22,12 +22,12 @@ if ($KotlinMode -eq 'bundled' -and $KotlinProviderJar) { throw 'A Kotlin provide
 $repo = Split-Path $PSScriptRoot
 $java = Join-Path (Resolve-Path $JavaHome).Path 'bin/java.exe'
 $targets = ConvertFrom-StringData ([IO.File]::ReadAllText((Join-Path $repo 'gradle/minecraft-targets.properties')))
-$properties = ConvertFrom-StringData ([IO.File]::ReadAllText((Join-Path $repo 'gradle.properties')))
 $mcVersion = '1.20.1'
 $adapterDirectory = $targets["$mcVersion.project"]
 $adapterProject = ':' + $adapterDirectory.Replace('/', ':')
 $adapterSettings = ConvertFrom-StringData ([IO.File]::ReadAllText((Join-Path $repo "$adapterDirectory/gradle.properties")))
 $forgeVersion = $adapterSettings['forge_version']
+$modVersion = $adapterSettings['mod_version']
 $forgeCoordinate = "$mcVersion-$forgeVersion"
 $versionName = "$mcVersion-forge-$forgeVersion"
 $launcher = Join-Path $repo '.work/forge-production'
@@ -130,8 +130,8 @@ New-Item -ItemType Directory -Force $mods,(Join-Path $game 'config') | Out-Null
 foreach ($old in Get-ChildItem -LiteralPath $mods -File -Filter '*.jar') { Remove-Item -LiteralPath $old.FullName }
 $librarySuffix = if ($KotlinMode -eq 'bundled') { '-with-kotlin' } else { '' }
 # Player JARs are in build/release; the development mod is published with the Maven artifacts in build/libs.
-foreach ($archive in @("release/compixel-forge-1.20.1-$($properties.mod_version)$librarySuffix.jar",
-        "libs/compixel-forge-1.20.1-$($properties.mod_version)-development.jar")) {
+foreach ($archive in @("release/compixel-forge-1.20.1-$modVersion$librarySuffix.jar",
+        "libs/compixel-forge-1.20.1-$modVersion-development.jar")) {
     Copy-Item -LiteralPath (Join-Path $repo "$adapterDirectory/build/$archive") -Destination $mods
 }
 if ($KotlinProviderJar) { Copy-Item -LiteralPath (Resolve-Path -LiteralPath $KotlinProviderJar).Path -Destination $mods -Force }

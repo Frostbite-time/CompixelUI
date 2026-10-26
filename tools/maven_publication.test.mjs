@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 import { once } from 'node:events';
 import { test } from 'node:test';
@@ -102,7 +104,8 @@ test('an adapter has a library with its attachments and a POM-only Kotlin select
 test('an adapter uploads only the publications the repository lacks', async t => {
     const entries = new Map();
     const url = await repository(t, entries);
-    const [library, withKotlin] = adapterPublications('neoforge-1.21.1', config.mod_version);
+    const { version } = minecraftAdapters().find(candidate => candidate.adapter === 'neoforge-1.21.1');
+    const [library, withKotlin] = adapterPublications('neoforge-1.21.1', version);
     assert.deepEqual((await adapterTasks(url, 'neoforge-1.21.1')).tasks, [library.task, withKotlin.task]);
     publish(entries, library);
     const partial = await adapterTasks(url, 'neoforge-1.21.1');
@@ -119,14 +122,41 @@ test('the plan skips complete versions and leaves an incomplete adapter to its o
     const url = await repository(t, entries);
     for (const bundle of ['standard', 'vulkan', 'kotlin']) publish(entries, runtimePublication(bundle, config[`runtime_${bundle}_version`]));
     const adapters = minecraftAdapters();
-    adapterPublications(adapters[0].adapter, config.mod_version).forEach(published => publish(entries, published));
-    const [broken] = adapterPublications(adapters[1].adapter, config.mod_version);
+    adapterPublications(adapters[0].adapter, adapters[0].version).forEach(published => publish(entries, published));
+    const [broken] = adapterPublications(adapters[1].adapter, adapters[1].version);
     entries.set(broken.files[1], { status: 200 });
     const plan = await planPublications(url);
     assert.deepEqual(plan.bundles, []);
-    assert.deepEqual(plan.adapters, adapters.slice(1));
+    assert.deepEqual(plan.adapters, adapters.slice(1).map(({ target, adapter }) => ({ target, adapter })));
     assert.deepEqual(plan.incomplete.map(incomplete => incomplete.artifact), [broken.artifact]);
     assert.equal(plan.skipped.length, 5);
+});
+
+test('each adapter is published at the version its own gradle.properties declares', async t => {
+    const directory = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'compixel-maven-'));
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+    const write = (file, text) => {
+        fs.mkdirSync(path.dirname(path.join(directory, file)), { recursive: true });
+        fs.writeFileSync(path.join(directory, file), text);
+    };
+    write('gradle.properties', 'runtime_standard_version=1.0.0\nruntime_vulkan_version=1.0.0\nruntime_kotlin_version=1.0.0\n');
+    write('gradle/minecraft-targets.properties',
+        'targets=1.20.1,26.3\n1.20.1.project=minecraft/forge-1.20.1\n26.3.project=minecraft/neoforge-26.3\n');
+    write('minecraft/forge-1.20.1/gradle.properties', '# This adapter\'s release\r\nmod_version=2.0.1\r\nminecraft_version=1.20.1\r\n');
+    write('minecraft/neoforge-26.3/gradle.properties', 'mod_version=2.0.0\nminecraft_version=26.3\n');
+    assert.deepEqual(minecraftAdapters(directory).map(({ adapter, version }) => `${adapter} ${version}`),
+        ['forge-1.20.1 2.0.1', 'neoforge-26.3 2.0.0']);
+
+    const entries = new Map();
+    const url = await repository(t, entries);
+    for (const bundle of ['standard', 'vulkan', 'kotlin']) publish(entries, runtimePublication(bundle, '1.0.0'));
+    adapterPublications('neoforge-26.3', '2.0.0').forEach(published => publish(entries, published));
+    const plan = await planPublications(url, directory);
+    assert.deepEqual(plan.adapters, [{ target: '1.20.1', adapter: 'forge-1.20.1' }]);
+    assert.deepEqual((await adapterTasks(url, 'neoforge-26.3', directory)).tasks, []);
+    const pending = await adapterTasks(url, 'forge-1.20.1', directory);
+    assert.deepEqual(pending.tasks, adapterPublications('forge-1.20.1', '2.0.1').map(library => library.task));
+    await assert.rejects(adapterTasks(url, 'neoforge-1.21.1', directory), /Unknown adapter/);
 });
 
 test('an incomplete runtime bundle stops the whole plan', async t => {

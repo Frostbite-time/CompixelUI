@@ -45,13 +45,14 @@ export function adapterPublications(adapter, version) {
     ];
 }
 
+/** The registered adapters, each with the mod_version in its own gradle.properties: adapters are released separately. */
 export function minecraftAdapters(directory = root) {
     const registry = properties(path.join(directory, 'gradle/minecraft-targets.properties'));
     return registry.targets.split(',').map(target => {
         const project = registry[`${target}.project`];
         const match = /^minecraft\/((?:forge|neoforge)-([0-9.]+))$/.exec(project ?? '');
         if (!match || match[2] !== target) throw new Error(`Invalid target directory: ${project}`);
-        return { target, adapter: match[1] };
+        return { target, adapter: match[1], version: properties(path.join(directory, project, 'gradle.properties')).mod_version };
     });
 }
 
@@ -101,9 +102,9 @@ export async function planPublications(repository, directory = root) {
         if (await inspectPublication(repository, runtime) === 'missing') plan.bundles.push(bundle);
         else plan.skipped.push(runtime);
     }
-    for (const { target, adapter } of minecraftAdapters(directory)) {
+    for (const { target, adapter, version } of minecraftAdapters(directory)) {
         let pending = false;
-        for (const library of adapterPublications(adapter, config.mod_version)) {
+        for (const library of adapterPublications(adapter, version)) {
             try {
                 if (await inspectPublication(repository, library) === 'complete') plan.skipped.push(library);
                 else pending = true;
@@ -120,9 +121,10 @@ export async function planPublications(repository, directory = root) {
 
 /** The Gradle tasks that publish what the repository lacks for one adapter. */
 export async function adapterTasks(repository, adapter, directory = root) {
-    const version = properties(path.join(directory, 'gradle.properties')).mod_version;
+    const registered = minecraftAdapters(directory).find(candidate => candidate.adapter === adapter);
+    if (!registered) throw new Error(`Unknown adapter: ${adapter}`);
     const result = { tasks: [], skipped: [] };
-    for (const library of adapterPublications(adapter, version)) {
+    for (const library of adapterPublications(adapter, registered.version)) {
         if (await inspectPublication(repository, library) === 'missing') result.tasks.push(library.task);
         else result.skipped.push(library);
     }

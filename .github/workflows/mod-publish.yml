@@ -1,6 +1,8 @@
 name: mod-publish
 # One approval owns the secrets and publication. A separate build-only workflow uses one runner per adapter.
 # Successful CurseForge uploads have per-file receipts; retries recheck receipts and GitHub assets.
+# Each adapter has its own mod_version. A run publishes the one version that still has files to publish and skips
+# versions already complete on both destinations.
 on: workflow_dispatch
 
 concurrency:
@@ -64,6 +66,7 @@ jobs:
           CURSEFORGE_ID: ${{ secrets.CURSEFORGE_ID }}
           CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
           UPLOADS: ${{ steps.release.outputs.uploads }}
           PUBLISH_GITHUB: ${{ steps.release.outputs.github }}
         run: node tools/mod_publish.mjs publish .work/mc-publish

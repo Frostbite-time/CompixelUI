@@ -11,9 +11,11 @@ import { annotate, properties } from './maven_publication.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outputDelimiter = 'COMPIXEL_OUTPUT';
 
+/**
+ * The registered adapters and their player files. Each adapter is released on the mod_version in its own
+ * gradle.properties; the adapters on one version form a release, with its own tag and GitHub release.
+ */
 export function releaseMetadata(directory = root) {
-    const version = properties(path.join(directory, 'gradle.properties')).mod_version;
-    if (!/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(version ?? '')) throw new Error(`Invalid mod_version: ${version}`);
     const registry = properties(path.join(directory, 'gradle/minecraft-targets.properties'));
     const targets = registry.targets.split(',').map(target => {
         const project = registry[`${target}.project`];
@@ -25,18 +27,51 @@ export function releaseMetadata(directory = root) {
         if (provider === undefined || (provider && !/^[a-z0-9-]+$/.test(provider))) {
             throw new Error(`Set curseforge_kotlin_provider (or an explicit empty value) for ${target}`);
         }
-        return { target, project, adapter: project.slice('minecraft/'.length), loader: match[1], java: config.java_version, provider };
+        const version = config.mod_version;
+        if (!/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(version ?? '')) throw new Error(`Invalid mod_version for ${target}: ${version}`);
+        return { target, project, adapter: project.slice('minecraft/'.length), loader: match[1], java: config.java_version, provider, version };
     });
     if (!targets.length || new Set(targets.map(target => target.adapter)).size !== targets.length) throw new Error('Empty or duplicate targets');
     const uploads = targets.flatMap(target => ['standard', 'with-kotlin'].map(variant => ({
         ...target, variant,
-        file: `compixel-${target.adapter}-${version}${variant === 'standard' ? '' : '-with-kotlin'}.jar`,
+        file: `compixel-${target.adapter}-${target.version}${variant === 'standard' ? '' : '-with-kotlin'}.jar`,
         dependencies: variant === 'standard' && target.provider ? `${target.provider}(required)` : '',
         installation: variant === 'with-kotlin'
             ? 'Includes Kotlin. Install only this variant; do not combine it with KFF or another Kotlin runtime.'
             : `Requires a compatible external Kotlin provider${target.provider ? ' (Kotlin for Forge)' : '; no compatible CurseForge provider is currently verified for this target'}. Install only this variant.`,
     })));
-    return { version, tag: `v${version}`, type: version.includes('-alpha') ? 'alpha' : version.includes('-') ? 'beta' : 'release', targets, uploads };
+    const releases = [...new Set(targets.map(target => target.version))].map(version => ({
+        version, tag: `v${version}`, type: version.includes('-alpha') ? 'alpha' : version.includes('-') ? 'beta' : 'release',
+        targets: targets.filter(target => target.version === version), uploads: uploads.filter(upload => upload.version === version),
+    }));
+    return { targets, uploads, releases };
+}
+
+/** The release of the adapters on [version]. */
+export function releaseOf(metadata, version) {
+    const release = metadata.releases.find(candidate => candidate.version === version);
+    if (!release) throw new Error(`No adapter is on version ${version || '(none)'}`);
+    return release;
+}
+
+/**
+ * The one release this run publishes. Releases whose files are all on CurseForge and GitHub are skipped; at most one
+ * may still have files to publish, because docs/CHANGELOG.md describes a single version. [uploaded] and [assets] read
+ * a release's CurseForge receipts and GitHub assets afresh.
+ */
+export async function pendingRelease(metadata, { uploaded, assets }) {
+    const pending = [], complete = [];
+    for (const release of metadata.releases) {
+        const recorded = await uploaded(release);
+        const plan = planModRelease(release, recorded, await assets(release));
+        if (plan.uploads.length || plan.github) pending.push({ release, plan, recorded });
+        else complete.push(release);
+    }
+    if (pending.length > 1) {
+        throw new Error(`Versions ${pending.map(({ release }) => release.version).join(' and ')} both have files to publish. ` +
+            'Publish one version at a time: docs/CHANGELOG.md describes only one.');
+    }
+    return { pending: pending[0], complete };
 }
 
 /**
@@ -66,11 +101,11 @@ export function assertTagCommit(remoteRefs, tag, sha) {
     if (commit && commit !== sha) throw new Error(`${tag} already points to ${commit}, not the selected commit ${sha}`);
 }
 
-export function verifyTag(metadata) {
+export function verifyTag(release) {
     if (!/^[0-9a-f]{40}$/.test(process.env.GITHUB_SHA ?? '')) throw new Error('GITHUB_SHA is required to check the release tag');
-    const refs = execFileSync('git', ['ls-remote', '--tags', 'origin', `refs/tags/${metadata.tag}`, `refs/tags/${metadata.tag}^{}`],
+    const refs = execFileSync('git', ['ls-remote', '--tags', 'origin', `refs/tags/${release.tag}`, `refs/tags/${release.tag}^{}`],
         { cwd: root, encoding: 'utf8', timeout: 60_000 });
-    assertTagCommit(refs, metadata.tag, process.env.GITHUB_SHA);
+    assertTagCommit(refs, release.tag, process.env.GITHUB_SHA);
 }
 
 export function checksumLines(metadata, adapter, directory) {
@@ -108,10 +143,10 @@ const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
  * describes them. [built] maps each player JAR to its SHA-256; [existing] maps release asset names to { digest }, or
  * { content } for SHA256SUMS.
  */
-export function planReleaseAssets(metadata, built, existing) {
+export function planReleaseAssets(release, built, existing) {
     const upload = [], kept = [];
     let manifest = '';
-    for (const { file } of metadata.uploads) {
+    for (const { file } of release.uploads) {
         const asset = existing.get(file);
         if (asset) kept.push({ file, differs: asset.digest !== built.get(file) });
         else upload.push(file);
@@ -122,22 +157,21 @@ export function planReleaseAssets(metadata, built, existing) {
     return { upload, kept, manifest, replacesSums: !!sums && sums.content !== manifest };
 }
 
-/** Whether the release has every player JAR and a SHA256SUMS that lists them; [existing] is as for planReleaseAssets. */
-export function githubReleaseComplete(metadata, existing) {
-    let manifest = '';
-    for (const { file } of metadata.uploads) {
-        const asset = existing.get(file);
-        if (!asset) return false;
-        manifest += `${asset.digest}  ${file}\n`;
-    }
-    return existing.get('SHA256SUMS')?.content === manifest;
+/**
+ * Whether the release has every player JAR and a SHA256SUMS that lists each of them; [existing] is as for
+ * planReleaseAssets. SHA256SUMS may list more: a release made before each adapter had its own version also holds the
+ * files of adapters that have since moved to a newer one.
+ */
+export function githubReleaseComplete(release, existing) {
+    const listed = new Set((existing.get('SHA256SUMS')?.content ?? '').split(/\r?\n/));
+    return release.uploads.every(({ file }) => existing.has(file) && listed.has(`${existing.get(file).digest}  ${file}`));
 }
 
-/** Build only adapters still needed by CurseForge, unless GitHub needs the complete set for its checksum manifest. */
-export function planModRelease(metadata, uploaded, existing) {
-    const uploads = metadata.uploads.filter(upload => !uploaded.has(upload.file));
-    const github = !githubReleaseComplete(metadata, existing);
-    const builds = metadata.targets.filter(target => github || uploads.some(upload => upload.adapter === target.adapter));
+/** Build only adapters still needed by CurseForge, unless GitHub needs the release's complete set for its checksum manifest. */
+export function planModRelease(release, uploaded, existing) {
+    const uploads = release.uploads.filter(upload => !uploaded.has(upload.file));
+    const github = !githubReleaseComplete(release, existing);
+    const builds = release.targets.filter(target => github || uploads.some(upload => upload.adapter === target.adapter));
     return { uploads, github, builds };
 }
 
@@ -204,15 +238,15 @@ export async function releaseAssets(repository, tag, token) {
     }
 }
 
-export async function githubReleaseFiles(metadata, directory, repository, token) {
-    const built = new Map(metadata.uploads.map(({ file }) => [file, sha256(fs.readFileSync(path.join(directory, file)))]));
-    const plan = planReleaseAssets(metadata, built, await releaseAssets(repository, metadata.tag, token));
+export async function githubReleaseFiles(release, directory, repository, token) {
+    const built = new Map(release.uploads.map(({ file }) => [file, sha256(fs.readFileSync(path.join(directory, file)))]));
+    const plan = planReleaseAssets(release, built, await releaseAssets(repository, release.tag, token));
     fs.writeFileSync(path.join(directory, 'SHA256SUMS'), plan.manifest);
     for (const { file, differs } of plan.kept) {
-        annotate('notice', 'Already on GitHub', `${file} is already attached to the ${metadata.tag} release; skipped it` +
+        annotate('notice', 'Already on GitHub', `${file} is already attached to the ${release.tag} release; skipped it` +
             `${differs ? ' and kept the published file, which differs from this build' : ''}.`);
     }
-    if (plan.replacesSums) annotate('notice', 'Checksums updated', `SHA256SUMS no longer matched the ${metadata.tag} release files; replacing it.`);
+    if (plan.replacesSums) annotate('notice', 'Checksums updated', `SHA256SUMS no longer matched the ${release.tag} release files; replacing it.`);
     console.log(`Release files to upload: ${plan.upload.join(', ') || 'none'}`);
     return plan.upload.map(file => path.posix.join(directory, file));
 }
@@ -331,12 +365,12 @@ export function gatherArtifacts(metadata, targets, directory = root) {
     }
 }
 
-export function curseforgeInputs(metadata, upload, changelog, { project, token, repository, sha }) {
+export function curseforgeInputs(release, upload, changelog, { project, token, repository, sha }) {
     return {
         'curseforge-id': project, 'curseforge-token': token,
         files: `dist/${upload.adapter}/${upload.file}`,
-        name: `CompixelUI ${metadata.version} / ${upload.adapter} / ${upload.variant}`,
-        version: metadata.version, 'version-type': metadata.type,
+        name: `CompixelUI ${release.version} / ${upload.adapter} / ${upload.variant}`,
+        version: release.version, 'version-type': release.type,
         changelog: `${changelog}\n\n**Installation:** ${upload.installation}\n` +
             `[Runtime compatibility](https://github.com/${repository}/blob/${sha}/docs/en/compatibility.md)`,
         loaders: upload.loader, 'game-versions': upload.target, 'game-version-filter': 'none',
@@ -346,17 +380,17 @@ export function curseforgeInputs(metadata, upload, changelog, { project, token, 
     };
 }
 
-export function githubInputs(metadata, files, changelog, { githubToken, repository, sha }) {
+export function githubInputs(release, files, changelog, { githubToken, repository, sha }) {
     return {
-        'github-token': githubToken, 'github-tag': metadata.tag, 'github-commitish': sha,
-        files: files.join('\n'), name: `CompixelUI ${metadata.version}`, version: metadata.version, 'version-type': metadata.type,
+        'github-token': githubToken, 'github-tag': release.tag, 'github-commitish': sha,
+        files: files.join('\n'), name: `CompixelUI ${release.version}`, version: release.version, 'version-type': release.type,
         changelog: `${changelog}\n\nChoose the file matching your Minecraft version and loader. Install **one** variant only:\n` +
             '- Standard: requires a compatible external Kotlin provider.\n' +
             '- `with-kotlin`: includes Kotlin; do not combine it with KFF or another Kotlin runtime.\n\n' +
             `[Runtime compatibility](https://github.com/${repository}/blob/${sha}/docs/en/compatibility.md)\n` +
             'SHA-256 checksums are provided in `SHA256SUMS`.',
-        loaders: [...new Set(metadata.targets.map(target => target.loader))].join('\n'),
-        'game-versions': metadata.targets.map(target => target.target).join('\n'), 'game-version-filter': 'none',
+        loaders: [...new Set(release.targets.map(target => target.loader))].join('\n'),
+        'game-versions': release.targets.map(target => target.target).join('\n'), 'game-version-filter': 'none',
         environment: 'client | server', 'retry-attempts': '1', 'retry-delay': '10000', 'fail-mode': 'fail',
     };
 }
@@ -434,50 +468,41 @@ async function recordUpload(ref, file) {
 }
 
 async function main() {
-    const [command, ...args] = process.argv.slice(2);
-    const [argument] = args;
-    const [adapter, directory = 'dist'] = command === 'github-assets' ? [undefined, ...args] : args;
+    const [command, argument] = process.argv.slice(2);
     const metadata = releaseMetadata();
-    const token = process.env.GITHUB_TOKEN, repository = process.env.GITHUB_REPOSITORY;
-    const requireGitHub = () => {
-        if (!token || !/^[\w.-]+\/[\w.-]+$/.test(repository ?? '')) throw new Error('GITHUB_TOKEN and GITHUB_REPOSITORY are required');
-    };
     if (command === 'prepare') {
-        requireGitHub();
-        verifyTag(metadata);
-        const changelog = releaseChangelog(metadata.version);
-        const uploaded = recordedCurseforgeFiles(process.env.CURSEFORGE_ID, metadata.tag);
-        const { uploads, github, builds } = planModRelease(metadata, uploaded, await releaseAssets(repository, metadata.tag, token));
-        for (const { file } of metadata.uploads.filter(upload => uploaded.has(upload.file))) {
+        const token = process.env.GITHUB_TOKEN, repository = process.env.GITHUB_REPOSITORY;
+        if (!token || !/^[\w.-]+\/[\w.-]+$/.test(repository ?? '')) throw new Error('GITHUB_TOKEN and GITHUB_REPOSITORY are required');
+        const { pending, complete } = await pendingRelease(metadata, {
+            uploaded: release => recordedCurseforgeFiles(process.env.CURSEFORGE_ID, release.tag),
+            assets: release => releaseAssets(repository, release.tag, token),
+        });
+        for (const release of complete) {
+            annotate('notice', 'Already published', `CompixelUI ${release.version} (${release.targets.map(target => target.adapter).join(', ')}) ` +
+                'is complete on CurseForge and GitHub; skipped it.');
+        }
+        if (!pending) {
+            githubOutput({ build: false });
+            console.log('Every adapter version is already published.');
+            return;
+        }
+        // Only the release being published is held to the changelog and to its tag; finished releases keep their own.
+        const { release, plan: { uploads, github, builds }, recorded } = pending;
+        verifyTag(release);
+        const changelog = releaseChangelog(release.version);
+        for (const { file } of release.uploads.filter(upload => recorded.has(upload.file))) {
             annotate('notice', 'CurseForge upload recorded', `${file} has a successful upload receipt; skipped it.`);
         }
-        if (!github) annotate('notice', 'Already on GitHub', `The ${metadata.tag} release already has every file; skipped it.`);
+        if (!github) annotate('notice', 'Already on GitHub', `The ${release.tag} release already has every file; skipped it.`);
         githubOutput({
-            version: metadata.version, tag: metadata.tag, type: metadata.type,
+            version: release.version, tag: release.tag, type: release.type,
             builds: JSON.stringify({ include: builds }), uploads: JSON.stringify({ include: uploads }),
             upload_count: uploads.length, github, build: builds.length > 0,
-            game_versions: metadata.targets.map(target => target.target).join('\n'),
+            game_versions: release.targets.map(target => target.target).join('\n'),
             changelog,
         });
-        console.log(`Prepared ${metadata.tag}: ${uploads.length} of ${metadata.uploads.length} CurseForge files to upload; ` +
-            `GitHub release ${github ? 'incomplete' : 'complete'}`);
-    } else if (command === 'curseforge-file') {
-        const file = args[0];
-        if (!metadata.uploads.some(upload => upload.file === file)) throw new Error(`Unknown release file: ${file}`);
-        const uploaded = recordedCurseforgeFiles(process.env.CURSEFORGE_ID, metadata.tag).has(file);
-        if (uploaded) annotate('notice', 'CurseForge upload recorded', `${file} has a successful upload receipt; skipped it.`);
-        githubOutput({ uploaded });
-    } else if (command === 'github-assets') {
-        requireGitHub();
-        githubOutput({ files: (await githubReleaseFiles(metadata, directory, repository, token)).join('\n') });
-    } else if (command === 'tag') {
-        verifyTag(metadata);
-    } else if (command === 'checksums') {
-        fs.writeFileSync(path.join(directory, `${adapter}.sha256`), checksumLines(metadata, adapter, directory));
-    } else if (command === 'verify') {
-        const manifest = verifyArtifacts(metadata, adapter, directory);
-        if (adapter === 'all') fs.writeFileSync(path.join(directory, 'SHA256SUMS'), manifest);
-        console.log(`Verified ${adapter} release artifacts`);
+        console.log(`Prepared ${release.tag} (${release.targets.map(target => target.adapter).join(', ')}): ` +
+            `${uploads.length} of ${release.uploads.length} CurseForge files to upload; GitHub release ${github ? 'incomplete' : 'complete'}`);
     } else if (command === 'matrix') {
         if (!/^[0-9a-f]{40}$/.test(process.env.REVISION ?? '') ||
             execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim() !== process.env.REVISION) {
@@ -516,7 +541,9 @@ async function main() {
     } else if (command === 'publish') {
         if (!argument) throw new Error('The pinned mc-publish checkout is required');
         if (!['true', 'false'].includes(process.env.PUBLISH_GITHUB)) throw new Error('PUBLISH_GITHUB must be true or false');
-        const uploads = selectedEntries(process.env.UPLOADS, metadata.uploads, 'file');
+        // The version prepare chose for this run.
+        const release = releaseOf(metadata, process.env.RELEASE_VERSION);
+        const uploads = selectedEntries(process.env.UPLOADS, release.uploads, 'file');
         const context = {
             project: process.env.CURSEFORGE_ID, token: process.env.CURSEFORGE_TOKEN,
             githubToken: process.env.GITHUB_TOKEN,
@@ -525,27 +552,27 @@ async function main() {
         if (!/^[0-9a-f]{40}$/.test(context.sha ?? '') || !/^[\w.-]+\/[\w.-]+$/.test(context.repository ?? '')) {
             throw new Error('GITHUB_SHA and GITHUB_REPOSITORY are required');
         }
-        const changelog = releaseChangelog(metadata.version);
+        const changelog = releaseChangelog(release.version);
         const destinations = { CurseForge: () => publishCurseforgeFiles(uploads, {
-            recorded: upload => recordedCurseforgeFiles(context.project, metadata.tag).has(upload.file),
+            recorded: upload => recordedCurseforgeFiles(context.project, release.tag).has(upload.file),
             publish: upload => {
                 if (!context.token) throw new Error('Set CURSEFORGE_TOKEN in the mod-publish environment');
-                verifyArtifacts(metadata, upload.adapter, path.join(root, 'dist', upload.adapter));
-                return runMcPublish(argument, curseforgeInputs(metadata, upload, changelog, context));
+                verifyArtifacts(release, upload.adapter, path.join(root, 'dist', upload.adapter));
+                return runMcPublish(argument, curseforgeInputs(release, upload, changelog, context));
             },
-            record: upload => recordUpload(`refs/curseforge/${context.project}/${metadata.tag}/${upload.file}`, upload.file),
+            record: upload => recordUpload(`refs/curseforge/${context.project}/${release.tag}/${upload.file}`, upload.file),
             notice: message => annotate('notice', 'CurseForge upload receipt', message),
         }) };
         if (process.env.PUBLISH_GITHUB === 'true') destinations.GitHub = async () => {
             if (!context.githubToken) throw new Error('GITHUB_TOKEN is required');
-            verifyArtifacts(metadata, 'all', path.join(root, 'dist/github'));
-            verifyTag(metadata);
-            const files = await githubReleaseFiles(metadata, 'dist/github', context.repository, context.githubToken);
-            if (files.length) await runMcPublish(argument, githubInputs(metadata, files, changelog, context));
+            verifyArtifacts(release, 'all', path.join(root, 'dist/github'));
+            verifyTag(release);
+            const files = await githubReleaseFiles(release, 'dist/github', context.repository, context.githubToken);
+            if (files.length) await runMcPublish(argument, githubInputs(release, files, changelog, context));
         };
         await publishDestinations(destinations);
     } else {
-        throw new Error('Usage: mod_publish.mjs prepare | matrix | dispatch | stage <adapter> | gather | publish <mc-publish-checkout> | tag | checksums <adapter> [directory] | verify <adapter|all> [directory] | github-assets [directory] | curseforge-file <file>');
+        throw new Error('Usage: mod_publish.mjs prepare | matrix | dispatch | stage <adapter> | gather | publish <mc-publish-checkout>');
     }
 }
 

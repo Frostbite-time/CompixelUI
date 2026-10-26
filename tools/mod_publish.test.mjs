@@ -7,8 +7,9 @@ import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
 import {
     assertTagCommit, buildMatrix, curseforgeInputs, curseforgeUploads, gatherArtifacts, githubInputs, githubReleaseComplete,
-    planModRelease, planReleaseAssets, publishCurseforgeFiles, publishDestinations, recordedCurseforgeFiles,
-    releaseAssets, releaseChangelog, releaseMetadata, runMcPublish, runParallelBuild, selectedEntries, stageArtifacts, verifyArtifacts,
+    pendingRelease, planModRelease, planReleaseAssets, publishCurseforgeFiles, publishDestinations, recordedCurseforgeFiles,
+    releaseAssets, releaseChangelog, releaseMetadata, releaseOf, runMcPublish, runParallelBuild, selectedEntries, stageArtifacts,
+    verifyArtifacts,
 } from './mod_publish.mjs';
 
 test('the target registry produces distinct variants with target-specific provider requirements', () => {
@@ -20,8 +21,78 @@ test('the target registry produces distinct variants with target-specific provid
         assert.equal(standard.dependencies, target.provider ? `${target.provider}(required)` : '');
         assert.equal(bundled.dependencies, '');
         assert.match(bundled.file, /-with-kotlin\.jar$/);
+        assert.equal(standard.file, `compixel-${target.adapter}-${target.version}.jar`);
     }
     assert.equal(metadata.uploads.find(upload => upload.target === '26.3' && upload.variant === 'standard').dependencies, '');
+});
+
+// A target registry whose adapters are on the given versions, such as { 'forge-1.20.1': '2.0.1' }.
+function registry(t, versions) {
+    const directory = temporaryDirectory(t);
+    const write = (file, text) => {
+        fs.mkdirSync(path.dirname(path.join(directory, file)), { recursive: true });
+        fs.writeFileSync(path.join(directory, file), text);
+    };
+    const adapters = Object.keys(versions).map(adapter => ({ adapter, target: adapter.slice(adapter.indexOf('-') + 1) }));
+    write('gradle/minecraft-targets.properties', `targets=${adapters.map(({ target }) => target).join(',')}\n` +
+        adapters.map(({ adapter, target }) => `${target}.project=minecraft/${adapter}\n`).join(''));
+    for (const { adapter, target } of adapters) {
+        write(`minecraft/${adapter}/gradle.properties`, `# This adapter's release\r\nmod_version=${versions[adapter]}\r\n` +
+            `minecraft_version=${target}\r\njava_version=21\r\ncurseforge_kotlin_provider=kotlin-for-forge\r\n`);
+    }
+    return directory;
+}
+
+test('adapters on one version form a release with its own tag, files and type', t => {
+    const metadata = releaseMetadata(registry(t, { 'forge-1.20.1': '2.0.1', 'neoforge-1.21.1': '2.0.1', 'neoforge-26.3': '2.0.0-beta.1' }));
+    assert.deepEqual(metadata.releases.map(({ version, tag, type, targets }) => [version, tag, type, targets.map(target => target.adapter)]), [
+        ['2.0.1', 'v2.0.1', 'release', ['forge-1.20.1', 'neoforge-1.21.1']],
+        ['2.0.0-beta.1', 'v2.0.0-beta.1', 'beta', ['neoforge-26.3']],
+    ]);
+    assert.deepEqual(releaseOf(metadata, '2.0.0-beta.1').uploads.map(upload => upload.file),
+        ['compixel-neoforge-26.3-2.0.0-beta.1.jar', 'compixel-neoforge-26.3-2.0.0-beta.1-with-kotlin.jar']);
+    assert.throws(() => releaseOf(metadata, '2.0.0'), /No adapter is on version 2\.0\.0/);
+    assert.throws(() => releaseOf(metadata, undefined), /No adapter is on version \(none\)/);
+    assert.throws(() => releaseMetadata(registry(t, { 'forge-1.20.1': '2.0' })), /Invalid mod_version for 1\.20\.1: 2\.0/);
+});
+
+test('a run publishes the one version that still has files and skips complete versions', async t => {
+    const metadata = releaseMetadata(registry(t, { 'forge-1.20.1': '2.0.1', 'neoforge-26.3': '2.0.0' }));
+    const [newer, older] = metadata.releases;
+    const published = release => new Map([...release.uploads.map(({ file }) => [file, { digest: 'a'.repeat(64) }]),
+        ['SHA256SUMS', { content: release.uploads.map(({ file }) => `${'a'.repeat(64)}  ${file}\n`).join('') }]]);
+    const done = new Set([...older.uploads, ...newer.uploads].map(upload => upload.file));
+    const state = { uploaded: new Map(), assets: new Map() };
+    const sources = {
+        uploaded: async release => state.uploaded.get(release.tag) ?? new Set(),
+        assets: async release => state.assets.get(release.tag) ?? new Map(),
+    };
+    state.uploaded.set(older.tag, done).set(newer.tag, done);
+    state.assets.set(older.tag, published(older)).set(newer.tag, published(newer));
+    assert.deepEqual(await pendingRelease(metadata, sources), { pending: undefined, complete: [newer, older] });
+
+    state.uploaded.set(newer.tag, new Set());
+    state.assets.set(newer.tag, new Map());
+    const { pending, complete } = await pendingRelease(metadata, sources);
+    assert.equal(pending.release, newer);
+    assert.deepEqual(pending.plan.uploads, newer.uploads);
+    assert.equal(pending.plan.github, true);
+    assert.deepEqual(complete, [older]);
+
+    state.assets.set(older.tag, new Map());
+    await assert.rejects(pendingRelease(metadata, sources), /2\.0\.1 and 2\.0\.0 both have files to publish.*one version at a time/);
+});
+
+test('an earlier release stays complete when some of its adapters move to a newer version', t => {
+    const older = releaseOf(releaseMetadata(registry(t, { 'forge-1.20.1': '2.0.1', 'neoforge-26.3': '2.0.0' })), '2.0.0');
+    // The 2.0.0 release was made when both adapters were on 2.0.0.
+    const files = ['compixel-forge-1.20.1-2.0.0.jar', 'compixel-forge-1.20.1-2.0.0-with-kotlin.jar', ...older.uploads.map(upload => upload.file)];
+    const existing = new Map(files.map((file, index) => [file, { digest: index.toString(16).padStart(64, '0') }]));
+    const sums = files.map(file => `${existing.get(file).digest}  ${file}\r\n`);
+    existing.set('SHA256SUMS', { content: sums.join('') });
+    assert.equal(githubReleaseComplete(older, existing), true);
+    existing.set('SHA256SUMS', { content: sums.slice(0, -1).join('') });
+    assert.equal(githubReleaseComplete(older, existing), false);
 });
 
 test('existing lightweight and annotated tags must identify the selected commit', () => {
@@ -72,32 +143,35 @@ test('the changelog describes exactly the version being released', t => {
     assert.throws(() => releaseChangelog('1.2.3', directory), /must start with/);
     changelog('# CompixelUI 1.2.3\n\n');
     assert.throws(() => releaseChangelog('1.2.3', directory), /no release notes/);
-    // A version bump must come with this version's notes.
-    assert.ok(releaseChangelog(releaseMetadata().version).length > 0);
+    // A version bump must come with this version's notes: the changelog describes the newest version an adapter is on.
+    // Versions compare by their numbers, and a pre-release comes before its release.
+    const natural = new Intl.Collator('en', { numeric: true }).compare;
+    const order = (a, b) => natural(a.split('-')[0], b.split('-')[0]) || b.includes('-') - a.includes('-') || natural(a, b);
+    assert.ok(releaseChangelog(releaseMetadata().releases.map(release => release.version).sort(order).at(-1)).length > 0);
 });
 
 test('a release keeps the files it already has and lists the files it ends up with', () => {
-    const metadata = releaseMetadata();
-    const files = metadata.uploads.map(upload => upload.file);
+    const release = releaseMetadata().releases[0];
+    const files = release.uploads.map(upload => upload.file);
     const built = new Map(files.map((file, index) => [file, index.toString(16).padStart(64, '0')]));
     const manifest = digests => files.map(file => `${digests.get(file)}  ${file}\n`).join('');
 
-    const fresh = planReleaseAssets(metadata, built, new Map());
+    const fresh = planReleaseAssets(release, built, new Map());
     assert.deepEqual(fresh.upload, [...files, 'SHA256SUMS']);
     assert.equal(fresh.manifest, manifest(built));
 
     const published = new Map(files.slice(0, 3).map(file => [file, { digest: built.get(file) }]));
-    const partial = planReleaseAssets(metadata, built, published);
+    const partial = planReleaseAssets(release, built, published);
     assert.deepEqual(partial.upload, [...files.slice(3), 'SHA256SUMS']);
     assert.deepEqual(partial.kept, files.slice(0, 3).map(file => ({ file, differs: false })));
 
     const complete = new Map([...files.map(file => [file, { digest: built.get(file) }]), ['SHA256SUMS', { content: manifest(built) }]]);
-    assert.deepEqual(planReleaseAssets(metadata, built, complete).upload, []);
+    assert.deepEqual(planReleaseAssets(release, built, complete).upload, []);
 
     // A file published by an earlier build stays; the checksums follow it.
     const earlier = 'f'.repeat(64);
     complete.set(files[0], { digest: earlier });
-    const replaced = planReleaseAssets(metadata, built, complete);
+    const replaced = planReleaseAssets(release, built, complete);
     assert.deepEqual(replaced.upload, ['SHA256SUMS']);
     assert.equal(replaced.replacesSums, true);
     assert.deepEqual(replaced.kept[0], { file: files[0], differs: true });
@@ -118,33 +192,33 @@ test('the refs of earlier CurseForge uploads name the files to skip', () => {
 });
 
 test('a GitHub release is complete only with every JAR and checksums that list them', () => {
-    const metadata = releaseMetadata();
-    const assets = new Map(metadata.uploads.map(({ file }, index) => [file, { digest: index.toString(16).padStart(64, '0') }]));
-    assert.equal(githubReleaseComplete(metadata, assets), false);
-    const sums = metadata.uploads.map(({ file }) => `${assets.get(file).digest}  ${file}\n`).join('');
+    const release = releaseMetadata().releases[0];
+    const assets = new Map(release.uploads.map(({ file }, index) => [file, { digest: index.toString(16).padStart(64, '0') }]));
+    assert.equal(githubReleaseComplete(release, assets), false);
+    const sums = release.uploads.map(({ file }) => `${assets.get(file).digest}  ${file}\n`).join('');
     assets.set('SHA256SUMS', { content: sums });
-    assert.equal(githubReleaseComplete(metadata, assets), true);
-    assets.set(metadata.uploads[0].file, { digest: 'f'.repeat(64) });
-    assert.equal(githubReleaseComplete(metadata, assets), false);
-    assets.delete(metadata.uploads[0].file);
-    assert.equal(githubReleaseComplete(metadata, assets), false);
+    assert.equal(githubReleaseComplete(release, assets), true);
+    assets.set(release.uploads[0].file, { digest: 'f'.repeat(64) });
+    assert.equal(githubReleaseComplete(release, assets), false);
+    assets.delete(release.uploads[0].file);
+    assert.equal(githubReleaseComplete(release, assets), false);
 });
 
 test('release planning skips complete runs and builds only adapters needed by missing CurseForge files', () => {
-    const metadata = releaseMetadata();
-    const files = metadata.uploads.map(upload => upload.file);
+    const release = releaseMetadata().releases[0];
+    const files = release.uploads.map(upload => upload.file);
     const uploaded = new Set(files);
     const existing = new Map(files.map(file => [file, { digest: 'a'.repeat(64) }]));
     existing.set('SHA256SUMS', { content: files.map(file => `${'a'.repeat(64)}  ${file}\n`).join('') });
-    assert.deepEqual(planModRelease(metadata, uploaded, existing), { uploads: [], builds: [], github: false });
+    assert.deepEqual(planModRelease(release, uploaded, existing), { uploads: [], builds: [], github: false });
     uploaded.delete(files[1]);
-    assert.deepEqual(planModRelease(metadata, uploaded, existing), {
-        uploads: [metadata.uploads[1]], builds: [metadata.targets[0]], github: false,
+    assert.deepEqual(planModRelease(release, uploaded, existing), {
+        uploads: [release.uploads[1]], builds: [release.targets[0]], github: false,
     });
-    const missingGitHub = planModRelease(metadata, new Set(files), new Map());
+    const missingGitHub = planModRelease(release, new Set(files), new Map());
     assert.equal(missingGitHub.github, true);
     assert.deepEqual(missingGitHub.uploads, []);
-    assert.deepEqual(missingGitHub.builds, metadata.targets);
+    assert.deepEqual(missingGitHub.builds, release.targets);
 });
 
 function receiptRepository(t) {
@@ -165,15 +239,15 @@ function receiptRepository(t) {
 test('CurseForge retries read current Git receipts and skip only recorded files without an API key', t => {
     t.mock.method(globalThis, 'fetch', () => assert.fail('Receipt checks must not call the CurseForge API'));
     const { remote, checkout, git, object } = receiptRepository(t);
-    const metadata = releaseMetadata();
-    const file = metadata.uploads[0].file;
-    const ref = `refs/curseforge/123/${metadata.tag}/${file}`;
-    const read = () => recordedCurseforgeFiles('123', metadata.tag, checkout);
+    const release = releaseMetadata().releases[0];
+    const file = release.uploads[0].file;
+    const ref = `refs/curseforge/123/${release.tag}/${file}`;
+    const read = () => recordedCurseforgeFiles('123', release.tag, checkout);
     assert.deepEqual(read(), new Set());
     git(remote, ['update-ref', ref, object]);
     assert.deepEqual(read(), new Set([file]));
-    const plan = planModRelease(metadata, read(), new Map());
-    assert.deepEqual(plan.uploads, metadata.uploads.slice(1));
+    const plan = planModRelease(release, read(), new Map());
+    assert.deepEqual(plan.uploads, release.uploads.slice(1));
     git(remote, ['update-ref', '-d', ref]);
     assert.deepEqual(read(), new Set());
 });
@@ -370,11 +444,14 @@ test('staging supports a partial CurseForge build and a complete GitHub release 
 
 test('per-file publishing retains version, loader, provider and changelog metadata without enabling another platform', async t => {
     const directory = temporaryDirectory(t);
-    const metadata = releaseMetadata();
+    const release = releaseMetadata().releases[0];
     const changelog = '- Notes with literal $() and `backticks`.\n- Another change.';
     const context = { project: '123', token: 'test-token', repository: 'owner/repo', sha: 'a'.repeat(40) };
-    for (const upload of metadata.uploads) {
-        const inputs = curseforgeInputs(metadata, upload, changelog, context);
+    for (const upload of release.uploads) {
+        const inputs = curseforgeInputs(release, upload, changelog, context);
+        assert.equal(inputs.version, release.version);
+        assert.equal(inputs['version-type'], release.type);
+        assert.equal(inputs.name, `CompixelUI ${release.version} / ${upload.adapter} / ${upload.variant}`);
         assert.equal(inputs['game-versions'], upload.target);
         assert.equal(inputs.loaders, upload.loader);
         assert.equal(inputs.java, upload.java);
@@ -392,7 +469,7 @@ test('per-file publishing retains version, loader, provider and changelog metada
             cwd: process.cwd(), inputs: Object.fromEntries(Object.entries(process.env).filter(([key]) => key.startsWith('INPUT_')))
         }));
     `);
-    const inputs = curseforgeInputs(metadata, metadata.uploads[0], changelog, context);
+    const inputs = curseforgeInputs(release, release.uploads[0], changelog, context);
     const result = path.join(directory, 'result.json');
     await runMcPublish(action, inputs, directory, {
         ...process.env, TEST_RESULT: result, 'INPUT_GITHUB-TOKEN': 'must-not-be-forwarded', 'INPUT_MODRINTH-TOKEN': 'also-not-forwarded',
@@ -405,17 +482,17 @@ test('per-file publishing retains version, loader, provider and changelog metada
 });
 
 test('GitHub publishing includes only planned assets and GitHub credentials with the existing release metadata', () => {
-    const metadata = releaseMetadata();
-    const files = [`dist/github/${metadata.uploads[0].file}`, 'dist/github/SHA256SUMS'];
-    const inputs = githubInputs(metadata, files, '- Release notes.', {
+    const release = releaseMetadata().releases[0];
+    const files = [`dist/github/${release.uploads[0].file}`, 'dist/github/SHA256SUMS'];
+    const inputs = githubInputs(release, files, '- Release notes.', {
         githubToken: 'github-test-token', repository: 'owner/repo', sha: 'a'.repeat(40),
     });
     assert.equal(inputs.files, files.join('\n'));
     assert.equal(inputs['github-token'], 'github-test-token');
     assert.equal(inputs['curseforge-token'], undefined);
-    assert.equal(inputs['github-tag'], metadata.tag);
+    assert.equal(inputs['github-tag'], release.tag);
     assert.equal(inputs['github-commitish'], 'a'.repeat(40));
-    assert.equal(inputs['game-versions'], metadata.targets.map(target => target.target).join('\n'));
+    assert.equal(inputs['game-versions'], release.targets.map(target => target.target).join('\n'));
     assert.ok(inputs.changelog.includes('Install **one** variant only'));
     assert.equal(inputs['retry-attempts'], '1');
 });
