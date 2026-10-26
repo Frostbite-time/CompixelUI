@@ -1,7 +1,5 @@
-# CompixelUI 0.1.15
+# CompixelUI 0.1.16
 
-- Changed: the first CompixelUI screen of a game session stalls the game much less when it opens. CompixelUI now prepares Compose in the background while the game loads; the first opening of a container screen went from about 0.7 to about 0.25 seconds.
-- Changed: around its OpenGL drawing, CompixelUI now saves and restores only the state each step can change, instead of every texture unit the driver offers (192 on NVIDIA). On the test machine this work takes about a quarter of its former time for each screen redraw, and about a thirtieth for each item icon copy.
-- Changed: while nothing on a CompixelUI screen changes, the game no longer waits for Compose's thread on every frame, which took about 0.07 ms per frame on the test machine.
-- Fixed: CompixelUI screens leave the game's OpenGL state as they found it. Program-controlled point size stayed enabled after every redraw on Minecraft 1.20.1 and 1.21.1, and with drivers that support window rectangles, NVIDIA's among them, a screen whose last drawing sat under a difference clip could keep later game drawing from reaching parts of the screen.
-- Fixed: animations that start when a screen opens, such as its entrance, play from the frame in which the screen first shows. The time a screen spent composing and drawing its first frame used to count toward them, so a slow first opening could skip an entrance entirely.
+This release is for Minecraft 1.20.1 and 1.21.1. Minecraft 26.1.2, 26.2 and 26.3 were not affected by this crash and stay on CompixelUI 0.1.15.
+
+- Fixed: a CompixelUI screen no longer crashes the game when it shows an item whose model has no particle texture, as some mods' items do. Whether an item icon is animated is now decided only from the textures the game draws for it.
