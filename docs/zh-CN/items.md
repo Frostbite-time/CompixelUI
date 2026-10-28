@@ -14,10 +14,6 @@ CompixelUI 能在 Compose 中绘制真实的 Minecraft 物品：模型、动画�
 class ItemCatalogScreen(stacks: List<ItemStack>) : ComposeScreen<Unit, Nothing>(Component.literal("物品目录")) {
     private val icons = stacks.map { ItemIcon.snapshot(it) }
 
-    override fun snapshot() {}
-
-    override fun handle(action: Nothing) {}
-
     @Composable
     override fun Content(state: Unit) {
         OreScreen("物品目录", maxWidth = 176.dp, maxHeight = 110.dp) {
@@ -33,7 +29,7 @@ class ItemCatalogScreen(stacks: List<ItemStack>) : ComposeScreen<Unit, Nothing>(
 }
 ```
 
-界面在游戏线程创建，所以可以在构造时拍下快照。会随游戏变化的图标则应放进界面状态，在 `snapshot()` 中拍下。
+界面在游戏线程创建，所以可以在构造时拍下快照。会随游戏变化的图标则应放进 `gameState` 的代码块，它在游戏线程运行。
 
 - `MinecraftItemIcon` 和其他可组合项一样，可以调整大小、裁剪、旋转或设置透明度。
 - 指针停留 500 毫秒后，`MinecraftItemTooltip` 显示物品提示。提示由 Minecraft 自己绘制，其他模组添加的提示行也会出现。
@@ -103,7 +99,7 @@ MinecraftNativeDrawing(panel, Modifier.size(180.dp, 48.dp))
 
 ```kotlin
 class CatalogScreen(title: Component) :
-    ComposeScreen<CatalogState, CatalogAction>(title, nativeItemOptions = NativeItemOptions(cacheCapacity = 512)) { … }
+    ComposeScreen<Unit, Nothing>(title, nativeItemOptions = NativeItemOptions(cacheCapacity = 512)) { … }
 
 class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
     ComposeInventoryScreen<StorageMenu, Unit, Nothing>(

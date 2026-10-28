@@ -86,10 +86,6 @@ internal class ThemeAcceptance(
             ColorSchemes.store.select(owner, null)
             screen =
                 object : ComposeScreen<Unit, Nothing>(Component.literal("Color schemes"), design = design) {
-                    override fun snapshot() {}
-
-                    override fun handle(action: Nothing) {}
-
                     @Composable
                     override fun Content(state: Unit) {
                         var text by remember {

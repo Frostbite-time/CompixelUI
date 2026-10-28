@@ -15,10 +15,6 @@ class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
     ComposeInventoryScreen<StorageMenu, Unit, Nothing>(menu, title) {
     private val caption = title.string
 
-    override fun snapshot() {}
-
-    override fun handle(action: Nothing) {}
-
     @Composable
     override fun Content(state: Unit, slots: ComposeMenuSlots<StorageMenu>) {
         OreScreen(caption, maxWidth = 176.dp, maxHeight = 190.dp, panelModifier = slots.areaModifier()) {
@@ -49,7 +45,7 @@ modBus.addListener { event: RegisterMenuScreensEvent ->
 - `slots.Slot(id)` 放置对应序号的菜单槽位。每个槽位只放一次，没放的槽位会被隐藏。
 - `slots.areaModifier()` 标出其他模组眼中的容器区域，例如配方查看器据此把面板摆在旁边。
 - 标题等游戏对象请在组合之前读取，就像这里的 `caption`。
-- 槽位本身已经显示菜单里的物品，所以这个界面不需要自己的状态：和其他[没有游戏状态的界面](getting-started.md#4-显示游戏数据)一样，用 `Unit` 和 `Nothing` 表示。
+- 槽位本身已经显示菜单里的物品，所以这个界面自己不读取任何数据。`Unit` 和 `Nothing` 表示它不使用已弃用的[快照与动作](getting-started.md#快照与动作)。
 
 Forge 1.20.1 请在 `FMLClientSetupEvent.enqueueWork` 中用 `MenuScreens.register` 注册。
 
@@ -57,23 +53,17 @@ Forge 1.20.1 请在 `FMLClientSetupEvent.enqueueWork` 中用 `MenuScreens.regist
 
 ## 显示菜单状态
 
-界面除了槽位还要显示其他内容时，给它一个状态类型。下面这一版 `StorageScreen` 在 `snapshot` 中读取菜单，在 `Content` 中连同槽位绘制最新快照，并在 `handle` 中执行界面发来的动作：
+界面除了槽位还要显示其他内容时，用 `gameState` 读取菜单。下面这一版 `StorageScreen` 显示已用的存储槽位数和一个锁定开关，开关的改动在游戏线程执行：
 
 ```kotlin
-data class StorageState(val used: Int, val locked: Boolean)
-
 class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
-    ComposeInventoryScreen<StorageMenu, StorageState, Boolean>(menu, title) {
+    ComposeInventoryScreen<StorageMenu, Unit, Nothing>(menu, title) {
     private val caption = title.string
-
-    override fun snapshot() = StorageState((0 until 27).count { container.getSlot(it).hasItem() }, container.locked())
-
-    override fun handle(action: Boolean) {
-        container.requestLocked(action)
-    }
+    private val used by gameState { (0 until 27).count { container.getSlot(it).hasItem() } }
+    private val locked by gameState { container.locked() }
 
     @Composable
-    override fun Content(state: StorageState, slots: ComposeMenuSlots<StorageMenu>) {
+    override fun Content(state: Unit, slots: ComposeMenuSlots<StorageMenu>) {
         OreScreen(
             caption,
             maxWidth = 176.dp,
@@ -82,8 +72,8 @@ class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
             panelModifier = slots.areaModifier(),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                OreText("已用 ${state.used} / 27", Modifier.weight(1f))
-                OreSwitch(state.locked, onCheckedChange = { send(it) })
+                OreText("已用 $used / 27", Modifier.weight(1f))
+                OreSwitch(locked, onCheckedChange = { checked -> gameThread.post { container.requestLocked(checked) } })
             }
             SlotGrid(slots, 0 until 27)
             OreText("物品栏")
@@ -96,7 +86,7 @@ class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
 
 这里的 `locked` 和 `requestLocked` 代表你的菜单自己的状态，例如通过[菜单同步](menu-sync.md)保持一致。
 
-- `snapshot` 在游戏线程调用：界面打开时、每刻，以及 `handle` 刚处理完某次输入事件发出的动作之后。
+- `gameState` 的代码块在游戏线程运行：界面打开时、每刻，以及输入事件提交了代码之后。
 - `requestClose()` 从界面中关闭界面，就像这里面板的关闭按钮。
 - 没有槽位的菜单用 `ComposeMenuScreen`，用法相同，只是 `Content(state)` 没有槽位参数。
 
@@ -108,6 +98,8 @@ class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
 | `ComposeMenuScreen` | 没有槽位的服务端菜单 |
 | `ComposeInventoryScreen` | 带槽位的菜单 |
 | `SlotBehaviorScreen` | 原生绘制、但使用 CompixelUI 槽位规则的容器界面 |
+
+三个 Compose 类都有 `gameState`、`gameThread`、`Content` 和 `requestClose()`；两个菜单界面还有 `menuClosed()`。
 
 ## 修改点击行为
 

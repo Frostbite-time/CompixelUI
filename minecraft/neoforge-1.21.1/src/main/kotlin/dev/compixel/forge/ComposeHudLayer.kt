@@ -10,6 +10,7 @@ import dev.compixel.host.UiStateBinding
 import dev.compixel.render.*
 import dev.compixel.ui.UiDesign
 import dev.compixel.ui.ore.theme.OreDesign
+import kotlin.properties.ReadOnlyProperty
 import net.minecraft.client.DeltaTracker
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphics
@@ -23,8 +24,10 @@ import net.minecraft.client.gui.LayeredDraw
  * The session opens on the first drawn frame, follows window, GUI scale and resource changes, and closes when the
  * player leaves the world or on [close]; the next drawn frame opens a new one. All members run on the game thread.
  *
- * A subclass reads the game into an immutable [snapshot], taken when the session opens and once per client tick, and
- * draws the latest one in [Content]. A HUD layer takes no input, so it has no actions.
+ * A subclass draws its [Content] and reads the game with [gameState], whose read blocks run on the game thread; it
+ * extends `ComposeHudLayer<Unit>`. The snapshot model is deprecated and removed in 0.2.0. Until then it mixes with game
+ * state: [snapshot] reads the game into one immutable value, taken when the session opens and once per client tick, and
+ * [Content] draws the latest one. A HUD layer takes no input, so it has no actions.
  */
 abstract class ComposeHudLayer<S>(
     private val guiUnitsPerDp: Float = 1f,
@@ -53,21 +56,38 @@ abstract class ComposeHudLayer<S>(
         get() = layer?.frameProfiler
 
     /** The content's game state, opened and closed with each session. */
-    internal val contentState = UiStateBinding<S, Nothing>(::snapshot) {}
+    @Suppress("DEPRECATION") internal val contentState = UiStateBinding<S, Nothing>(::snapshot) {}
 
     init {
         require(guiUnitsPerDp.isFinite() && guiUnitsPerDp > 0f)
         require(minimumUiDensity.isFinite() && minimumUiDensity >= 0f)
     }
 
-    /** Reads the game on the game thread. Return an immutable value: an equal snapshot leaves the content as it is. */
-    protected abstract fun snapshot(): S
+    /**
+     * Reads the game on the game thread for the snapshot model. Return an immutable value: an equal snapshot leaves the
+     * content as it is. Layers that read the game with [gameState] leave it out.
+     */
+    @Deprecated("Read the game with gameState; snapshot is removed in 0.2.0")
+    @Suppress("UNCHECKED_CAST")
+    protected open fun snapshot(): S = Unit as S
 
     /**
-     * The content for the latest [state], composed on the Compose thread. Use [state] and immutable values prepared
-     * during construction, never game objects such as the player.
+     * The content, composed on the Compose thread. Read the game through [gameState], and otherwise use immutable
+     * values prepared during construction: never read game objects such as the player here. [state] is the latest
+     * [snapshot].
      */
     @Composable protected abstract fun Content(state: S)
+
+    /**
+     * Game state for a member property, such as `private val health by gameState {
+     * Minecraft.getInstance().player?.health ?: 0f }`. [read] runs on the game thread when a session opens, before it
+     * composes, and then every [intervalTicks] client ticks. The property shows the latest result, recomposes its
+     * readers when it changes and never runs [read] itself. Declare it while the layer is constructed; state that only
+     * part of the content needs can use the composable gameState with an initial value. [read] only reads, and returns
+     * values or immutable data, never game objects.
+     */
+    fun <T> gameState(intervalTicks: Int = 1, read: () -> T): ReadOnlyProperty<Any?, T> =
+        contentState.gameState(intervalTicks, read)
 
     final override fun render(guiGraphics: GuiGraphics, deltaTracker: DeltaTracker) {
         // NeoForge draws registered layers even while the vanilla HUD is hidden.

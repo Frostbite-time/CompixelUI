@@ -26,7 +26,7 @@ enum class AcceptanceStep(val report: String) {
     WORLD("fresh flat creative test world loaded"),
     INVENTORY(
         "native left/right container input, per-slot render hooks, the slot tooltip while a button is held, server " +
-            "acknowledgement, screen state and actions, and release on a close request from the content"
+            "acknowledgement, game state and the tasks the content posts, and release on a close request from the content"
     ),
     MENU_SYNC(
         "bounded multi-batch snapshot, fragmented action round trip from a state screen's content, a native value " +
@@ -45,7 +45,7 @@ enum class AcceptanceStep(val report: String) {
         "rectangular native drawing: exact layout pixels, native scissor, Compose clip/alpha, refresh, resize, reload and release"
     ),
     HUD_RENDER(
-        "HUD layer: Compose and native item pixels over the world, its opening snapshot, and per-tick state beneath " +
+        "HUD layer: Compose and native item pixels over the world, its opening game state, and per-tick state beneath " +
             "a screen that takes the input"
     ),
     HUD_VISIBILITY("hiding the GUI hides the HUD layer; showing it again resumes the same session"),

@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -14,6 +15,7 @@ import dev.compixel.forge.item.MinecraftItemIcon
 import dev.compixel.forge.slots.ComposeMenuSlots
 import dev.compixel.forge.slots.MenuSlotState
 import dev.compixel.forge.slots.VanillaMenuSlotAdapter
+import dev.compixel.host.gameState
 import java.util.concurrent.CompletableFuture
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphics
@@ -25,8 +27,8 @@ import net.minecraft.world.item.Items
 
 /**
  * Real native container prediction, slot-render hooks, mouse translation, the slot tooltip while a button is held,
- * server acknowledgement, the screen's state and actions, handled at the next tick or during the click that sent them,
- * and screen release on a close request from its content.
+ * server acknowledgement, the screen's game state and the tasks its content posts, run at the next tick or during the
+ * click that posted them, and screen release on a close request from its content.
  */
 internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
     private val mc
@@ -46,10 +48,11 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
     private var screen: AcceptanceScreen? = null
 
     /**
-     * Shows the second hotbar slot's count as its state; after the slots, its content has a press and a close button.
+     * Shows the second hotbar slot's count as member game state and the first slot's as composable game state; after
+     * the slots, its content has a press and a close button.
      */
     private inner class AcceptanceScreen :
-        ComposeInventoryScreen<InventoryMenu, Int, Unit>(
+        ComposeInventoryScreen<InventoryMenu, Unit, Nothing>(
             player.inventoryMenu,
             Component.literal("Native inventory acceptance"),
             ComposeMenuSlots(
@@ -62,17 +65,26 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
                 },
             ),
         ) {
-        /** The latest state the content composed. Compose thread. */
+        /** The member game state the content composed last. Compose thread. */
         var composed = -1
             private set
 
-        /** Presses handled on the game thread. */
+        /** The composable game state the content composed last, -1 until its first sample. Compose thread. */
+        var composedFirst = -2
+            private set
+
+        /** Presses the content's tasks ran on the game thread. */
         var presses = 0
             private set
 
-        /** Snapshots taken on the game thread. */
-        var snapshots = 0
+        /** Reads of the member game state on the game thread. */
+        var reads = 0
             private set
+
+        private val held by gameState {
+            reads++
+            player.inventory.getItem(1).count
+        }
 
         /** Calls of [menuClosed]; the menu closes once. */
         var menuCloses = 0
@@ -94,22 +106,19 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
             super.renderSlot(graphics, slot)
         }
 
-        override fun snapshot(): Int {
-            snapshots++
-            return player.inventory.getItem(1).count
-        }
-
-        override fun handle(action: Unit) {
-            presses++
-        }
-
         override fun menuClosed() {
             menuCloses++
         }
 
         @Composable
-        override fun Content(state: Int, slots: ComposeMenuSlots<InventoryMenu>) {
-            SideEffect { composed = state }
+        override fun Content(state: Unit, slots: ComposeMenuSlots<InventoryMenu>) {
+            val shown = held
+            val first by gameState(initialValue = -1) { player.inventory.getItem(0).count }
+            val firstShown = first
+            SideEffect {
+                composed = shown
+                composedFirst = firstShown
+            }
             Column(Modifier.fillMaxSize().background(Color(0xFF204060)).padding(20.dp)) {
                 Row(slots.areaModifier()) {
                     slots.Slot(36)
@@ -121,14 +130,14 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
                     slots.Slot(5)
                     slots.Slot(45)
                     // Slot-sized buttons inside the container area: their clicks reach Compose alone.
-                    Box(Modifier.size(18.dp).clickable { send(Unit) })
+                    Box(Modifier.size(18.dp).clickable { gameThread.post { presses++ } })
                     Box(Modifier.size(18.dp).clickable { requestClose() })
                 }
             }
         }
 
-        /** Sends a press as the content's press button does; call it on the Compose thread. */
-        fun press() = send(Unit)
+        /** Posts a press as the content's press button does; call it on the Compose thread. */
+        fun press() = gameThread.post { presses++ }
     }
 
     fun tick() {
@@ -159,7 +168,7 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
                 if (screen!!.inventory.bounds(36) != null && screen!!.rendererStatistics.renderedFrames > 0) {
                     check(slotHooks > 0) { "The native per-slot render hook was not dispatched" }
                     check(ComposeThread.call { screen!!.composed } == 0) {
-                        "The first composition did not show the screen's opening snapshot"
+                        "The first composition did not show the screen's member game state"
                     }
                     click(36, SuitePlatform.MOUSE_LEFT)
                     check(player.containerMenu.carried.count == 8) { "Left-click did not pick up the stack" }
@@ -207,25 +216,26 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
                     stage++
                 }
             7 ->
-                // The next tick's snapshot shows the placed stack, and the content sends an action back.
-                if (ComposeThread.call { screen!!.composed } == 8) {
+                // The next tick's game state shows the placed stack and the emptied first slot, which the composable
+                // game state showed as -1 before its first sample; then the content posts a task.
+                if (ComposeThread.call { screen!!.composed == 8 && screen!!.composedFirst == 0 }) {
                     val drawn = ComposeThread.call { screen!!.drawnSlot }
                     check(drawn != null && drawn.icon != null && drawn.amount == "8" && drawn.hovered) {
                         "The slot that draws itself showed $drawn"
                     }
-                    check(ComposeThread.call { screen!!.press() }) { "The screen rejected its content's action" }
+                    check(ComposeThread.call { screen!!.press() }) { "The screen rejected its content's task" }
                     stage++
                 }
             8 ->
                 if (screen!!.presses == 1) {
-                    // A click on the press button runs its action and takes one snapshot before the input event
+                    // A click on the press button runs its task and reads the game state once before the input event
                     // returns, as a vanilla button acts, not at the next tick.
                     val active = checkNotNull(screen)
-                    val snapshots = active.snapshots
+                    val reads = active.reads
                     clickButton(0)
-                    check(active.presses == 2 && active.snapshots == snapshots + 1) {
+                    check(active.presses == 2 && active.reads == reads + 1) {
                         "The click was not handled during its input event: ${active.presses} presses, " +
-                            "${active.snapshots - snapshots} snapshots"
+                            "${active.reads - reads} reads"
                     }
                     stage++
                 }
@@ -264,7 +274,7 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
                     check(!closed.contentState.isOpen && !ComposeThread.call { closed.press() }) {
                         "The closed inventory screen kept its state"
                     }
-                    check(closed.presses == 2) { "The closed inventory screen handled a late action" }
+                    check(closed.presses == 2) { "The closed inventory screen ran a late task" }
                     check(closed.menuCloses == 1) { "The inventory screen reported ${closed.menuCloses} menu closes" }
                     stage++
                     done()

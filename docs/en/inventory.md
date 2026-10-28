@@ -15,10 +15,6 @@ class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
     ComposeInventoryScreen<StorageMenu, Unit, Nothing>(menu, title) {
     private val caption = title.string
 
-    override fun snapshot() {}
-
-    override fun handle(action: Nothing) {}
-
     @Composable
     override fun Content(state: Unit, slots: ComposeMenuSlots<StorageMenu>) {
         OreScreen(caption, maxWidth = 176.dp, maxHeight = 190.dp, panelModifier = slots.areaModifier()) {
@@ -49,7 +45,7 @@ modBus.addListener { event: RegisterMenuScreensEvent ->
 - `slots.Slot(id)` places the menu slot with that index. Place each slot once; slots you leave out are hidden.
 - `slots.areaModifier()` marks the area other mods treat as the container, for example to place recipe viewer panels beside it.
 - Read the title and other game objects before composition, as `caption` does here.
-- The slots already show the menu's items, so this screen needs no state of its own: `Unit` and `Nothing` say so, as for any [screen without game state](getting-started.md#4-show-game-data).
+- The slots already show the menu's items, so this screen reads nothing itself. `Unit` and `Nothing` say that it doesn't use the deprecated [snapshots and actions](getting-started.md#snapshots-and-actions).
 
 On Forge 1.20.1, register the screen with `MenuScreens.register` inside `FMLClientSetupEvent.enqueueWork`.
 
@@ -57,23 +53,17 @@ On Forge 1.20.1, register the screen with `MenuScreens.register` inside `FMLClie
 
 ## Show the menu's state
 
-When the screen shows more than slots, give it a state type. This version of `StorageScreen` reads the menu in `snapshot`, draws the latest snapshot with the slots in `Content`, and runs the actions the UI sends in `handle`:
+When the screen shows more than slots, read the menu with `gameState`. This version of `StorageScreen` shows how many storage slots are used and a lock switch, whose change runs on the game thread:
 
 ```kotlin
-data class StorageState(val used: Int, val locked: Boolean)
-
 class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
-    ComposeInventoryScreen<StorageMenu, StorageState, Boolean>(menu, title) {
+    ComposeInventoryScreen<StorageMenu, Unit, Nothing>(menu, title) {
     private val caption = title.string
-
-    override fun snapshot() = StorageState((0 until 27).count { container.getSlot(it).hasItem() }, container.locked())
-
-    override fun handle(action: Boolean) {
-        container.requestLocked(action)
-    }
+    private val used by gameState { (0 until 27).count { container.getSlot(it).hasItem() } }
+    private val locked by gameState { container.locked() }
 
     @Composable
-    override fun Content(state: StorageState, slots: ComposeMenuSlots<StorageMenu>) {
+    override fun Content(state: Unit, slots: ComposeMenuSlots<StorageMenu>) {
         OreScreen(
             caption,
             maxWidth = 176.dp,
@@ -82,8 +72,8 @@ class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
             panelModifier = slots.areaModifier(),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                OreText("${state.used} / 27 used", Modifier.weight(1f))
-                OreSwitch(state.locked, onCheckedChange = { send(it) })
+                OreText("$used / 27 used", Modifier.weight(1f))
+                OreSwitch(locked, onCheckedChange = { checked -> gameThread.post { container.requestLocked(checked) } })
             }
             SlotGrid(slots, 0 until 27)
             OreText("Inventory")
@@ -96,7 +86,7 @@ class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
 
 Here `locked` and `requestLocked` stand for your menu's own state, for example kept in sync with [menu sync](menu-sync.md).
 
-- `snapshot` runs on the game thread when the screen opens, every tick, and after an input event whose actions `handle` has just run.
+- `gameState` blocks run on the game thread when the screen opens, every tick, and after an input event that posted work.
 - `requestClose()` closes the screen from the UI, as the panel's close button does here.
 - `ComposeMenuScreen` works the same way for menus without slots; its `Content(state)` has no slots.
 
@@ -109,7 +99,7 @@ Here `locked` and `requestLocked` stand for your menu's own state, for example k
 | `ComposeInventoryScreen` | Menus with slots |
 | `SlotBehaviorScreen` | Container screens you draw natively, with CompixelUI's slot rules |
 
-All three Compose classes have `snapshot`, `handle`, `Content` and `requestClose()`; the two menu screens also have `menuClosed()`.
+All three Compose classes have `gameState`, `gameThread`, `Content` and `requestClose()`; the two menu screens also have `menuClosed()`.
 
 ## Change what a click does
 

@@ -30,10 +30,6 @@ internal class NativeItemVisualScreen(
             NativeRefresh.STATIC,
         ),
 ) : ComposeScreen<Unit, Nothing>(Component.literal("Native item visual acceptance")) {
-    override fun snapshot() {}
-
-    override fun handle(action: Nothing) {}
-
     @Composable
     override fun Content(state: Unit) = NativeItemVisualScene(model) { modifier -> MinecraftItemIcon(icon, modifier) }
 
@@ -55,10 +51,6 @@ internal class NativeItemPartialScreen(
         Component.literal("Native partial redraw acceptance"),
         nativeItemOptions = NativeItemOptions(preparationsPerFrame = 4),
     ) {
-    override fun snapshot() {}
-
-    override fun handle(action: Nothing) {}
-
     @Composable
     override fun Content(state: Unit) =
         NativeItemPartialScene(

@@ -102,10 +102,6 @@ internal class InventoryTransitionScreen :
 
     override fun isUiWindowFocused() = SuiteEnvironment.uiFocused(super.isUiWindowFocused())
 
-    override fun snapshot() = Unit
-
-    override fun handle(action: Nothing) {}
-
     override fun menuClosed() {
         menuCloses++
     }
@@ -134,10 +130,6 @@ internal class PlainTransitionScreen :
     @Volatile override var shown: TransitionShown? = null
 
     override fun isUiWindowFocused() = SuiteEnvironment.uiFocused(super.isUiWindowFocused())
-
-    override fun snapshot() = Unit
-
-    override fun handle(action: Nothing) {}
 
     @Composable
     override fun Content(state: Unit) = ReportedTransition { Box(Modifier.fillMaxSize().background(Color(0x80204060))) }

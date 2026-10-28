@@ -28,11 +28,19 @@ class UiBinding<S, A>(initial: S, private val capacity: Int = 64) : AutoCloseabl
 
     /** Equal snapshots do not cross threads or invalidate the composition. */
     fun update(snapshot: S) {
+        stage(snapshot)?.let { ComposeThread.call(it) }
+    }
+
+    /**
+     * Records [snapshot] as the latest and returns the write that shows it, for the Compose thread to run together with
+     * other changes; null when it equals the latest.
+     */
+    internal fun stage(snapshot: S): (() -> Unit)? {
         checkOwner()
         check(!synchronized(actions) { closed }) { "Binding is closed" }
-        if (latest == snapshot) return
-        ComposeThread.call { state.value = snapshot }
+        if (latest == snapshot) return null
         latest = snapshot
+        return { state.value = snapshot }
     }
 
     /** False means the screen closed or the bounded queue is full; no action is overwritten. */

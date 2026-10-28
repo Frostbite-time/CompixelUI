@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -266,6 +267,39 @@ class UiLayerTest {
         layer.close()
         // A closed session takes nothing more from the event.
         assertTrue(layer.handled(false))
+    }
+
+    @Test
+    fun `content posts through LocalGameThread and its game state refreshes before the input event returns`() {
+        var energy = 1
+        val contentState = UiStateBinding<Unit, Nothing>({}) {}
+        var thread: GameThread? = null
+        var observed = 0
+        val layer =
+            TestLayer(
+                contentState,
+                content = {
+                    val current = LocalGameThread.current
+                    val value by gameState(initialValue = 0) { energy }
+                    val shown = value
+                    SideEffect {
+                        thread = current
+                        observed = shown
+                    }
+                },
+            )
+        layer.open(200, 100)
+        layer.render(Unit, 200, 100)
+        assertEquals(0, observed)
+        layer.tickContent()
+        layer.render(Unit, 200, 100)
+        assertEquals(1, observed)
+        assertTrue(ComposeThread.call { checkNotNull(thread).post { energy = 4 } })
+        assertTrue(layer.handled(true))
+        assertEquals(4, energy)
+        layer.render(Unit, 200, 100)
+        assertEquals(4, observed, "The task's change waited for a tick")
+        layer.close()
     }
 
     @Test

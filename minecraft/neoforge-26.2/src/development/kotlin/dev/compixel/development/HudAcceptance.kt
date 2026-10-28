@@ -54,7 +54,7 @@ internal class HudAcceptance(
         script.act("remember the HUD session") {
             first = checkNotNull(hud.session) { "The HUD has no session" }
             check(ComposeThread.call { SuiteHud.model.firstValue } == 1) {
-                "The HUD's first composition did not show its opening snapshot"
+                "The HUD's first composition did not show its opening game state"
             }
         }
         script.pause(150)
@@ -69,7 +69,7 @@ internal class HudAcceptance(
             hud.rendererStatistics.renderedFrames > frames + 2
         }
         script.act("change the game state beneath the screen") { SuiteHud.gameValue = 2 }
-        script.until("the HUD showed the next tick's snapshot") { ComposeThread.call { SuiteHud.model.value } == 2 }
+        script.until("the HUD showed the next tick's game state") { ComposeThread.call { SuiteHud.model.value } == 2 }
         // The port target lies over the HUD panel: the screen above takes the click.
         script.act("click the screen over the HUD panel") {
             port.mouseMoved(32.0, 32.0)

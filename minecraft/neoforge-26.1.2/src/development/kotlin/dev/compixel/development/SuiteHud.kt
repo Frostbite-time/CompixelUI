@@ -52,7 +52,7 @@ internal class SuiteHudModel {
 }
 
 /**
- * The development HUD: one [ComposeHudLayer] whose content the suites choose, showing [gameValue] as its state. The
+ * The development HUD: one [ComposeHudLayer] whose content the suites choose, showing [gameValue] as game state. The
  * adapter registers it above every vanilla layer but draws it only while [enabled], so the other steps and cases run
  * without it. Game thread only.
  */
@@ -62,11 +62,11 @@ internal object SuiteHud {
     const val PANEL_HEIGHT_DP = 32
 
     val model: SuiteHudModel by lazy { ComposeThread.call { SuiteHudModel() } }
-    val layer: ComposeHudLayer<Int> by lazy {
-        object : ComposeHudLayer<Int>() {
-            override fun snapshot() = gameValue
+    val layer: ComposeHudLayer<Unit> by lazy {
+        object : ComposeHudLayer<Unit>() {
+            private val value by gameState { gameValue }
 
-            @Composable override fun Content(state: Int) = SuiteHudContent(model, state)
+            @Composable override fun Content(state: Unit) = SuiteHudContent(model, value)
         }
     }
     var enabled = false

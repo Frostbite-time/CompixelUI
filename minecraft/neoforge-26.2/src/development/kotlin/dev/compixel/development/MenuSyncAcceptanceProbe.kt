@@ -21,7 +21,11 @@ import net.minecraft.world.item.Items
 /** What the screen's content shows of the synchronized menu. */
 internal data class SyncAcceptanceView(val ready: Boolean, val counter: Int, val emeralds: Int)
 
-/** Its content is one button over the whole screen, which requests the replacement text through the screen's state. */
+/**
+ * Its content is one button over the whole screen, which requests the replacement text through the screen's state. It
+ * keeps the deprecated snapshot model covered, with snapshot, handle and send, until that model is removed.
+ */
+@Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
 internal class SyncAcceptanceScreen(
     menu: SyncAcceptanceMenu,
     @Suppress("UNUSED_PARAMETER") inventory: Inventory,

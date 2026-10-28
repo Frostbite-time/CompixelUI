@@ -14,10 +14,6 @@ Take a snapshot of each stack on the game thread with `ItemIcon.snapshot`, then 
 class ItemCatalogScreen(stacks: List<ItemStack>) : ComposeScreen<Unit, Nothing>(Component.literal("Item catalog")) {
     private val icons = stacks.map { ItemIcon.snapshot(it) }
 
-    override fun snapshot() {}
-
-    override fun handle(action: Nothing) {}
-
     @Composable
     override fun Content(state: Unit) {
         OreScreen("Item catalog", maxWidth = 176.dp, maxHeight = 110.dp) {
@@ -33,7 +29,7 @@ class ItemCatalogScreen(stacks: List<ItemStack>) : ComposeScreen<Unit, Nothing>(
 }
 ```
 
-The screen is created on the game thread, so its constructor can take the snapshots. Icons that change with the game belong in the screen's state instead, taken in `snapshot()`.
+The screen is created on the game thread, so its constructor can take the snapshots. Icons that change with the game belong in a `gameState` block instead, which runs on the game thread.
 
 - `MinecraftItemIcon` behaves like any other composable: size, clip, rotate or fade it.
 - `MinecraftItemTooltip` shows the tooltip after the pointer rests for 500 ms, drawn by Minecraft itself, so lines added by other mods appear too.
@@ -103,7 +99,7 @@ Set `nativeItemOptions` when creating a `ComposeScreen`, `ComposeMenuScreen`, `C
 
 ```kotlin
 class CatalogScreen(title: Component) :
-    ComposeScreen<CatalogState, CatalogAction>(title, nativeItemOptions = NativeItemOptions(cacheCapacity = 512)) { … }
+    ComposeScreen<Unit, Nothing>(title, nativeItemOptions = NativeItemOptions(cacheCapacity = 512)) { … }
 
 class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
     ComposeInventoryScreen<StorageMenu, Unit, Nothing>(

@@ -8,14 +8,14 @@
 
 ## Register a layer
 
-This layer counts the diamonds in the player's inventory. `ComposeHudLayer` reads the game in `snapshot` and draws the latest value in `Content`:
+This layer counts the diamonds in the player's inventory. A `gameState` property reads the game on the game thread, and `Content` draws the latest value:
 
 ```kotlin
-class QuestHud(private val diamond: ItemIcon) : ComposeHudLayer<Int>() {
-    override fun snapshot() = Minecraft.getInstance().player?.inventory?.countItem(Items.DIAMOND) ?: 0
+class QuestHud(private val diamond: ItemIcon) : ComposeHudLayer<Unit>() {
+    private val found by gameState { Minecraft.getInstance().player?.inventory?.countItem(Items.DIAMOND) ?: 0 }
 
     @Composable
-    override fun Content(state: Int) = QuestPanel(diamond, state)
+    override fun Content(state: Unit) = QuestPanel(diamond, found)
 }
 
 fun registerQuestHud(modBus: IEventBus) {
@@ -42,7 +42,7 @@ fun QuestPanel(diamond: ItemIcon, found: Int) {
 }
 ```
 
-Call `registerQuestHud(modBus)` from your client mod constructor. A layer without game state extends `ComposeHudLayer<Unit>` with `override fun snapshot() {}`.
+Call `registerQuestHud(modBus)` from your client mod constructor. `Unit` says that the layer doesn't use the deprecated [snapshots](getting-started.md#snapshots-and-actions).
 
 ## What to expect
 
@@ -50,7 +50,7 @@ Call `registerQuestHud(modBus)` from your client mod constructor. A layer withou
 - It hides with the rest of the HUD when the player presses F1.
 - It never takes input. Clicks, keys and text go to the game, and tooltips don't open, so use a screen for anything interactive.
 - It starts on the first frame in a world and stops when the player leaves. Call `close()` to stop it sooner; `remember`ed state starts over the next time.
-- `snapshot` runs on the game thread when the layer starts and once per client tick after that, also while a screen is open. The content redraws only when the snapshot changes.
+- A `gameState` block runs on the game thread when the layer starts and then every client tick, or every `intervalTicks` ticks, also while a screen is open. The content redraws only when a value changes.
 
 ## On other versions
 

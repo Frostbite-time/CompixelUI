@@ -60,10 +60,6 @@ internal class NativeDrawingVisualScreen :
     private val samples = NativeDrawingSamples()
     val model: NativeDrawingVisualModel = ComposeThread.call { NativeDrawingVisualModel() }
 
-    override fun snapshot() {}
-
-    override fun handle(action: Nothing) {}
-
     @Composable
     override fun Content(state: Unit) =
         NativeDrawingVisualScene(

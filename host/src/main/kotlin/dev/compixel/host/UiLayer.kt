@@ -91,7 +91,7 @@ abstract class UiLayer<G, D>(
     private val requestColorEditor: (() -> Unit)? = openColorEditor?.let { { editorRequested.set(true) } }
     private val pendingFeedback = AtomicBoolean()
     private val feedback = UiFeedback { pendingFeedback.set(true) }
-    // Whether this session already warned that its content sent more actions than the host can queue.
+    // Whether this session already warned that its content queued more actions and tasks than the host can hold.
     private var rejectionsReported = false
     private var seenResourceEpoch = 0L
     private var shownSchemes: Schemes? = null
@@ -226,6 +226,8 @@ abstract class UiLayer<G, D>(
                             LocalSchemes provides schemesState.value,
                             LocalColorEditor provides requestColorEditor,
                             LocalScreenPresence provides shown,
+                            LocalGameThread provides contentState.gameThread,
+                            LocalGameStates provides contentState,
                         ) {
                             ProvideContent { design.Decorate(content) }
                         }
@@ -242,7 +244,7 @@ abstract class UiLayer<G, D>(
             existing.resize(current.viewport)
             if (suspended) {
                 suspended = false
-                contentState.tick() // The game went on while another screen covered the host.
+                contentState.resume() // The game went on while another screen covered the host.
             }
         }
         metrics = current
@@ -438,8 +440,8 @@ abstract class UiLayer<G, D>(
     }
 
     /**
-     * Runs the content's pending actions, publishes a snapshot and then closes the host or opens the color editor if
-     * the content asked to.
+     * Runs the content's pending actions and tasks, publishes its game state and then closes the host or opens the
+     * color editor if the content asked to.
      */
     fun tickContent() {
         contentState.tick()
@@ -454,8 +456,9 @@ abstract class UiLayer<G, D>(
 
     /**
      * Runs what the content asked for while Compose handled an input event, before the event returns, as vanilla
-     * widgets act inside their input handlers: the actions it sent, then a close or color editor request. True when
-     * Compose [consumed] the event or the content closed the host, which then takes nothing more from the event.
+     * widgets act inside their input handlers: the actions and tasks it queued, after which its game state refreshes,
+     * then a close or color editor request. True when Compose [consumed] the event or the content closed the host,
+     * which then takes nothing more from the event.
      */
     fun handled(consumed: Boolean): Boolean {
         contentState.handleActions()
@@ -587,13 +590,13 @@ abstract class UiLayer<G, D>(
         if (pendingFeedback.getAndSet(false)) playFeedback()
     }
 
-    // A send() the queue refused loses its action. Say so once per session, without flooding the log.
+    // A send() or post() the queue refused loses its work. Say so once per session, without flooding the log.
     private fun reportRejectedActions() {
         if (rejectionsReported) return
         val rejected = contentState.rejectedActions
         if (rejected == 0L) return
         rejectionsReported = true
-        warn("UI content sent more actions than its screen can queue; $rejected were rejected")
+        warn("UI content queued more actions and tasks than its screen can hold; $rejected were rejected")
     }
 
     // Input reaches the session only while its host shows it.

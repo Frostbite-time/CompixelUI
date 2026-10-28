@@ -56,13 +56,13 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    game["游戏线程<br/>读取世界"] -- 快照 --> compose["Compose 线程<br/>状态与布局"]
-    compose -- 动作 --> game
+    game["游戏线程<br/>读取世界"] -- 游戏状态 --> compose["Compose 线程<br/>状态与布局"]
+    compose -- 提交的代码 --> game
     compose -- 录制的帧 --> gpu["渲染线程<br/>GPU 绘制与物品图标"]
     gpu --> frame["Minecraft 的画面"]
 ```
 
-游戏对象只留在游戏线程。Compose 看到的是不可变快照，并通过 `UiBinding` 把动作发回。界面和 HUD 层让绑定跟随 Compose 会话：会话打开时从第一份快照开始；输入事件发出的动作在事件返回前处理，其余动作在每刻处理，处理后再取下一份快照；会话关闭时绑定随之关闭。每一帧先由 Compose 录制，再由渲染线程在 Minecraft 自己的图形上下文中绘制：OpenGL 状态在绘制后恢复，Vulkan 使用游戏的设备和队列。
+游戏对象只留在游戏线程。Compose 看到的是游戏线程为它读取的不可变值，并把要做的事提交回游戏线程。界面和 HUD 层让两者跟随 Compose 会话：会话打开时先读取一次；输入事件提交的代码在事件返回前执行，随后重新读取；其余代码在每刻执行，之后再读取；会话关闭时随之结束。每一帧先由 Compose 录制，再由渲染线程在 Minecraft 自己的图形上下文中绘制：OpenGL 状态在绘制后恢复，Vulkan 使用游戏的设备和队列。
 
 Compose 绘制的 GPU 图像（例如物品图标页）归渲染线程所有。Compose 录制的画面会保留对这些图像的引用，渲染器要等这些引用全部释放后才释放图像；在其他线程释放会丢失这块显存。
 

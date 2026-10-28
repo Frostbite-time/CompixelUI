@@ -7,10 +7,12 @@ import dev.compixel.forge.item.NativeItemStatistics
 import dev.compixel.forge.item.NativeTooltipStatistics
 import dev.compixel.forge.render.configuredRenderBackend
 import dev.compixel.forge.theme.ColorEditorScreen
+import dev.compixel.host.GameThread
 import dev.compixel.host.UiStateBinding
 import dev.compixel.render.*
 import dev.compixel.ui.UiDesign
 import dev.compixel.ui.ore.theme.OreDesign
+import kotlin.properties.ReadOnlyProperty
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.gui.components.EditBox
@@ -23,13 +25,19 @@ import net.minecraft.client.input.PreeditEvent // IME
 import net.minecraft.network.chat.Component
 
 /**
- * Full-screen Compose adapter. A subclass reads the game into an immutable [snapshot], draws the latest one in
- * [Content] and runs the actions its content [send]s in [handle]; `ComposeScreen<Unit, Nothing>` shows content without
- * game state. Actions sent while Compose handles an input event run before the event returns, as vanilla widgets act
- * inside their input handlers; actions sent at other times run at the next tick. The screen takes a snapshot when it
- * opens, after an input event's actions and every tick. Actions still pending when it is removed are discarded, and a
- * screen shown again starts from a new snapshot. When its content uses ScreenTransition, closing gives the player
- * control back at once while the content plays its exit above the game.
+ * Full-screen Compose adapter. A subclass draws its [Content] on the Compose thread, reads the game with [gameState],
+ * whose read blocks run on the game thread, and changes it with tasks it posts to [gameThread]; it extends
+ * `ComposeScreen<Unit, Nothing>`. The snapshot model, with [snapshot], [handle] and [send], is deprecated and removed
+ * in 0.2.0. Until then it mixes with game state: [snapshot] reads the game into one immutable value for [Content], and
+ * [handle] runs the actions the content sends.
+ *
+ * Actions and tasks queued while Compose handles an input event run before the event returns, as vanilla widgets act
+ * inside their input handlers, and the game state refreshes before it returns; those queued at other times run at the
+ * next tick. The screen takes a snapshot and samples its member game state when it opens, before the first composition;
+ * then it takes a snapshot every tick and samples each game state at its interval, and both after actions or tasks ran.
+ * Actions and tasks still pending when it is removed are discarded, and a screen shown again starts from a new
+ * snapshot. When its content uses ScreenTransition, closing gives the player control back at once while the content
+ * plays its exit above the game with the last values.
  *
  * Widgets added through screen initialization events draw above the Compose layer and receive input first. All
  * rendering and resource retirement run on the game thread.
@@ -45,7 +53,7 @@ abstract class ComposeScreen<S, A>(
     design: UiDesign = OreDesign(),
 ) : Screen(title) {
     /** The content's game state, opened and closed with each Compose session. */
-    internal val contentState = UiStateBinding<S, A>(::snapshot, ::handle)
+    @Suppress("DEPRECATION") internal val contentState = UiStateBinding<S, A>(::snapshot, ::handle)
     private val layer =
         ComposeLayer(
             renderBackend,
@@ -90,24 +98,33 @@ abstract class ComposeScreen<S, A>(
         get() = layer.frameProfiler
 
     /**
-     * Reads the game on the game thread. It can run more than once per tick, so only read. Return an immutable value:
-     * an equal snapshot leaves the content as it is.
+     * Reads the game on the game thread for the snapshot model. It can run more than once per tick, so only read.
+     * Return an immutable value: an equal snapshot leaves the content as it is. Screens that read the game with
+     * [gameState] leave it out.
      */
-    protected abstract fun snapshot(): S
+    @Deprecated("Read the game with gameState; snapshot is removed in 0.2.0")
+    @Suppress("UNCHECKED_CAST")
+    protected open fun snapshot(): S = Unit as S
 
     /**
      * Runs an action from the content on the game thread, before the next snapshot: before the input event that sent it
      * returns, otherwise at the next tick. It may close the screen.
      */
-    protected abstract fun handle(action: A)
+    @Deprecated("Change the game in gameThread.post; handle is removed in 0.2.0")
+    protected open fun handle(action: A) {}
 
     /**
-     * The content for the latest [state], composed on the Compose thread. Use [state], [send] and immutable values
-     * prepared during construction, never game objects such as the player.
+     * The content, composed on the Compose thread. Read the game through [gameState] and change it through
+     * [gameThread], and otherwise use immutable values prepared during construction: never read game objects such as
+     * the player here. [state] is the latest [snapshot].
      */
     @Composable protected abstract fun Content(state: S)
 
-    /** Queues [action] for [handle] from any thread. False while the screen is not shown or 64 actions are waiting. */
+    /**
+     * Queues [action] for [handle] from any thread. False while the screen is not shown or 64 actions and tasks are
+     * waiting.
+     */
+    @Deprecated("Queue the work with gameThread.post; send is removed in 0.2.0")
     protected fun send(action: A): Boolean = contentState.send(action)
 
     /**
@@ -115,6 +132,27 @@ abstract class ComposeScreen<S, A>(
      * returns, otherwise at the next tick. Call it from any thread, for example from a close button in the content.
      */
     protected fun requestClose() = layer.requestClose()
+
+    /**
+     * Runs the content's tasks on the game thread, queued with its actions: before the input event that queued them
+     * returns, otherwise at the next tick, and the game state refreshes after them. False while the screen is not shown
+     * or 64 actions and tasks are waiting.
+     *
+     * For example: `onClick = { gameThread.post { machine.enabled = !machine.enabled } }`.
+     */
+    val gameThread: GameThread
+        get() = contentState.gameThread
+
+    /**
+     * Game state for a member property, such as `private val enabled by gameState { machine.enabled }`. [read] runs on
+     * the game thread when the screen opens, before its first composition, then every [intervalTicks] client ticks and
+     * after the content's actions and tasks. The property shows the latest result, recomposes its readers when it
+     * changes and never runs [read] itself. Declare it while the screen is constructed, in the screen or in a state
+     * object it creates; state that only part of the content needs can use the composable gameState with an initial
+     * value. [read] only reads, and returns values or immutable data, never game objects.
+     */
+    fun <T> gameState(intervalTicks: Int = 1, read: () -> T): ReadOnlyProperty<Any?, T> =
+        contentState.gameState(intervalTicks, read)
 
     override fun init() {
         nativeCapture = null

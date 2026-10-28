@@ -56,10 +56,6 @@ private constructor(
             listOf(0, 1, 3, 8).associateWith { ItemIcon.snapshot(icons[it].stack) }
         else emptyMap(),
 ) : ComposeScreen<Unit, Nothing>(Component.literal("CompixelUI benchmark")), BenchmarkTarget {
-    override fun snapshot() {}
-
-    override fun handle(action: Nothing) {}
-
     @Composable override fun Content(state: Unit) = BenchmarkContent(fixture, model, icons, samples, drawings)
 
     private val componentExercise =

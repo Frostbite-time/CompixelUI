@@ -35,10 +35,6 @@ class ColorEditorScreen(parent: Screen?, private val design: UiDesign) :
     private val exported = line("compixel.color_editor.exported")
     private val failed = line("compixel.color_editor.export_failed")
 
-    override fun snapshot() = Unit
-
-    override fun handle(action: Nothing) = Unit
-
     @Composable
     override fun Content(state: Unit) =
         OreColorEditor(design.owner, ColorSchemes.store, text, ::export, ::requestClose) { design.Decorate(preview) }
