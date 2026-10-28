@@ -13,9 +13,13 @@ apply plugin: 'compixel.skiko-profile'
 def runtimeBundle = project(':runtime-vulkan')
 
 repositories {
-    maven { url = 'https://repo.polyfrost.org/releases' }
     mavenCentral()
     google()
+    // Polyfrost's Vulkan-capable Skiko fork (0.999.x) is the only thing fetched from Polyfrost.
+    exclusiveContent {
+        forRepository { maven { url = 'https://repo.polyfrost.org/releases' } }
+        filter { includeVersionByRegex('org\\.jetbrains\\.skiko', '.*', '0\\.999\\..*') }
+    }
 }
 // Minecraft adds some runtime libraries on one host only: netty epoll on Linux, netty kqueue and the Objective-C
 // bridge on macOS. Keep them out of the lock so that it stays portable across hosts.

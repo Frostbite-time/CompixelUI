@@ -35,11 +35,14 @@ def suppliedByKotlinProvider = { id ->
 def bundled = { id -> id.group != project.group.toString() && suppliedByKotlinProvider(id) == kotlinBundle }
 def catalog = rootProject.extensions.getByType(org.gradle.api.artifacts.VersionCatalogsExtension).named('libs')
 repositories {
-    // PREFER_PROJECT requires the runtime module to declare the Polyfrost
-    // repository itself; these artifacts include the Vulkan-capable natives.
-    maven { url = 'https://repo.polyfrost.org/releases' }
     mavenCentral()
     google()
+    // PREFER_PROJECT requires the runtime module to declare the Polyfrost repository itself. Its Vulkan-capable
+    // Skiko fork (0.999.x) is the only thing fetched from there.
+    exclusiveContent {
+        forRepository { maven { url = 'https://repo.polyfrost.org/releases' } }
+        filter { includeVersionByRegex('org\\.jetbrains\\.skiko', '.*', '0\\.999\\..*') }
+    }
 }
 
 dependencies {

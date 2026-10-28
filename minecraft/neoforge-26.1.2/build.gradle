@@ -13,7 +13,6 @@ apply plugin: 'compixel.skiko-profile'
 def runtimeBundle = project(':runtime-standard')
 
 repositories {
-    maven { url = 'https://repo.polyfrost.org/releases' }
     mavenCentral()
     google()
 }

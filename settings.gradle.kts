@@ -4,7 +4,6 @@ import org.gradle.api.initialization.resolve.RepositoriesMode
 pluginManagement {
     includeBuild("build-logic")
     repositories {
-        maven("https://repo.polyfrost.org/releases")
         gradlePluginPortal()
         mavenCentral()
     }
@@ -19,9 +18,13 @@ plugins {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
     repositories {
-        maven("https://repo.polyfrost.org/releases")
         mavenCentral()
         google()
+        // Polyfrost's Vulkan-capable Skiko fork (0.999.x) is the only thing fetched from Polyfrost.
+        exclusiveContent {
+            forRepository { maven("https://repo.polyfrost.org/releases") }
+            filter { includeVersionByRegex("org\\.jetbrains\\.skiko", ".*", "0\\.999\\..*") }
+        }
     }
 }
 
