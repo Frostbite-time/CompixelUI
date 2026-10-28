@@ -181,6 +181,11 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
     private var nativeDragIds: Set<Int> = emptySet()
     private var nativeButton = 0
     private var hoveredSlot by mutableStateOf(-1)
+    // The pointer's last position and the slot last published as hovered, on the game thread. Slots that move under
+    // a still pointer change which slot it hovers, so refresh recomputes it from these.
+    private var pointerX = Double.NaN
+    private var pointerY = Double.NaN
+    private var lastHovered = -1
     val interactionsEnabled
         get() = !blocked.get()
 
@@ -239,10 +244,13 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
         Box(modifier.then(region)) { content(state) }
     }
 
-    // Read during composition, so a slot recomposes when its visual or the hovered slot changes.
+    // Read during composition, so a slot recomposes when its visual changes or it gains or loses the hover; the
+    // pointer moving between two other slots does not recompose it.
+    @Composable
     private fun state(slotId: Int): MenuSlotState {
+        val hovered by remember(slotId) { derivedStateOf { hoveredSlot == slotId } }
         val visual = visuals[slotId] ?: MenuSlotVisual()
-        return MenuSlotState(visual.icon, visual.amount, visual.compactAmount, visual.marked, hoveredSlot == slotId)
+        return MenuSlotState(visual.icon, visual.amount, visual.compactAmount, visual.marked, hovered)
     }
 
     // Registers where the slot is laid out as its hit region, and leaves a focused text field when it is pressed.
@@ -308,8 +316,18 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
 
     internal fun move(x: Double, y: Double) {
         checkOwner()
-        val hovered = if (blocked.get()) -1 else slotAt(x, y)
+        pointerX = x
+        pointerY = y
+        updateHovered()
+    }
+
+    // Publishes the slot under the pointer's last position; returns whether it changed.
+    private fun updateHovered(): Boolean {
+        val hovered = if (blocked.get() || pointerX.isNaN()) -1 else slotAt(pointerX, pointerY)
+        if (hovered == lastHovered) return false
+        lastHovered = hovered
         ComposeThread.call { hoveredSlot = hovered }
+        return true
     }
 
     internal fun reset() {
@@ -360,7 +378,9 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
                     layout.mapValues { it.value.second }.filterValues { it.width > 0 && it.height > 0 }
                 }
             }
+        val moved = next !== currentLayout
         currentLayout = next
+        val hoverMoved = moved && updateHovered()
         val carried = menu.carried
         if (!ItemStack.isSameItemSameComponents(cursor, carried)) {
             cursor = carried.copy()
@@ -396,7 +416,7 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
                 visuals.putAll(changes)
                 removed.forEach { visuals.remove(it) }
             }
-        return changed
+        return changed || hoverMoved
     }
 
     private fun previewAmount(slot: Slot): Int {
