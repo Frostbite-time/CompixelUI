@@ -19,7 +19,6 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.forge.*
 import dev.compixel.forge.drawing.NativeRefresh
 import dev.compixel.forge.item.ItemIcon
@@ -73,8 +72,7 @@ private constructor(
         get() = (componentExercise?.complete ?: true) && (!drawings.active || nativeDrawingStatistics.cachedImages == 4)
 
     init {
-        if (componentExercise != null)
-            ComposeThread.call { model.preview.page = dev.compixel.demo.preview.DemoPage.entries[fixture.count] }
+        if (componentExercise != null) model.preview.page = dev.compixel.demo.preview.DemoPage.entries[fixture.count]
         // This packaged run has no consumer mod: verify the library supplies its own coordinate access.
         val slot = net.minecraft.world.inventory.Slot(net.minecraft.world.SimpleContainer(1), 0, 0, 0)
         slot.x = 7
@@ -86,7 +84,7 @@ private constructor(
         fixture: BenchmarkCase
     ) : this(
         fixture,
-        ComposeThread.call { BenchmarkModel() },
+        BenchmarkModel(),
         // Glint makes AUTO refresh every game tick, like enchanted items in real inventories.
         if (fixture.kind == BenchmarkKind.NATIVE_ANIMATED)
             benchmarkIcons(NativeRefresh.AUTO) { enchant(Enchantments.UNBREAKING, 1) }

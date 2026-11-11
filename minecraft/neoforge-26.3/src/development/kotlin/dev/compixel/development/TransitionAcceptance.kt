@@ -18,7 +18,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.forge.ComposeInventoryScreen
 import dev.compixel.forge.ComposeScreen
 import dev.compixel.forge.ScreenExits
@@ -184,7 +183,7 @@ internal class TransitionAcceptance(private val log: AcceptanceLog, private val 
             openMenu()
         }
         script.until("the menu screen entered") { menuEntered() }
-        script.until("the menu's snapshot reached the content") { ComposeThread.call { menu.composed }?.ready == true }
+        script.until("the menu's snapshot reached the content") { menu.composed?.ready == true }
         script.act("cover the menu screen") {
             kept = checkNotNull(menu.session)
             composition = checkNotNull(menu.shown).composition

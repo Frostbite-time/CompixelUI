@@ -1,7 +1,6 @@
 package dev.compixel.forge.drawing
 
 import com.mojang.blaze3d.systems.RenderSystem
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.bridge.NativeImageAtlas
 import dev.compixel.bridge.NativeImageMailbox
 import dev.compixel.bridge.NativeImageRegion
@@ -26,8 +25,8 @@ internal class NativeDrawingRenderer(
     val statistics
         get() = atlas.statistics
 
-    override fun recorded(frameGeneration: Long) {
-        atlas.recorded(ComposeThread.call { mailbox.activeRequests() })
+    override fun laidOut(frame: Long) {
+        atlas.recorded(mailbox.activeRequests())
     }
 
     override fun prepare(now: Long, current: ScreenMetrics): Boolean {

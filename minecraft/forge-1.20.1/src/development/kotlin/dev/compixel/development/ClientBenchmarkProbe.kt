@@ -2,7 +2,6 @@ package dev.compixel.development
 
 import com.google.gson.GsonBuilder
 import com.mojang.logging.LogUtils
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.development.render.verifyRenderer
 import dev.compixel.forge.item.NativeItemStatistics
 import dev.compixel.forge.item.NativeTooltipStatistics
@@ -205,7 +204,7 @@ internal class ClientBenchmarkProbe {
                 active.fixture.kind == BenchmarkKind.TOOLTIP &&
                 active is BenchmarkScreen
         ) {
-            val point = ComposeThread.call {
+            val point = run {
                 checkNotNull(active.model.tooltipTarget) { "The tooltip target is not laid out" }.center
             }
             active.mouseMoved(

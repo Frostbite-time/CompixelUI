@@ -14,8 +14,10 @@ enum class CpuPhase {
 }
 
 enum class CpuDetail {
-    EDT_EXECUTION,
-    EDT_WAIT,
+    /** Within RECORD: effects, animation frames, composition and layout. */
+    COMPOSE,
+    /** Within RECORD: drawing the scene into the frame's picture, which RENDER then replays. */
+    DRAW,
     GL_CAPTURE,
     GL_RESTORE,
     NATIVE_DRAW,
@@ -47,8 +49,6 @@ data class UiFrameProfile(
     val gpuRequests: Map<GpuPhase, Int>,
     val missingGpuResults: Int,
     val renderThreadBytes: Long?,
-    val composeThreadBytes: Long?,
-    val composeCalls: Int,
     val recordings: Int,
     val rendered: Boolean,
     val generation: Long,
@@ -68,8 +68,6 @@ class UiFrameProfiler(private val capacity: Int = 2048, val measureAllocations: 
         val received = IntArray(GpuPhase.entries.size)
         var elapsed = 0L
         var renderBytes: Long? = null
-        var composeBytes: Long? = null
-        var calls = 0
         var recordings = 0
         var rendered = false
         var generation = 0L
@@ -142,15 +140,6 @@ class UiFrameProfiler(private val capacity: Int = 2048, val measureAllocations: 
         current?.let { it.detail[phase.ordinal] += nanos }
     }
 
-    fun composeCall(roundTripNanos: Long, executionNanos: Long, allocatedBytes: Long) {
-        current?.let {
-            it.calls++
-            it.detail[CpuDetail.EDT_EXECUTION.ordinal] += executionNanos
-            it.detail[CpuDetail.EDT_WAIT.ordinal] += (roundTripNanos - executionNanos).coerceAtLeast(0)
-            if (allocatedBytes >= 0) it.composeBytes = (it.composeBytes ?: 0) + allocatedBytes
-        }
-    }
-
     fun recorded(generation: Long) {
         lastGeneration = generation
         current?.let {
@@ -213,8 +202,6 @@ class UiFrameProfiler(private val capacity: Int = 2048, val measureAllocations: 
                     GpuPhase.entries.associateWith { row.requested[it.ordinal] },
                     row.requested.indices.sumOf { row.requested[it] - row.received[it] },
                     row.renderBytes,
-                    row.composeBytes,
-                    row.calls,
                     row.recordings,
                     row.rendered,
                     row.generation,

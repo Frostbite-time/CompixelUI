@@ -14,7 +14,6 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.forge.ComposeHudLayer
 import dev.compixel.forge.item.ItemIcon
 import dev.compixel.forge.item.MinecraftItemIcon
@@ -61,7 +60,7 @@ internal object SuiteHud {
     const val PANEL_WIDTH_DP = 96
     const val PANEL_HEIGHT_DP = 32
 
-    val model: SuiteHudModel by lazy { ComposeThread.call { SuiteHudModel() } }
+    val model: SuiteHudModel by lazy { SuiteHudModel() }
     val layer: ComposeHudLayer<Unit> by lazy {
         object : ComposeHudLayer<Unit>() {
             private val value by gameState { gameValue }
@@ -81,16 +80,14 @@ internal object SuiteHud {
     fun show(mode: SuiteHudMode) {
         layer.close()
         val icons = items.map { ItemIcon.snapshot(ItemStack(it)) }
-        ComposeThread.call {
-            model.mode = mode
-            model.icons = icons
-            model.step = 0
-            model.pointerEvents = 0
-            model.firstValue = -1
-            model.value = -1
-            model.panel = null
-            model.item = null
-        }
+        model.mode = mode
+        model.icons = icons
+        model.step = 0
+        model.pointerEvents = 0
+        model.firstValue = -1
+        model.value = -1
+        model.panel = null
+        model.item = null
         enabled = true
     }
 
@@ -98,7 +95,7 @@ internal object SuiteHud {
     fun hide() {
         enabled = false
         layer.close()
-        ComposeThread.call { model.mode = SuiteHudMode.OFF }
+        model.mode = SuiteHudMode.OFF
     }
 
     /** Changes the content before the next drawn frame, as a benchmark step does for a screen. */

@@ -8,7 +8,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.*
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.host.UiSession
 import dev.compixel.platform.*
 import kotlin.test.*
@@ -51,6 +50,6 @@ class KeyInputTest {
                 }
             }
         val expected = listOf(Key.S, Key.F5, Key.One, Key.NumPadEnter, Key.ShiftLeft).map { it.toString() }
-        assertEquals(listOf("${expected[0]}+ctrl") + expected.drop(1), ComposeThread.call { received.toList() })
+        assertEquals(listOf("${expected[0]}+ctrl") + expected.drop(1), received.toList())
     }
 }

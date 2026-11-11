@@ -1,6 +1,5 @@
 package dev.compixel.development
 
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.development.render.PortValidationScreen
 import dev.compixel.forge.closeHudLayers
 import dev.compixel.host.SessionState
@@ -53,7 +52,7 @@ internal class HudAcceptance(
         }
         script.act("remember the HUD session") {
             first = checkNotNull(hud.session) { "The HUD has no session" }
-            check(ComposeThread.call { SuiteHud.model.firstValue } == 1) {
+            check(SuiteHud.model.firstValue == 1) {
                 "The HUD's first composition did not show its opening game state"
             }
         }
@@ -69,16 +68,16 @@ internal class HudAcceptance(
             hud.rendererStatistics.renderedFrames > frames + 2
         }
         script.act("change the game state beneath the screen") { SuiteHud.gameValue = 2 }
-        script.until("the HUD showed the next tick's game state") { ComposeThread.call { SuiteHud.model.value } == 2 }
+        script.until("the HUD showed the next tick's game state") { SuiteHud.model.value == 2 }
         // The port target lies over the HUD panel: the screen above takes the click.
         script.act("click the screen over the HUD panel") {
             port.mouseMoved(32.0, 32.0)
             port.mouseClicked(32.0, 32.0, SuitePlatform.MOUSE_LEFT)
             port.mouseReleased(32.0, 32.0, SuitePlatform.MOUSE_LEFT)
         }
-        script.until("the screen above received the click") { ComposeThread.call { port.model.clicks } == 1 }
+        script.until("the screen above received the click") { port.model.clicks == 1 }
         script.act("check that the HUD received no input") {
-            check(ComposeThread.call { SuiteHud.model.pointerEvents } == 0) { "Input reached the HUD layer" }
+            check(SuiteHud.model.pointerEvents == 0) { "Input reached the HUD layer" }
             requireSession("A screen above the HUD")
         }
         pass(AcceptanceStep.HUD_RENDER) { hud.nativeItemStatistics.toString() }
@@ -188,10 +187,10 @@ internal class HudAcceptance(
     }
 
     /** The panel and its item in framebuffer pixels, once laid out. */
-    private fun layout(): Pair<PixelRect, PixelRect>? = ComposeThread.call {
-        val panel = SuiteHud.model.panel ?: return@call null
-        val item = SuiteHud.model.item ?: return@call null
-        pixels(panel) to pixels(item)
+    private fun layout(): Pair<PixelRect, PixelRect>? {
+        val panel = SuiteHud.model.panel ?: return null
+        val item = SuiteHud.model.item ?: return null
+        return pixels(panel) to pixels(item)
     }
 
     private fun pixels(rect: androidx.compose.ui.geometry.Rect) =

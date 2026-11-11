@@ -1,6 +1,5 @@
 package dev.compixel.development
 
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.demo.preview.DemoModel
 import dev.compixel.demo.preview.DemoPage
 import dev.compixel.host.SessionState
@@ -207,7 +206,7 @@ internal class PreviewAcceptance(
         script.until("native items prepared", 20_000) {
             val items = screen.nativeItemStatistics
             model { page == DemoPage.Items } &&
-                ComposeThread.call {
+                run {
                     screen.itemBrowser.previewBounds != null &&
                         screen.itemBrowser.edgeTooltipBounds != null &&
                         screen.itemBrowser.visibleCells.keys.containsAll(listOf(1, 8))
@@ -221,9 +220,7 @@ internal class PreviewAcceptance(
         script.until("the native item capture") { session.capturesIdle }
         script.act("click the first visible item") {
             val (x, y, index) =
-                ComposeThread.call {
-                    Triple(screen.itemBrowser.hitX, screen.itemBrowser.hitY, screen.itemBrowser.firstVisible)
-                }
+                Triple(screen.itemBrowser.hitX, screen.itemBrowser.hitY, screen.itemBrowser.firstVisible)
             firstVisible = index
             click(gui(x, y))
         }
@@ -251,12 +248,11 @@ internal class PreviewAcceptance(
         script.act("remember native preparation") { prepared = screen.nativeItemStatistics.preparedImages }
         for (row in listOf(64, 128, 192)) {
             script.act("scroll the item grid to $row") {
-                firstVisible = ComposeThread.call { screen.itemBrowser.firstVisible }
+                firstVisible = screen.itemBrowser.firstVisible
                 post { screen.itemBrowser.scrollTarget = row }
             }
             script.until("the item grid reached $row") {
-                ComposeThread.call { screen.itemBrowser.firstVisible } > firstVisible &&
-                    screen.nativeItemStatistics.pendingImages == 0
+                screen.itemBrowser.firstVisible > firstVisible && screen.nativeItemStatistics.pendingImages == 0
             }
         }
         script.pause(150)
@@ -310,7 +306,7 @@ internal class PreviewAcceptance(
             post { screen.itemBrowser.scrollTarget = 0 }
         }
         script.until("items 1 and 8 laid out") {
-            ComposeThread.call { screen.itemBrowser.visibleCells.keys.containsAll(listOf(1, 8)) }
+            screen.itemBrowser.visibleCells.keys.containsAll(listOf(1, 8))
         }
         script.act("hover item 1") { move(cell(1)) }
         script.until("the tooltip appeared while focused") { tooltipVisible() }
@@ -375,7 +371,7 @@ internal class PreviewAcceptance(
             var advances = 0
             script.act("open the ${page.name} page") {
                 pageScreen = ComposePreviewScreen(parent)
-                ComposeThread.call { pageScreen.model.page = page }
+                pageScreen.model.page = page
                 exercise = OreComponentExercise(pageScreen.model, page)
                 session.open(pageScreen)
             }
@@ -423,12 +419,12 @@ internal class PreviewAcceptance(
     private fun requireSession(change: String) =
         check(screen.session === first) { "$change replaced the Compose session" }
 
-    private fun <T> model(block: DemoModel.() -> T): T = ComposeThread.call { screen.model.block() }
+    private fun <T> model(block: DemoModel.() -> T): T = screen.model.block()
 
     private fun post(block: () -> Unit) =
         checkNotNull(screen.session) { "The preview session is closed" }.post(Runnable(block))
 
-    private fun selected() = ComposeThread.call { screen.itemBrowser.selected }
+    private fun selected() = screen.itemBrowser.selected
 
     private fun tooltipVisible() =
         screen.nativeTooltipStatistics.visible && screen.nativeTooltipBounds?.isEmpty == false
@@ -437,19 +433,15 @@ internal class PreviewAcceptance(
         x.toDouble() * screen.width / minecraft.window.width to y.toDouble() * screen.height / minecraft.window.height
 
     private fun control(id: String) =
-        ComposeThread.call { checkNotNull(screen.model.bounds[id]) { "Missing preview control $id" }.center }
-            .let { gui(it.x, it.y) }
+        checkNotNull(screen.model.bounds[id]) { "Missing preview control $id" }.center.let { gui(it.x, it.y) }
 
     private fun catalogEntry(index: Int) =
-        ComposeThread.call {
-                checkNotNull(screen.model.visibleEntries[index]) { "Catalog entry $index is not laid out" }.center
-            }
+        checkNotNull(screen.model.visibleEntries[index]) { "Catalog entry $index is not laid out" }
+            .center
             .let { gui(it.x, it.y) }
 
     private fun cell(index: Int) =
-        ComposeThread.call {
-                checkNotNull(screen.itemBrowser.visibleCells[index]) { "Item cell $index is not laid out" }
-            }
+        checkNotNull(screen.itemBrowser.visibleCells[index]) { "Item cell $index is not laid out" }
             .let { gui(it.center.x, it.top + 30f) }
 
     private fun move(point: Pair<Double, Double>) = screen.mouseMoved(point.first, point.second)
@@ -469,7 +461,7 @@ internal class PreviewAcceptance(
      * Checks the Minecraft marker and the rotated/clipped chest, which must match across repaint, scroll and reload.
      */
     private fun captureItems(name: String) {
-        val bounds = ComposeThread.call {
+        val bounds = run {
             checkNotNull(screen.itemBrowser.previewBounds) { "Native item preview bounds are missing" }
         }
         val guiWidth = screen.width

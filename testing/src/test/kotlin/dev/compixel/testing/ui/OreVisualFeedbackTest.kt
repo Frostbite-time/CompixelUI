@@ -10,7 +10,6 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.host.UiSession
 import dev.compixel.platform.*
 import dev.compixel.ui.ore.button.OreButtonStyle
@@ -65,7 +64,7 @@ class OreVisualFeedbackTest {
                             surface.makeImageSnapshot().use {
                                 it.encodeToData()!!.use { data -> ImageIO.read(ByteArrayInputStream(data.bytes)) }
                             }
-                        val bounds = ComposeThread.call { body }
+                        val bounds = body
                         assertTrue(bounds.height > 0, "Tooltip did not open: $mode")
                         val expected =
                             if (mode == OreTooltipMode.Immediate) colors[OreColors.frameEdge]

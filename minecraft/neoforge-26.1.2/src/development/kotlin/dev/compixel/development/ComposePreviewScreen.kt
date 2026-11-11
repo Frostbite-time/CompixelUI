@@ -3,7 +3,6 @@ package dev.compixel.development
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.demo.preview.DemoModel
 import dev.compixel.demo.preview.ItemBrowserDemo
 import dev.compixel.demo.preview.OreDemoScreen as DemoScreen
@@ -70,7 +69,7 @@ private constructor(
         parent: Screen? = null
     ) : this(
         parent,
-        ComposeThread.call { DemoModel() },
+        DemoModel(),
         previewIcons(),
     )
 

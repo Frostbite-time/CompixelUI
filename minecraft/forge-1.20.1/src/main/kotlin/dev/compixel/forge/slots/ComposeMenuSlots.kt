@@ -11,7 +11,6 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.forge.drawing.NativeRefresh
 import dev.compixel.forge.item.ItemIcon
 import dev.compixel.forge.item.MinecraftItemIcon
@@ -19,7 +18,6 @@ import dev.compixel.host.ScreenMetrics
 import dev.compixel.slots.*
 import dev.compixel.ui.ore.inventory.OreSlot
 import dev.compixel.ui.ore.inventory.OreSlotAmount
-import java.util.concurrent.atomic.AtomicBoolean
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.world.inventory.AbstractContainerMenu
@@ -166,23 +164,26 @@ open class VanillaMenuSlotAdapter(private val menu: AbstractContainerMenu) : Men
     }
 }
 
-/** Compose placement is mirrored as clipped hit regions; all live menu access stays on the game thread. */
+/**
+ * A menu's slots in Compose content: where the content lays a slot out is the slot's hit region, and each frame shows
+ * the stacks of the slots it laid out. Everything runs on the client thread.
+ */
 class ComposeMenuSlots<M : AbstractContainerMenu>(
     val menu: M,
     val adapter: MenuSlotAdapter = VanillaMenuSlotAdapter(menu),
 ) : AutoCloseable {
     private val owner = Thread.currentThread()
     private val slotCount = menu.slots.size
-    private val layoutLock = Any()
+    // Where the content laid each slot out, with the composable that owns the entry.
     private val layout = linkedMapOf<Int, Pair<Any, Rect>>()
-    private var layoutRevision = 0L
-    private var loadedLayoutRevision = -1L
+    // Set when the layout placed, moved or removed a slot, until refresh has read the slots it shows now.
+    private var layoutChanged = false
+    private var visible: Map<Int, Rect>? = null
     private var area: Rect? = null
-    private val blocked = AtomicBoolean(false)
-    private var currentLayout = emptyMap<Int, Rect>()
-    private val visuals = mutableStateMapOf<Int, MenuSlotVisual>()
+    private var blocked = false
+    // The adapter's visual of each visible slot, and what the content shows for it: the same but for drag previews.
     private val snapshots = mutableMapOf<Int, MenuSlotVisual>()
-    private val shown = mutableMapOf<Int, MenuSlotVisual>()
+    private val visuals = mutableStateMapOf<Int, MenuSlotVisual>()
     private var metrics = ScreenMetrics(1, 1, 1, 1, 1f, 1f)
     private var cursor = ItemStack.EMPTY
     private var cursorIcon: ItemIcon? = null
@@ -190,25 +191,39 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
     private var nativeDragIds: Set<Int> = emptySet()
     private var nativeButton = 0
     private var hoveredSlot by mutableStateOf(-1)
-    // The pointer's last position and the slot last published as hovered, on the game thread. Slots that move under
-    // a still pointer change which slot it hovers, so refresh recomputes it from these.
+    // The pointer's last position. Slots that move under a still pointer change which slot it hovers, so refresh
+    // recomputes the hovered slot from it.
     private var pointerX = Double.NaN
     private var pointerY = Double.NaN
-    private var lastHovered = -1
+
+    // The visible slots' clipped bounds, empty once the menu closed.
+    private val currentLayout: Map<Int, Rect>
+        get() =
+            if (closed) emptyMap()
+            else
+                visible
+                    ?: layout
+                        .mapValues { it.value.second }
+                        .filterValues { it.width > 0 && it.height > 0 }
+                        .also { visible = it }
+
+    private fun layoutMoved() {
+        layoutChanged = true
+        visible = null
+    }
+
     val interactionsEnabled
-        get() = !blocked.get()
+        get() = !blocked
 
     val visibleSlotIds: Set<Int>
         get() = currentLayout.keys
 
     @Composable
     fun Interaction(enabled: Boolean = true) {
-        SideEffect { blocked.set(!enabled) }
+        SideEffect { blocked = !enabled }
     }
 
-    fun areaModifier(): Modifier = Modifier.onGloballyPositioned { position ->
-        synchronized(layoutLock) { area = position.boundsInRoot() }
-    }
+    fun areaModifier(): Modifier = Modifier.onGloballyPositioned { area = it.boundsInRoot() }
 
     /**
      * A slot in Ore's look: its frame, item icon and amount, lit while the slot is [MenuSlotState.hovered]. [overlay]
@@ -271,21 +286,17 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
         val focus = LocalFocusManager.current
         DisposableEffect(slotId) {
             onDispose {
-                synchronized(layoutLock) {
-                    if (layout[slotId]?.first === token) {
-                        layout.remove(slotId)
-                        layoutRevision++
-                    }
+                if (layout[slotId]?.first === token) {
+                    layout.remove(slotId)
+                    layoutMoved()
                 }
             }
         }
         return Modifier.onGloballyPositioned { position ->
                 val bounds = position.boundsInRoot()
-                synchronized(layoutLock) {
-                    if (layout[slotId] != (token to bounds)) {
-                        layout[slotId] = token to bounds
-                        layoutRevision++
-                    }
+                if (layout[slotId] != (token to bounds)) {
+                    layout[slotId] = token to bounds
+                    layoutMoved()
                 }
             }
             .onPointerEvent(PointerEventType.Press) { focus.clearFocus() }
@@ -305,8 +316,7 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
     internal fun renderBounds(slotId: Int): MenuSlotBounds? =
         currentLayout[slotId]?.let { menuRenderBounds(it, metrics) }
 
-    internal fun renderAreaBounds(): MenuSlotBounds? =
-        synchronized(layoutLock) { area }?.let { menuRenderBounds(it, metrics) }
+    internal fun renderAreaBounds(): MenuSlotBounds? = area?.let { menuRenderBounds(it, metrics) }
 
     fun slotAt(x: Double, y: Double): Int =
         currentLayout.entries.firstOrNull { it.value.contains(point(x, y)) }?.key ?: -1
@@ -317,11 +327,7 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
             menuInputBounds(it, metrics)
         }
 
-    fun areaBounds(): MenuSlotBounds? =
-        synchronized(layoutLock) { area }
-            ?.let {
-                menuInputBounds(it, metrics)
-            }
+    fun areaBounds(): MenuSlotBounds? = area?.let { menuInputBounds(it, metrics) }
 
     internal fun move(x: Double, y: Double) {
         checkOwner()
@@ -330,12 +336,11 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
         updateHovered()
     }
 
-    // Publishes the slot under the pointer's last position; returns whether it changed.
+    // Shows the slot under the pointer's last position as hovered; returns whether it changed.
     private fun updateHovered(): Boolean {
-        val hovered = if (blocked.get() || pointerX.isNaN()) -1 else slotAt(pointerX, pointerY)
-        if (hovered == lastHovered) return false
-        lastHovered = hovered
-        ComposeThread.call { hoveredSlot = hovered }
+        val hovered = if (blocked || pointerX.isNaN()) -1 else slotAt(pointerX, pointerY)
+        if (hovered == hoveredSlot) return false
+        hoveredSlot = hovered
         return true
     }
 
@@ -357,7 +362,7 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
         checkOwner()
         if (
             closed ||
-                blocked.get() ||
+                blocked ||
                 Minecraft.getInstance().player?.containerMenu !== menu ||
                 slotId != -999 && slotId !in 0 until slotCount
         )
@@ -373,29 +378,23 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
         }
     }
 
-    internal fun refreshAfterLayout(): Boolean =
-        if (synchronized(layoutLock) { loadedLayoutRevision != layoutRevision }) refresh() else false
+    /** After a frame's layout: shows the slots it placed or moved; true when that changed what the content shows. */
+    internal fun refreshAfterLayout(): Boolean = if (layoutChanged) refresh() else false
 
+    /** Shows the visible slots' current stacks; true when that changed what the content shows. */
     internal fun refresh(): Boolean {
         checkOwner()
         if (closed) return false
-        val next =
-            synchronized(layoutLock) {
-                if (loadedLayoutRevision == layoutRevision) currentLayout
-                else {
-                    loadedLayoutRevision = layoutRevision
-                    layout.mapValues { it.value.second }.filterValues { it.width > 0 && it.height > 0 }
-                }
-            }
-        val moved = next !== currentLayout
-        currentLayout = next
+        val moved = layoutChanged
+        layoutChanged = false
+        val currentLayout = currentLayout
         val hoverMoved = moved && updateHovered()
         val carried = menu.carried
         if (!ItemStack.isSameItemSameTags(cursor, carried)) {
             cursor = carried.copy()
             cursorIcon = if (carried.isEmpty) null else ItemIcon.snapshot(carried.copyWithCount(1))
         }
-        val changes = mutableMapOf<Int, MenuSlotVisual>()
+        var changed = false
         for (id in currentLayout.keys) {
             val slot = menu.slots[id]
             val visual = adapter.visual(slot, snapshots[id])
@@ -409,22 +408,19 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
                         compactAmount = amount.toString(),
                     )
                 } else visual
-            if (shown[id] != preview) {
-                shown[id] = preview
-                changes[id] = preview
+            if (visuals[id] != preview) {
+                visuals[id] = preview
+                changed = true
             }
         }
-        val removed = shown.keys.filter { it !in currentLayout }
-        removed.forEach {
-            shown.remove(it)
-            snapshots.remove(it)
-        }
-        val changed = changes.isNotEmpty() || removed.isNotEmpty()
-        if (changed)
-            ComposeThread.call {
-                visuals.putAll(changes)
-                removed.forEach { visuals.remove(it) }
+        if (moved) {
+            // toList: the loop removes from the map it reads.
+            for (id in visuals.keys.toList()) if (id !in currentLayout) {
+                visuals.remove(id)
+                snapshots.remove(id)
+                changed = true
             }
+        }
         return changed || hoverMoved
     }
 
@@ -440,7 +436,7 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
     }
 
     internal fun overlay(graphics: GuiGraphics, x: Int, y: Int, drawCursor: Boolean = true) {
-        if (blocked.get()) return
+        if (blocked) return
         val mc = Minecraft.getInstance()
         val carried = menu.carried
         if (!carried.isEmpty) {
@@ -482,13 +478,11 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
         closed = true
         reset()
         snapshots.clear()
-        shown.clear()
         cursorIcon = null
-        synchronized(layoutLock) {
-            layout.clear()
-            area = null
-        }
-        ComposeThread.call { visuals.clear() }
+        layout.clear()
+        visible = null
+        area = null
+        visuals.clear()
     }
 
     /** The menu closed: stop reading it, while the content can still draw the slots it showed last until [close]. */
@@ -496,15 +490,12 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
         checkOwner()
         closed = true
         reset()
-        synchronized(layoutLock) {
-            layout.clear()
-            area = null
-            layoutRevision++
-        }
-        currentLayout = emptyMap()
+        layout.clear()
+        visible = null
+        area = null
     }
 
     private fun checkOwner() {
-        check(Thread.currentThread() === owner) { "Menu input and snapshots must run on their creating game thread" }
+        check(Thread.currentThread() === owner) { "Menu slots belong to the client thread that created them" }
     }
 }

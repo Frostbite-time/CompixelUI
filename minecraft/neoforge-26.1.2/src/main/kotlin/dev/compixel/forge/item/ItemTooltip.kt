@@ -81,7 +81,7 @@ internal class ItemTooltipRequest(val icon: ItemIcon)
 
 internal val LocalItemTooltips = staticCompositionLocalOf<ItemTooltipMailbox?> { null }
 
-/** A single request/result slot, confined to the Compose EDT. */
+/** A single request/result slot between the content, which asks for a tooltip, and the renderer that draws it. */
 internal class ItemTooltipMailbox {
     private data class Result(val request: ItemTooltipRequest, val image: org.jetbrains.skia.Image)
 
@@ -137,5 +137,5 @@ internal class ItemTooltipMailbox {
         clearImage()
     }
 
-    private fun checkThread() = check(java.awt.EventQueue.isDispatchThread()) { "Tooltip mailbox accessed outside EDT" }
+    private fun checkThread() = dev.compixel.forge.ClientThread.check()
 }

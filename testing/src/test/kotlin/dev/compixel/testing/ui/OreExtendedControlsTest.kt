@@ -11,7 +11,6 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.*
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.host.UiSession
 import dev.compixel.platform.*
 import dev.compixel.ui.ore.button.OreButton
@@ -42,7 +41,7 @@ class OreExtendedControlsTest {
     @Test
     fun `packaged component exercise drives the actual F8 pages`() {
         for (page in dev.compixel.testing.ui.oreComponentPages) {
-            val model = ComposeThread.call { dev.compixel.demo.preview.DemoModel().apply { this.page = page } }
+            val model = dev.compixel.demo.preview.DemoModel().apply { this.page = page }
             val exercise = dev.compixel.testing.ui.OreComponentExercise(model, page)
             UiSession(Viewport(1280, 960, 2f)) {
                     dev.compixel.demo.preview.OreDemoScreen(model) { modifier ->
@@ -70,7 +69,7 @@ class OreExtendedControlsTest {
     fun `nested tooltip exercise waits for every lock at low and uneven frame rates`() {
         for (intervals in listOf(listOf(200L), listOf(500L), listOf(16L, 16L, 450L))) {
             val page = dev.compixel.demo.preview.DemoPage.Tooltips
-            val model = ComposeThread.call { dev.compixel.demo.preview.DemoModel().apply { this.page = page } }
+            val model = dev.compixel.demo.preview.DemoModel().apply { this.page = page }
             val exercise = dev.compixel.testing.ui.OreComponentExercise(model, page)
             UiSession(Viewport(1280, 960, 2f)) { dev.compixel.demo.preview.OreDemoScreen(model) }
                 .use { session ->
@@ -157,7 +156,7 @@ class OreExtendedControlsTest {
                 f.click("other")
                 f.click("field")
                 f.replace("-")
-                ComposeThread.call { number.doubleValue = 100.0 }
+                number.doubleValue = 100.0
                 f.frame()
                 f.session.commitText(".5")
                 f.frame()
@@ -412,13 +411,13 @@ class OreExtendedControlsTest {
                 f.advance(10)
                 f.hover("body")
                 assertTrue(f.has("body"))
-                ComposeThread.call { mode.value = OreTooltipMode.Immediate }
+                mode.value = OreTooltipMode.Immediate
                 f.frame()
                 f.frame()
                 assertFalse(f.has("body"))
                 f.hover("anchor")
                 assertTrue(f.has("body"))
-                ComposeThread.call { mode.value = OreTooltipMode.Delayed }
+                mode.value = OreTooltipMode.Delayed
                 f.advance(10)
                 f.hover("body")
                 assertTrue(f.has("body"))
@@ -494,7 +493,7 @@ class OreExtendedControlsTest {
                 f.hoverAt(Offset(450f, 350f))
                 f.hover("anchor")
                 f.advance(10)
-                ComposeThread.call { enabled.value = false }
+                enabled.value = false
                 f.frame()
                 assertFalse(f.has("body"))
             }
@@ -515,7 +514,7 @@ class OreExtendedControlsTest {
                 assertEquals(0x44, color.value.toArgb() ushr 24)
                 assertEquals(.75f, maxOf(color.value.red, color.value.green, color.value.blue), .02f)
                 val old = color.value
-                ComposeThread.call { enabled.value = false }
+                enabled.value = false
                 f.frame()
                 f.clickAt(Offset(120f, 70f))
                 assertEquals(old, color.value)
@@ -527,7 +526,7 @@ class OreExtendedControlsTest {
         val color = mutableStateOf(Color.Red)
         Fixture { b -> OreColorPicker(color.value, { color.value = it }, b("picker").width(220.dp)) }
             .use { f ->
-                fun hsv(): FloatArray = colorHsv(ComposeThread.call { color.value })
+                fun hsv(): FloatArray = colorHsv(color.value)
                 val rect = f.rect("picker")
                 // 30 % saturation at 3 % brightness: 8 bits per channel turn it into 37.5 %
                 f.clickAt(Offset(rect.left + 66f, rect.top + 97f))
@@ -535,7 +534,7 @@ class OreExtendedControlsTest {
                 assertEquals(.3f, hsv()[1], .01f)
                 assertEquals(.83f, hsv()[2], .01f)
                 // A color the picker did not choose replaces its own
-                ComposeThread.call { color.value = Color(0xFF336699) }
+                color.value = Color(0xFF336699)
                 f.frame()
                 f.key(UiKey.RIGHT)
                 assertEquals(.6f, hsv()[2], .01f)
@@ -572,7 +571,7 @@ class OreExtendedControlsTest {
                 pointer(PointerAction.MOVE, 219f, 0f)
                 pointer(PointerAction.RELEASE, 219f, 0f)
                 f.advance(8)
-                assertEquals(200f, colorHsv(ComposeThread.call { color.value })[0], 1f)
+                assertEquals(200f, colorHsv(color.value)[0], 1f)
             }
     }
 
@@ -698,9 +697,9 @@ class OreExtendedControlsTest {
             repeat(count) { frame() }
         }
 
-        fun has(id: String) = ComposeThread.call { id in bounds }
+        fun has(id: String) = id in bounds
 
-        fun rect(id: String) = ComposeThread.call { bounds.getValue(id) }
+        fun rect(id: String) = bounds.getValue(id)
 
         fun point(id: String) = rect(id).center
 

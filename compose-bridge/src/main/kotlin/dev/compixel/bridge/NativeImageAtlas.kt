@@ -59,8 +59,8 @@ class NativeImageRefresh private constructor(val kind: Kind, val intervalMillis:
  * redrawn, and unchanged regions follow the new page snapshot without invalidating Compose. Visible content is retained
  * regardless of cache capacity, which limits only inactive cached variants. A changed size settles for [SETTLE_FRAMES]
  * frames while its nearest published image remains available. A prepare call draws at most [preparationsPerFrame]
- * icons, on as many pages as they need; a deferred host publishes those pages before any more are drawn. All scheduling
- * and retirement runs on the owner thread; publication runs on the Compose thread.
+ * icons, on as many pages as they need; a deferred host publishes those pages before any more are drawn. All
+ * scheduling, retirement and publication run on the UI thread.
  */
 class NativeImageAtlas<I : Any>(
     private val cacheCapacity: Int,
@@ -144,13 +144,13 @@ class NativeImageAtlas<I : Any>(
         fun discard(page: Int)
 
         /**
-         * Runs on the Compose thread. [regions] replace the regions of their variants. Only the variants in [changed]
-         * have different pixels; the others moved to a newer image with the same pixels, so drawing recorded from their
-         * previous region stays correct.
+         * [regions] replace the regions of their variants. Only the variants in [changed] have different pixels; the
+         * others moved to a newer image with the same pixels, so drawing recorded from their previous region stays
+         * correct.
          */
         fun publish(regions: Map<Variant, NativeImageRegion>, changed: Set<Variant>, removed: Set<Variant>)
 
-        /** Runs on the Compose thread and forgets every published region. */
+        /** Forgets every published region. */
         fun clear()
     }
 
@@ -256,7 +256,7 @@ class NativeImageAtlas<I : Any>(
             place(variant, icon, removed, waiting)
         discardEmptyPages()
         if (removed.isNotEmpty()) {
-            ComposeThread.call { host.publish(emptyMap(), emptySet(), removed) }
+            host.publish(emptyMap(), emptySet(), removed)
             changed = true
         }
 
@@ -464,7 +464,7 @@ class NativeImageAtlas<I : Any>(
                     Rect.makeXYWH(cell.left.toFloat(), cell.top.toFloat(), size.width.toFloat(), size.height.toFloat()),
                 )
         }
-        ComposeThread.call { host.publish(regions, changed, emptySet()) }
+        host.publish(regions, changed, emptySet())
         if (page.owner.image != null) retired++
         page.owner.replace(copy)
         return true
@@ -475,7 +475,7 @@ class NativeImageAtlas<I : Any>(
         pending.clear()
         byVariant.clear()
         settling.clear()
-        ComposeThread.call { host.clear() }
+        host.clear()
         pages.forEachIndexed { index, page ->
             if (page == null) return@forEachIndexed
             if (page.owner.image != null) {

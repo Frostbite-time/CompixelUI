@@ -63,7 +63,7 @@ private class Overlays(private val transition: Transition<EnterExitState>) : Ove
 private const val OVERLAY_MILLIS = 150
 
 // Registers the transition with its session and reports when it settles, so the host learns that every exit has
-// finished without asking the Compose thread.
+// finished.
 @Composable
 private fun Follow(presence: ScreenPresence, state: MutableTransitionState<Boolean>) {
     DisposableEffect(presence, state) {
@@ -74,21 +74,16 @@ private fun Follow(presence: ScreenPresence, state: MutableTransitionState<Boole
     SideEffect { if (idle) presence.update() }
 }
 
-/**
- * A session's visibility, which every [ScreenTransition] in its content follows. Created on the game thread before the
- * content composes; after that Compose thread only, except [animated] and [exited].
- */
+/** A session's visibility, which every [ScreenTransition] in its content follows. */
 internal class ScreenPresence {
     private val transitions = LinkedHashSet<MutableTransitionState<Boolean>>()
     private var visible = true
 
-    /** Whether any [ScreenTransition] is in the content. Read on the game thread. */
-    @Volatile
+    /** Whether any [ScreenTransition] is in the content. */
     var animated = false
         private set
 
-    /** Whether every exit has finished since [hide]. Read on the game thread. */
-    @Volatile
+    /** Whether every exit has finished since [hide]. */
     var exited = false
         private set
 

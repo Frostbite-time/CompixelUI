@@ -72,9 +72,9 @@ abstract class ComposeHudLayer<S>(
     protected open fun snapshot(): S = Unit as S
 
     /**
-     * The content, composed on the Compose thread. Read the game through [gameState], and otherwise use immutable
-     * values prepared during construction: never read game objects such as the player here. [state] is the latest
-     * [snapshot].
+     * The content, composed again only when state it reads changes. Read the game through [gameState], and otherwise
+     * use immutable values prepared during construction: never read game objects such as the player here. [state] is
+     * the latest [snapshot].
      */
     @Composable protected abstract fun Content(state: S)
 

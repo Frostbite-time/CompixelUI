@@ -3,7 +3,6 @@ package dev.compixel.development.render
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.forge.ComposeScreen
 import dev.compixel.forge.drawing.NativeRefresh
 import dev.compixel.forge.item.ItemIcon
@@ -22,7 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import net.minecraft.network.chat.Component
 
 internal class NativeItemVisualScreen(
-    val model: NativeItemVisualModel = ComposeThread.call { NativeItemVisualModel() },
+    val model: NativeItemVisualModel = NativeItemVisualModel(),
     private val icon: ItemIcon =
         ItemIcon.drawn(
             "native visual acceptance",
@@ -35,7 +34,7 @@ internal class NativeItemVisualScreen(
 
     override fun isUiWindowFocused() = dev.compixel.development.SuiteEnvironment.uiFocused(super.isUiWindowFocused())
 
-    fun bounds(): Map<String, Rect> = ComposeThread.call { model.bounds() }
+    fun bounds(): Map<String, Rect> = model.bounds()
 
     fun verifyPixels(pixels: ScreenPixels, bounds: Map<String, Rect>) {
         verifyNativeItemVisualPixels(bounds, pixels.width, pixels.height, pixels::argb)
@@ -44,7 +43,7 @@ internal class NativeItemVisualScreen(
 
 /** One 2x2 atlas page: an icon drawn again every game tick, in the other color each time, among three still ones. */
 internal class NativeItemPartialScreen(
-    val model: NativeItemVisualModel = ComposeThread.call { NativeItemVisualModel() },
+    val model: NativeItemVisualModel = NativeItemVisualModel(),
     private val icons: List<ItemIcon> = partialIcons(),
 ) :
     ComposeScreen<Unit, Nothing>(
@@ -60,7 +59,7 @@ internal class NativeItemPartialScreen(
 
     override fun isUiWindowFocused() = dev.compixel.development.SuiteEnvironment.uiFocused(super.isUiWindowFocused())
 
-    fun bounds(): Map<String, Rect> = ComposeThread.call { model.bounds() }
+    fun bounds(): Map<String, Rect> = model.bounds()
 
     fun verifyPixels(pixels: ScreenPixels, bounds: Map<String, Rect>) {
         verifyNativeItemPartialPixels(bounds, pixels.width, pixels.height, pixels::argb)

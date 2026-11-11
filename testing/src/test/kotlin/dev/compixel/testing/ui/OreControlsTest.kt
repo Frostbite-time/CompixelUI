@@ -8,7 +8,6 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.host.UiSession
 import dev.compixel.platform.*
 import dev.compixel.ui.LocalUiFeedback
@@ -60,7 +59,7 @@ class OreControlsTest {
                     fixture.key(UiKey.ENTER)
                     assertEquals(2, clicks, "Mouse and keyboard: $style")
                     assertEquals(2, feedback, "Exactly one feedback per activation: $style")
-                    ComposeThread.call { enabled.value = false }
+                    enabled.value = false
                     fixture.frame()
                     fixture.key(UiKey.ENTER)
                     fixture.click("custom")
@@ -84,10 +83,10 @@ class OreControlsTest {
             }
         }
             .use { fixture ->
-                val defaultFrame = ComposeThread.call { fixture.bounds.getValue("default-slot") }
-                val customFrame = ComposeThread.call { fixture.bounds.getValue("custom-slot") }
-                val defaultArea = ComposeThread.call { defaultContent }
-                val customArea = ComposeThread.call { customContent }
+                val defaultFrame = fixture.bounds.getValue("default-slot")
+                val customFrame = fixture.bounds.getValue("custom-slot")
+                val defaultArea = defaultContent
+                val customArea = customContent
                 assertEquals(28f, defaultFrame.width)
                 assertEquals(40f, customFrame.width)
                 assertEquals(16f, defaultArea.width)
@@ -104,7 +103,7 @@ class OreControlsTest {
                 fixture.key(UiKey.A, ctrlOrCmd)
                 fixture.session.commitText("-")
                 fixture.frame()
-                ComposeThread.call { value.intValue = 42 }
+                value.intValue = 42
                 fixture.frame()
                 fixture.session.commitText("7")
                 fixture.frame()
@@ -116,11 +115,11 @@ class OreControlsTest {
                 )
                 fixture.frame()
                 assertEquals(93, value.intValue)
-                ComposeThread.call { value.intValue = Int.MAX_VALUE - 1 }
+                value.intValue = Int.MAX_VALUE - 1
                 fixture.frame()
                 fixture.key(UiKey.UP, ctrlOrCmd)
                 assertEquals(Int.MAX_VALUE, value.intValue)
-                ComposeThread.call { value.intValue = Int.MIN_VALUE + 1 }
+                value.intValue = Int.MIN_VALUE + 1
                 fixture.frame()
                 fixture.key(UiKey.DOWN, ctrlOrCmd)
                 assertEquals(Int.MIN_VALUE, value.intValue)
@@ -170,7 +169,7 @@ class OreControlsTest {
                 fixture.click("number")
                 fixture.key(UiKey.DOWN, Modifiers(shift = true))
                 assertEquals(90, value.intValue)
-                ComposeThread.call { enabled.value = false }
+                enabled.value = false
                 fixture.frame()
                 fixture.key(UiKey.DOWN)
                 assertEquals(90, value.intValue)
@@ -258,7 +257,7 @@ class OreControlsTest {
             session.frame(time)?.close()
         }
 
-        fun point(id: String) = ComposeThread.call { bounds.getValue(id).center }
+        fun point(id: String) = bounds.getValue(id).center
 
         fun click(id: String) {
             val p = point(id)
@@ -309,11 +308,11 @@ class OreControlsTest {
                 assertTrue(fixture.session.hasTextInputFocus)
                 assertTrue(fixture.session.commitText("石英😀"))
                 fixture.frame()
-                assertEquals("石英😀", ComposeThread.call { value.value })
+                assertEquals("石英😀", value.value)
                 fixture.key(UiKey.A, ctrlOrCmd)
                 fixture.session.commitText("World")
                 fixture.frame()
-                assertEquals("World", ComposeThread.call { value.value })
+                assertEquals("World", value.value)
                 fixture.session.setFocused(false)
                 assertFalse(fixture.session.commitText("ignored"))
             }
@@ -332,7 +331,7 @@ class OreControlsTest {
                 fixture.click("check")
                 fixture.click("switch")
                 fixture.click("disabled")
-                assertTrue(ComposeThread.call { checked.value && switched.value })
+                assertTrue(checked.value && switched.value)
             }
     }
 
@@ -354,12 +353,12 @@ class OreControlsTest {
                 fixture.session.pointer(PointerInput(PointerAction.MOVE, 500f, p.y))
                 fixture.session.pointer(PointerInput(PointerAction.RELEASE, 500f, p.y, MouseButton.LEFT))
                 fixture.frame()
-                assertEquals(1f, ComposeThread.call { value.floatValue })
+                assertEquals(1f, value.floatValue)
                 assertFalse(fixture.session.hasTextInputFocus)
-                ComposeThread.call { enabled.value = false }
+                enabled.value = false
                 fixture.frame()
                 fixture.click("slider")
-                assertEquals(1f, ComposeThread.call { value.floatValue }, .001f)
+                assertEquals(1f, value.floatValue, .001f)
             }
     }
 }

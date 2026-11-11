@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test
 
 class NativeImageMailboxTest {
     @Test
-    fun sharedRectanglesRetainTheirDemandsAndChooseTheNearestPublishedSize() = ComposeThread.call {
+    fun sharedRectanglesRetainTheirDemandsAndChooseTheNearestPublishedSize() = run {
         Surface.makeRasterN32Premul(16, 16).use { surface ->
             surface.makeImageSnapshot().use { image ->
                 val mailbox = NativeImageMailbox<Long> { it }
@@ -42,7 +42,7 @@ class NativeImageMailboxTest {
     }
 
     @Test
-    fun unchangedCellsMoveToNewSnapshotsWithoutInvalidatingTheirComposeDrawing() = ComposeThread.call {
+    fun unchangedCellsMoveToNewSnapshotsWithoutInvalidatingTheirComposeDrawing() = run {
         Surface.makeRasterN32Premul(16, 16).use { surface ->
             surface.makeImageSnapshot().use { first ->
                 surface.makeImageSnapshot().use { next ->

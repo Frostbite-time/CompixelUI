@@ -3,20 +3,22 @@ package dev.compixel.host
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
-import dev.compixel.bridge.ComposeThread
+import dev.compixel.host.internal.UiWarmup
 import dev.compixel.platform.KeyInput
 import dev.compixel.platform.Modifiers
 import dev.compixel.platform.MouseButton
 import dev.compixel.platform.PointerAction
 import dev.compixel.platform.PointerInput
 import dev.compixel.platform.UiKey
+import dev.compixel.platform.UiThread
+import dev.compixel.render.CpuDetail
 import dev.compixel.render.CpuPhase
 import dev.compixel.render.FrameRenderer
-import dev.compixel.render.RecordedFrame
 import dev.compixel.render.RenderBackend
 import dev.compixel.render.RendererStatistics
 import dev.compixel.render.UiFrameProfiler
 import dev.compixel.render.measureCpu
+import dev.compixel.render.measureDetail
 import dev.compixel.ui.LocalUiFeedback
 import dev.compixel.ui.UiDesign
 import dev.compixel.ui.UiFeedback
@@ -28,10 +30,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /** Native images that a [UiLayer] prepares before each frame, such as item icons the game draws. */
 interface NativeImageSource : AutoCloseable {
-    /** The session recorded frame [frameGeneration], whose pictures may request images. */
-    fun recorded(frameGeneration: Long)
+    /** The session laid out its content for frame [frame], the session's count of them, which may demand images. */
+    fun laidOut(frame: Long)
 
-    /** Prepares the requested images; true when that changed what the frame shows, so the layer records it again. */
+    /** Prepares the demanded images; true when that changed what the frame shows, before the layer draws it. */
     fun prepare(now: Long, current: ScreenMetrics): Boolean
 
     /** Discards prepared images after the platform reset its GPU resources. */
@@ -50,15 +52,16 @@ class UiLayerSurface<D>(
  * A Compose session drawn inside a game's screen or HUD, with its renderer and native images: everything about such a
  * host that does not depend on the game. A platform subclass supplies the window, clipboard, feedback, renderer and
  * native images and translates the game's input. The layer is not a screen: the host keeps the native lifecycle and
- * input policy, and the input methods report whether Compose consumed an event. Every member runs on the game thread.
+ * input policy, and the input methods report whether Compose consumed an event. Every member runs on the platform's
+ * [thread], and so does the content: its composition, layout, drawing and callbacks.
  *
  * Each session starts on [open] from a new snapshot of [contentState] and ends on [close]. While another screen covers
  * its host, [suspend] keeps the session for [open] to show again; when its host closes for good, [exit] lets a
  * [ScreenTransition] in the content finish before the layer closes. Its content is wrapped in the host's [design],
- * inside [LocalUiFeedback], [LocalSchemes] and [LocalColorEditor]. [prepare] records and renders a frame, so the host
- * can read its layout before drawing beneath Compose, and [render] presents it. Animation time starts with the first
- * frame that [render] presents: the frames recorded before it share one frame time. The input methods forward events to
- * Compose; [handled] then runs what the content asked for during the event.
+ * inside [LocalUiFeedback], [LocalSchemes] and [LocalColorEditor]. [prepare] composes, lays out and renders a frame, so
+ * the host can read its layout before drawing beneath Compose, and [render] presents it. Animation time starts with the
+ * first frame that [render] presents: the frames prepared before it share one frame time. The input methods forward
+ * events to Compose; [handled] then runs what the content asked for during the event.
  *
  * [G] is the platform's graphics context for drawing and [D] its renderer's presentation destination.
  */
@@ -68,7 +71,10 @@ abstract class UiLayer<G, D>(
     private val minimumUiDensity: Float,
     private val design: UiDesign,
     private val windowFocused: () -> Boolean,
-    /** The platform's layout-to-snapshot handoff, on the game thread before presentation. */
+    /**
+     * Runs after each frame's layout and before its drawing, for the platform to show what the layout asks for, such as
+     * the contents of the slots it placed. True when that changed state the content reads.
+     */
     private val prepareFrameContent: () -> Boolean,
     /** The content's game state, opened before each session composes and closed with it. */
     private val contentState: UiStateBinding<*, *>,
@@ -95,7 +101,7 @@ abstract class UiLayer<G, D>(
     private var rejectionsReported = false
     private var seenResourceEpoch = 0L
     private var shownSchemes: Schemes? = null
-    private val schemesState = ComposeThread.call { mutableStateOf(Schemes.Empty) }
+    private val schemesState = mutableStateOf(Schemes.Empty)
     private var metrics: ScreenMetrics? = null
     /** Set by [prepare] for the [render] call that presents the frame. */
     private var prepared: ScreenMetrics? = null
@@ -104,6 +110,7 @@ abstract class UiLayer<G, D>(
     // The session's visibility, which a ScreenTransition in the content animates.
     private var presence: ScreenPresence? = null
     private var clock = FrameClock()
+    private var layouts = 0L
 
     /** True while another screen covers the host, which stays open and may show this session again; see [suspend]. */
     var suspended = false
@@ -123,7 +130,7 @@ abstract class UiLayer<G, D>(
     val hasTextInputFocus: Boolean
         get() = session?.hasTextInputFocus == true
 
-    /** Opt-in per-frame history. Read snapshots on the game/render thread. */
+    /** Opt-in per-frame history. */
     val frameProfiler: UiFrameProfiler? =
         if (java.lang.Boolean.getBoolean("compixel.profile"))
             UiFrameProfiler(measureAllocations = java.lang.Boolean.getBoolean("compixel.allocations"))
@@ -134,8 +141,8 @@ abstract class UiLayer<G, D>(
         require(minimumUiDensity.isFinite() && minimumUiDensity >= 0f)
     }
 
-    /** Fails unless the caller runs on the platform's render thread. */
-    protected abstract fun assertRenderThread()
+    /** The thread the platform runs its UI on: the one that owns the window, the game's objects and the renderer. */
+    protected abstract val thread: UiThread
 
     /** The window's framebuffer width in pixels. */
     protected abstract val framebufferWidth: Int
@@ -146,7 +153,7 @@ abstract class UiLayer<G, D>(
     /** Framebuffer pixels per GUI unit. */
     protected abstract val guiScale: Float
 
-    /** The system clipboard's text, read and written on the game thread. */
+    /** The system clipboard's text. */
     protected abstract var systemClipboard: String
 
     /** Gives the native feedback for an activated control, such as the click sound of a vanilla button. */
@@ -205,13 +212,14 @@ abstract class UiLayer<G, D>(
      * session shows again as it was, from a new snapshot; one still [exiting] is released and a new one starts.
      */
     fun open(width: Int, height: Int) {
-        assertRenderThread()
+        thread.check()
         if (exiting) close()
         val current = currentMetrics(width, height)
         refreshClipboard()
         refreshSchemes()
         val existing = session
         if (existing == null || existing.state == SessionState.CLOSED) {
+            UiWarmup.await()
             // The first composition already reads the game, not a placeholder.
             contentState.open()
             rejectionsReported = false
@@ -220,7 +228,7 @@ abstract class UiLayer<G, D>(
             val shown = ScreenPresence()
             try {
                 session =
-                    UiSession(current.viewport, clipboard) {
+                    UiSession(current.viewport, clipboard, thread = thread) {
                         CompositionLocalProvider(
                             LocalUiFeedback provides feedback,
                             LocalSchemes provides schemesState.value,
@@ -279,7 +287,7 @@ abstract class UiLayer<G, D>(
         exiting = true
         updateWindowFocus()
         contentState.close() // No more actions or snapshots; the content keeps showing the last one.
-        ComposeThread.call { shown.hide() }
+        shown.hide()
         return true
     }
 
@@ -298,18 +306,16 @@ abstract class UiLayer<G, D>(
 
     /** Lays the content out ahead of the first frame, so the host can read layout geometry while it initializes. */
     fun layout() {
-        val active = session ?: return
-        active.frame(clock.next())?.close()
-        active.invalidate() // The first presented frame records again.
+        session?.update(clock.next())
     }
 
     /**
-     * Records and renders the next frame, ahead of the [render] call that presents it, so the host can read this
-     * frame's layout before drawing anything beneath Compose. [graphics] is null where the platform prepares frames
-     * without a graphics context.
+     * Composes, lays out and renders the next frame, ahead of the [render] call that presents it, so the host can read
+     * this frame's layout before drawing anything beneath Compose. [graphics] is null where the platform prepares
+     * frames without a graphics context.
      */
     fun prepare(graphics: G?, width: Int, height: Int) {
-        assertRenderThread()
+        thread.check()
         if (prepared != null) {
             prepared = null
             frameProfiler?.endFrame()
@@ -322,7 +328,7 @@ abstract class UiLayer<G, D>(
         }
         profiler.beginFrame()
         try {
-            prepared = ComposeThread.traceCalls(profiler) { prepareFrame(graphics, width, height) }
+            prepared = prepareFrame(graphics, width, height)
         } catch (error: Throwable) {
             profiler.endFrame()
             throw error
@@ -338,7 +344,7 @@ abstract class UiLayer<G, D>(
         if (profiler == null) present(graphics, current)
         else
             try {
-                ComposeThread.traceCalls(profiler) { present(graphics, current) }
+                present(graphics, current)
             } finally {
                 profiler.endFrame()
             }
@@ -370,43 +376,43 @@ abstract class UiLayer<G, D>(
                 if (backend.needsFrame) active.invalidate()
                 current
             }
-        fun recordFrame(): RecordedFrame? =
-            active.frame(clock.next())?.also {
-                frameProfiler?.recorded(it.generation)
-                surface.items.recorded(it.generation)
-                surface.tooltips.recorded(it.generation)
-                surface.drawings.recorded(it.generation)
+        val time = clock.next()
+        var layout = 0L
+        fun laidOut() {
+            if (layout == 0L) layout = ++layouts
+            surface.items.laidOut(layout)
+            surface.tooltips.laidOut(layout)
+            surface.drawings.laidOut(layout)
+        }
+        // Composition and layout come first: they tell the platform which slots, icons and tooltips this frame shows.
+        fun compose() =
+            frameProfiler.measureCpu(CpuPhase.RECORD) {
+                frameProfiler.measureDetail(CpuDetail.COMPOSE) { active.update(time) }
             }
-        var frame = frameProfiler.measureCpu(CpuPhase.RECORD) { recordFrame() }
-        fun replaceFrame() {
-            frameProfiler.measureCpu(CpuPhase.FRAME_RELEASE) { frame?.close() }
-            frame = null
-            frame =
-                frameProfiler.measureCpu(CpuPhase.RECORD) {
+        var composed = compose()
+        if (frameProfiler.measureCpu(CpuPhase.HOST) { prepareFrameContent() }) {
+            // What the platform read for this layout is composed and laid out at the same frame time.
+            composed = compose() || composed
+        }
+        if (composed) laidOut()
+        val itemsChanged =
+            frameProfiler.measureCpu(CpuPhase.ITEMS) { surface.items.prepare(System.nanoTime(), current) }
+        val tooltipChanged =
+            frameProfiler.measureCpu(CpuPhase.TOOLTIP) { surface.tooltips.prepare(System.nanoTime(), current) }
+        val drawingsChanged =
+            frameProfiler.measureCpu(CpuPhase.ITEMS) { surface.drawings.prepare(System.nanoTime(), current) }
+        val frame =
+            frameProfiler.measureCpu(CpuPhase.RECORD) {
+                if (itemsChanged || tooltipChanged || drawingsChanged) {
+                    // An image can change the layout, as a tooltip does with its size; the one drawing below shows it.
                     active.invalidate()
-                    recordFrame()
+                    frameProfiler.measureDetail(CpuDetail.COMPOSE) { active.update(time) }
+                    laidOut()
                 }
-        }
-        try {
-            // A container first learns its visible slots during layout. Publish their values
-            // before image preparation and presentation, including newly scrolled-in slots.
-            if (frameProfiler.measureCpu(CpuPhase.HOST) { prepareFrameContent() }) replaceFrame()
-            val itemsChanged =
-                frameProfiler.measureCpu(CpuPhase.ITEMS) { surface.items.prepare(System.nanoTime(), current) }
-            val tooltipChanged =
-                frameProfiler.measureCpu(CpuPhase.TOOLTIP) {
-                    surface.tooltips.prepare(System.nanoTime(), current)
-                }
-            val drawingsChanged =
-                frameProfiler.measureCpu(CpuPhase.ITEMS) {
-                    surface.drawings.prepare(System.nanoTime(), current)
-                }
-            if (itemsChanged || tooltipChanged || drawingsChanged) replaceFrame()
-        } catch (error: Throwable) {
-            frame?.close()
-            throw error
-        }
+                frameProfiler.measureDetail(CpuDetail.DRAW) { active.record() }
+            }
         frame?.let {
+            frameProfiler?.recorded(it.generation)
             try {
                 frameProfiler.measureCpu(CpuPhase.RENDER) { backend.render(it) }
                 frameProfiler?.rendered()
@@ -449,8 +455,8 @@ abstract class UiLayer<G, D>(
     }
 
     /**
-     * Closes the host on the game thread: before the input event during which it was called returns, otherwise at the
-     * next [tickContent]. Any thread may call it, for example a close button in the content.
+     * Closes the host: before the input event during which it was called returns, otherwise at the next [tickContent].
+     * Any thread may call it; a close button in the content calls it from its click.
      */
     fun requestClose() = closeRequested.set(true)
 
@@ -583,7 +589,7 @@ abstract class UiLayer<G, D>(
         val next = schemes
         if (shownSchemes === next) return
         shownSchemes = next
-        ComposeThread.call { schemesState.value = next }
+        schemesState.value = next
     }
 
     private fun flushFeedback() {

@@ -16,7 +16,6 @@ import org.jetbrains.skia.Image
  * transform and clipping.
  */
 fun DrawScope.drawNativeImage(image: Image, layerPaint: Paint) {
-    ComposeThread.check()
     val info = image.imageInfo
     val scale = minOf(size.width / info.width, size.height / info.height)
     if (scale <= 0f) return
@@ -49,7 +48,6 @@ fun DrawScope.drawNativeImage(image: Image, layerPaint: Paint) {
  * [paint]; nearest sampling stays inside [source].
  */
 fun DrawScope.drawNativeImageRegion(image: Image, source: org.jetbrains.skia.Rect, paint: Paint) {
-    ComposeThread.check()
     val scale = minOf(size.width / source.width, size.height / source.height)
     if (scale <= 0f) return
     val width = source.width * scale

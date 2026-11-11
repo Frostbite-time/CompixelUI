@@ -47,7 +47,7 @@ class ColorEditorScreen(parent: Screen?, private val design: UiDesign) :
         }
     }
 
-    /** Writes [request] as a resource pack folder; a few small files, written on the Compose thread. */
+    /** Writes [request] as a resource pack folder; a few small files, written inside the editor's callback. */
     internal fun export(request: OreColorExport): String =
         try {
             val owner = design.owner

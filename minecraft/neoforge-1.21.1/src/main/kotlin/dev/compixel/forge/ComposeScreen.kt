@@ -21,11 +21,11 @@ import net.minecraft.client.gui.screens.Screen
 import net.minecraft.network.chat.Component
 
 /**
- * Full-screen Compose adapter. A subclass draws its [Content] on the Compose thread, reads the game with [gameState],
- * whose read blocks run on the game thread, and changes it with tasks it posts to [gameThread]; it extends
- * `ComposeScreen<Unit, Nothing>`. The snapshot model, with [snapshot], [handle] and [send], is deprecated and removed
- * in 0.2.0. Until then it mixes with game state: [snapshot] reads the game into one immutable value for [Content], and
- * [handle] runs the actions the content sends.
+ * Full-screen Compose adapter. A subclass draws its [Content], reads the game with [gameState], whose read blocks run
+ * on the game thread, and changes it with tasks it posts to [gameThread]; it extends `ComposeScreen<Unit, Nothing>`.
+ * The snapshot model, with [snapshot], [handle] and [send], is deprecated and removed in 0.2.0. Until then it mixes
+ * with game state: [snapshot] reads the game into one immutable value for [Content], and [handle] runs the actions the
+ * content sends.
  *
  * Actions and tasks queued while Compose handles an input event run before the event returns, as vanilla widgets act
  * inside their input handlers, and the game state refreshes before it returns; those queued at other times run at the
@@ -107,9 +107,9 @@ abstract class ComposeScreen<S, A>(
     protected open fun handle(action: A) {}
 
     /**
-     * The content, composed on the Compose thread. Read the game through [gameState] and change it through
-     * [gameThread], and otherwise use immutable values prepared during construction: never read game objects such as
-     * the player here. [state] is the latest [snapshot].
+     * The content, composed again only when state it reads changes. Read the game through [gameState] and change it
+     * through [gameThread], and otherwise use immutable values prepared during construction: never read game objects
+     * such as the player here. [state] is the latest [snapshot].
      */
     @Composable protected abstract fun Content(state: S)
 

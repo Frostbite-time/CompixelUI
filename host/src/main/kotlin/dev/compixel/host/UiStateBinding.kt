@@ -4,8 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.RememberObserver
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
-import dev.compixel.bridge.ComposeThread
-import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.properties.ReadOnlyProperty
 
@@ -23,9 +21,8 @@ import kotlin.properties.ReadOnlyProperty
  * - [close] ends the session and discards the queue; the content keeps showing the last values, for example in its
  *   exit.
  *
- * A step publishes what changed in one call to the Compose thread, and stops once an action or task ended the session.
- * Open, tick, handle, resume and close on the host's game thread; read [value] in composition and use [send] and
- * [gameThread] from UI callbacks.
+ * A step stops once an action or task ended the session. Everything runs on the host's game thread, which is also the
+ * thread its content composes on: what a step publishes shows in the next frame.
  *
  * Hosts drive it for their `snapshot`, `handle`, `gameState` and `Content` members, so game code rarely uses it
  * directly.
@@ -38,11 +35,8 @@ class UiStateBinding<S, A>(private val snapshot: () -> S, private val handle: (A
     private val creator = Thread.currentThread()
     @Volatile private var opened = false
     private val members = CopyOnWriteArrayList<Subscription<*>>()
-    // Subscriptions the composition remembered, waiting on the Compose thread for the next step to take them.
-    private val remembered = ConcurrentLinkedQueue<Subscription<*>>()
+    // Subscriptions the composition remembers.
     private val composed = ArrayList<Subscription<*>>()
-    // Changes when a session starts and ends, so a subscription of one session is never sampled into another.
-    @Volatile private var generation = 0L
     private var ticks = 0L
 
     /** True from [open] until [close]. Game thread. */
@@ -56,14 +50,10 @@ class UiStateBinding<S, A>(private val snapshot: () -> S, private val handle: (A
     fun open() {
         if (isOpen) return
         opened = true
-        generation++
         ticks = 0
-        remembered.clear()
         composed.clear()
         val opening = UiBinding<S, Any?>(snapshot())
-        val changes = ArrayList<() -> Unit>()
-        for (member in members) sample(member, changes)
-        publish(changes)
+        for (member in members) sample(member)
         binding = opening
         isOpen = true
     }
@@ -106,8 +96,6 @@ class UiStateBinding<S, A>(private val snapshot: () -> S, private val handle: (A
         if (!isOpen) return
         checkNotNull(binding).close()
         isOpen = false
-        generation++
-        remembered.clear()
         composed.clear()
     }
 
@@ -161,45 +149,30 @@ class UiStateBinding<S, A>(private val snapshot: () -> S, private val handle: (A
 
     // Publishes a snapshot with the subscriptions that are due, or all of them.
     private fun refresh(current: UiBinding<S, Any?>, all: Boolean) {
-        takeRemembered()
-        val changes = ArrayList<() -> Unit>()
-        current.stage(snapshot())?.let(changes::add)
-        for (member in members) if (all || member.dueAt(ticks)) sample(member, changes)
-        for (subscription in composed) if (all || subscription.dueAt(ticks)) sample(subscription, changes)
-        publish(changes)
-    }
-
-    // Takes the subscriptions the composition remembered since the last step and drops those it forgot.
-    private fun takeRemembered() {
-        while (true) {
-            val next = remembered.poll() ?: break
-            if (next.generation == generation && next.active) composed += next
-        }
+        current.update(snapshot())
         composed.removeAll { !it.active }
+        for (member in members) if (all || member.dueAt(ticks)) sample(member)
+        // A read block cannot change which subscriptions the composition remembers.
+        for (subscription in composed) if (all || subscription.dueAt(ticks)) sample(subscription)
     }
 
-    private fun sample(subscription: Subscription<*>, changes: MutableList<() -> Unit>) {
+    private fun sample(subscription: Subscription<*>) {
         val value = subscription.read()
         subscription.sampledAt = ticks
         if (value == subscription.published) return
         subscription.published = value
-        changes += { subscription.show(value) }
-    }
-
-    // One call to the Compose thread shows all of a step's changes, so the content recomposes once.
-    private fun publish(changes: List<() -> Unit>) {
-        if (changes.isNotEmpty()) ComposeThread.call { changes.forEach { it() } }
+        subscription.show(value)
     }
 
     // A queued task, told apart from the host's actions, whatever their type.
     private class Task(val task: Runnable)
 
-    // Taken by the next step once the composition remembers it, and no longer sampled once the composition forgets it.
+    // Sampled from the next step after the composition remembers it until the composition forgets it.
     private inner class ComposedSubscription<T>(read: () -> T, interval: Int, initial: T) :
         Subscription<T>(read, interval, initial), RememberObserver {
         override fun onRemembered() {
-            generation = this@UiStateBinding.generation
-            remembered += this
+            // A session that already ended samples nothing; the next one starts without this subscription.
+            if (isOpen) composed += this
         }
 
         override fun onForgotten() {
@@ -217,12 +190,10 @@ class UiStateBinding<S, A>(private val snapshot: () -> S, private val handle: (A
  * [State] it reads the shown value.
  */
 internal open class Subscription<T>(read: () -> T, private val interval: Int, initial: Any?) : State<T> {
-    @Volatile var read: () -> T = read
-    @Volatile var active = true
-    // The session that remembered it, for composed subscriptions.
-    var generation = 0L
+    var read: () -> T = read
+    var active = true
     private val state = mutableStateOf(initial)
-    // Game thread: the value last published, and the tick of the last sample.
+    // The value last published, and the tick of the last sample.
     var published: Any? = initial
     var sampledAt = NEVER
 
@@ -235,7 +206,6 @@ internal open class Subscription<T>(read: () -> T, private val interval: Int, in
 
     fun dueAt(tick: Long) = sampledAt == NEVER || tick - sampledAt >= interval
 
-    /** Compose thread. */
     fun show(value: Any?) {
         state.value = value
     }

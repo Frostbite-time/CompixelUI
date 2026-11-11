@@ -212,3 +212,52 @@ data class ComposingText(val text: String, val cursor: Int = text.length) {
 
 /** A text field's caret in viewport pixels. Hosts place an input method's candidate window next to it. */
 data class TextInputArea(val left: Float, val top: Float, val right: Float, val bottom: Float)
+
+/**
+ * The one thread a host runs its UI on: scenes, input, composition, layout and drawing all stay on it. In a game it is
+ * the client thread, which also owns the window and the graphics context.
+ */
+interface UiThread {
+    /** Whether the caller runs on this thread. */
+    val isCurrent: Boolean
+
+    /**
+     * Runs [task] on this thread later, never inside this call. Any thread may call it. UI coroutines resume through
+     * it, for example after a delay.
+     */
+    fun post(task: Runnable)
+
+    /**
+     * Runs the tasks posted so far, for a host whose thread has no task loop of its own; a UI session calls it before
+     * each frame. A thread that runs its tasks by itself, as a game's client thread does, leaves this empty.
+     */
+    fun runPending() {}
+
+    fun check() = check(isCurrent) { "The UI was accessed outside its thread" }
+
+    companion object {
+        private val confined = ThreadLocal.withInitial { UiThreadQueue() }
+
+        /** The calling thread as a UI thread without a task loop: its sessions run what was posted. */
+        fun current(): UiThread = confined.get()
+    }
+}
+
+/** A [UiThread] for the thread that creates it, which runs posted tasks in [runPending]. */
+class UiThreadQueue : UiThread {
+    private val owner = Thread.currentThread()
+    private val tasks = java.util.concurrent.ConcurrentLinkedQueue<Runnable>()
+
+    override val isCurrent: Boolean
+        get() = Thread.currentThread() === owner
+
+    override fun post(task: Runnable) {
+        tasks += task
+    }
+
+    /** Runs the tasks waiting on entry; those they post in turn wait for the next call. */
+    override fun runPending() {
+        check()
+        repeat(tasks.size) { (tasks.poll() ?: return).run() }
+    }
+}

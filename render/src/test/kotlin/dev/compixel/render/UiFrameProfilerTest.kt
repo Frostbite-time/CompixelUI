@@ -43,18 +43,16 @@ class UiFrameProfilerTest {
     }
 
     @Test
-    fun dispatchWaitIsSeparateFromExecutionAndDetailsAreNotAddedToCpuSpans() {
+    fun detailsAreNotAddedToCpuSpans() {
         val profiler = UiFrameProfiler()
         profiler.beginFrame()
-        profiler.composeCall(100, 40, 80)
+        profiler.addDetail(CpuDetail.NATIVE_DRAW, 40)
         profiler.recorded(7)
         profiler.recorded(8)
         profiler.rendered()
         profiler.endFrame()
         val row = profiler.frames().single()
-        assertEquals(40L, row.details[CpuDetail.EDT_EXECUTION])
-        assertEquals(60L, row.details[CpuDetail.EDT_WAIT])
-        assertEquals(80L, row.composeThreadBytes)
+        assertEquals(40L, row.details[CpuDetail.NATIVE_DRAW])
         assertEquals(0L, row.cpu.values.sum())
         assertEquals(2, row.recordings)
         assertEquals(8L, row.generation)

@@ -18,11 +18,11 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.platform.KeyInput
 import dev.compixel.platform.Modifiers
 import dev.compixel.platform.MouseButton
 import dev.compixel.platform.UiKey
+import dev.compixel.platform.UiThread
 import dev.compixel.render.FrameRenderer
 import dev.compixel.render.RecordedFrame
 import dev.compixel.render.RenderBackend
@@ -43,7 +43,6 @@ import dev.compixel.ui.theme.SchemeOwner
 import dev.compixel.ui.theme.SchemeSettings
 import dev.compixel.ui.theme.Schemes
 import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 import kotlin.test.*
 import org.junit.jupiter.api.Test
 
@@ -81,8 +80,8 @@ class UiLayerTest {
         val changes = ArrayDeque<Boolean>()
         val generations = mutableListOf<Long>()
 
-        override fun recorded(frameGeneration: Long) {
-            generations += frameGeneration
+        override fun laidOut(frame: Long) {
+            generations += frame
         }
 
         override fun prepare(now: Long, current: ScreenMetrics): Boolean = changes.removeFirstOrNull() ?: false
@@ -152,7 +151,7 @@ class UiLayerTest {
         var currentSchemes = Schemes.Empty
         val warnings = mutableListOf<String>()
 
-        override fun assertRenderThread() {}
+        override val thread = UiThread.current()
 
         override val framebufferWidth = 200
         override val framebufferHeight = 100
@@ -234,14 +233,21 @@ class UiLayerTest {
     }
 
     @Test
-    fun `images that change while preparing record the frame again`() {
+    fun `images that change while preparing are drawn by the same frame`() {
         val layer = TestLayer(state())
         layer.open(200, 100)
         layer.items.changes += true
+        log.clear()
         layer.prepare(Unit, 200, 100)
-        assertEquals(2, layer.items.generations.size)
-        assertTrue(layer.items.generations[1] > layer.items.generations[0])
+        // One layout tells the image sources what the frame shows, and one drawing shows what they prepared.
+        assertEquals(listOf(1L, 1L), layer.items.generations)
         assertEquals(layer.items.generations, layer.tooltips.generations)
+        assertEquals(listOf("render"), log)
+        layer.render(Unit, 200, 100)
+        layer.items.changes += true
+        layer.render(Unit, 200, 100)
+        layer.render(Unit, 200, 100)
+        assertEquals(listOf(1L, 1L, 2L), layer.items.generations, "A frame without changes asked for its images again")
         layer.close()
     }
 
@@ -294,7 +300,7 @@ class UiLayerTest {
         layer.tickContent()
         layer.render(Unit, 200, 100)
         assertEquals(1, observed)
-        assertTrue(ComposeThread.call { checkNotNull(thread).post { energy = 4 } })
+        assertTrue(checkNotNull(thread).post { energy = 4 })
         assertTrue(layer.handled(true))
         assertEquals(4, energy)
         layer.render(Unit, 200, 100)
@@ -336,11 +342,11 @@ class UiLayerTest {
         layer.currentSchemes = reloaded
         layer.render(Unit, 200, 100)
         assertSame(reloaded, schemes)
-        ComposeThread.call { checkNotNull(editor).invoke() }
+        checkNotNull(editor).invoke()
         assertEquals(0, opened)
         layer.tickContent()
         assertEquals(1, opened)
-        ComposeThread.call { checkNotNull(feedback).activate() }
+        checkNotNull(feedback).activate()
         assertEquals(0, layer.feedbackPlayed)
         layer.tick()
         layer.tick()
@@ -354,7 +360,7 @@ class UiLayerTest {
         hud.close()
     }
 
-    // What a ScreenTransition's content saw, written on the Compose thread.
+    // What a ScreenTransition's content saw, written while it composed.
     private class Shown {
         @Volatile var phase: EnterExitState? = null
         val targets = java.util.concurrent.CopyOnWriteArrayList<EnterExitState>()
@@ -489,7 +495,7 @@ class UiLayerTest {
     @Test
     fun `a popup opened while the screen shows appears at once and fades with its exit, which waits for it`() {
         val shown = Shown()
-        val open = ComposeThread.call { mutableStateOf(false) }
+        val open = mutableStateOf(false)
         val drawn = java.util.concurrent.CopyOnWriteArrayList<Float>()
         val layer =
             TestLayer(
@@ -508,7 +514,7 @@ class UiLayerTest {
             )
         layer.open(200, 100)
         frames(layer) { shown.phase == EnterExitState.Visible }
-        ComposeThread.call { open.value = true }
+        open.value = true
         frames(layer) { drawn.isNotEmpty() }
         assertEquals(1f, drawn.first(), "A popup opened while the screen shows entered")
         val started = System.nanoTime()
@@ -524,7 +530,7 @@ class UiLayerTest {
     fun `only keys that can paste read the system clipboard`() {
         // Compose's text shortcuts use CtrlOrCmd: Command on macOS, Control elsewhere.
         val shortcut = if (CtrlOrCmd.isCmd) Modifiers(meta = true) else Modifiers(control = true)
-        val value = ComposeThread.call { mutableStateOf(TextFieldValue("")) }
+        val value = mutableStateOf(TextFieldValue(""))
         val pasted = CountDownLatch(1)
         val layer =
             TestLayer(
@@ -562,8 +568,13 @@ class UiLayerTest {
         layer.clipboardText = "copied later"
         val paste = KeyInput(UiKey.V, true, shortcut)
         layer.key(paste)
-        // Compose reads clipboard data on Dispatchers.IO after key delivery returns.
-        assertTrue(pasted.await(2, TimeUnit.SECONDS), "The paste did not read text copied after the screen opened")
+        // Compose reads clipboard data on Dispatchers.IO after key delivery returns, and pastes in a later frame.
+        val deadline = System.nanoTime() + 2_000_000_000
+        while (pasted.count > 0 && System.nanoTime() < deadline) {
+            layer.render(Unit, 200, 100)
+            Thread.sleep(5)
+        }
+        assertEquals(0, pasted.count, "The paste did not read text copied after the screen opened")
         // Holding the shortcut pastes again with each repeat, from the first read.
         repeat(5) { layer.key(paste) }
         assertEquals(reads + 1, layer.clipboardReads)

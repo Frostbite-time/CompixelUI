@@ -16,7 +16,6 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.host.UiSession
 import dev.compixel.platform.Viewport
 import dev.compixel.ui.LocalOverlayVisibility
@@ -36,7 +35,7 @@ import org.junit.jupiter.api.Test
 class OreOverlayTest {
     @Test
     fun `a dialog fades its panel and scrim with the screen, and the scrim never darkens what shows through it`() {
-        val visibility = ComposeThread.call { mutableFloatStateOf(1f) }
+        val visibility = mutableFloatStateOf(1f)
         val overlays =
             object : OverlayVisibility {
                 @Composable override fun animate(): State<Float> = visibility
@@ -55,7 +54,7 @@ class OreOverlayTest {
                 Surface.makeRasterN32Premul(200, 160).use { surface ->
                     var time = 1_000_000_000L
                     fun render(shown: Float): BufferedImage {
-                        ComposeThread.call { visibility.floatValue = shown }
+                        visibility.floatValue = shown
                         repeat(3) {
                             time += 20_000_000L
                             session.frame(time)?.use {
@@ -70,7 +69,7 @@ class OreOverlayTest {
                     val panel = OreColors.defaults[OreColors.panel]
                     for (shown in listOf(1f, 0.5f, 0f)) {
                         val image = render(shown)
-                        val inside = ComposeThread.call { content }
+                        val inside = content
                         assertTrue(inside.width > 0, "The dialog did not lay out")
                         // Compose's scrim, 60% black, blends onto the screen beneath with the screen's visibility.
                         val screen = 255f * (1f - 0.6f * shown)

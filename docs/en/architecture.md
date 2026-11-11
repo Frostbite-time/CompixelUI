@@ -56,15 +56,15 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    game["Game thread<br/>reads the world"] -- game state --> compose["Compose thread<br/>state and layout"]
+    game["Game<br/>reads the world"] -- game state --> compose["Compose<br/>state, layout and drawing"]
     compose -- posted work --> game
-    compose -- recorded frame --> gpu["Render thread<br/>GPU drawing and item icons"]
+    compose -- recorded frame --> gpu["Renderer<br/>GPU drawing and item icons"]
     gpu --> frame["Minecraft's frame"]
 ```
 
-Game objects stay on the game thread. Compose sees immutable values that the game thread reads for it, and posts work back to the game thread. Screens and HUD layers manage both with their Compose session: it opens from a first reading, runs the work an input event posted before the event returns and reads again, runs the rest at each tick before the next reading, and closes with the session. Each frame is recorded by Compose and drawn by the render thread inside Minecraft's own graphics context: OpenGL state is restored afterwards, and Vulkan work uses the game's device and queue.
+Everything runs on Minecraft's client thread: the game, Compose's input handling, composition, layout and drawing, and the renderer. Compose still sees the game as immutable values that are read for it, so content recomposes only when a value changes, and posts its work, which runs after Compose has handled the event. Screens and HUD layers manage both with their Compose session: it opens from a first reading, runs the work an input event posted before the event returns and reads again, runs the rest at each tick before the next reading, and closes with the session. Each frame is composed and laid out first; the slots, item icons and tooltips its layout asks for are then filled in, and the frame is recorded once and drawn inside Minecraft's own graphics context: OpenGL state is restored afterwards, and Vulkan work uses the game's device and queue.
 
-GPU images that Compose draws, such as item icon pages, belong to the render thread. Pictures recorded by Compose keep references to them, so the renderer frees an image only after those references are gone. Freeing it on another thread would lose its GPU memory.
+GPU images that Compose draws, such as item icon pages, belong to the renderer. Pictures recorded by Compose keep references to them, so the renderer frees an image only after those references are gone.
 
 `NativeImageAtlas` in `compose-bridge` schedules the images that item icons and native drawings request, and `NativeImageOwner` releases them, tooltip images included, through the renderer. Drawing the images, measuring tooltips and handling loader events stay in each adapter.
 

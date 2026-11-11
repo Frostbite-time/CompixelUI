@@ -1,6 +1,5 @@
 package dev.compixel.testing.ui
 
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.demo.preview.DemoModel
 import dev.compixel.demo.preview.DemoPage
 import dev.compixel.host.UiSession
@@ -33,12 +32,12 @@ class OreComponentExercise(private val model: DemoModel, private val page: DemoP
     fun advance(session: UiSession, nowNanos: Long = System.nanoTime()) {
         frame++
         fun hover(id: String) {
-            val p = ComposeThread.call { checkNotNull(model.bounds[id]) { "Missing preview target $id" }.center }
+            val p = checkNotNull(model.bounds[id]) { "Missing preview target $id" }.center
             session.pointer(PointerInput(PointerAction.MOVE, p.x, p.y))
         }
         fun click(id: String, button: MouseButton = MouseButton.LEFT) {
             hover(id)
-            val p = ComposeThread.call { model.bounds.getValue(id).center }
+            val p = model.bounds.getValue(id).center
             session.pointer(PointerInput(PointerAction.PRESS, p.x, p.y, button))
             session.pointer(PointerInput(PointerAction.RELEASE, p.x, p.y, button))
         }
@@ -84,7 +83,7 @@ class OreComponentExercise(private val model: DemoModel, private val page: DemoP
                 }
             DemoPage.Colors ->
                 if (frame == 20) {
-                    val bounds = ComposeThread.call { model.bounds.getValue("color-picker") }
+                    val bounds = model.bounds.getValue("color-picker")
                     val x = bounds.left + bounds.width * .3f
                     val y = bounds.top + bounds.width * .15f
                     session.pointer(PointerInput(PointerAction.MOVE, x, y))
@@ -140,12 +139,12 @@ class OreComponentExercise(private val model: DemoModel, private val page: DemoP
             DemoPage.Items ->
                 when (frame) {
                     20 -> {
-                        val p = ComposeThread.call { model.itemBrowser.visibleCells.getValue(0).center }
+                        val p = model.itemBrowser.visibleCells.getValue(0).center
                         session.pointer(PointerInput(PointerAction.MOVE, p.x, p.y))
                         session.pointer(PointerInput(PointerAction.PRESS, p.x, p.y, MouseButton.LEFT))
                         session.pointer(PointerInput(PointerAction.RELEASE, p.x, p.y, MouseButton.LEFT))
                     }
-                    40 -> ComposeThread.call { model.itemBrowser.scrollTarget = 120 }
+                    40 -> model.itemBrowser.scrollTarget = 120
                     60 -> {
                         exercised = true
                     }
@@ -154,7 +153,7 @@ class OreComponentExercise(private val model: DemoModel, private val page: DemoP
         }
     }
 
-    fun verify() = ComposeThread.call {
+    fun verify() = run {
         check(exercised) { "Component exercise did not complete: $page at frame $frame" }
         when (page) {
             DemoPage.Selection -> check(model.choice == 3 && model.mixedSelection.size == 3)

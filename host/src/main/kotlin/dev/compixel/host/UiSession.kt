@@ -1,7 +1,6 @@
 package dev.compixel.host
 
 import androidx.compose.runtime.Composable
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.bridge.SceneBridge
 import dev.compixel.platform.*
 import dev.compixel.render.RecordedFrame
@@ -13,41 +12,47 @@ enum class SessionState {
     CLOSED,
 }
 
-/** Public Screen session. All game-facing calls except post() belong to the creating thread. */
+/**
+ * A Compose scene and its content on the host's [thread], the thread that creates the session: input, composition,
+ * layout and drawing all run inside the calls the host makes. Every member except [post] belongs to that thread, and to
+ * the host: content that calls back into its own session from a callback, or closes it, fails. It queues such work for
+ * after the event, as [UiStateBinding.gameThread] and [post] do.
+ */
 class UiSession(
     viewport: Viewport,
     clipboard: ClipboardPort = MemoryClipboard(),
     private val commandCapacity: Int = 1024,
     private val commandsPerFrame: Int = 128,
+    private val thread: UiThread = UiThread.current(),
     content: @Composable () -> Unit,
 ) : AutoCloseable {
-    private val owner = Thread.currentThread()
     private val closed = AtomicBoolean()
     private val commands =
         ArrayDeque<Runnable>().also {
             require(commandCapacity in 1..65_536 && commandsPerFrame in 1..commandCapacity)
         }
-    private val bridge = ComposeThread.call { SceneBridge(viewport, clipboard) }
+    private val bridge = SceneBridge(viewport, clipboard, thread)
     var state: SessionState = SessionState.ACTIVE
         private set
 
     init {
         try {
-            ComposeThread.call { bridge.setContent(content) }
+            bridge.setContent(content)
         } catch (error: Throwable) {
-            ComposeThread.call { bridge.close() }
+            bridge.close()
             throw error
         }
     }
 
-    private fun checkOwner() = check(Thread.currentThread() === owner) { "Session must be used on its owning thread" }
-
     private fun checkOpen() {
-        checkOwner()
+        thread.check()
         check(!closed.get()) { "Session is closed" }
     }
 
-    /** False means closed/full. Accepted commands may be discarded on close; captured data must be immutable. */
+    /**
+     * Runs [command] on the session's thread at its next frame, from any thread. False means closed/full. Accepted
+     * commands may be discarded on close.
+     */
     fun post(command: Runnable): Boolean =
         synchronized(commands) {
             if (closed.get() || commands.size >= commandCapacity) false
@@ -60,95 +65,101 @@ class UiSession(
     val pendingCommands: Int
         get() = synchronized(commands) { commands.size }
 
+    /** [update], then [record]: one whole frame, for a host that reads nothing from the layout in between. */
     fun frame(timeNanos: Long = System.nanoTime()): RecordedFrame? {
+        update(timeNanos)
+        return record()
+    }
+
+    /**
+     * Runs the posted commands, then brings the content to [timeNanos]: effects and animations run, what changed is
+     * composed and laid out, and the host can read this frame's layout before [record] draws it. After the host wrote
+     * state from that layout, another call with the same time composes and lays that out too. False when nothing was
+     * pending, so the content stayed as it was.
+     */
+    fun update(timeNanos: Long = System.nanoTime()): Boolean {
         checkOpen()
-        // An idle scene would record nothing; asking the Compose thread costs two thread wake-ups per frame.
-        if (bridge.idle && synchronized(commands) { commands.isEmpty() }) return null
-        return ComposeThread.call {
-            // New/reentrant posts wait for a later frame, even when the queue initially held one task.
-            val count = synchronized(commands) { minOf(commandsPerFrame, commands.size) }
-            repeat(count) { synchronized(commands) { commands.pollFirst() }?.run() }
-            bridge.recordFrame(timeNanos).also { recordTextInput() }
-        }
+        thread.runPending()
+        // New/reentrant posts wait for a later frame, even when the queue initially held one task.
+        val count = synchronized(commands) { minOf(commandsPerFrame, commands.size) }
+        repeat(count) { synchronized(commands) { commands.pollFirst() }?.run() }
+        return bridge.update(timeNanos)
+    }
+
+    /** Draws the content into a frame when it changed since the last one; null otherwise. */
+    fun record(): RecordedFrame? {
+        checkOpen()
+        return bridge.record()
     }
 
     fun resize(viewport: Viewport) {
         checkOpen()
-        ComposeThread.call { bridge.resize(viewport) }
+        bridge.resize(viewport)
     }
 
+    /** Makes the next [update] and [record] run even when nothing in the content changed. */
     fun invalidate() {
         checkOpen()
-        ComposeThread.call { bridge.invalidate() }
+        bridge.invalidate()
     }
 
     fun configure(rtl: Boolean = false, layoutBounds: Boolean = false) {
         checkOpen()
-        ComposeThread.call { bridge.configure(rtl, layoutBounds) }
+        bridge.configure(rtl, layoutBounds)
     }
 
     fun setFocused(focused: Boolean) {
         checkOpen()
-        ComposeThread.call {
-            bridge.setFocused(focused)
-            recordTextInput()
-        }
+        bridge.setFocused(focused)
     }
 
     fun pointer(event: PointerInput): Boolean {
         checkOpen()
-        return ComposeThread.call { bridge.pointer(event) }
+        return bridge.pointer(event)
     }
 
     fun key(event: KeyInput): Boolean {
         checkOpen()
-        return ComposeThread.call { bridge.key(event) }
+        return bridge.key(event)
     }
 
     fun commitText(text: String): Boolean {
         checkOpen()
-        return ComposeThread.call { bridge.commitText(text) }
+        return bridge.commitText(text)
     }
 
     /** Shows [text] from an input method as the focused field's composition; null removes the composition. */
     fun setComposingText(text: ComposingText?): Boolean {
         checkOpen()
-        return ComposeThread.call { bridge.setComposingText(text) }
+        return bridge.setComposingText(text)
     }
 
-    /** Use to give a focused Compose editor priority over game shortcuts. */
+    /**
+     * Use to give a focused Compose editor priority over game shortcuts. Composes pending state first, so it already
+     * counts a field that the latest input focused.
+     */
     val hasTextInputFocus: Boolean
         get() {
             checkOpen()
-            return ComposeThread.call { bridge.hasTextInputFocus }
+            return bridge.hasTextInputFocus
         }
 
-    /**
-     * [hasTextInputFocus] as of the latest [frame] or focus change. Reading it never waits for Compose, so a host can
-     * check it every frame, for example to open the platform's text input.
-     */
-    @Volatile
-    var lastTextInputFocus = false
-        private set
+    /** [hasTextInputFocus] as the content stands, for example to open the platform's text input after each frame. */
+    val textInputFocused: Boolean
+        get() = !closed.get() && bridge.textInputFocused
 
-    /** The focused field's caret as of the latest [frame] or focus change, or null without [lastTextInputFocus]. */
-    @Volatile
-    var lastTextInputArea: TextInputArea? = null
-        private set
-
-    // Runs on the Compose thread, inside calls the host makes anyway.
-    private fun recordTextInput() {
-        lastTextInputFocus = bridge.textInputFocused
-        lastTextInputArea = bridge.textInputArea
-    }
+    /** The focused field's caret in viewport pixels, or null without [textInputFocused]. */
+    val textInputArea: TextInputArea?
+        get() = if (closed.get()) null else bridge.textInputArea
 
     override fun close() {
-        checkOwner()
-        if (!closed.compareAndSet(false, true)) return
+        thread.check()
+        if (closed.get()) return
+        // Refused while the content runs: a callback that closes its own session leaves it open and fails.
+        bridge.close()
+        closed.set(true)
         state = SessionState.CLOSED
-        lastTextInputFocus = false
-        lastTextInputArea = null
         synchronized(commands) { commands.clear() }
-        ComposeThread.call { bridge.close() }
+        thread.runPending() // Cancelled effects finish on a thread without a task loop.
     }
 }

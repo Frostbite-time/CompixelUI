@@ -3,7 +3,6 @@
 package dev.compixel.forge.item
 
 import com.mojang.blaze3d.systems.RenderSystem
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.bridge.NativeImageRefresh
 import dev.compixel.forge.render.ScreenFrameRenderer
 import dev.compixel.host.NativeImageSource
@@ -77,9 +76,9 @@ internal class NativeTooltipRenderer(
                 generation,
             )
 
-    override fun recorded(frameGeneration: Long) {
-        request = ComposeThread.call { mailbox.request }
-        generation = frameGeneration
+    override fun laidOut(frame: Long) {
+        request = mailbox.request
+        generation = frame
     }
 
     override fun prepare(now: Long, current: ScreenMetrics): Boolean {
@@ -160,7 +159,7 @@ internal class NativeTooltipRenderer(
                 }
             backend.copyNativeImage(source, plan.layout.width, plan.layout.height)
         }
-        val published = ComposeThread.call { mailbox.publish(active, replacement) }
+        val published = mailbox.publish(active, replacement)
         val changed = image != null || replacement != null
         retireImage()
         if (published) {
@@ -224,7 +223,7 @@ internal class NativeTooltipRenderer(
 
     override fun reset() {
         RenderSystem.assertOnRenderThread()
-        ComposeThread.call { mailbox.clearImage() }
+        mailbox.clearImage()
         retireImage()
         preparedRequest = null
         metrics = null

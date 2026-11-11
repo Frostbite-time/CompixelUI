@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.platform.*
 import kotlin.test.*
 import org.junit.jupiter.api.Test
@@ -30,7 +29,7 @@ class HostTextInputTest {
 
     /** A session with one text field filling the viewport, and its host-side text input. */
     private class Fixture : AutoCloseable {
-        val value = ComposeThread.call { mutableStateOf("") }
+        val value = mutableStateOf("")
         val session =
             UiSession(Viewport(320, 120)) {
                 BasicTextField(value.value, { value.value = it }, modifier = Modifier.fillMaxSize())
@@ -39,7 +38,7 @@ class HostTextInputTest {
         val input = HostTextInput(target)
         private var time = 0L
         val text: String
-            get() = ComposeThread.call { value.value }
+            get() = value.value
 
         fun frame() {
             time += 1_000_000

@@ -1,6 +1,5 @@
 package dev.compixel.development
 
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.testing.suite.SuitePixels
 import java.util.concurrent.CompletableFuture
 import net.minecraft.client.Minecraft
@@ -91,7 +90,7 @@ internal class NativeTooltipProbe(private val session: SuiteSession) : AutoClose
             7 ->
                 if (elapsed >= 180) {
                     check(!visible()) { "Tooltip survived a click" }
-                    check(ComposeThread.call { screen.itemBrowser.selected } == 8) {
+                    check(screen.itemBrowser.selected == 8) {
                         "Tooltip swallowed the item click"
                     }
                     screen.mouseMoved(-10.0, -10.0)
@@ -109,7 +108,7 @@ internal class NativeTooltipProbe(private val session: SuiteSession) : AutoClose
                 }
             10 ->
                 if (elapsed >= 800) {
-                    check(ComposeThread.call { screen.model.dialog } && !visible()) {
+                    check(screen.model.dialog && !visible()) {
                         "Delayed tooltip appeared over a modal"
                     }
                     capture(screen, "modal", requireTooltip = false)
@@ -214,14 +213,14 @@ internal class NativeTooltipProbe(private val session: SuiteSession) : AutoClose
     }
 
     private fun cellPoint(screen: ComposePreviewScreen, index: Int): Pair<Double, Double> {
-        val bounds = ComposeThread.call {
+        val bounds = run {
             checkNotNull(screen.itemBrowser.visibleCells[index]) { "Item cell $index is not laid out" }
         }
         return toGui(screen, bounds.center.x, bounds.top + 30f)
     }
 
     private fun edgePoint(screen: ComposePreviewScreen): Pair<Double, Double> {
-        val point = ComposeThread.call {
+        val point = run {
             checkNotNull(screen.itemBrowser.edgeTooltipBounds) { "Edge item is not laid out" }.center
         }
         return toGui(screen, point.x, point.y)
@@ -243,7 +242,7 @@ internal class NativeTooltipProbe(private val session: SuiteSession) : AutoClose
     private fun dismissDialog(screen: ComposePreviewScreen) {
         screen.keyPressed(SuitePlatform.KEY_ESCAPE, 0, 0)
         screen.keyReleased(SuitePlatform.KEY_ESCAPE, 0, 0)
-        check(SuitePlatform.screen === screen && !ComposeThread.call { screen.model.dialog }) {
+        check(SuitePlatform.screen === screen && !screen.model.dialog) {
             "Escape did not close only the dialog"
         }
         screen.mouseMoved(-10.0, -10.0)

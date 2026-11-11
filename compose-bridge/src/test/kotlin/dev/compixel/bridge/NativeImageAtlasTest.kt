@@ -1,7 +1,6 @@
 package dev.compixel.bridge
 
 import dev.compixel.render.NativeImageStatistics
-import java.awt.EventQueue
 import kotlin.test.*
 import org.jetbrains.skia.IRect
 import org.jetbrains.skia.Image
@@ -88,7 +87,6 @@ class NativeImageAtlasTest {
             changed: Set<NativeImageAtlas.Variant>,
             removed: Set<NativeImageAtlas.Variant>,
         ) {
-            check(EventQueue.isDispatchThread())
             check(changed.all { it in regions }) { "A changed variant needs its new region" }
             removed.forEach(published::remove)
             published.putAll(regions)
@@ -96,7 +94,6 @@ class NativeImageAtlasTest {
         }
 
         override fun clear() {
-            check(EventQueue.isDispatchThread())
             published.clear()
         }
 

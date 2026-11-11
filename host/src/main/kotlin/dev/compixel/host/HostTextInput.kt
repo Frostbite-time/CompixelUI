@@ -35,7 +35,7 @@ class HostTextInput(private val target: Target) {
     fun afterFrame(session: UiSession?) {
         sync(session)
         if (!open || nativeFocus) return
-        val current = session?.lastTextInputArea ?: return
+        val current = session?.textInputArea ?: return
         if (current == area) return
         area = current
         target.setArea(current)
@@ -54,7 +54,7 @@ class HostTextInput(private val target: Target) {
             return
         }
         area = null
-        if (open && session?.lastTextInputFocus == true) target.setOpen(true) else sync(session)
+        if (open && session?.textInputFocused == true) target.setOpen(true) else sync(session)
     }
 
     /** Shows [text] from the input method inside the focused field; null ends the composition. */
@@ -84,7 +84,7 @@ class HostTextInput(private val target: Target) {
 
     private fun sync(session: UiSession?) {
         if (nativeFocus) return
-        val wanted = session?.lastTextInputFocus == true
+        val wanted = session?.textInputFocused == true
         if (wanted == open) return
         open = wanted
         area = null

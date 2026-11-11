@@ -4,7 +4,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.platform.Viewport
 import kotlin.test.*
 import org.junit.jupiter.api.Test
@@ -28,7 +27,7 @@ class UiStateBindingTest {
             .use { session ->
                 session.frame(1)?.close()
                 assertEquals(1, observed)
-                assertTrue(ComposeThread.call { state.send(10) })
+                assertTrue(state.send(10))
                 state.tick()
                 session.frame(2)?.close()
                 assertEquals(listOf(10), handled)
@@ -61,7 +60,7 @@ class UiStateBindingTest {
                 assertEquals(1, observed)
                 state.handleActions()
                 assertEquals(1, snapshots, "A snapshot was taken without an action")
-                assertTrue(ComposeThread.call { state.send(10) && state.send(5) })
+                assertTrue(state.send(10) && state.send(5))
                 state.handleActions()
                 assertEquals(listOf(10, 5), handled)
                 assertEquals(2, snapshots)
@@ -183,8 +182,8 @@ class UiStateBindingTest {
     fun `ticks and close stay on the opening thread`() {
         val state = UiStateBinding<Int, Int>({ 0 }) {}
         state.open()
-        ComposeThread.call {
-            assertTrue(state.send(1))
+        assertTrue(state.send(1))
+        onAnotherThread {
             assertFailsWith<IllegalStateException> { state.tick() }
             assertFailsWith<IllegalStateException> { state.handleActions() }
             assertFailsWith<IllegalStateException> { state.close() }
@@ -250,7 +249,7 @@ class UiStateBindingTest {
                 assertEquals(2, observed)
                 state.handleActions()
                 assertEquals(2, reads, "An input event without actions or tasks sampled the state")
-                assertTrue(ComposeThread.call { state.gameThread.post { energy = 5 } })
+                assertTrue(state.gameThread.post { energy = 5 })
                 state.handleActions()
                 assertEquals(3, reads)
                 session.frame(3)?.close()
@@ -268,8 +267,8 @@ class UiStateBindingTest {
         var reads = 0
         val state = UiStateBinding<Unit, Nothing>({}) {}
         state.open()
-        val shown = ComposeThread.call { mutableStateOf(true) }
-        val factor = ComposeThread.call { mutableStateOf(1) }
+        val shown = mutableStateOf(true)
+        val factor = mutableStateOf(1)
         var observed = 0
         UiSession(Viewport(20, 20)) {
                 CompositionLocalProvider(LocalGameStates provides state) {
@@ -293,13 +292,13 @@ class UiStateBindingTest {
                 assertEquals(1, reads, "A new subscription waited for its interval")
                 session.frame(2)?.close()
                 assertEquals(7, observed)
-                ComposeThread.call { factor.value = 2 }
+                factor.value = 2
                 session.frame(3)?.close()
                 assertTrue(state.gameThread.post {})
                 state.tick()
                 session.frame(4)?.close()
                 assertEquals(14, observed, "The sample used an old read block")
-                ComposeThread.call { shown.value = false }
+                shown.value = false
                 session.frame(5)?.close()
                 assertTrue(state.gameThread.post {})
                 state.tick()
@@ -313,7 +312,7 @@ class UiStateBindingTest {
         val energy = mapOf("a" to 1, "b" to 2)
         val state = UiStateBinding<Unit, Nothing>({}) {}
         state.open()
-        val source = ComposeThread.call { mutableStateOf("a") }
+        val source = mutableStateOf("a")
         val sampled = mutableListOf<String>()
         var observed = 0
         UiSession(Viewport(20, 20)) {
@@ -333,7 +332,7 @@ class UiStateBindingTest {
                 state.tick()
                 session.frame(2)?.close()
                 assertEquals(1, observed)
-                ComposeThread.call { source.value = "b" }
+                source.value = "b"
                 session.frame(3)?.close()
                 assertEquals(0, observed, "A replaced subscription kept the old value")
                 state.tick()
@@ -404,7 +403,7 @@ class UiStateBindingTest {
         val state = UiStateBinding<Unit, Nothing>({}) {}
         val early by state.gameState { 1 }
         assertFailsWith<IllegalStateException> { early }
-        ComposeThread.call { assertFailsWith<IllegalStateException> { state.gameState { 2 } } }
+        onAnotherThread { assertFailsWith<IllegalStateException> { state.gameState { 2 } } }
         state.open()
         assertEquals(1, early)
         assertFailsWith<IllegalStateException> { state.gameState { 3 } }

@@ -110,9 +110,9 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
     protected open fun handle(action: A) {}
 
     /**
-     * The content, composed on the Compose thread. Read the menu and the game through [gameState] and change them
-     * through [gameThread], and otherwise use [slots] and immutable values prepared during construction: never read
-     * game objects such as the menu here. [state] is the latest [snapshot].
+     * The content, composed again only when state it reads changes. Read the menu and the game through [gameState] and
+     * change them through [gameThread], and otherwise use [slots] and immutable values prepared during construction:
+     * never read game objects such as the menu here. [state] is the latest [snapshot].
      */
     @Composable protected abstract fun Content(state: S, slots: ComposeMenuSlots<M>)
 

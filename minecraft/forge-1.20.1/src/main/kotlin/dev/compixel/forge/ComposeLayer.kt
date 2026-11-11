@@ -3,9 +3,7 @@ package dev.compixel.forge
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import com.mojang.blaze3d.platform.InputConstants
-import com.mojang.blaze3d.systems.RenderSystem
 import com.mojang.logging.LogUtils
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.bridge.NativeImageMailbox
 import dev.compixel.forge.drawing.*
 import dev.compixel.forge.input.toModifiers
@@ -45,7 +43,7 @@ import net.minecraft.sounds.SoundEvents
 
 /**
  * The shared [UiLayer] on Minecraft: the window, clipboard, click sound, item icons, tooltips and native drawings, and
- * Minecraft's input events. Every member runs on the game thread.
+ * Minecraft's input events. Every member runs on the client thread, as the content does.
  */
 internal class ComposeLayer(
     renderBackend: RenderBackend = configuredRenderBackend(),
@@ -55,7 +53,7 @@ internal class ComposeLayer(
     design: UiDesign = OreDesign(),
     private val nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
     windowFocused: () -> Boolean,
-    /** Adapter-owned layout-to-snapshot handoff, on the game thread before presentation. */
+    /** Runs after each frame's layout and before its drawing; true when it changed state the content reads. */
     prepareFrameContent: () -> Boolean = { false },
     /** The content's game state, opened before each session composes and closed with it. */
     contentState: UiStateBinding<*, *>,
@@ -78,9 +76,9 @@ internal class ComposeLayer(
         content,
     ) {
     private val logger = LogUtils.getLogger()
-    private val itemMailbox = ComposeThread.call { NativeImageMailbox<ItemIcon> { it.id } }
-    private val drawingMailbox = ComposeThread.call { NativeImageMailbox<NativeDrawing> { it.id } }
-    private val tooltipMailbox = ComposeThread.call { ItemTooltipMailbox() }
+    private val itemMailbox = NativeImageMailbox<ItemIcon> { it.id }
+    private val drawingMailbox = NativeImageMailbox<NativeDrawing> { it.id }
+    private val tooltipMailbox = ItemTooltipMailbox()
     // The latest session's, kept after it closes so their final statistics stay readable.
     private var nativeItems: NativeItemAtlas? = null
     private var nativeTooltips: NativeTooltipRenderer? = null
@@ -96,9 +94,9 @@ internal class ComposeLayer(
         get() = nativeDrawings?.statistics ?: NativeImageStatistics()
 
     val nativeTooltipBounds
-        get() = ComposeThread.call { tooltipMailbox.bounds }
+        get() = tooltipMailbox.bounds
 
-    override fun assertRenderThread() = RenderSystem.assertOnRenderThread()
+    override val thread = ClientThread
 
     override val framebufferWidth: Int
         get() = Minecraft.getInstance().window.width
@@ -169,7 +167,7 @@ internal class ComposeLayer(
         )
     }
 
-    override fun dismissTransient() = ComposeThread.call { tooltipMailbox.dismiss() }
+    override fun dismissTransient() = tooltipMailbox.dismiss()
 
     // Native item capture draws through GuiGraphics; draw what the screen batched first.
     override fun beforePrepare(graphics: GuiGraphics?) {

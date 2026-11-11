@@ -1,7 +1,6 @@
 package dev.compixel.forge.item
 
 import com.mojang.blaze3d.systems.RenderSystem
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.bridge.NativeImageRefresh
 import dev.compixel.forge.render.FrameRetirement
 import dev.compixel.forge.render.NativeSnapshots
@@ -93,9 +92,9 @@ internal class NativeTooltipRenderer(
                 generation,
             )
 
-    override fun recorded(frameGeneration: Long) {
-        request = ComposeThread.call { mailbox.request }
-        generation = frameGeneration
+    override fun laidOut(frame: Long) {
+        request = mailbox.request
+        generation = frame
     }
 
     /** Keep one capture in flight and refresh at most ten times per second. */
@@ -107,7 +106,7 @@ internal class NativeTooltipRenderer(
         if (active == null || imageRequest !== active) {
             if (image != null) {
                 retireImage()
-                ComposeThread.call { mailbox.clearImage() }
+                mailbox.clearImage()
                 changed = true
             }
             if (active == null) return changed
@@ -149,7 +148,7 @@ internal class NativeTooltipRenderer(
             inFlight = submitted
             if (!submitted && image != null) {
                 retireImage()
-                ComposeThread.call { mailbox.clearImage() }
+                mailbox.clearImage()
                 changed = true
             }
             return changed
@@ -162,7 +161,7 @@ internal class NativeTooltipRenderer(
         if (measured == null) {
             if (image != null) {
                 retireImage()
-                ComposeThread.call { mailbox.clearImage() }
+                mailbox.clearImage()
                 changed = true
             }
             return changed
@@ -259,7 +258,7 @@ internal class NativeTooltipRenderer(
     private fun publishGpu(active: ItemTooltipRequest, measured: Layout, target: NativeGuiCapture): Boolean {
         val gpu = checkNotNull(snapshots)
         val value = gpu.snapshot(target.texture(0), measured.width, measured.height)
-        val published = ComposeThread.call { mailbox.publish(active, value) }
+        val published = mailbox.publish(active, value)
         if (!published) {
             gpu.release(value)
             return false
@@ -290,7 +289,7 @@ internal class NativeTooltipRenderer(
                     completion.pixels,
                     completion.layout.width * 4,
                 )
-            val published = ComposeThread.call { mailbox.publish(completion.request, value) }
+            val published = mailbox.publish(completion.request, value)
             if (published) {
                 prepared++
                 retireImage()
@@ -326,7 +325,7 @@ internal class NativeTooltipRenderer(
         attemptedRequest = null
         attemptedMetrics = null
         retireImage()
-        ComposeThread.call { mailbox.clearImage() }
+        mailbox.clearImage()
     }
 
     override fun close() {

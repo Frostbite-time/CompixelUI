@@ -11,7 +11,6 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.host.UiSession
 import dev.compixel.platform.Viewport
 import dev.compixel.ui.ore.overlay.OreDialog
@@ -81,10 +80,8 @@ class OreThemeTest {
                 }
             }
             .use { session -> session.frame(1_000_000_000L)?.close() }
-        ComposeThread.call {
-            assertEquals(OreColors.scheme("twilight")[OreColors.selection], selection)
-            assertSame(OreTextContextMenu, menu)
-        }
+        assertEquals(OreColors.scheme("twilight")[OreColors.selection], selection)
+        assertSame(OreTextContextMenu, menu)
     }
 
     private fun assertReadable(colors: ColorValues) {
@@ -105,7 +102,7 @@ class OreThemeTest {
 
     @Test
     fun `live scheme changes preserve remembered state and reach dialogs popups and nested themes`() {
-        val state = ComposeThread.call { mutableStateOf(Schemes.Empty) }
+        val state = mutableStateOf(Schemes.Empty)
         var creations = 0
         var observed = emptyList<ColorValues>()
         var dialogColor = Color.Unspecified
@@ -151,20 +148,16 @@ class OreThemeTest {
                 }
                 val light = SchemeSettings().with(design.owner, SchemeSettings.Choice(scheme = "light"))
                 settle()
-                ComposeThread.call {
-                    edit("unsaved draft")
-                    state.value = Schemes(SchemeCatalog.Empty, light)
-                }
+                edit("unsaved draft")
+                state.value = Schemes(SchemeCatalog.Empty, light)
                 settle()
-                ComposeThread.call {
-                    val panel = OreColors.scheme("light")[OreColors.panel]
-                    assertEquals(1, creations)
-                    assertEquals("unsaved draft", draft)
-                    assertEquals(listOf(OreColors.scheme("light"), OreColors.scheme("twilight")), observed)
-                    assertEquals(panel, dialogColor)
-                    assertEquals(panel, popupColor)
-                    state.value = Schemes(SchemeCatalog.Empty, light)
-                }
+                val panel = OreColors.scheme("light")[OreColors.panel]
+                assertEquals(1, creations)
+                assertEquals("unsaved draft", draft)
+                assertEquals(listOf(OreColors.scheme("light"), OreColors.scheme("twilight")), observed)
+                assertEquals(panel, dialogColor)
+                assertEquals(panel, popupColor)
+                state.value = Schemes(SchemeCatalog.Empty, light)
                 assertNull(session.frame(time + 20_000_000L), "Equal schemes must retain the recorded frame")
             }
     }

@@ -8,7 +8,9 @@ import androidx.compose.runtime.staticCompositionLocalOf
  * anything themselves and every control of a design system sounds alike. Read it from [LocalUiFeedback].
  */
 fun interface UiFeedback {
-    /** Called on the Compose thread. A host queues the feedback and gives it on its own thread. */
+    /**
+     * Called when a control was activated. A host may queue the feedback and give it once the input event is handled.
+     */
     fun activate()
 
     companion object {

@@ -186,7 +186,7 @@ class OpenGlFrameRenderer(
             return BackendTexture.makeGL(width, height, false, copy, GL_TEXTURE_2D, GL_RGBA8).use { texture ->
                 val image = Image.adoptTextureFrom(skia, texture, SurfaceOrigin.BOTTOM_LEFT, ColorType.RGBA_8888)
                 copy = 0
-                // Cache immutable metadata on the GL owner before publication to the Compose EDT.
+                // Cache immutable metadata on the GL owner before publication to Compose.
                 image.imageInfo
                 importedImages += image
                 imageCopies++

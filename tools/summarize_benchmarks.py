@@ -54,7 +54,8 @@ def load_run(path):
     metrics = {}
     for name, rows in groups.items():
         columns = [key for key in rows[0] if key.endswith("_ns") and key != "start_relative_ns"]
-        columns += ["render_bytes", "compose_bytes", "compose_calls"]
+        # Reports from before 0.2.0 also count the calls into a separate Compose thread.
+        columns += [key for key in ("render_bytes", "compose_bytes", "compose_calls") if key in rows[0]]
         values = {key: distribution([int(row[key]) for row in rows if row[key] != ""]) for key in columns}
         # Backends without GPU timers leave every GPU column empty.
         gpu_keys = [key for key in rows[0] if key.startswith("gpu_") and key.endswith("_ns")]

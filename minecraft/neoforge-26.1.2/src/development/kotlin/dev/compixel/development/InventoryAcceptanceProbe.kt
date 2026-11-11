@@ -9,7 +9,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.forge.ComposeInventoryScreen
 import dev.compixel.forge.item.MinecraftItemIcon
 import dev.compixel.forge.slots.ComposeMenuSlots
@@ -65,11 +64,11 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
                 },
             ),
         ) {
-        /** The member game state the content composed last. Compose thread. */
+        /** The member game state the content composed last. */
         var composed = -1
             private set
 
-        /** The composable game state the content composed last, -1 until its first sample. Compose thread. */
+        /** The composable game state the content composed last, -1 until its first sample. */
         var composedFirst = -2
             private set
 
@@ -136,7 +135,7 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
             }
         }
 
-        /** Posts a press as the content's press button does; call it on the Compose thread. */
+        /** Posts a press as the content's press button does. */
         fun press() = gameThread.post { presses++ }
     }
 
@@ -167,7 +166,7 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
                 // Layout already ran during init; the hooks run in the same pass as the first rendered frame.
                 if (screen!!.inventory.bounds(36) != null && screen!!.rendererStatistics.renderedFrames > 0) {
                     check(slotHooks > 0) { "The native per-slot render hook was not dispatched" }
-                    check(ComposeThread.call { screen!!.composed } == 0) {
+                    check(screen!!.composed == 0) {
                         "The first composition did not show the screen's member game state"
                     }
                     click(36, SuitePlatform.MOUSE_LEFT)
@@ -218,12 +217,12 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
             7 ->
                 // The next tick's game state shows the placed stack and the emptied first slot, which the composable
                 // game state showed as -1 before its first sample; then the content posts a task.
-                if (ComposeThread.call { screen!!.composed == 8 && screen!!.composedFirst == 0 }) {
-                    val drawn = ComposeThread.call { screen!!.drawnSlot }
+                if (screen!!.composed == 8 && screen!!.composedFirst == 0) {
+                    val drawn = screen!!.drawnSlot
                     check(drawn != null && drawn.icon != null && drawn.amount == "8" && drawn.hovered) {
                         "The slot that draws itself showed $drawn"
                     }
-                    check(ComposeThread.call { screen!!.press() }) { "The screen rejected its content's task" }
+                    check(screen!!.press()) { "The screen rejected its content's task" }
                     stage++
                 }
             8 ->
@@ -271,7 +270,7 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
                     ) {
                         "The inventory screen kept its renderer after closing: ${closed.rendererStatistics}"
                     }
-                    check(!closed.contentState.isOpen && !ComposeThread.call { closed.press() }) {
+                    check(!closed.contentState.isOpen && !closed.press()) {
                         "The closed inventory screen kept its state"
                     }
                     check(closed.presses == 2) { "The closed inventory screen ran a late task" }

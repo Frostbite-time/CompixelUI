@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Modifier
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.forge.ComposeMenuScreen
 import dev.compixel.sync.action.ActionStatus
 import dev.compixel.sync.session.SyncStatus
@@ -31,7 +30,7 @@ internal class SyncAcceptanceScreen(
     @Suppress("UNUSED_PARAMETER") inventory: Inventory,
     title: Component,
 ) : ComposeMenuScreen<SyncAcceptanceMenu, SyncAcceptanceView, String>(menu, title), ShowsTransition {
-    /** The latest state the content composed. Compose thread. */
+    /** The latest state the content composed. */
     var composed: SyncAcceptanceView? = null
         private set
 
@@ -76,10 +75,10 @@ internal class SyncAcceptanceScreen(
 
     @Composable private fun Button() = Box(Modifier.fillMaxSize().clickable { send(SyncAcceptanceMenu.REPLACEMENT) })
 
-    /** Sends [text] as the content's button does; call it on the Compose thread. */
+    /** Sends [text] as the content's button does. */
     fun replace(text: String) = send(text)
 
-    /** What a close button in the content does; call it on the Compose thread. */
+    /** What a close button in the content does. */
     fun closeFromContent() = requestClose()
 
     companion object {
@@ -149,7 +148,7 @@ internal class MenuSyncAcceptanceProbe(private val done: () -> Unit) {
             2 -> {
                 val active = checkNotNull(screen)
                 // The screen's snapshot of the menu's initial state has reached the content.
-                if (ComposeThread.call { active.composed } == SyncAcceptanceView(true, 7, 0)) {
+                if (active.composed == SyncAcceptanceView(true, 7, 0)) {
                     // A click on the content's button runs its action before the input event returns, as a vanilla
                     // button's would, not at the next tick.
                     val x = active.width / 2.0
@@ -171,7 +170,7 @@ internal class MenuSyncAcceptanceProbe(private val done: () -> Unit) {
                     result != null &&
                         menu.counter == 42 &&
                         menu.text == SyncAcceptanceMenu.REPLACEMENT &&
-                        ComposeThread.call { checkNotNull(screen).composed } == SyncAcceptanceView(true, 42, 0)
+                        checkNotNull(screen).composed == SyncAcceptanceView(true, 42, 0)
                 ) {
                     check(result.status() == ActionStatus.APPLIED) {
                         "The action was not applied: ${result.status()}"
@@ -196,13 +195,13 @@ internal class MenuSyncAcceptanceProbe(private val done: () -> Unit) {
                         result.action() == "give" &&
                         menu.item.item == Items.EMERALD &&
                         menu.item.count == 5 &&
-                        ComposeThread.call { active.composed } == SyncAcceptanceView(true, 42, 5)
+                        active.composed == SyncAcceptanceView(true, 42, 5)
                 ) {
                     check(result.status() == ActionStatus.APPLIED) {
                         "The native-value action was not applied: ${result.status()}"
                     }
                     // The screen closes the menu on its next tick.
-                    ComposeThread.call { active.closeFromContent() }
+                    active.closeFromContent()
                     stage++
                 }
             }
@@ -212,7 +211,7 @@ internal class MenuSyncAcceptanceProbe(private val done: () -> Unit) {
                     check(closed.session == null && closed.rendererStatistics.liveSurfaces == 0) {
                         "The menu screen kept its renderer after closing"
                     }
-                    check(!closed.contentState.isOpen && !ComposeThread.call { closed.replace("late") }) {
+                    check(!closed.contentState.isOpen && !closed.replace("late")) {
                         "The closed menu screen kept its state"
                     }
                     check(closed.menuCloses == 1) { "The menu screen reported ${closed.menuCloses} menu closes" }

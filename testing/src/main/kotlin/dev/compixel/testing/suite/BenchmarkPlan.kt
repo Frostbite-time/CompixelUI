@@ -205,8 +205,6 @@ object BenchmarkRecords {
             metrics["gpu_stage_sum_ns"] = summary(rows.map { row -> row.gpu.values.sumOf { it ?: 0L } })
         }
         metrics["render_thread_bytes"] = summary(rows.mapNotNull { it.renderThreadBytes })
-        metrics["compose_thread_bytes"] = summary(rows.mapNotNull { it.composeThreadBytes })
-        metrics["compose_calls"] = summary(rows.map { it.composeCalls.toLong() })
         return metrics
     }
 
@@ -220,8 +218,6 @@ object BenchmarkRecords {
                         GpuPhase.entries.map { "gpu_${it.name.lowercase()}_ns" } +
                         listOf(
                             "render_bytes",
-                            "compose_bytes",
-                            "compose_calls",
                             "recordings",
                             "rendered",
                             "generation",
@@ -241,8 +237,6 @@ object BenchmarkRecords {
                         GpuPhase.entries.map { if (gpu) row.gpu[it] else null } +
                         listOf(
                             row.renderThreadBytes,
-                            row.composeThreadBytes,
-                            row.composeCalls,
                             row.recordings,
                             row.rendered,
                             row.generation,

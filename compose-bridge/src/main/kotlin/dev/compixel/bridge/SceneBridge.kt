@@ -30,18 +30,25 @@ import dev.compixel.render.RecordedFrame
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
-import kotlinx.coroutines.Dispatchers
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.swing.Swing
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.jetbrains.skia.PictureRecorder
 import org.jetbrains.skia.Rect
 
-/** The only module permitted to import Compose's internal embedding API. */
-class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable {
+/**
+ * A Compose scene on its host's [UiThread]: every member belongs to that thread, and so do the scene's composition,
+ * layout, drawing, effects and delayed callbacks. The only module permitted to import Compose's internal embedding API.
+ */
+class SceneBridge(viewport: Viewport, clipboard: ClipboardPort, private val thread: UiThread) : AutoCloseable {
+    // Also set by other threads, when they apply a snapshot the scene reads.
     private val dirty = AtomicBoolean(true)
-    // The change count when the last frame left the scene with nothing pending, or -1.
-    @Volatile private var settledAt = -1L
     private var closed = false
     private var viewport = viewport
     private var generation = 0L
@@ -52,12 +59,32 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
     private val info = SessionWindowInfo(viewport)
     private val owners = DefaultArchitectureComponentsOwner(enforceMainThread = false)
     private val backInput = SessionBackInput()
+    // Coroutines resume as tasks of the host's thread; the recomposer also runs those waiting when a frame starts.
+    private val dispatcher = UiDispatcher(thread)
+    private val delayScope = CoroutineScope(dispatcher + Job())
+    private val rootDelays =
+        RootDelays(
+            { millis, block ->
+                delayScope.launch {
+                    delay(millis)
+                    block.run()
+                }
+            },
+            { (it as Job).cancel() },
+        )
     private val platform =
         object : PlatformContext.Empty() {
             override val windowInfo: WindowInfo = info
             override val isWindowTransparent = true
             override val architectureComponentsOwner = owners
             override val textInputService: PlatformTextInputService = textInput
+            // Called for the scene's root and for each popup or dialog layer, before anything is laid out in it.
+            override val rootForTestListener =
+                object : PlatformContext.RootForTestListener {
+                    override fun onRootForTestCreated(root: PlatformRootForTest) = rootDelays.install(root)
+
+                    override fun onRootForTestDisposed(root: PlatformRootForTest) = Unit
+                }
 
             override suspend fun startInputMethod(request: PlatformTextInputMethodRequest): Nothing {
                 textInput.startRequest(request)
@@ -68,7 +95,7 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
                 }
             }
         }
-    private val recomposer = FrameRecomposer(Dispatchers.Swing) { dirty.set(true) }
+    private val recomposer = FrameRecomposer(dispatcher) { dirty.set(true) }
     private val scene =
         CanvasLayersComposeScene(
             frameRecomposer = recomposer,
@@ -102,19 +129,36 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
         }
 
     init {
-        ComposeThread.check()
+        thread.check()
         owners.setLifecycleState(androidx.lifecycle.Lifecycle.State.RESUMED)
         owners.navigationEventDispatcherOwner.navigationEventDispatcher.addInput(backInput)
     }
 
     private fun checkOpen() {
-        ComposeThread.check()
+        thread.check()
         check(!closed) { "Scene is closed" }
+    }
+
+    // Whether the scene is running its content. The content shares the thread now, so one of its callbacks could reach
+    // back into the scene that is calling it, or close it, in the middle of an event or a frame.
+    private var running = false
+
+    private inline fun <T> running(block: () -> T): T {
+        check(!running) {
+            "UI content reached back into its own scene; queue that work for after the event or frame instead"
+        }
+        running = true
+        try {
+            return block()
+        } finally {
+            running = false
+        }
     }
 
     fun setContent(content: @Composable () -> Unit) {
         checkOpen()
         settleLayout = true
+        dirty.set(true)
         scene.setContent {
             CompositionLocalProvider(
                 LocalClipboardManager provides clipboardManager,
@@ -143,14 +187,15 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
         dirty.set(true)
     }
 
+    /** Makes the next [update] and [record] run even when nothing in the scene changed. */
     fun invalidate() {
         checkOpen()
         dirty.set(true)
     }
 
-    fun setFocused(focused: Boolean) {
+    fun setFocused(focused: Boolean) = running {
         checkOpen()
-        if (info.isWindowFocused == focused) return
+        if (info.isWindowFocused == focused) return@running
         info.isWindowFocused = focused
         if (!focused) {
             // An unconfirmed composition is discarded, not left behind in the field as typed text.
@@ -165,42 +210,19 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
         )
     }
 
+    private val pending: Boolean
+        get() = dirty.get() || recomposer.hasPendingWork() || scene.hasPendingMeasureOrLayout || scene.hasPendingDraw
+
     /**
-     * True on any thread when no frame is due: the last frame left nothing pending, and since then nothing invalidated
-     * the scene and no Compose state changed anywhere. Compose applies a state change in a later task on its thread, so
-     * a write still on its way shows only in the change count, not yet in the scene.
+     * Brings the scene to [timeNanos]: runs effects and animation frames, composes what changed and lays it out, so the
+     * host can read this frame's layout before [record] draws it. Another call with the same time composes and lays out
+     * what the host wrote from that layout. False when nothing was pending, so the scene stayed as it was.
      */
-    val idle: Boolean
-        get() = settledAt == changes.get() && !dirty.get()
-
-    // Read the count first: a change after the read then keeps the scene from looking idle.
-    private fun settle() {
-        val seen = changes.get()
-        settledAt =
-            if (
-                !dirty.get() &&
-                    !recomposer.hasPendingWork() &&
-                    !scene.hasPendingMeasureOrLayout &&
-                    !scene.hasPendingDraw
-            )
-                seen
-            else -1
-    }
-
-    fun recordFrame(timeNanos: Long): RecordedFrame? {
+    fun update(timeNanos: Long): Boolean = running {
         checkOpen()
         require(timeNanos >= lastFrameTime) { "Frame clock must be monotonic" }
         lastFrameTime = timeNanos
-        if (
-            !dirty.getAndSet(false) &&
-                !recomposer.hasPendingWork() &&
-                !scene.hasPendingMeasureOrLayout &&
-                !scene.hasPendingDraw
-        ) {
-            settle()
-            return null
-        }
-        settledAt = -1
+        if (!pending) return@running false
         if (settleLayout) {
             settleLayout = false
             // The content was composed outside a frame. Lay it out before its first frame callbacks: transitions
@@ -221,24 +243,25 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
             recomposer.performFrame(timeNanos)
             scene.measureAndLayout()
         }
-        // State applied by this frame invalidated drawing while it recomposed and laid out; the drawing below includes
-        // those changes. Work still pending afterwards shows in hasPendingWork() and the scene's pending flags.
-        dirty.set(false)
-        val frame =
-            PictureRecorder().use { recorder ->
-                val canvas = recorder.beginRecording(Rect.makeWH(viewport.width.toFloat(), viewport.height.toFloat()))
-                // Geometry and drawing stay on the EDT. The adapter may prepare native images
-                // between recordings, then request one bounded replacement frame.
-                scene.draw(canvas.asComposeCanvas())
-                RecordedFrame(++generation, viewport, recorder.finishRecordingAsPicture())
-            }
-        settle()
-        return frame
+        true
     }
 
-    fun pointer(event: PointerInput): Boolean {
+    /** Draws the scene into a picture when [update] or an invalidation changed what it shows; null otherwise. */
+    fun record(): RecordedFrame? = running {
         checkOpen()
-        if (!info.isWindowFocused) return false
+        // The drawing below includes everything that invalidated it so far.
+        if (!dirty.getAndSet(false) && !scene.hasPendingDraw) return@running null
+        if (scene.hasPendingMeasureOrLayout) scene.measureAndLayout()
+        PictureRecorder().use { recorder ->
+            val canvas = recorder.beginRecording(Rect.makeWH(viewport.width.toFloat(), viewport.height.toFloat()))
+            scene.draw(canvas.asComposeCanvas())
+            RecordedFrame(++generation, viewport, recorder.finishRecordingAsPicture())
+        }
+    }
+
+    fun pointer(event: PointerInput): Boolean = running {
+        checkOpen()
+        if (!info.isWindowFocused) return@running false
         prepareForInput()
         if (event.action == PointerAction.PRESS) event.button?.let(buttons::add)
         if (event.action == PointerAction.RELEASE) event.button?.let(buttons::remove)
@@ -279,12 +302,12 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
         // Screen mode owns the pointer region; this is NOT a HUD hit-test result.
         // Compose keeps the detailed result internal in 1.12.0; the host accepts the event
         // once it has routed it to the active scene and prevents it reaching the game layer.
-        return true
+        true
     }
 
-    fun key(event: KeyInput): Boolean {
+    fun key(event: KeyInput): Boolean = running {
         checkOpen()
-        if (!info.isWindowFocused) return false
+        if (!info.isWindowFocused) return@running false
         prepareForInput()
         val consumed =
             scene.sendKeyEvent(
@@ -297,27 +320,27 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
                     isMetaPressed = event.modifiers.meta,
                 )
             )
-        if (consumed) return true
-        if (event.pressed && event.key == UiKey.ESCAPE && backInput.back()) return true
+        if (consumed) return@running true
+        if (event.pressed && event.key == UiKey.ESCAPE && backInput.back()) return@running true
         if (event.pressed && event.key == UiKey.TAB) {
-            return scene.focusManager.takeFocus(
+            return@running scene.focusManager.takeFocus(
                 if (event.modifiers.shift) FocusDirection.Previous else FocusDirection.Next
             )
         }
-        return false
+        false
     }
 
-    fun commitText(text: String): Boolean {
+    fun commitText(text: String): Boolean = running {
         checkOpen()
         prepareForInput()
-        return info.isWindowFocused && text.isNotEmpty() && textInput.commit(text)
+        info.isWindowFocused && text.isNotEmpty() && textInput.commit(text)
     }
 
     /** Shows [text] as the focused field's composition, replacing the previous one; null removes it. */
-    fun setComposingText(text: ComposingText?): Boolean {
+    fun setComposingText(text: ComposingText?): Boolean = running {
         checkOpen()
         prepareForInput()
-        return info.isWindowFocused && textInput.setComposing(text)
+        info.isWindowFocused && textInput.setComposing(text)
     }
 
     private fun prepareForInput() {
@@ -325,8 +348,7 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
         // before the next event, without advancing animation time beyond the last host frame.
         if (recomposer.hasPendingWork()) {
             // Before the first host frame, now is the frame time: a zero time would start animations long ago.
-            if (lastFrameTime == Long.MIN_VALUE) lastFrameTime = System.nanoTime()
-            recomposer.performFrame(lastFrameTime)
+            recomposer.performFrame(if (lastFrameTime == Long.MIN_VALUE) System.nanoTime() else lastFrameTime)
             // A transition this composition started sets its animations' targets during layout. Without it, the next
             // frame's callbacks would find them settled and end the transition at once.
             scene.measureAndLayout()
@@ -334,10 +356,10 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
     }
 
     val hasTextInputFocus: Boolean
-        get() {
+        get() = running {
             checkOpen()
             prepareForInput()
-            return textInputFocused
+            textInputFocused
         }
 
     /** [hasTextInputFocus] as the scene stands, without applying pending state (and animation frames) first. */
@@ -355,10 +377,11 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
             return TextInputArea(caret.left, caret.top, caret.right, caret.bottom)
         }
 
-    override fun close() {
-        ComposeThread.check()
-        if (closed) return
+    override fun close() = running {
+        thread.check()
+        if (closed) return@running
         closed = true
+        delayScope.cancel()
         try {
             scene.cancelPointerInput()
             textInput.stopInput()
@@ -374,16 +397,11 @@ class SceneBridge(viewport: Viewport, clipboard: ClipboardPort) : AutoCloseable 
             }
         }
     }
+}
 
-    private companion object {
-        /** Counts Compose state writes outside snapshots and applied snapshots, on every thread. */
-        val changes = AtomicLong()
-
-        init {
-            Snapshot.registerGlobalWriteObserver { changes.incrementAndGet() }
-            Snapshot.registerApplyObserver { _, _ -> changes.incrementAndGet() }
-        }
-    }
+/** Resumes coroutines as tasks of the host's thread. */
+private class UiDispatcher(private val thread: UiThread) : CoroutineDispatcher() {
+    override fun dispatch(context: CoroutineContext, block: Runnable) = thread.post(block)
 }
 
 private class SessionBackInput : NavigationEventInput() {

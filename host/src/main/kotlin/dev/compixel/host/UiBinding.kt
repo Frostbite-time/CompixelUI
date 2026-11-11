@@ -2,14 +2,13 @@ package dev.compixel.host
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
-import dev.compixel.bridge.ComposeThread
 import java.util.ArrayDeque
 import java.util.function.Consumer
 
 /**
- * Immutable business snapshots into Compose, typed actions back to the creating thread. Construct, update, drain and
- * close on the business/host thread. Compose callbacks call send(). Snapshots and actions must not expose mutable game
- * objects to the composition.
+ * Immutable business snapshots into Compose and typed actions back, on the thread that creates the binding: the host's
+ * UI thread. Compose callbacks call send(); the host drains the actions when it chooses, for example after each input
+ * event. Snapshots and actions must not expose mutable game objects to the composition.
  */
 class UiBinding<S, A>(initial: S, private val capacity: Int = 64) : AutoCloseable {
     private val owner = Thread.currentThread()
@@ -26,21 +25,13 @@ class UiBinding<S, A>(initial: S, private val capacity: Int = 64) : AutoCloseabl
     val value: S
         @Composable get() = state.value
 
-    /** Equal snapshots do not cross threads or invalidate the composition. */
+    /** Equal snapshots do not invalidate the composition. */
     fun update(snapshot: S) {
-        stage(snapshot)?.let { ComposeThread.call(it) }
-    }
-
-    /**
-     * Records [snapshot] as the latest and returns the write that shows it, for the Compose thread to run together with
-     * other changes; null when it equals the latest.
-     */
-    internal fun stage(snapshot: S): (() -> Unit)? {
         checkOwner()
         check(!synchronized(actions) { closed }) { "Binding is closed" }
-        if (latest == snapshot) return null
+        if (latest == snapshot) return
         latest = snapshot
-        return { state.value = snapshot }
+        state.value = snapshot
     }
 
     /** False means the screen closed or the bounded queue is full; no action is overwritten. */

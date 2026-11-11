@@ -1,7 +1,6 @@
 package dev.compixel.host
 
 import androidx.compose.runtime.SideEffect
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.platform.Viewport
 import kotlin.test.*
 import org.junit.jupiter.api.Test
@@ -37,11 +36,9 @@ class UiBindingTest {
     fun `UI actions run in order on the owner and queue stays bounded`() {
         val owner = Thread.currentThread()
         val binding = UiBinding<Unit, Int>(Unit, 2)
-        ComposeThread.call {
-            assertTrue(binding.send(1))
-            assertTrue(binding.send(2))
-            assertFalse(binding.send(3))
-        }
+        assertTrue(binding.send(1))
+        assertTrue(binding.send(2))
+        assertFalse(binding.send(3))
         assertEquals(1, binding.rejectedActions)
         val received = mutableListOf<Int>()
         val first = binding.drainActions {
@@ -71,20 +68,37 @@ class UiBindingTest {
         binding.send(1)
         binding.close()
         binding.close()
-        assertFalse(ComposeThread.call { binding.send(2) })
+        assertFalse(binding.send(2))
         assertEquals(0, binding.rejectedActions, "A send after close counted as a rejection")
         assertEquals(0, binding.drainActions { fail("Closed action executed") })
         assertFailsWith<IllegalStateException> { binding.update(Unit) }
     }
 
     @Test
-    fun `owner operations cannot execute from the UI thread`() {
+    fun `owner operations cannot execute from another thread`() {
         val binding = UiBinding<Int, Int>(0)
-        ComposeThread.call {
+        onAnotherThread {
             assertFailsWith<IllegalStateException> { binding.update(1) }
             assertFailsWith<IllegalStateException> { binding.drainActions {} }
             assertFailsWith<IllegalStateException> { binding.close() }
         }
         binding.close()
     }
+}
+
+/** Runs [block] on a thread that is not the UI's and rethrows what it threw. */
+internal fun onAnotherThread(block: () -> Unit) {
+    var failure: Throwable? = null
+    Thread {
+        try {
+            block()
+        } catch (error: Throwable) {
+            failure = error
+        }
+    }
+        .apply {
+            start()
+            join()
+        }
+    failure?.let { throw it }
 }

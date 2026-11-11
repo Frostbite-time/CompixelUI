@@ -1,7 +1,6 @@
 package dev.compixel.forge.item
 
 import com.mojang.blaze3d.systems.RenderSystem
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.bridge.NativeImageAtlas
 import dev.compixel.bridge.NativeImageMailbox
 import dev.compixel.bridge.NativeImageRegion
@@ -73,15 +72,15 @@ internal class NativeItemAtlas(
                 )
             }
 
-    override fun recorded(frameGeneration: Long) {
-        val requests = ComposeThread.call { mailbox.activeRequests() }
+    override fun laidOut(frame: Long) {
+        val requests = mailbox.activeRequests()
         // A fixed image size draws each icon once; icons shown at other sizes resample that image.
         atlas.recorded(
             options.imageSize?.let { size ->
                 requests.map { NativeImageAtlas.Request(it.icon, NativeImageAtlas.Size(size, size)) }
             } ?: requests
         )
-        generation = frameGeneration
+        generation = frame
     }
 
     /** Draws at most preparationsPerFrame icons per host frame, on pages of up to 64. */

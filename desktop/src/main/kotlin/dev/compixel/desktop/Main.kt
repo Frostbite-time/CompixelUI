@@ -1,6 +1,5 @@
 package dev.compixel.desktop
 
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.demo.preview.DemoModel
 import dev.compixel.demo.preview.DemoPage
 import dev.compixel.demo.preview.Fixture
@@ -27,7 +26,7 @@ fun main(args: Array<String>) {
 
 private fun smoke(directory: File) {
     directory.mkdirs()
-    val model = ComposeThread.call { DemoModel() }
+    val model = DemoModel()
     UiSession(
             Viewport(960, 640),
             content = {
@@ -138,7 +137,7 @@ private fun smoke(directory: File) {
                     if (model.page == DemoPage.Menus) {
                         session.key(KeyInput(UiKey.ESCAPE, true))
                         session.key(KeyInput(UiKey.ESCAPE, false))
-                        val point = ComposeThread.call { model.bounds.getValue("menu-button").center }
+                        val point = model.bounds.getValue("menu-button").center
                         session.pointer(PointerInput(PointerAction.MOVE, point.x, point.y))
                         session.pointer(PointerInput(PointerAction.PRESS, point.x, point.y, MouseButton.LEFT))
                         session.pointer(PointerInput(PointerAction.RELEASE, point.x, point.y, MouseButton.LEFT))
@@ -152,7 +151,7 @@ private fun smoke(directory: File) {
                     }
                     if (model.page == DemoPage.Tooltips) {
                         for (id in listOf("tooltip-anchor", "tooltip-term", "tooltip-item")) {
-                            val point = ComposeThread.call { model.bounds.getValue(id).center }
+                            val point = model.bounds.getValue(id).center
                             session.pointer(PointerInput(PointerAction.MOVE, point.x, point.y))
                             repeat(45) {
                                 time += 20_000_000
@@ -162,11 +161,11 @@ private fun smoke(directory: File) {
                                 }
                             }
                         }
-                        check(ComposeThread.call { "tooltip-level-3" in model.bounds }) {
+                        check("tooltip-level-3" in model.bounds) {
                             "Nested tooltip preview did not reach level 3"
                         }
                         for (id in listOf("tooltip-level-1", "tooltip-level-2", "tooltip-level-3")) {
-                            val bounds = ComposeThread.call { model.bounds.getValue(id) }
+                            val bounds = model.bounds.getValue(id)
                             check(
                                 bounds.left >= 0 &&
                                     bounds.top >= 0 &&
@@ -204,14 +203,14 @@ private fun smoke(directory: File) {
                                 }
                             }
                         }
-                        val tabs = ComposeThread.call { model.bounds.getValue("choices-tabs") }
+                        val tabs = model.bounds.getValue("choices-tabs")
                         val x = tabs.left + tabs.width * .375f
                         session.pointer(PointerInput(PointerAction.MOVE, x, tabs.center.y))
                         session.pointer(PointerInput(PointerAction.PRESS, x, tabs.center.y, MouseButton.LEFT))
                         captureState("pressed")
                         session.pointer(PointerInput(PointerAction.RELEASE, x, tabs.center.y, MouseButton.LEFT))
                         captureState("focused")
-                        val radio = ComposeThread.call { model.bounds.getValue("radio-2").center }
+                        val radio = model.bounds.getValue("radio-2").center
                         session.pointer(PointerInput(PointerAction.MOVE, radio.x, radio.y))
                         captureState("radio-hovered")
                         session.pointer(PointerInput(PointerAction.PRESS, radio.x, radio.y, MouseButton.LEFT))

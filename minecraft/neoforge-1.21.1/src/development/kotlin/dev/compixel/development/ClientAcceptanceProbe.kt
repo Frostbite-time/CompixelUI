@@ -1,6 +1,5 @@
 package dev.compixel.development
 
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.development.render.NativeDrawingVisualScreen
 import dev.compixel.development.render.NativeItemPartialScreen
 import dev.compixel.development.render.NativeItemVisualScreen
@@ -127,16 +126,16 @@ internal class ClientAcceptanceProbe {
         script.until("the port fixture rendered") { port.rendererStatistics.renderedFrames > 0 }
         capture("port-orientation-alpha", 2, clicked = false)
         script.act("click the top-left target") { click(32.0, 32.0) }
-        script.until("the top-left target received its click") { ComposeThread.call { port.model.clicks } == 1 }
+        script.until("the top-left target received its click") { port.model.clicks == 1 }
         script.act("focus the port text field") { click(port.width / 2.0, 28.0) }
         script.pause(100)
         script.act("type Unicode text") { PORT_TEXT.forEach { port.charTyped(it, 0) } }
-        script.until("Unicode text entry") { ComposeThread.call { port.model.text } == PORT_TEXT }
+        script.until("Unicode text entry") { port.model.text == PORT_TEXT }
         script.act("select all and delete") {
             key(SuitePlatform.KEY_A, SuitePlatform.modifierBits(ctrlOrCmd))
             key(SuitePlatform.KEY_BACKSPACE)
         }
-        script.until("the select-all/backspace shortcut") { ComposeThread.call { port.model.text }.isEmpty() }
+        script.until("the select-all/backspace shortcut") { port.model.text.isEmpty() }
         script.act("record ${AcceptanceStep.PORT_INPUT}") { log.pass(AcceptanceStep.PORT_INPUT) }
         script.act("switch to GUI scale 3") { SuitePlatform.setGuiScale(3) }
         script.until("GUI scale 3 applied") {
@@ -243,7 +242,7 @@ internal class ClientAcceptanceProbe {
         }
         script.until("native drawing tick refreshes") { drawing.tickingDraws >= ticking + 5 }
         script.act("static native drawings stayed cached") { check(drawing.staticDraws == still) }
-        script.act("resize native drawing layout") { ComposeThread.call { drawing.model.expanded = true } }
+        script.act("resize native drawing layout") { drawing.model.expanded = true }
         capture("native-drawing-layout")
         script.act("resize rectangular drawing viewport") {
             SuitePlatform.setGuiScale(3)
@@ -257,7 +256,7 @@ internal class ClientAcceptanceProbe {
         script.until("rectangular drawing resource reload", 120_000) { reload?.isDone == true }
         script.act("finish rectangular resource reload") { checkNotNull(reload).join() }
         capture("native-drawing-reload")
-        script.act("detach native drawings") { ComposeThread.call { drawing.model.visible = false } }
+        script.act("detach native drawings") { drawing.model.visible = false }
         script.until("detached native drawings released") {
             drawing.nativeDrawingStatistics.let { it.pages == 0 && it.preparedImages == it.retiredImages }
         }

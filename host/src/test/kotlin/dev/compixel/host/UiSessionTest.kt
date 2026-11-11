@@ -17,17 +17,17 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.platform.*
 import dev.compixel.platform.Viewport
 import dev.compixel.render.RecordedFrame
-import dev.compixel.render.UiFrameProfiler
 import dev.compixel.ui.CtrlOrCmd
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -67,13 +67,13 @@ class UiSessionTest {
 
     @Test
     fun aStateReadWhileDrawingRecordsOneFrame() {
-        val color = ComposeThread.call { mutableStateOf(Color.Red) }
+        val color = mutableStateOf(Color.Red)
         UiSession(Viewport(32, 32)) { Box(Modifier.fillMaxSize().drawBehind { drawRect(color.value) }) }
             .use { session ->
                 session.frame(1_000_000)?.close()
                 session.frame(2_000_000)?.close()
                 assertNull(session.frame(3_000_000), "An unchanged scene recorded again")
-                ComposeThread.call { color.value = Color.Blue }
+                color.value = Color.Blue
                 checkNotNull(session.frame(4_000_000)) { "The changed state recorded no frame" }
                     .use { frame ->
                         val image = javax.imageio.ImageIO.read(java.io.ByteArrayInputStream(frame.encodePng()))
@@ -85,31 +85,49 @@ class UiSessionTest {
     }
 
     @Test
-    fun aSettledSceneSkipsTheComposeThreadUntilStateChanges() {
-        val color = ComposeThread.call { mutableStateOf(Color.Red) }
+    fun aSettledSceneDoesNoWorkUntilStateChanges() {
+        val color = mutableStateOf(Color.Red)
         UiSession(Viewport(32, 32)) { Box(Modifier.fillMaxSize().drawBehind { drawRect(color.value) }) }
             .use { session ->
-                val profiler = UiFrameProfiler()
                 var time = 1_000_000L
-                fun frame(): Pair<RecordedFrame?, Int> {
-                    profiler.beginFrame()
-                    val frame = ComposeThread.traceCalls(profiler) { session.frame(time) }
-                    profiler.endFrame()
-                    time += 1_000_000
-                    return frame to profiler.frames().maxBy { it.frameId }.composeCalls
-                }
-                frame().first?.close()
                 // The first frames may still finish work they scheduled; after that nothing is due.
-                repeat(2) { frame().first?.close() }
-                repeat(3) { assertEquals(null to 0, frame(), "A settled scene still asked the Compose thread") }
-                ComposeThread.call { color.value = Color.Blue }
-                val (changed, calls) = frame()
-                checkNotNull(changed) { "The changed state recorded no frame" }
+                repeat(3) {
+                    session.frame(time)?.close()
+                    time += 1_000_000
+                }
+                repeat(3) {
+                    assertFalse(session.update(time), "A settled scene composed again")
+                    assertNull(session.record(), "A settled scene recorded again")
+                    time += 1_000_000
+                }
+                color.value = Color.Blue
+                assertTrue(session.update(time), "The changed state left the scene as it was")
+                checkNotNull(session.record()) { "The changed state recorded no frame" }
                     .use { recorded ->
                         val image = javax.imageio.ImageIO.read(java.io.ByteArrayInputStream(recorded.encodePng()))
                         assertEquals(0xff0000ff.toInt(), image.getRGB(16, 16), "The frame drew the previous state")
                     }
-                assertTrue(calls > 0)
+            }
+    }
+
+    @Test
+    fun stateWrittenFromTheLayoutShowsInTheSameFrame() {
+        var laidOut = 0
+        val shown = mutableStateOf(Color.Red)
+        UiSession(Viewport(32, 32)) {
+                Box(Modifier.fillMaxSize().onGloballyPositioned { laidOut++ }.drawBehind { drawRect(shown.value) })
+            }
+            .use { session ->
+                session.update(1_000_000)
+                assertTrue(laidOut > 0, "The layout was not readable before the frame was drawn")
+                // A host reads the layout and publishes what it asks for, as a container does for its slots.
+                shown.value = Color.Blue
+                session.update(1_000_000)
+                checkNotNull(session.record()).use { frame ->
+                    val image = javax.imageio.ImageIO.read(java.io.ByteArrayInputStream(frame.encodePng()))
+                    assertEquals(0xff0000ff.toInt(), image.getRGB(16, 16), "The frame drew the state before the layout")
+                }
+                assertNull(session.frame(2_000_000), "One frame's state recorded a second frame")
             }
     }
 
@@ -126,9 +144,17 @@ class UiSessionTest {
                 Box(Modifier.fillMaxSize().drawBehind { drawRect(color) })
             }
             .use { session ->
-                repeat(3) { session.frame(1_000_000L + it * 1_000_000)?.close() }
-                assertTrue(written.await(5, TimeUnit.SECONDS), "The content's effect never ran")
-                checkNotNull(session.frame(4_000_000)) { "A state the content wrote while settled recorded no frame" }
+                var time = 1_000_000L
+                repeat(3) { session.frame(time++)?.close() }
+                // The delay resumes as a task of the session's thread, which its frames run.
+                val deadline = System.nanoTime() + 5_000_000_000
+                var changed: RecordedFrame? = null
+                while (changed == null && System.nanoTime() < deadline) {
+                    Thread.sleep(5)
+                    changed = session.frame(time++)
+                }
+                assertEquals(0, written.count, "The content's effect never ran")
+                checkNotNull(changed) { "A state the content wrote while settled recorded no frame" }
                     .use { frame ->
                         val image = javax.imageio.ImageIO.read(java.io.ByteArrayInputStream(frame.encodePng()))
                         assertEquals(0xff0000ff.toInt(), image.getRGB(16, 16), "The frame drew the previous state")
@@ -234,28 +260,13 @@ class UiSessionTest {
     }
 
     @Test
-    fun dispatchProfilingIsScopedAndSurvivesAnEdtException() {
-        val profiler = dev.compixel.render.UiFrameProfiler()
-        profiler.beginFrame()
-        ComposeThread.traceCalls(profiler) {
-            assertFailsWith<IllegalArgumentException> { ComposeThread.call { throw IllegalArgumentException("probe") } }
-            assertTrue(ComposeThread.call { java.awt.EventQueue.isDispatchThread() })
-        }
-        profiler.endFrame()
-        assertEquals(2, profiler.frames().single().composeCalls)
-        profiler.beginFrame()
-        ComposeThread.call { Unit }
-        profiler.endFrame()
-        assertEquals(0, profiler.frames().last().composeCalls, "Profiling escaped its caller scope")
-    }
-
-    @Test
-    fun closeCancelsFrameAwaitersAndDelayedEffectsOnTheEdt() {
+    fun closeCancelsFrameAwaitersAndDelayedEffectsOnTheSessionThread() {
         val started = CountDownLatch(2)
         val cancelled = CountDownLatch(2)
+        val owner = Thread.currentThread()
         val wrongThread = AtomicReference<String?>()
         fun effectCancelled() {
-            if (!java.awt.EventQueue.isDispatchThread()) wrongThread.set(Thread.currentThread().name)
+            if (Thread.currentThread() !== owner) wrongThread.set(Thread.currentThread().name)
             cancelled.countDown()
         }
         val session =
@@ -289,7 +300,7 @@ class UiSessionTest {
 
     @Test
     fun `window blur cancels input until refocused and clicked again`() {
-        val value = ComposeThread.call { mutableStateOf(TextFieldValue("")) }
+        val value = mutableStateOf(TextFieldValue(""))
         UiSession(Viewport(320, 120)) {
                 BasicTextField(value.value, { value.value = it }, modifier = Modifier.fillMaxSize())
             }
@@ -306,13 +317,13 @@ class UiSessionTest {
                 session.frame(2_000_000)?.close()
                 assertTrue(session.hasTextInputFocus)
                 assertTrue(session.commitText("active"))
-                assertEquals("active", ComposeThread.call { value.value.text })
+                assertEquals("active", value.value.text)
             }
     }
 
     @Test
     fun `frames and window focus refresh the last text input focus`() {
-        val value = ComposeThread.call { mutableStateOf(TextFieldValue("")) }
+        val value = mutableStateOf(TextFieldValue(""))
         UiSession(Viewport(320, 120)) {
                 BasicTextField(value.value, { value.value = it }, modifier = Modifier.fillMaxSize())
             }
@@ -322,29 +333,29 @@ class UiSessionTest {
                     session.pointer(PointerInput(PointerAction.RELEASE, 10f, 10f, MouseButton.LEFT))
                 }
                 session.frame(1_000_000)?.close()
-                assertFalse(session.lastTextInputFocus)
+                assertFalse(session.textInputFocused)
                 click()
                 session.frame(2_000_000)?.close()
-                assertTrue(session.lastTextInputFocus)
+                assertTrue(session.textInputFocused)
                 session.setFocused(false)
-                assertFalse(session.lastTextInputFocus)
+                assertFalse(session.textInputFocused)
                 session.setFocused(true)
                 click()
                 session.frame(3_000_000)?.close()
-                assertTrue(session.lastTextInputFocus)
+                assertTrue(session.textInputFocused)
                 session.close()
-                assertFalse(session.lastTextInputFocus)
+                assertFalse(session.textInputFocused)
             }
     }
 
     @Test
     fun `composing text shows in the field until committed or removed`() {
-        val value = ComposeThread.call { mutableStateOf("") }
+        val value = mutableStateOf("")
         UiSession(Viewport(320, 120)) {
                 BasicTextField(value.value, { value.value = it }, modifier = Modifier.fillMaxSize())
             }
             .use { session ->
-                fun text() = ComposeThread.call { value.value }
+                fun text() = value.value
                 session.frame(1_000_000)?.close()
                 session.pointer(PointerInput(PointerAction.PRESS, 10f, 10f, MouseButton.LEFT))
                 session.pointer(PointerInput(PointerAction.RELEASE, 10f, 10f, MouseButton.LEFT))
@@ -368,18 +379,18 @@ class UiSessionTest {
 
     @Test
     fun `composition keeps the input method cursor and never deletes a selection when removed`() {
-        val value = ComposeThread.call { mutableStateOf(TextFieldValue("")) }
+        val value = mutableStateOf(TextFieldValue(""))
         UiSession(Viewport(320, 120)) {
                 BasicTextField(value.value, { value.value = it }, modifier = Modifier.fillMaxSize())
             }
             .use { session ->
-                fun current() = ComposeThread.call { value.value }
+                fun current() = value.value
                 session.frame(1_000_000)?.close()
                 session.pointer(PointerInput(PointerAction.PRESS, 10f, 10f, MouseButton.LEFT))
                 session.pointer(PointerInput(PointerAction.RELEASE, 10f, 10f, MouseButton.LEFT))
                 session.frame(2_000_000)?.close()
                 assertTrue(session.commitText("keep"))
-                ComposeThread.call { value.value = value.value.copy(selection = TextRange(0, 4)) }
+                value.value = value.value.copy(selection = TextRange(0, 4))
                 session.frame(3_000_000)?.close()
                 assertFalse(session.setComposingText(null))
                 assertEquals("keep", current().text)
@@ -390,12 +401,12 @@ class UiSessionTest {
 
     @Test
     fun `state-based text fields take composing text too`() {
-        val state = ComposeThread.call { TextFieldState() }
+        val state = TextFieldState()
         UiSession(Viewport(320, 120)) {
                 BasicTextField(state, modifier = Modifier.fillMaxSize())
             }
             .use { session ->
-                fun text() = ComposeThread.call { state.text.toString() }
+                fun text() = state.text.toString()
                 session.frame(1_000_000)?.close()
                 session.pointer(PointerInput(PointerAction.PRESS, 10f, 10f, MouseButton.LEFT))
                 session.pointer(PointerInput(PointerAction.RELEASE, 10f, 10f, MouseButton.LEFT))
@@ -407,13 +418,13 @@ class UiSessionTest {
                 assertTrue(session.setComposingText(null))
                 assertEquals("你", text())
                 assertNotNull(session.frame(3_000_000)).close()
-                assertNotNull(session.lastTextInputArea)
+                assertNotNull(session.textInputArea)
             }
     }
 
     @Test
     fun `the text input area follows the caret of the focused field`() {
-        val value = ComposeThread.call { mutableStateOf("") }
+        val value = mutableStateOf("")
         UiSession(Viewport(320, 120)) {
                 Box(Modifier.fillMaxSize()) {
                     BasicTextField(
@@ -425,11 +436,11 @@ class UiSessionTest {
             }
             .use { session ->
                 session.frame(1_000_000)?.close()
-                assertNull(session.lastTextInputArea)
+                assertNull(session.textInputArea)
                 session.pointer(PointerInput(PointerAction.PRESS, 50f, 40f, MouseButton.LEFT))
                 session.pointer(PointerInput(PointerAction.RELEASE, 50f, 40f, MouseButton.LEFT))
                 session.frame(2_000_000)?.close()
-                val empty = assertNotNull(session.lastTextInputArea)
+                val empty = assertNotNull(session.textInputArea)
                 assertTrue(
                     empty.left >= 40f && empty.top >= 30f && empty.bottom <= 70f,
                     "Caret $empty lies outside the field",
@@ -437,17 +448,17 @@ class UiSessionTest {
                 assertTrue(session.commitText("abc"))
                 session.frame(3_000_000)?.close()
                 assertTrue(
-                    assertNotNull(session.lastTextInputArea).left > empty.left,
+                    assertNotNull(session.textInputArea).left > empty.left,
                     "The area did not follow the caret",
                 )
                 session.setFocused(false)
-                assertNull(session.lastTextInputArea)
+                assertNull(session.textInputArea)
             }
     }
 
     @Test
     fun `Escape dismisses Compose dialog before returning to the host`() {
-        val visible = ComposeThread.call { mutableStateOf(true) }
+        val visible = mutableStateOf(true)
         UiSession(Viewport(400, 300)) {
                 if (visible.value)
                     Dialog(onDismissRequest = { visible.value = false }) {
@@ -457,7 +468,7 @@ class UiSessionTest {
             .use { session ->
                 session.frame(1_000_000)?.close()
                 assertTrue(session.key(KeyInput(UiKey.ESCAPE, true)))
-                assertFalse(ComposeThread.call { visible.value })
+                assertFalse(visible.value)
                 session.frame(2_000_000)?.close()
                 assertFalse(session.key(KeyInput(UiKey.ESCAPE, true)))
             }
@@ -467,7 +478,7 @@ class UiSessionTest {
     fun `consecutive select copy cut paste uses current text and selection`() {
         // Compose's text shortcuts use CtrlOrCmd: Command on macOS, Control elsewhere.
         val shortcut = if (CtrlOrCmd.isCmd) Modifiers(meta = true) else Modifiers(control = true)
-        val value = ComposeThread.call { mutableStateOf(TextFieldValue("hello")) }
+        val value = mutableStateOf(TextFieldValue("hello"))
         val clipboard = MemoryClipboard()
         val pasted = CountDownLatch(1)
         UiSession(
@@ -491,15 +502,15 @@ class UiSessionTest {
                 session.pointer(PointerInput(PointerAction.RELEASE, 10f, 10f, MouseButton.LEFT))
                 session.frame(2_000_000)?.close()
                 assertTrue(session.key(KeyInput(UiKey.A, true, shortcut)))
-                assertEquals(TextRange(0, 5), ComposeThread.call { value.value.selection })
+                assertEquals(TextRange(0, 5), value.value.selection)
                 assertTrue(session.key(KeyInput(UiKey.C, true, shortcut)))
                 assertEquals("hello", clipboard.readText())
                 session.key(KeyInput(UiKey.X, true, shortcut))
-                assertEquals("", ComposeThread.call { value.value.text })
+                assertEquals("", value.value.text)
                 session.key(KeyInput(UiKey.V, true, shortcut))
                 // Compose reads clipboard data on Dispatchers.IO after key delivery returns.
                 assertTrue(pasted.await(2, TimeUnit.SECONDS), "Paste did not update the text field")
-                assertEquals("hello", ComposeThread.call { value.value.text })
+                assertEquals("hello", value.value.text)
             }
     }
 
@@ -545,6 +556,39 @@ class UiSessionTest {
     }
 
     @Test
+    fun `content that reaches back into its own session fails and leaves it open`() {
+        var session: UiSession? = null
+        var posted = false
+        var refused: Throwable? = null
+        val created =
+            UiSession(Viewport(64, 64)) {
+                Box(
+                    Modifier.fillMaxSize()
+                        .onGloballyPositioned {}
+                        .pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    awaitPointerEvent()
+                                    // Queued work is how content reaches its host; closing from here is not.
+                                    posted = checkNotNull(session).post(Runnable {})
+                                    refused = runCatching { checkNotNull(session).close() }.exceptionOrNull()
+                                }
+                            }
+                        }
+                )
+            }
+        session = created
+        created.frame(1_000_000)?.close()
+        created.pointer(PointerInput(PointerAction.PRESS, 10f, 10f, MouseButton.LEFT))
+        assertIs<IllegalStateException>(refused)
+        assertTrue(posted)
+        assertEquals(SessionState.ACTIVE, created.state)
+        created.frame(2_000_000)?.close()
+        created.close()
+        assertEquals(SessionState.CLOSED, created.state)
+    }
+
+    @Test
     fun `foreign producer can post but cannot access scene directly`() {
         UiSession(Viewport(64, 64)) {}
             .use { session ->
@@ -562,7 +606,7 @@ class UiSessionTest {
                 producer.join()
                 session.frame(1_000_000)?.close()
                 assertIs<IllegalStateException>(error.get())
-                assertTrue(executed.get().startsWith("AWT-EventQueue"))
+                assertEquals(Thread.currentThread().name, executed.get())
             }
     }
 }

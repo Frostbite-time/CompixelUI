@@ -23,11 +23,13 @@ import java.util.concurrent.atomic.AtomicBoolean
  * and Skia classes, its design's fonts and code that runs for the first time, while the game waits for it. [start] does
  * that work once while the game loads, in a throwaway session on a background thread: it composes typical content
  * inside the design and a [ScreenTransition], moves the pointer across it while recording frames, and closes the
- * session. Nothing is shown or rendered on the GPU.
+ * session. Nothing is shown or rendered on the GPU. The game's own sessions run on its client thread and [await] the
+ * warm-up first, so Compose never runs on two threads at once.
  */
 object UiWarmup {
     private const val FRAMES = 30
     private val started = AtomicBoolean()
+    @Volatile private var running: Thread? = null
 
     /**
      * Starts the warm-up unless it already started. [content] is what screens usually show, such as the design's common
@@ -42,12 +44,23 @@ object UiWarmup {
                         warmUp(design, content)
                     } catch (error: Throwable) {
                         failed(error)
+                    } finally {
+                        running = null
                     }
                 },
                 "CompixelUI warm-up",
             )
         thread.isDaemon = true
+        running = thread
         thread.start()
+    }
+
+    /**
+     * Waits for a warm-up that is still running. A session that started beside it would wait for the same classes to
+     * load anyway, and its state changes would reach the warm-up's scene from another thread.
+     */
+    fun await() {
+        running?.join()
     }
 
     /** Runs the warm-up session on the calling thread, which owns it. */

@@ -3,7 +3,6 @@ package dev.compixel.development.render
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.IntSize
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.forge.ComposeScreen
 import dev.compixel.forge.drawing.MinecraftNativeDrawing
 import dev.compixel.forge.drawing.NativeDrawing
@@ -58,7 +57,7 @@ private class NativeDrawingSamples {
 internal class NativeDrawingVisualScreen :
     ComposeScreen<Unit, Nothing>(Component.literal("Native rectangular drawing acceptance")) {
     private val samples = NativeDrawingSamples()
-    val model: NativeDrawingVisualModel = ComposeThread.call { NativeDrawingVisualModel() }
+    val model: NativeDrawingVisualModel = NativeDrawingVisualModel()
 
     @Composable
     override fun Content(state: Unit) =
@@ -77,7 +76,7 @@ internal class NativeDrawingVisualScreen :
     val tickingDraws
         get() = samples.tickingDraws
 
-    fun bounds(): Map<String, Rect> = ComposeThread.call { model.bounds() }
+    fun bounds(): Map<String, Rect> = model.bounds()
 
     fun verifyDimensions() {
         for (name in listOf("wide", "portrait", "clipped")) {

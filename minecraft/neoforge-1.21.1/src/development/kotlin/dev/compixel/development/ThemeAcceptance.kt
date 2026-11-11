@@ -6,7 +6,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
-import dev.compixel.bridge.ComposeThread
 import dev.compixel.forge.ComposeScreen
 import dev.compixel.forge.theme.ColorEditorScreen
 import dev.compixel.forge.theme.ColorSchemes
@@ -115,7 +114,7 @@ internal class ThemeAcceptance(
         }
         script.until("scheme fixture rendered") { screen.rendererStatistics.renderedFrames > 0 }
         script.act("install two resource-pack layers") {
-            ComposeThread.call { edit("unsaved draft") }
+            edit("unsaved draft")
             originalPacks = minecraft.resourcePackRepository.selectedIds.toList()
             repeat(2) { packs += newPack("compixel-theme-test-${UUID.randomUUID()}-$it") }
             write(0, "schemes/storage.json", """{"format":1,"colors":{"panel":"#CFD4E2"}}""")
@@ -153,7 +152,7 @@ internal class ThemeAcceptance(
         }
         awaitColors("player colors", Color(0xFF5A6B7C)) {}
         script.act("open the color editor from the screen") {
-            ComposeThread.call { checkNotNull(openEditor).invoke() }
+            checkNotNull(openEditor).invoke()
             // The screen runs its content's requests at its next tick. Running that tick here lets the suite follow
             // the editor at once; the screen it replaced renders no frame to wait for.
             screen.tick()
@@ -161,7 +160,7 @@ internal class ThemeAcceptance(
         }
         script.act("export the player's colors as a new default scheme") {
             val editor = SuitePlatform.screen as ColorEditorScreen
-            val message = ComposeThread.call { editor.export(OreColorExport("storage", "Acceptance", true, true)) }
+            val message = editor.export(OreColorExport("storage", "Acceptance", true, true))
             val exported = File(minecraft.resourcePackDirectory.toFile(), message.substringAfterLast('/'))
             check(File(exported, "assets/${owner.namespace}/compixel/schemes/acceptance.json").isFile) {
                 "The export wrote no scheme: $message"
@@ -201,16 +200,14 @@ internal class ThemeAcceptance(
             reload?.isDone != false && !SuitePlatform.overlayActive
         }
         script.act("$name reload result") { reload?.join() }
-        script.until("$name reached Compose", 20_000) { ComposeThread.call { colors[FixtureColors.panel] == panel } }
+        script.until("$name reached Compose", 20_000) { colors[FixtureColors.panel] == panel }
         script.pause(150)
         script.act("$name keeps the composition") {
-            ComposeThread.call {
-                if (sameSession) {
-                    check(screen.session === ui)
-                    check(creations == 1 && draft == "unsaved draft") { "A scheme change lost remembered state" }
-                }
-                verify()
+            if (sameSession) {
+                check(screen.session === ui)
+                check(creations == 1 && draft == "unsaved draft") { "A scheme change lost remembered state" }
             }
+            verify()
             session.capture("theme-" + name.replace(' ', '-')) { pixels ->
                 val expectedRgb = panel.toArgb() and 0xFFFFFF
                 var matched = 0
