@@ -34,6 +34,9 @@ internal class ClientAcceptanceProbe {
     private var started = false
     private var finished = false
     private var world = false
+    // After the world loaded: the warm-up finishes on the frames the world draws, before the first screen opens.
+    private var warming = false
+    private var warmingTicks = 0
     private var scripted = false
     private var inventory: InventoryAcceptanceProbe? = null
     private var menuSync: MenuSyncAcceptanceProbe? = null
@@ -55,6 +58,15 @@ internal class ClientAcceptanceProbe {
         session.checkWindow()
         if (!world) {
             if (session.worldReady) worldLoaded()
+            return@guard
+        }
+        if (warming) {
+            when (SuitePlatform.warmup) {
+                "done" -> warmedUp()
+                "pending",
+                "running" -> check(++warmingTicks < 1200) { "The UI warm-up did not finish within a minute" }
+                else -> error("The UI warm-up ended as ${SuitePlatform.warmup}")
+            }
             return@guard
         }
         inventory?.tick()
@@ -85,6 +97,18 @@ internal class ClientAcceptanceProbe {
         world = true
         check(checkNotNull(minecraft.player).isCreative) { "The test world is not creative" }
         log.pass(AcceptanceStep.WORLD)
+        warming = true
+    }
+
+    private fun warmedUp() {
+        warming = false
+        check(
+            SuitePlatform.skiaContexts ==
+                if (SuitePlatform.backend == dev.compixel.render.RenderBackend.CPU_RASTER) 0 else 1
+        ) {
+            "${SuitePlatform.skiaContexts} Skia contexts exist after the warm-up"
+        }
+        log.pass(AcceptanceStep.WARMUP, SuitePlatform.warmupSummary)
         inventory = InventoryAcceptanceProbe {
             inventory = null
             log.pass(AcceptanceStep.INVENTORY)

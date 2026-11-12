@@ -105,5 +105,6 @@ internal class OpenGlScreenFrameRenderer(override val profiler: UiFrameProfiler?
         releaseTarget()
         renderer.close()
         closed = true
+        FrameRetirement.rendererClosed()
     }
 }

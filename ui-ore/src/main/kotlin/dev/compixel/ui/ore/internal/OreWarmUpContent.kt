@@ -57,9 +57,9 @@ import dev.compixel.ui.ore.theme.OreColors
 import dev.compixel.ui.ore.theme.OreTheme
 
 /**
- * What a host's background warm-up composes inside Ore's design before the first screen, so that screen does not wait
- * for Ore and Compose to load: Ore's common controls, a lazy list, a menu and a dialog, with the layouts and drawing
- * screens usually add. It is never shown.
+ * What a host's warm-up composes inside Ore's design before the first screen, so that screen does not wait for Ore and
+ * Compose to load: Ore's common controls, a lazy list, a menu and a dialog, with the layouts and drawing screens
+ * usually add. It is never shown.
  */
 @Composable
 fun OreWarmUpContent() {

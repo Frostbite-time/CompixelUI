@@ -5,34 +5,21 @@ import dev.compixel.render.RenderBackend
 import dev.compixel.render.RendererStatistics
 import dev.compixel.render.RetiredImages
 import org.jetbrains.skia.BackendRenderTarget
-import org.jetbrains.skia.DirectContext
 import org.jetbrains.skia.IRect
 import org.jetbrains.skia.Image
 import org.jetbrains.skia.Surface
 import org.jetbrains.skia.SurfaceColorFormat
 import org.jetbrains.skia.SurfaceOrigin
-import org.jetbrains.skiko.ExperimentalSkikoApi
 import org.lwjgl.vulkan.VK12
 
 /**
  * Draws into borrowed Vulkan images on the host's graphics queue. The adapter supplies the target and surrounds render
- * with its queue/layout handoff. Context and temporary Skia wrappers are owned here; native host handles are not.
+ * with its queue/layout handoff. It draws with [skia], the Skia context its device shares, and owns the temporary Skia
+ * wrappers and the images it copied; native host handles are not owned here.
  */
-@OptIn(ExperimentalSkikoApi::class)
-class VulkanFrameRenderer(handles: VulkanDeviceHandles) : AutoCloseable {
+class VulkanFrameRenderer(private val skia: VulkanSkia) : AutoCloseable {
     private val owner = Thread.currentThread()
-    private val context =
-        DirectContext.makeVulkan(
-            handles.instance,
-            handles.physicalDevice,
-            handles.device,
-            handles.graphicsQueue,
-            handles.graphicsQueueFamily,
-            handles.getInstanceProcAddress,
-            handles.getDeviceProcAddress,
-            handles.apiVersion,
-            null,
-        )
+    private val context = skia.context
     private var closed = false
     private var frames = 0L
     private var generation = 0L
@@ -42,6 +29,10 @@ class VulkanFrameRenderer(handles: VulkanDeviceHandles) : AutoCloseable {
     private var strandedImages = 0
     var needsFrame = true
         private set
+
+    init {
+        skia.attach()
+    }
 
     // The adapter adds its retained target's allocation/liveness counters.
     val statistics
@@ -61,6 +52,7 @@ class VulkanFrameRenderer(handles: VulkanDeviceHandles) : AutoCloseable {
     private fun checkOpen() {
         check(Thread.currentThread() === owner) { "Vulkan renderer accessed outside its owning thread" }
         check(!closed) { "Vulkan renderer is closed" }
+        skia.checkOpen()
     }
 
     fun render(frame: RecordedFrame, target: VulkanImageTarget) {
@@ -100,6 +92,7 @@ class VulkanFrameRenderer(handles: VulkanDeviceHandles) : AutoCloseable {
         needsFrame = false
         // Replaced frames and display lists may have held the last other references to retired images.
         retiredImages.release()
+        skia.releaseRetired()
     }
 
     /**
@@ -166,14 +159,16 @@ class VulkanFrameRenderer(handles: VulkanDeviceHandles) : AutoCloseable {
         needsFrame = true
     }
 
-    /** The host must retire this context after all queued work referencing it has finished. */
+    /**
+     * Skia's context stays for the device's other layers. Images that pictures still reference wait in it; a UI that
+     * closed before its renderer leaves none.
+     */
     override fun close() {
         check(Thread.currentThread() === owner)
         if (closed) return
         snapshotImages.forEach(retiredImages::retire)
         snapshotImages.clear()
-        strandedImages += retiredImages.releaseAll()
-        context.close()
+        strandedImages += skia.detach(retiredImages)
         closed = true
     }
 }

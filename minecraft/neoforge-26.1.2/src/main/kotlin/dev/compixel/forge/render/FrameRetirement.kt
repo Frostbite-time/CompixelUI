@@ -28,6 +28,8 @@ internal object FrameRetirement {
 
     fun shutdown(event: ClientStoppingEvent) {
         RenderSystem.assertOnRenderThread()
+        // A warm-up still under way releases its layer with the frames below.
+        dev.compixel.forge.ClientWarmup.abandon()
         val encoder = RenderSystem.getDevice().createCommandEncoder()
         encoder.createFence().use { fence ->
             org.lwjgl.opengl.GL11.glFlush()
@@ -36,5 +38,11 @@ internal object FrameRetirement {
         RenderSystem.executePendingTasks()
         while (pending.isNotEmpty()) pending.removeFirst().invoke()
         stopping = true
+        SkiaContexts.closeUnused()
+    }
+
+    /** A layer's renderer closed; while the game stops, the last one takes the shared Skia context with it. */
+    fun rendererClosed() {
+        if (stopping) SkiaContexts.closeUnused()
     }
 }

@@ -24,6 +24,10 @@ enum class AcceptanceStep(val report: String) {
     RESOURCES("development translations loaded; loader environment matches the launch"),
     RENDERER("renderer backend matches CPU reference pixels"),
     WORLD("fresh flat creative test world loaded"),
+    WARMUP(
+        "UI warm-up on the client thread: hidden text, controls and a container with slots, glint, a drag preview " +
+            "and a native tooltip went through layout, native images, recording and the GPU, and were released"
+    ),
     INVENTORY(
         "native left/right container input, per-slot render hooks, the slot tooltip while a button is held, server " +
             "acknowledgement, game state and the tasks the content posts, and release on a close request from the content"

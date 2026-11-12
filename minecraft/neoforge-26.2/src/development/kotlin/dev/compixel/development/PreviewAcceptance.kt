@@ -404,7 +404,13 @@ internal class PreviewAcceptance(
                 session.requireReleased(next)
             }
         }
-        pass(AcceptanceStep.STRESS) { "12 cycles" }
+        script.act("one Skia context serves every layer") {
+            val expected = if (SuitePlatform.backend == dev.compixel.render.RenderBackend.CPU_RASTER) 0 else 1
+            check(SuitePlatform.skiaContexts == expected) {
+                "${SuitePlatform.skiaContexts} Skia contexts exist after every screen and HUD layer drew; expected $expected"
+            }
+        }
+        pass(AcceptanceStep.STRESS) { "12 cycles, ${SuitePlatform.skiaContexts} shared Skia context" }
     }
 
     private fun pass(step: AcceptanceStep, detail: () -> String? = { null }) =

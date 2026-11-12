@@ -40,6 +40,18 @@ class RetiredImages {
     }
 
     /**
+     * Hands the images that are still referenced elsewhere to [other], which releases them from now on, and closes the
+     * rest. Both must belong to the same GPU context. Returns how many were handed over.
+     */
+    fun moveTo(other: RetiredImages): Int {
+        release()
+        val moved = images.size
+        other.images += images
+        images.clear()
+        return moved
+    }
+
+    /**
      * Closes every retired image when the renderer shuts down, before its GPU context. Returns how many were still
      * referenced elsewhere: those are released later on another thread, which can lose their GPU memory, so hosts
      * dispose of their UI before the renderer.

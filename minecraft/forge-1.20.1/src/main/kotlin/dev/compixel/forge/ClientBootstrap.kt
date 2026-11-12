@@ -1,13 +1,10 @@
 package dev.compixel.forge
 
-import com.mojang.logging.LogUtils
 import dev.compixel.forge.constants.CompixelGuiLayers
 import dev.compixel.forge.render.RendererResources
 import dev.compixel.forge.theme.ColorEditorScreen
 import dev.compixel.forge.theme.ColorSchemes
 import dev.compixel.forge.theme.SchemeReloadListener
-import dev.compixel.host.internal.UiWarmup
-import dev.compixel.ui.ore.internal.OreWarmUpContent
 import dev.compixel.ui.ore.theme.OreDesign
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener
 import net.minecraftforge.client.ConfigScreenHandler
@@ -20,11 +17,7 @@ import net.minecraftforge.eventbus.api.IEventBus
 import net.minecraftforge.fml.ModLoadingContext
 
 internal object ClientBootstrap {
-    private val logger = LogUtils.getLogger()
-
     fun register(modEventBus: IEventBus) {
-        // Compose warms up in the background while the game loads, so the first screen does not stall the game.
-        UiWarmup.start(OreDesign(), { OreWarmUpContent() }) { logger.warn("CompixelUI warm-up failed", it) }
         // The player's scheme choices and colors, which the color editor saves.
         ColorSchemes.store.reload()
         // The mod list's Config button opens the color editor for CompixelUI's own Ore schemes.
@@ -34,6 +27,8 @@ internal object ClientBootstrap {
         MinecraftForge.EVENT_BUS.addListener(dev.compixel.forge.sync.ClientMenuSync::tick)
         MinecraftForge.EVENT_BUS.addListener(::tick)
         MinecraftForge.EVENT_BUS.addListener(::leaveWorld)
+        // The warm-up takes one step in each frame a screen draws; in the world, the exit layer gives it its frames.
+        MinecraftForge.EVENT_BUS.addListener(::warmUp)
         modEventBus.addListener(::registerReloadListeners)
         modEventBus.addListener(::registerOverlays)
     }
@@ -48,11 +43,15 @@ internal object ClientBootstrap {
         event.registerAboveAll(CompixelGuiLayers.SCREEN_EXITS.path, ScreenExits)
 
     // HUD layers publish their content's state once per client tick; covered screens and exits follow their menus.
+    private fun warmUp(event: net.minecraftforge.client.event.ScreenEvent.Render.Post) =
+        ClientWarmup.frame(event.guiGraphics)
+
     private fun tick(event: TickEvent.ClientTickEvent) {
         if (event.phase != TickEvent.Phase.END) return
         tickHudLayers()
         CoveredScreens.tick()
         ScreenExits.tick()
+        dev.compixel.forge.render.SkiaContexts.collect()
     }
 
     // HUD layers, covered screens and exits release their sessions with the world; the next drawn frame opens new HUDs.

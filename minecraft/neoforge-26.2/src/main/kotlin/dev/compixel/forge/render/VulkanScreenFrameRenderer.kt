@@ -9,6 +9,7 @@ import dev.compixel.render.*
 import dev.compixel.render.vulkan.VulkanFrameRenderer
 import dev.compixel.render.vulkan.VulkanImageBarriers
 import dev.compixel.render.vulkan.VulkanImageTarget
+import dev.compixel.render.vulkan.VulkanSkia
 import org.jetbrains.skia.Image
 import org.lwjgl.vulkan.VK12
 
@@ -21,7 +22,7 @@ internal class VulkanScreenFrameRenderer(override val profiler: UiFrameProfiler?
         val image: VulkanImageTarget,
     )
 
-    private val renderer = VulkanFrameRenderer(minecraftVulkanHandles())
+    private val renderer = VulkanFrameRenderer(VulkanSkia.shared(minecraftVulkanHandles()))
     private var target: Target? = null
     private var allocations = 0L
     private var closed = false
@@ -184,7 +185,10 @@ internal class VulkanScreenFrameRenderer(override val profiler: UiFrameProfiler?
         RenderSystem.assertOnRenderThread()
         if (closed) return
         releaseTarget()
-        FrameRetirement.afterFrame { renderer.close() }
+        FrameRetirement.afterFrame {
+            renderer.close()
+            FrameRetirement.rendererClosed()
+        }
         closed = true
     }
 }

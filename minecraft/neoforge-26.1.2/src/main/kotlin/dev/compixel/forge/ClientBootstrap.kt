@@ -1,14 +1,11 @@
 package dev.compixel.forge
 
-import com.mojang.logging.LogUtils
 import dev.compixel.forge.constants.CompixelGuiLayers
 import dev.compixel.forge.render.FrameRetirement
 import dev.compixel.forge.render.RendererResources
 import dev.compixel.forge.theme.ColorEditorScreen
 import dev.compixel.forge.theme.ColorSchemes
 import dev.compixel.forge.theme.SchemeReloadListener
-import dev.compixel.host.internal.UiWarmup
-import dev.compixel.ui.ore.internal.OreWarmUpContent
 import dev.compixel.ui.ore.theme.OreDesign
 import net.minecraft.resources.Identifier
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener
@@ -22,11 +19,7 @@ import net.neoforged.neoforge.client.gui.IConfigScreenFactory
 import net.neoforged.neoforge.common.NeoForge
 
 internal object ClientBootstrap {
-    private val logger = LogUtils.getLogger()
-
     fun register(modEventBus: IEventBus, container: ModContainer) {
-        // Compose warms up in the background while the game loads, so the first screen does not stall the game.
-        UiWarmup.start(OreDesign(), { OreWarmUpContent() }) { logger.warn("CompixelUI warm-up failed", it) }
         // The player's scheme choices and colors, which the color editor saves.
         ColorSchemes.store.reload()
         // The mod list's Config button opens the color editor for CompixelUI's own Ore schemes.
@@ -41,6 +34,8 @@ internal object ClientBootstrap {
         NeoForge.EVENT_BUS.addListener(FrameRetirement::shutdown)
         NeoForge.EVENT_BUS.addListener(::tick)
         NeoForge.EVENT_BUS.addListener(::leaveWorld)
+        // The warm-up takes one step in each frame a screen draws; in the world, the exit layer gives it its frames.
+        NeoForge.EVENT_BUS.addListener(::warmUp)
         modEventBus.addListener(::registerReloadListeners)
         modEventBus.addListener(::registerLayers)
         modEventBus.addListener(dev.compixel.forge.drawing.NativePictureRenderers::registered)
@@ -59,10 +54,14 @@ internal object ClientBootstrap {
         event.registerAboveAll(CompixelGuiLayers.SCREEN_EXITS, ScreenExits)
 
     // HUD layers publish their content's state once per client tick; covered screens and exits follow their menus.
+    private fun warmUp(event: net.neoforged.neoforge.client.event.ScreenEvent.Render.Post) =
+        ClientWarmup.frame(event.guiGraphics)
+
     private fun tick(event: ClientTickEvent.Post) {
         tickHudLayers()
         CoveredScreens.tick()
         ScreenExits.tick()
+        dev.compixel.forge.render.SkiaContexts.collect()
     }
 
     // HUD layers, covered screens and exits release their sessions with the world; the next drawn frame opens new HUDs.

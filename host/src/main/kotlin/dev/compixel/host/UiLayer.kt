@@ -3,7 +3,6 @@ package dev.compixel.host
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
-import dev.compixel.host.internal.UiWarmup
 import dev.compixel.platform.ClipboardPort
 import dev.compixel.platform.KeyInput
 import dev.compixel.platform.Modifiers
@@ -227,7 +226,6 @@ abstract class UiLayer<G, D>(
         refreshSchemes()
         val existing = session
         if (existing == null || existing.state == SessionState.CLOSED) {
-            UiWarmup.await()
             // The first composition already reads the game, not a placeholder.
             contentState.open()
             rejectionsReported = false

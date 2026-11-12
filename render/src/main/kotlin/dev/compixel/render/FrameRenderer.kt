@@ -21,7 +21,10 @@ data class RendererStatistics(
     val liveNativeImages: Int = 0,
     /** Released GPU images that recorded pictures still reference; the renderer closes them once they are unused. */
     val retiredNativeImages: Int = 0,
-    /** GPU images other owners still referenced when the renderer closed, so their final release happens elsewhere. */
+    /**
+     * GPU images that recorded pictures still referenced when the renderer closed. Its shared Skia context releases
+     * them once they are unused; a UI that closes before its renderer leaves none.
+     */
     val strandedNativeImages: Int = 0,
 )
 

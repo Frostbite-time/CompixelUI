@@ -17,19 +17,21 @@ fun interface GlStateCheck {
     fun before(): () -> Unit
 }
 
-/** Same-context RGBA8/premultiplied rendering. No pixel readback, PNG or full-frame upload. */
+/**
+ * Same-context RGBA8/premultiplied rendering. No pixel readback, PNG or full-frame upload. It draws with [skia], the
+ * Skia context its GL context shares, and owns only its output target and the images it imported.
+ */
 class OpenGlFrameRenderer(
     private val stateCheck: GlStateCheck? = null,
     private val measureGpu: Boolean = false,
     private val profiler: UiFrameProfiler? = null,
     private val contextIdentity: () -> Any = { GL.getCapabilities() },
+    private val skia: OpenGlSkia = OpenGlSkia.shared(contextIdentity()),
 ) : FrameRenderer<OpenGlDestination> {
     private val owner = Thread.currentThread()
-    private val glContext = contextIdentity()
     private val capabilities = GL.getCapabilities()
     private val samplerObjects = capabilities.OpenGL33 || capabilities.GL_ARB_sampler_objects
     private val timestampQueries = capabilities.OpenGL33 || capabilities.GL_ARB_timer_query
-    private var context: DirectContext? = null
     private var surface: Surface? = null
     private var backendTarget: BackendRenderTarget? = null
     private var texture = 0
@@ -37,7 +39,6 @@ class OpenGlFrameRenderer(
     private var stencil = 0
     private var width = 0
     private var height = 0
-    private var privateVao = 0
     private var readFramebuffer = 0
     private var compositor = 0
     private var frames = 0L
@@ -73,36 +74,25 @@ class OpenGlFrameRenderer(
         get() = !hasFrame
 
     init {
-        check(capabilities.OpenGL32) { "OpenGL 3.2 is required by this backend" }
+        skia.checkContext(contextIdentity())
+        skia.attach()
     }
 
-    private val scopes = GlScopeStates(capabilities)
+    private val scopes = skia.scopes
 
     private fun checkContext() {
         check(Thread.currentThread() === owner) { "Renderer accessed outside its owning thread" }
         check(!closed) { "Renderer is closed" }
-        check(contextIdentity() == glContext) {
-            "GL context changed; recreate the renderer through the version adapter"
-        }
+        skia.checkContext(contextIdentity())
     }
 
     private fun <T> isolated(state: GlStateSet, action: () -> T): T {
         checkContext()
-        val check = stateCheck?.before()
-        val saved = profiler.measureDetail(CpuDetail.GL_CAPTURE) { state.capture() }
-        try {
-            if (privateVao == 0) privateVao = glGenVertexArrays()
-            // Never let foreign vertex attribute setup mutate Minecraft's currently bound VAO.
-            glBindVertexArray(privateVao)
-            return action()
-        } finally {
-            profiler.measureDetail(CpuDetail.GL_RESTORE) { state.restore(saved) }
-            check?.invoke()
-        }
+        return skia.isolated(state, stateCheck, profiler, action)
     }
 
     /** Creating Skia's context may write anything Skia can. */
-    private fun importState() = if (context == null) scopes.skia else scopes.importImage
+    private fun importState() = if (!skia.created) scopes.skia else scopes.importImage
 
     override fun render(frame: RecordedFrame) =
         isolated(scopes.skia) {
@@ -112,6 +102,7 @@ class OpenGlFrameRenderer(
             if (timer == null) drawFrame(frame) else timer.measure { drawFrame(frame) }
             // Replaced frames and display lists may have held the last other references to retired images.
             retiredImages.release()
+            skia.releaseRetired()
         }
 
     /**
@@ -214,17 +205,7 @@ class OpenGlFrameRenderer(
             retiredImages.release()
         }
 
-    private fun directContext(): DirectContext {
-        context?.let {
-            return it
-        }
-        // Skiko refuses OpenGL on macOS unless this is set, but this backend draws into the game's own context.
-        System.setProperty("skiko.macos.opengl.enabled", "true")
-        return DirectContext.makeGL().also {
-            it.resourceCacheLimit = 64L * 1024 * 1024
-            context = it
-        }
-    }
+    private fun directContext(): DirectContext = skia.direct()
 
     private fun drawFrame(frame: RecordedFrame) {
         val skia = directContext()
@@ -369,19 +350,17 @@ class OpenGlFrameRenderer(
             check(Thread.currentThread() === owner)
             return
         }
-        val deleted = intArrayOf(texture, framebuffer, stencil, compositor, privateVao, readFramebuffer)
+        val deleted = intArrayOf(texture, framebuffer, stencil, compositor, readFramebuffer)
         isolated(scopes.skia) {
             releaseSurface()
             importedImages.forEach(retiredImages::retire)
             importedImages.clear()
-            strandedImages += retiredImages.releaseAll()
-            context?.close()
-            context = null
+            // Skia's context stays for the other layers. Images that pictures still reference wait in it; a UI that
+            // closed before its renderer leaves none.
+            strandedImages += skia.detach(retiredImages)
             if (compositor != 0) glDeleteProgram(compositor)
-            if (privateVao != 0) glDeleteVertexArrays(privateVao)
             if (readFramebuffer != 0) glDeleteFramebuffers(readFramebuffer)
             compositor = 0
-            privateVao = 0
             readFramebuffer = 0
             renderTimer?.close()
             presentTimer?.close()
@@ -394,8 +373,7 @@ class OpenGlFrameRenderer(
             check(deleted[1] == 0 || !glIsFramebuffer(deleted[1])) { "GL framebuffer survived close" }
             check(deleted[2] == 0 || !glIsRenderbuffer(deleted[2])) { "GL stencil survived close" }
             check(deleted[3] == 0 || !glIsProgram(deleted[3])) { "GL program survived close" }
-            check(deleted[4] == 0 || !glIsVertexArray(deleted[4])) { "GL vertex array survived close" }
-            check(deleted[5] == 0 || !glIsFramebuffer(deleted[5])) { "GL read framebuffer survived close" }
+            check(deleted[4] == 0 || !glIsFramebuffer(deleted[4])) { "GL read framebuffer survived close" }
         }
     }
 

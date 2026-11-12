@@ -56,7 +56,7 @@ object OpenGlRendererProbe {
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, hostBuffer)
             glBufferData(GL_ELEMENT_ARRAY_BUFFER, 4096L, GL_STATIC_DRAW)
             repeat(cycles) { cycle ->
-                OpenGlFrameRenderer(stateCheck = GlStateDump).use { renderer ->
+                withRenderer { renderer ->
                     repeat(3) { iteration ->
                         glBindFramebuffer(GL_FRAMEBUFFER, targetFbo)
                         glDisable(GL_SCISSOR_TEST)
@@ -176,10 +176,11 @@ object OpenGlRendererProbe {
                 }
             }
             verifyRetirement(frame, targetFbo)
+            verifySharing(frame, targetFbo)
             // A host that composites through its own pipeline never calls present(); polling alone must deliver
             // timings.
             val profiler = UiFrameProfiler()
-            OpenGlFrameRenderer(stateCheck = GlStateDump, profiler = profiler).use { renderer ->
+            withRenderer(profiler) { renderer ->
                 profiler.beginFrame()
                 renderer.render(frame)
                 profiler.endFrame()
@@ -230,7 +231,7 @@ object OpenGlRendererProbe {
         val width = frame.viewport.width
         val height = frame.viewport.height
         val textures = liveTextures()
-        OpenGlFrameRenderer(stateCheck = GlStateDump).use { renderer ->
+        withRenderer { renderer ->
             repeat(3) {
                 val image = renderer.copyFramebuffer(OpenGlDestination(framebuffer, width, height))
                 val picture =
@@ -252,6 +253,55 @@ object OpenGlRendererProbe {
         val remaining = liveTextures()
         check(remaining == textures) { "Retired images left ${remaining - textures} GL textures behind" }
     }
+
+    /**
+     * Two layers share one Skia context. A renderer that closes while a picture still refers to its image leaves the
+     * image with the context, which releases it on this thread once the picture is gone; the other renderer goes on.
+     */
+    private fun verifySharing(frame: RecordedFrame, framebuffer: Int) {
+        val width = frame.viewport.width
+        val height = frame.viewport.height
+        val textures = liveTextures()
+        val contexts = OpenGlSkia.liveContexts
+        OpenGlSkia().use { skia ->
+            val first = OpenGlFrameRenderer(stateCheck = GlStateDump, skia = skia)
+            OpenGlFrameRenderer(stateCheck = GlStateDump, skia = skia).use { second ->
+                first.render(frame)
+                second.render(frame)
+                check(skia.renderers == 2 && OpenGlSkia.liveContexts == contexts + 1) {
+                    "Two renderers of one GL context did not share one Skia context"
+                }
+                val image = first.copyFramebuffer(OpenGlDestination(framebuffer, width, height))
+                val picture =
+                    PictureRecorder().use { recorder ->
+                        recorder.beginRecording(Rect.makeWH(width.toFloat(), height.toFloat())).drawImage(image, 0f, 0f)
+                        recorder.finishRecordingAsPicture()
+                    }
+                first.close()
+                check(!image.isClosed && skia.retiredImages == 1 && first.statistics.strandedNativeImages == 1) {
+                    "A closing renderer did not leave its referenced image with the shared context"
+                }
+                second.render(frame)
+                check(!image.isClosed) { "An image was closed while a picture still referred to it" }
+                thread { picture.close() }.join()
+                val state = GlStateDump.before()
+                skia.collect()
+                state()
+                check(image.isClosed && skia.retiredImages == 0) { "The shared context kept an unreferenced image" }
+                second.render(frame)
+            }
+            check(skia.renderers == 0)
+        }
+        check(OpenGlSkia.liveContexts == contexts) { "A closed Skia context still counts as live" }
+        val remaining = liveTextures()
+        check(remaining == textures) { "Shared retirement left ${remaining - textures} GL textures behind" }
+    }
+
+    /** A renderer with a Skia context of its own, so each use creates and destroys one in the host's GL context. */
+    private fun <T> withRenderer(profiler: UiFrameProfiler? = null, block: (OpenGlFrameRenderer) -> T): T =
+        OpenGlSkia().use { skia ->
+            OpenGlFrameRenderer(stateCheck = GlStateDump, profiler = profiler, skia = skia).use(block)
+        }
 
     /** Scans past a fresh texture name: drivers hand out names upwards and reuse freed ones below it. */
     private fun liveTextures(): Int {

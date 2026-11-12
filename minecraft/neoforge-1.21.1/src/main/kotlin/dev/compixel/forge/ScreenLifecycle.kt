@@ -54,6 +54,10 @@ internal object ScreenExits : LayeredDraw.Layer {
 
     private val exits = ArrayList<Exit>()
 
+    /** Whether a closed screen still plays its exit here. */
+    val playing
+        get() = exits.isNotEmpty()
+
     /** Exits playing now. */
     val size: Int
         get() = exits.size
@@ -86,6 +90,8 @@ internal object ScreenExits : LayeredDraw.Layer {
     }
 
     override fun render(graphics: GuiGraphics, deltaTracker: DeltaTracker) {
+        // In the world this layer draws every frame; with a screen open, the screen's render event warms up instead.
+        if (Minecraft.getInstance().screen == null) ClientWarmup.frame(graphics)
         if (exits.isEmpty()) return
         val window = Minecraft.getInstance().window
         for (exit in exits.toList()) {

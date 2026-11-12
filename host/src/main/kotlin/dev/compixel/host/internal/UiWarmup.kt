@@ -1,98 +1,85 @@
 package dev.compixel.host.internal
 
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import dev.compixel.host.LocalScreenPresence
-import dev.compixel.host.ScreenPresence
-import dev.compixel.host.ScreenTransition
-import dev.compixel.host.UiSession
-import dev.compixel.platform.PointerAction
-import dev.compixel.platform.PointerInput
-import dev.compixel.platform.Viewport
-import dev.compixel.ui.LocalUiFeedback
-import dev.compixel.ui.UiDesign
-import dev.compixel.ui.UiFeedback
-import java.util.concurrent.atomic.AtomicBoolean
-
 /**
- * Prepares Compose before a game's first screen. Otherwise the first session loads and initializes thousands of Compose
- * and Skia classes, its design's fonts and code that runs for the first time, while the game waits for it. [start] does
- * that work once while the game loads, in a throwaway session on a background thread: it composes typical content
- * inside the design and a [ScreenTransition], moves the pointer across it while recording frames, and closes the
- * session. Nothing is shown or rendered on the GPU. The game's own sessions run on its client thread and [await] the
- * warm-up first, so Compose never runs on two threads at once.
+ * A host's warm-up: steps that prepare Compose, its design and the GPU before the game's first screen. Otherwise that
+ * screen loads thousands of Compose and Skia classes, compiles its shaders and draws its first icons while the player
+ * waits. The host adds the steps and calls [advance] on its UI thread once per frame it draws, except in frames a real
+ * UI needs. Each call runs one step, so the work spreads over real frames and the GPU work of one frame is there for
+ * the next, as it is for a real screen.
+ *
+ * A step that fails ends the warm-up: [failed] gets the error, the remaining steps are dropped, and those added with
+ * `always` still run, to release what earlier steps opened.
  */
-object UiWarmup {
-    private const val FRAMES = 30
-    private val started = AtomicBoolean()
-    @Volatile private var running: Thread? = null
+class UiWarmup(private val failed: (Throwable) -> Unit) {
+    private class Step(val name: String, val always: Boolean, var attempts: Int, val run: () -> Boolean)
 
-    /**
-     * Starts the warm-up unless it already started. [content] is what screens usually show, such as the design's common
-     * controls; [failed] receives an error on the warm-up thread.
-     */
-    fun start(design: UiDesign, content: @Composable () -> Unit, failed: (Throwable) -> Unit) {
-        if (!started.compareAndSet(false, true) || System.getProperty("compixel.warmup") == "false") return
-        val thread =
-            Thread(
-                {
-                    try {
-                        warmUp(design, content)
-                    } catch (error: Throwable) {
-                        failed(error)
-                    } finally {
-                        running = null
-                    }
-                },
-                "CompixelUI warm-up",
-            )
-        thread.isDaemon = true
-        running = thread
-        thread.start()
+    private val steps = ArrayDeque<Step>()
+
+    /** Whether every step ran or was dropped. */
+    val finished
+        get() = steps.isEmpty()
+
+    /** The error that ended the warm-up early, if one did. */
+    var failure: Throwable? = null
+        private set
+
+    /** Calls of [advance] that ran a step, the time they took, and the longest of them with its step's name. */
+    var frames = 0
+        private set
+
+    var totalNanos = 0L
+        private set
+
+    var longestNanos = 0L
+        private set
+
+    var longestStep = ""
+        private set
+
+    /** Adds a step that runs once. With [always], it also runs after an earlier step failed. */
+    fun step(name: String, always: Boolean = false, run: () -> Unit) {
+        steps +=
+            Step(name, always, 1) {
+                run()
+                true
+            }
     }
 
-    /**
-     * Waits for a warm-up that is still running. A session that started beside it would wait for the same classes to
-     * load anyway, and its state changes would reach the warm-up's scene from another thread.
-     */
-    fun await() {
-        running?.join()
+    /** Adds a step that runs in as many frames as it takes to return true, [atMost] of them. */
+    fun until(name: String, atMost: Int, run: () -> Boolean) {
+        require(atMost > 0)
+        steps += Step(name, false, atMost, run)
     }
 
-    /** Runs the warm-up session on the calling thread, which owns it. */
-    internal fun warmUp(design: UiDesign, content: @Composable () -> Unit, frames: Int = FRAMES) {
-        // A common window: 854 × 480 pixels at a GUI scale of 2
-        val viewport = Viewport(854, 480, 2f)
-        UiSession(viewport) {
-                CompositionLocalProvider(
-                    LocalUiFeedback provides UiFeedback {},
-                    LocalScreenPresence provides ScreenPresence(),
-                ) {
-                    design.Decorate {
-                        // Screens commonly slide in as they fade.
-                        ScreenTransition(
-                            enter = fadeIn() + slideInVertically { it / 4 },
-                            exit = fadeOut() + slideOutVertically { it / 4 },
-                        ) {
-                            content()
-                        }
-                    }
+    /** Runs the next step. False once none is left. */
+    fun advance(): Boolean {
+        val step = steps.firstOrNull() ?: return false
+        val start = System.nanoTime()
+        val done =
+            try {
+                step.run() || --step.attempts <= 0
+            } catch (error: Throwable) {
+                if (failure == null) {
+                    failure = error
+                    failed(error)
                 }
+                steps.removeAll { !it.always }
+                true
             }
-            .use { session ->
-                session.setFocused(true)
-                repeat(frames) { frame ->
-                    // The pointer crosses the content diagonally, so hover and hit testing run too.
-                    val progress = frame.toFloat() / frames
-                    session.pointer(
-                        PointerInput(PointerAction.MOVE, viewport.width * progress, viewport.height * progress)
-                    )
-                    session.frame()?.close()
-                }
-            }
+        if (done) steps.remove(step)
+        val elapsed = System.nanoTime() - start
+        frames++
+        totalNanos += elapsed
+        if (elapsed > longestNanos) {
+            longestNanos = elapsed
+            longestStep = step.name
+        }
+        return steps.isNotEmpty()
+    }
+
+    companion object {
+        /** `-Dcompixel.warmup=false` turns the warm-up off. */
+        val enabled
+            get() = System.getProperty("compixel.warmup") != "false"
     }
 }

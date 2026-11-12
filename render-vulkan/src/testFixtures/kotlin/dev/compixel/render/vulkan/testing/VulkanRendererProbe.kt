@@ -5,6 +5,7 @@ import dev.compixel.render.vulkan.VulkanDeviceHandles
 import dev.compixel.render.vulkan.VulkanFrameRenderer
 import dev.compixel.render.vulkan.VulkanImageBarriers
 import dev.compixel.render.vulkan.VulkanImageTarget
+import dev.compixel.render.vulkan.VulkanSkia
 import dev.compixel.testing.render.RendererPixels
 import dev.compixel.testing.render.RendererProbeResult
 import kotlin.concurrent.thread
@@ -33,7 +34,8 @@ object VulkanRendererProbe {
         ProbeTarget(device, queue, handles.graphicsQueueFamily, frame.viewport.width, frame.viewport.height).use {
             target ->
             repeat(cycles) { cycle ->
-                val renderer = VulkanFrameRenderer(handles)
+                val skia = VulkanSkia(handles)
+                val renderer = VulkanFrameRenderer(skia)
                 try {
                     repeat(3) { iteration ->
                         target.submit { VulkanImageBarriers.acquireForRendering(it, target.image.image) }
@@ -55,6 +57,7 @@ object VulkanRendererProbe {
                     // Skia objects may be released only after the last submission has completed.
                     success(vkQueueWaitIdle(queue), "retire probe renderer")
                     renderer.close()
+                    skia.close()
                 }
                 // The same borrowed image survives context destruction and is used by the next cycle.
             }
@@ -73,7 +76,13 @@ object VulkanRendererProbe {
         target: ProbeTarget,
         frame: RecordedFrame,
     ) {
-        val renderer = VulkanFrameRenderer(handles)
+        val contexts = VulkanSkia.liveContexts
+        val skia = VulkanSkia(handles)
+        val renderer = VulkanFrameRenderer(skia)
+        val second = VulkanFrameRenderer(skia)
+        check(skia.renderers == 2 && VulkanSkia.liveContexts == contexts + 1) {
+            "Two renderers of one device did not share one Skia context"
+        }
         try {
             repeat(3) {
                 target.submit { VulkanImageBarriers.acquireForSnapshot(it, target.image.image) }
@@ -105,13 +114,43 @@ object VulkanRendererProbe {
                     "An unreferenced retired snapshot stayed open: ${renderer.statistics}"
                 }
             }
-        } finally {
+            // A renderer that closes while a picture still refers to its snapshot leaves it with the shared context,
+            // which releases it on this thread once the picture is gone; the other renderer goes on.
+            target.submit { VulkanImageBarriers.acquireForSnapshot(it, target.image.image) }
+            val image =
+                renderer.snapshotImage(
+                    target.image,
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    target.image.width,
+                    target.image.height,
+                    bottomUp = false,
+                )
+            target.submit { VulkanImageBarriers.releaseAfterSnapshot(it, target.image.image) }
+            val picture =
+                PictureRecorder().use { recorder ->
+                    recorder
+                        .beginRecording(Rect.makeWH(image.width.toFloat(), image.height.toFloat()))
+                        .drawImage(image, 0f, 0f)
+                    recorder.finishRecordingAsPicture()
+                }
             success(vkQueueWaitIdle(queue), "retire probe renderer")
             renderer.close()
+            check(!image.isClosed && skia.retiredImages == 1 && renderer.statistics.strandedNativeImages == 1) {
+                "A closing renderer did not leave its referenced snapshot with the shared context"
+            }
+            thread { picture.close() }.join()
+            skia.collect()
+            check(image.isClosed && skia.retiredImages == 0) { "The shared context kept an unreferenced snapshot" }
+            target.submit { VulkanImageBarriers.acquireForRendering(it, target.image.image) }
+            second.render(frame, target.image)
+            target.submit { VulkanImageBarriers.releaseForSampling(it, target.image.image) }
+        } finally {
+            success(vkQueueWaitIdle(queue), "retire probe renderers")
+            renderer.close()
+            second.close()
+            skia.close()
         }
-        check(renderer.statistics.let { it.liveNativeImages == 0 && it.strandedNativeImages == 0 }) {
-            "The renderer kept snapshots after closing: ${renderer.statistics}"
-        }
+        check(VulkanSkia.liveContexts == contexts) { "A closed Skia context still counts as live" }
     }
 }
 

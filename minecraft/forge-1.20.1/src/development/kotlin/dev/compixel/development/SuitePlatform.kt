@@ -89,6 +89,17 @@ internal object SuitePlatform {
     val resourceEpoch: Long
         get() = RendererResources.epoch
 
+    /** The UI warm-up: "pending", "running", "done", "failed" or "off"; and what it took once it ended. */
+    val warmup: String
+        get() = dev.compixel.forge.ClientWarmup.state
+
+    val warmupSummary: String
+        get() = dev.compixel.forge.ClientWarmup.summary
+
+    /** Skia GPU contexts that exist now; every screen and HUD layer shares one. */
+    val skiaContexts: Int
+        get() = dev.compixel.forge.render.SkiaContexts.live
+
     val windowHidden: Boolean
         get() = GLFW.glfwGetWindowAttrib(window, GLFW.GLFW_VISIBLE) == GLFW.GLFW_FALSE
 
