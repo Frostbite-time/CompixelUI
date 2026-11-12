@@ -51,7 +51,7 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
      * the slots, its content has a press and a close button.
      */
     private inner class AcceptanceScreen :
-        ComposeInventoryScreen<InventoryMenu, Unit, Nothing>(
+        ComposeInventoryScreen<InventoryMenu>(
             player.inventoryMenu,
             Component.literal("Native inventory acceptance"),
             ComposeMenuSlots(
@@ -110,7 +110,7 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
         }
 
         @Composable
-        override fun Content(state: Unit, slots: ComposeMenuSlots<InventoryMenu>) {
+        override fun Content(slots: ComposeMenuSlots<InventoryMenu>) {
             val shown = held
             val first by gameState(initialValue = -1) { player.inventory.getItem(0).count }
             val firstShown = first

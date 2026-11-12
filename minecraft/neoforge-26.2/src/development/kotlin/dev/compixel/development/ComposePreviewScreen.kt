@@ -26,9 +26,9 @@ private constructor(
     private val icons: List<ItemIcon>,
     private val samples: Map<Int, ItemIcon> =
         listOf(0, 1, 3, 8).filter { it < icons.size }.associateWith { ItemIcon.snapshot(icons[it].stack) },
-) : ComposeScreen<Unit, Nothing>(Component.literal("CompixelUI"), parent) {
+) : ComposeScreen(Component.literal("CompixelUI"), parent) {
     @Composable
-    override fun Content(state: Unit) {
+    override fun Content() {
         DemoScreen(
             model,
             tooltipItem =

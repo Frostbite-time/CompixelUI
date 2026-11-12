@@ -181,9 +181,16 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
     private var visible: Map<Int, Rect>? = null
     private var area: Rect? = null
     private var blocked = false
-    // The adapter's visual of each visible slot, and what the content shows for it: the same but for drag previews.
-    private val snapshots = mutableMapOf<Int, MenuSlotVisual>()
-    private val visuals = mutableStateMapOf<Int, MenuSlotVisual>()
+
+    // One cell per slot the content composes: the adapter's visual, and what the content shows for it, the same but
+    // for drag previews. Each cell is a state of its own, so a slot whose stack changes recomposes alone.
+    private class Cell {
+        var visual: MenuSlotVisual? = null
+        var users = 0
+        var shown by mutableStateOf(MenuSlotVisual())
+    }
+
+    private val cells = HashMap<Int, Cell>()
     private var metrics = ScreenMetrics(1, 1, 1, 1, 1f, 1f)
     private var cursor = ItemStack.EMPTY
     private var cursorIcon: ItemIcon? = null
@@ -273,8 +280,42 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
     @Composable
     private fun state(slotId: Int): MenuSlotState {
         val hovered by remember(slotId) { derivedStateOf { hoveredSlot == slotId } }
-        val visual = visuals[slotId] ?: MenuSlotVisual()
+        // The slot is read as it composes, so its first layout already shows its stack.
+        val cell = remember(slotId) { retain(slotId) }
+        DisposableEffect(slotId) { onDispose { release(slotId, cell) } }
+        val visual = cell.shown
         return MenuSlotState(visual.icon, visual.amount, visual.compactAmount, visual.marked, hovered)
+    }
+
+    // A slot that enters the composition reads its stack at once; one already composed elsewhere shares its cell.
+    private fun retain(slotId: Int): Cell {
+        require(slotId >= 0 && slotId < slotCount)
+        val cell = cells.getOrPut(slotId) { Cell() }
+        if (cell.users++ == 0 && !closed) show(slotId, cell)
+        return cell
+    }
+
+    private fun release(slotId: Int, cell: Cell) {
+        if (--cell.users == 0 && cells[slotId] === cell) cells.remove(slotId)
+    }
+
+    // Reads the slot into its cell; true when that changed what the content shows.
+    private fun show(slotId: Int, cell: Cell): Boolean {
+        val slot = menu.slots[slotId]
+        val visual = adapter.visual(slot, cell.visual)
+        cell.visual = visual
+        val preview =
+            if (slotId in dragSlots() && dragSlots().size > 1) {
+                val amount = previewAmount(slot)
+                visual.copy(
+                    icon = if (slot.item.isEmpty) cursorIcon else visual.icon,
+                    amount = amount.toString(),
+                    compactAmount = amount.toString(),
+                )
+            } else visual
+        if (cell.shown == preview) return false
+        cell.shown = preview
+        return true
     }
 
     // Registers where the slot is laid out as its hit region, and leaves a focused text field when it is pressed.
@@ -395,31 +436,10 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
             cursorIcon = if (carried.isEmpty) null else ItemIcon.snapshot(carried.copyWithCount(1))
         }
         var changed = false
+        // Slots composed outside the visible area keep what they read as they composed, until the layout shows them.
         for (id in currentLayout.keys) {
-            val slot = menu.slots[id]
-            val visual = adapter.visual(slot, snapshots[id])
-            snapshots[id] = visual
-            val preview =
-                if (id in dragSlots() && dragSlots().size > 1) {
-                    val amount = previewAmount(slot)
-                    visual.copy(
-                        icon = if (slot.item.isEmpty) cursorIcon else visual.icon,
-                        amount = amount.toString(),
-                        compactAmount = amount.toString(),
-                    )
-                } else visual
-            if (visuals[id] != preview) {
-                visuals[id] = preview
-                changed = true
-            }
-        }
-        if (moved) {
-            // toList: the loop removes from the map it reads.
-            for (id in visuals.keys.toList()) if (id !in currentLayout) {
-                visuals.remove(id)
-                snapshots.remove(id)
-                changed = true
-            }
+            val cell = cells[id] ?: continue
+            if (show(id, cell)) changed = true
         }
         return changed || hoverMoved
     }
@@ -477,12 +497,14 @@ class ComposeMenuSlots<M : AbstractContainerMenu>(
         checkOwner()
         closed = true
         reset()
-        snapshots.clear()
         cursorIcon = null
         layout.clear()
         visible = null
         area = null
-        visuals.clear()
+        for (cell in cells.values) {
+            cell.visual = null
+            cell.shown = MenuSlotVisual()
+        }
     }
 
     /** The menu closed: stop reading it, while the content can still draw the slots it showed last until [close]. */

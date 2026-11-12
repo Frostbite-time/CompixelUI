@@ -20,9 +20,9 @@ internal class PortValidationModel {
 
 /** Deliberately asymmetric fixture, with a real Compose click target and alpha patch. */
 internal class PortValidationScreen(val model: PortValidationModel = PortValidationModel()) :
-    ComposeScreen<Unit, Nothing>(Component.literal("Port validation")) {
+    ComposeScreen(Component.literal("Port validation")) {
     @Composable
-    override fun Content(state: Unit) {
+    override fun Content() {
         Box(Modifier.fillMaxSize().background(Color(0xFF204060))) {
             Box(
                 Modifier.align(Alignment.TopStart)

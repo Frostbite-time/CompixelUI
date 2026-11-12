@@ -21,20 +21,19 @@ import net.minecraft.world.item.Items
 internal data class SyncAcceptanceView(val ready: Boolean, val counter: Int, val emeralds: Int)
 
 /**
- * Its content is one button over the whole screen, which requests the replacement text through the screen's state. It
- * keeps the deprecated snapshot model covered, with snapshot, handle and send, until that model is removed.
+ * Its content is one button over the whole screen, which requests the replacement text on the game thread, and shows
+ * the menu through member game state.
  */
-@Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
 internal class SyncAcceptanceScreen(
     menu: SyncAcceptanceMenu,
     @Suppress("UNUSED_PARAMETER") inventory: Inventory,
     title: Component,
-) : ComposeMenuScreen<SyncAcceptanceMenu, SyncAcceptanceView, String>(menu, title), ShowsTransition {
+) : ComposeMenuScreen<SyncAcceptanceMenu>(menu, title), ShowsTransition {
     /** The latest state the content composed. */
     var composed: SyncAcceptanceView? = null
         private set
 
-    /** Actions handled on the game thread. */
+    /** Requests made on the game thread. */
     var requests = 0
         private set
 
@@ -44,17 +43,18 @@ internal class SyncAcceptanceScreen(
 
     override fun isUiWindowFocused() = SuiteEnvironment.uiFocused(super.isUiWindowFocused())
 
-    override fun snapshot() =
+    private val view by gameState {
         SyncAcceptanceView(
             container.sync.hasSnapshot(),
             container.counter,
             if (container.item.item == Items.EMERALD) container.item.count else 0,
         )
+    }
 
-    override fun handle(action: String) {
+    private fun request(text: String) {
         requests++
-        check(container.sync.request(SyncAcceptanceMenu.REPLACE, action).queued()) {
-            "The content's action was not queued"
+        check(container.sync.request(SyncAcceptanceMenu.REPLACE, text).queued()) {
+            "The content's request was not queued"
         }
     }
 
@@ -68,15 +68,16 @@ internal class SyncAcceptanceScreen(
     @Volatile override var shown: TransitionShown? = null
 
     @Composable
-    override fun Content(state: SyncAcceptanceView) {
+    override fun Content() {
+        val state = view
         SideEffect { composed = state }
         if (animated) ReportedTransition { Button() } else Button()
     }
 
-    @Composable private fun Button() = Box(Modifier.fillMaxSize().clickable { send(SyncAcceptanceMenu.REPLACEMENT) })
+    @Composable private fun Button() = Box(Modifier.fillMaxSize().clickable { replace(SyncAcceptanceMenu.REPLACEMENT) })
 
-    /** Sends [text] as the content's button does. */
-    fun replace(text: String) = send(text)
+    /** Requests [text] as the content's button does. */
+    fun replace(text: String) = gameThread.post { request(text) }
 
     /** What a close button in the content does. */
     fun closeFromContent() = requestClose()

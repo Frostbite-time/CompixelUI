@@ -1,40 +1,39 @@
 package dev.compixel.host
 
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.RememberObserver
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
-import java.util.concurrent.CopyOnWriteArrayList
+import java.util.ArrayDeque
 import kotlin.properties.ReadOnlyProperty
 
 /**
  * Game state for a host's content, renewed with each of the host's UI sessions. The content reads the game through
- * [gameState] subscriptions and the host's [snapshot], and changes it with [gameThread] tasks and actions for [handle].
- * Actions and tasks share one queue of at most 64 and run in the order they were queued; each step runs those waiting
- * when it starts, so what they queue in turn waits for the next step.
- * - [open] takes the first snapshot and samples the member subscriptions before the session composes.
- * - Each [tick] runs the waiting actions and tasks, then publishes a snapshot and samples the subscriptions due after
- *   their interval, those not sampled yet, and all of them when an action or task ran.
- * - [handleActions] runs the waiting actions and tasks, as a host does after each input event; when any ran it
- *   publishes a snapshot and samples every subscription.
+ * [gameState] subscriptions and changes it with [gameThread] tasks. At most 64 tasks wait, and they run in the order
+ * they were queued; each step runs those waiting when it starts, so what they queue in turn waits for the next step.
+ * - [open] samples the member subscriptions before the session composes.
+ * - Each [tick] runs the waiting tasks, then samples the subscriptions due after their interval, those not sampled yet,
+ *   and all of them when a task ran.
+ * - [runTasks] runs the waiting tasks, as a host does after each input event; when any ran it samples every
+ *   subscription.
  * - [resume] does the same whether or not any ran, for a session shown again after another screen covered its host.
  * - [close] ends the session and discards the queue; the content keeps showing the last values, for example in its
  *   exit.
  *
- * A step stops once an action or task ended the session. Everything runs on the host's game thread, which is also the
- * thread its content composes on: what a step publishes shows in the next frame.
+ * A step stops once a task ended the session. Everything but [GameThread.post] runs on the host's game thread, which is
+ * also the thread its content composes on: what a step samples shows in the next frame.
  *
- * Hosts drive it for their `snapshot`, `handle`, `gameState` and `Content` members, so game code rarely uses it
- * directly.
+ * Hosts drive it for their `gameState`, `gameThread` and `Content` members, so game code rarely uses it directly.
  */
-class UiStateBinding<S, A>(private val snapshot: () -> S, private val handle: (A) -> Unit) {
-    // The session's queue of actions and tasks. It stays readable after close, while the session's composition is
-    // disposed.
-    @Volatile private var binding: UiBinding<S, Any?>? = null
-    // Member subscriptions are declared on the thread that creates the binding, before its first session.
-    private val creator = Thread.currentThread()
-    @Volatile private var opened = false
-    private val members = CopyOnWriteArrayList<Subscription<*>>()
+class UiStateBinding {
+    // Tasks come from any thread; the lock is the queue itself.
+    private val tasks = ArrayDeque<Runnable>()
+    private var accepting = false
+    private var rejected = 0L
+    // Counts the sessions, so a step notices a task that ended its session, even when the task started another.
+    private var sessions = 0
+    private var opened = false
+    private var owner: Thread? = null
+    private val members = ArrayList<Subscription<*>>()
     // Subscriptions the composition remembers.
     private val composed = ArrayList<Subscription<*>>()
     private var ticks = 0L
@@ -43,89 +42,104 @@ class UiStateBinding<S, A>(private val snapshot: () -> S, private val handle: (A
     var isOpen = false
         private set
 
-    /** Queues tasks with the content's actions; see [GameThread.post]. */
-    val gameThread = GameThread { task -> binding?.send(Task(task)) == true }
+    /** Queues tasks for the game thread; see [GameThread.post]. */
+    val gameThread = GameThread { task ->
+        synchronized(tasks) {
+            when {
+                !accepting -> false
+                tasks.size >= CAPACITY -> {
+                    rejected++
+                    false
+                }
+                else -> {
+                    tasks.addLast(task)
+                    true
+                }
+            }
+        }
+    }
 
-    /** Starts a session from a new snapshot and samples the member subscriptions; does nothing while one is open. */
+    /** Starts a session and samples the member subscriptions; does nothing while one is open. */
     fun open() {
         if (isOpen) return
+        owner = Thread.currentThread()
         opened = true
         ticks = 0
+        sessions++
         composed.clear()
-        val opening = UiBinding<S, Any?>(snapshot())
         for (member in members) sample(member)
-        binding = opening
+        synchronized(tasks) {
+            accepting = true
+            rejected = 0
+        }
         isOpen = true
     }
 
     /**
-     * Runs the actions and tasks waiting on entry, then publishes a snapshot and samples the subscriptions that are
-     * due, or all of them when one ran, unless one of them ended the session.
+     * Runs the tasks waiting on entry, then samples the subscriptions that are due, or all of them when one ran, unless
+     * one of them ended the session.
      */
     fun tick() {
         if (!isOpen) return
-        val current = checkNotNull(binding)
+        checkOwner()
+        val session = sessions
         ticks++
-        val ran = current.drainActions { dispatch(it) }
-        if (isOpen && binding === current) refresh(current, all = ran > 0)
+        val ran = runWaiting()
+        if (isOpen && sessions == session) refresh(all = ran > 0)
     }
 
     /**
-     * Runs the actions and tasks waiting on entry, such as those an input event just queued. When any ran and none
-     * ended the session, publishes a snapshot and samples every subscription; otherwise it reads nothing.
+     * Runs the tasks waiting on entry, such as those an input event just queued. When any ran and none ended the
+     * session, samples every subscription; otherwise it reads nothing.
      */
-    fun handleActions() {
+    fun runTasks() {
         if (!isOpen) return
-        val current = checkNotNull(binding)
-        if (current.drainActions { dispatch(it) } > 0 && isOpen && binding === current) refresh(current, all = true)
+        checkOwner()
+        val session = sessions
+        if (runWaiting() > 0 && isOpen && sessions == session) refresh(all = true)
     }
 
     /**
-     * Runs the waiting actions and tasks of a session shown again after another screen covered its host, then publishes
-     * a snapshot and samples every subscription, since the game went on meanwhile.
+     * Runs the waiting tasks of a session shown again after another screen covered its host, then samples every
+     * subscription, since the game went on meanwhile.
      */
     fun resume() {
         if (!isOpen) return
-        val current = checkNotNull(binding)
-        current.drainActions { dispatch(it) }
-        if (isOpen && binding === current) refresh(current, all = true)
+        checkOwner()
+        val session = sessions
+        runWaiting()
+        if (isOpen && sessions == session) refresh(all = true)
     }
 
-    /** Ends the session: the queue is discarded and [send] and [gameThread] return false until the next [open]. */
+    /** Ends the session: the queue is discarded and [gameThread] returns false until the next [open]. */
     fun close() {
         if (!isOpen) return
-        checkNotNull(binding).close()
+        checkOwner()
+        synchronized(tasks) {
+            accepting = false
+            tasks.clear()
+        }
         isOpen = false
         composed.clear()
     }
 
-    /** The latest snapshot. Equal snapshots never recompose. */
-    val value: S
-        @Composable get() = checkNotNull(binding) { "Read the state inside its host's content" }.value
-
-    /**
-     * Queues [action] for [handle]. False without an open session or while 64 actions and tasks wait; none is
-     * overwritten.
-     */
-    fun send(action: A): Boolean = binding?.send(action) == true
-
-    /** Actions and tasks refused in the latest session because 64 were already waiting. */
-    val rejectedActions: Long
-        get() = binding?.rejectedActions ?: 0
+    /** Tasks refused in the latest session because 64 were already waiting. */
+    val rejectedTasks: Long
+        get() = synchronized(tasks) { rejected }
 
     /**
      * Game state for a host's member property: [read] takes it on the game thread when each session opens, before the
-     * session composes, then every [intervalTicks] client ticks and after every action or task, and the delegate shows
-     * the latest result. Reading the delegate never runs [read]; in composition, readers recompose when the value
-     * changes. Declare it on the thread that creates the binding before its first session, for example while the host
-     * is constructed; in composition use the composable gameState with an initial value.
+     * session composes, then every [intervalTicks] client ticks and after every task, and the delegate shows the latest
+     * result. Reading the delegate never runs [read]; in composition, readers recompose when the value changes. Declare
+     * it before the binding's first session, for example while the host is constructed; in composition use the
+     * composable gameState with an initial value.
      *
      * [read] only reads the game. Return values and immutable data, never game objects such as entities, menus or item
      * stacks; read what has to stay consistent in one block.
      */
     fun <T> gameState(intervalTicks: Int = 1, read: () -> T): ReadOnlyProperty<Any?, T> {
         require(intervalTicks >= 1) { "intervalTicks must be at least 1" }
-        check(Thread.currentThread() === creator && !opened) {
+        check(!opened) {
             "Declare member gameState while the host is constructed; in composition use gameState(initialValue = ...)"
         }
         val member = Subscription(read, intervalTicks, Unsampled)
@@ -144,12 +158,23 @@ class UiStateBinding<S, A>(private val snapshot: () -> S, private val handle: (A
         return ComposedSubscription(read, intervalTicks, initialValue)
     }
 
-    @Suppress("UNCHECKED_CAST")
-    private fun dispatch(entry: Any?) = if (entry is Task) entry.task.run() else handle(entry as A)
+    private fun checkOwner() =
+        check(Thread.currentThread() === owner) { "Tick and close the game state on the thread that opened it" }
 
-    // Publishes a snapshot with the subscriptions that are due, or all of them.
-    private fun refresh(current: UiBinding<S, Any?>, all: Boolean) {
-        current.update(snapshot())
+    // Runs the tasks waiting on entry and returns how many ran; stops when one of them ended the session.
+    private fun runWaiting(): Int {
+        val count = synchronized(tasks) { tasks.size }
+        var ran = 0
+        repeat(count) {
+            val task = synchronized(tasks) { tasks.pollFirst() } ?: return ran
+            task.run()
+            ran++
+        }
+        return ran
+    }
+
+    // Samples the subscriptions that are due, or all of them.
+    private fun refresh(all: Boolean) {
         composed.removeAll { !it.active }
         for (member in members) if (all || member.dueAt(ticks)) sample(member)
         // A read block cannot change which subscriptions the composition remembers.
@@ -163,9 +188,6 @@ class UiStateBinding<S, A>(private val snapshot: () -> S, private val handle: (A
         subscription.published = value
         subscription.show(value)
     }
-
-    // A queued task, told apart from the host's actions, whatever their type.
-    private class Task(val task: Runnable)
 
     // Sampled from the next step after the composition remembers it until the composition forgets it.
     private inner class ComposedSubscription<T>(read: () -> T, interval: Int, initial: T) :
@@ -182,6 +204,10 @@ class UiStateBinding<S, A>(private val snapshot: () -> S, private val handle: (A
         override fun onAbandoned() {
             active = false
         }
+    }
+
+    private companion object {
+        const val CAPACITY = 64
     }
 }
 

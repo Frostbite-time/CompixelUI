@@ -24,12 +24,9 @@ import net.neoforged.neoforge.client.gui.GuiLayer
  * The session opens on the first drawn frame, follows window, GUI scale and resource changes, and closes when the
  * player leaves the world or on [close]; the next drawn frame opens a new one. All members run on the game thread.
  *
- * A subclass draws its [Content] and reads the game with [gameState], whose read blocks run on the game thread; it
- * extends `ComposeHudLayer<Unit>`. The snapshot model is deprecated and removed in 0.2.0. Until then it mixes with game
- * state: [snapshot] reads the game into one immutable value, taken when the session opens and once per client tick, and
- * [Content] draws the latest one. A HUD layer takes no input, so it has no actions.
+ * A subclass draws its [Content] and reads the game with [gameState], whose read blocks run on the game thread.
  */
-abstract class ComposeHudLayer<S>(
+abstract class ComposeHudLayer(
     private val guiUnitsPerDp: Float = 1f,
     val renderBackend: RenderBackend = configuredRenderBackend(),
     private val nativeItemOptions: NativeItemOptions = NativeItemOptions(),
@@ -56,7 +53,7 @@ abstract class ComposeHudLayer<S>(
         get() = layer?.frameProfiler
 
     /** The content's game state, opened and closed with each session. */
-    @Suppress("DEPRECATION") internal val contentState = UiStateBinding<S, Nothing>(::snapshot) {}
+    internal val contentState = UiStateBinding()
 
     init {
         require(guiUnitsPerDp.isFinite() && guiUnitsPerDp > 0f)
@@ -64,19 +61,10 @@ abstract class ComposeHudLayer<S>(
     }
 
     /**
-     * Reads the game on the game thread for the snapshot model. Return an immutable value: an equal snapshot leaves the
-     * content as it is. Layers that read the game with [gameState] leave it out.
-     */
-    @Deprecated("Read the game with gameState; snapshot is removed in 0.2.0")
-    @Suppress("UNCHECKED_CAST")
-    protected open fun snapshot(): S = Unit as S
-
-    /**
      * The content, composed again only when state it reads changes. Read the game through [gameState], and otherwise
-     * use immutable values prepared during construction: never read game objects such as the player here. [state] is
-     * the latest [snapshot].
+     * use immutable values prepared during construction: never read game objects such as the player here.
      */
-    @Composable protected abstract fun Content(state: S)
+    @Composable protected abstract fun Content()
 
     /**
      * Game state for a member property, such as `private val health by gameState {
@@ -109,7 +97,7 @@ abstract class ComposeHudLayer<S>(
                         // Without input the content never takes focus, or with it Minecraft's text input.
                         windowFocused = { false },
                         contentState = contentState,
-                        content = { Content(contentState.value) },
+                        content = { Content() },
                     )
                     .also { layer = it }
         if (active.session == null) {
@@ -132,7 +120,7 @@ abstract class ComposeHudLayer<S>(
 }
 
 /** HUD layers with an open session. The client ticks them and closes them when the player leaves the world. */
-private val openHudLayers = LinkedHashSet<ComposeHudLayer<*>>()
+private val openHudLayers = LinkedHashSet<ComposeHudLayer>()
 
 /** Called after each client tick: HUD layers publish their content's state. */
 internal fun tickHudLayers() = openHudLayers.toList().forEach { it.tick() }

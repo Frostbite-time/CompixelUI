@@ -61,11 +61,11 @@ internal object SuiteHud {
     const val PANEL_HEIGHT_DP = 32
 
     val model: SuiteHudModel by lazy { SuiteHudModel() }
-    val layer: ComposeHudLayer<Unit> by lazy {
-        object : ComposeHudLayer<Unit>() {
+    val layer: ComposeHudLayer by lazy {
+        object : ComposeHudLayer() {
             private val value by gameState { gameValue }
 
-            @Composable override fun Content(state: Unit) = SuiteHudContent(model, value)
+            @Composable override fun Content() = SuiteHudContent(model, value)
         }
     }
     var enabled = false

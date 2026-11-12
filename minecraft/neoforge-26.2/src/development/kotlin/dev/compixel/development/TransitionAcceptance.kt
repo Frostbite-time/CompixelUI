@@ -88,7 +88,7 @@ internal fun ShowsTransition.ReportedTransition(
 
 /** The player's own inventory menu, whose hotbar slides and fades in and out. */
 internal class InventoryTransitionScreen :
-    ComposeInventoryScreen<InventoryMenu, Unit, Nothing>(
+    ComposeInventoryScreen<InventoryMenu>(
         checkNotNull(Minecraft.getInstance().player).inventoryMenu,
         Component.literal("Inventory transition acceptance"),
     ),
@@ -106,7 +106,7 @@ internal class InventoryTransitionScreen :
     }
 
     @Composable
-    override fun Content(state: Unit, slots: ComposeMenuSlots<InventoryMenu>) =
+    override fun Content(slots: ComposeMenuSlots<InventoryMenu>) =
         ReportedTransition(
             enter =
                 fadeIn(tween(TransitionAcceptance.ENTER_MILLIS)) +
@@ -125,13 +125,13 @@ internal class InventoryTransitionScreen :
 
 /** A screen without a menu. */
 internal class PlainTransitionScreen :
-    ComposeScreen<Unit, Nothing>(Component.literal("Plain transition acceptance")), ShowsTransition {
+    ComposeScreen(Component.literal("Plain transition acceptance")), ShowsTransition {
     @Volatile override var shown: TransitionShown? = null
 
     override fun isUiWindowFocused() = SuiteEnvironment.uiFocused(super.isUiWindowFocused())
 
     @Composable
-    override fun Content(state: Unit) = ReportedTransition { Box(Modifier.fillMaxSize().background(Color(0x80204060))) }
+    override fun Content() = ReportedTransition { Box(Modifier.fillMaxSize().background(Color(0x80204060))) }
 }
 
 /**
@@ -409,23 +409,23 @@ internal class TransitionAcceptance(private val log: AcceptanceLog, private val 
 
     private fun sessionOf(screen: Screen): UiSession? =
         when (screen) {
-            is ComposeScreen<*, *> -> screen.session
-            is ComposeInventoryScreen<*, *, *> -> screen.session
+            is ComposeScreen -> screen.session
+            is ComposeInventoryScreen<*> -> screen.session
             else -> error("${screen.title.string} is not a Compose screen")
         }
 
     private fun renderedFrames(screen: Screen): Long =
         when (screen) {
-            is ComposeScreen<*, *> -> screen.rendererStatistics.renderedFrames
-            is ComposeInventoryScreen<*, *, *> -> screen.rendererStatistics.renderedFrames
+            is ComposeScreen -> screen.rendererStatistics.renderedFrames
+            is ComposeInventoryScreen<*> -> screen.rendererStatistics.renderedFrames
             else -> error("${screen.title.string} is not a Compose screen")
         }
 
     private fun released(screen: Screen, what: String) {
         val (renderer, items) =
             when (screen) {
-                is ComposeScreen<*, *> -> screen.rendererStatistics to screen.nativeItemStatistics
-                is ComposeInventoryScreen<*, *, *> -> screen.rendererStatistics to screen.nativeItemStatistics
+                is ComposeScreen -> screen.rendererStatistics to screen.nativeItemStatistics
+                is ComposeInventoryScreen<*> -> screen.rendererStatistics to screen.nativeItemStatistics
                 else -> error("$what: not a Compose screen")
             }
         check(renderer.liveSurfaces == 0 && renderer.liveNativeImages == 0 && renderer.strandedNativeImages == 0) {

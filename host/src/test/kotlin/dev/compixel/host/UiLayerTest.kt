@@ -125,7 +125,7 @@ class UiLayerTest {
         }
 
     private inner class TestLayer(
-        contentState: UiStateBinding<*, *>,
+        contentState: UiStateBinding,
         private val failItemsClose: Boolean = false,
         closeHost: () -> Unit = {},
         openColorEditor: (() -> Unit)? = null,
@@ -194,10 +194,7 @@ class UiLayerTest {
         override fun destination(graphics: Unit, metrics: ScreenMetrics) = "${metrics.guiWidth}x${metrics.guiHeight}"
     }
 
-    private fun state(handled: MutableList<Int> = mutableListOf()) =
-        UiStateBinding<Int, Int>({ handled.sum() }) {
-            handled += it
-        }
+    private fun state() = UiStateBinding()
 
     @Test
     fun `a session closes its native images and then its renderer even when one of them fails`() {
@@ -252,13 +249,13 @@ class UiLayerTest {
     }
 
     @Test
-    fun `actions sent during an input event run before it returns and a close request closes the host`() {
+    fun `tasks posted during an input event run before it returns and a close request closes the host`() {
         val handled = mutableListOf<Int>()
-        val contentState = state(handled)
+        val contentState = state()
         var closes = 0
         val layer = TestLayer(contentState, closeHost = { closes++ })
         layer.open(200, 100)
-        assertTrue(contentState.send(3))
+        assertTrue(contentState.gameThread.post { handled += 3 })
         assertFalse(layer.handled(false))
         assertEquals(listOf(3), handled)
         layer.requestClose()
@@ -278,7 +275,7 @@ class UiLayerTest {
     @Test
     fun `content posts through LocalGameThread and its game state refreshes before the input event returns`() {
         var energy = 1
-        val contentState = UiStateBinding<Unit, Nothing>({}) {}
+        val contentState = state()
         var thread: GameThread? = null
         var observed = 0
         val layer =
@@ -309,18 +306,18 @@ class UiLayerTest {
     }
 
     @Test
-    fun `refused actions are reported once per session`() {
+    fun `refused tasks are reported once per session`() {
         val contentState = state()
         val layer = TestLayer(contentState)
         layer.open(200, 100)
-        repeat(70) { contentState.send(1) }
+        repeat(70) { contentState.gameThread.post {} }
         layer.tick()
         layer.tick()
         assertEquals(1, layer.warnings.size)
         assertContains(layer.warnings.single(), "6 were rejected")
         layer.close()
         layer.open(200, 100)
-        repeat(70) { contentState.send(1) }
+        repeat(70) { contentState.gameThread.post {} }
         layer.tick()
         assertEquals(2, layer.warnings.size)
         layer.close()
@@ -408,7 +405,7 @@ class UiLayerTest {
         assertTrue(layer.exiting)
         assertFalse(layer.exitFinished)
         assertFalse(contentState.isOpen)
-        assertFalse(contentState.send(1))
+        assertFalse(contentState.gameThread.post {})
         assertFalse(layer.hasTextInputFocus)
         frames(layer) { layer.exitFinished }
         // The exit takes its 40 ms on the frame clock.
@@ -448,9 +445,10 @@ class UiLayerTest {
     }
 
     @Test
-    fun `a covered session shows again as it was, from a new snapshot and without entering again`() {
-        var snapshots = 0
-        val contentState = UiStateBinding<Int, Int>({ ++snapshots }) {}
+    fun `a covered session shows again as it was, with its game state read anew and without entering again`() {
+        var reads = 0
+        val contentState = state()
+        val read by contentState.gameState(intervalTicks = 1000) { ++reads }
         val shown = Shown()
         val layer = TestLayer(contentState, content = transition(shown))
         layer.open(200, 100)
@@ -464,7 +462,8 @@ class UiLayerTest {
         layer.open(200, 100)
         assertFalse(layer.suspended)
         assertSame(session, layer.session)
-        assertEquals(2, snapshots)
+        assertEquals(2, reads)
+        assertEquals(2, read)
         repeat(5) {
             layer.render(Unit, 200, 100)
             Thread.sleep(5)
@@ -527,7 +526,7 @@ class UiLayerTest {
     }
 
     @Test
-    fun `only keys that can paste read the system clipboard`() {
+    fun `a paste reads the system clipboard as it is then, and other keys read nothing`() {
         // Compose's text shortcuts use CtrlOrCmd: Command on macOS, Control elsewhere.
         val shortcut = if (CtrlOrCmd.isCmd) Modifiers(meta = true) else Modifiers(control = true)
         val value = mutableStateOf(TextFieldValue(""))
@@ -568,21 +567,14 @@ class UiLayerTest {
         layer.clipboardText = "copied later"
         val paste = KeyInput(UiKey.V, true, shortcut)
         layer.key(paste)
-        // Compose reads clipboard data on Dispatchers.IO after key delivery returns, and pastes in a later frame.
+        // Compose pastes from a coroutine, in a later frame.
         val deadline = System.nanoTime() + 2_000_000_000
         while (pasted.count > 0 && System.nanoTime() < deadline) {
             layer.render(Unit, 200, 100)
             Thread.sleep(5)
         }
         assertEquals(0, pasted.count, "The paste did not read text copied after the screen opened")
-        // Holding the shortcut pastes again with each repeat, from the first read.
-        repeat(5) { layer.key(paste) }
-        assertEquals(reads + 1, layer.clipboardReads)
-        layer.key(paste.copy(pressed = false))
-        layer.key(paste)
-        layer.key(paste.copy(pressed = false))
-        layer.key(KeyInput(UiKey.INSERT, true, Modifiers(shift = true)))
-        assertEquals(reads + 3, layer.clipboardReads)
+        assertTrue(layer.clipboardReads > reads)
         layer.close()
     }
 

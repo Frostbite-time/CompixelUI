@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import dev.compixel.host.internal.UiWarmup
+import dev.compixel.platform.ClipboardPort
 import dev.compixel.platform.KeyInput
 import dev.compixel.platform.Modifiers
 import dev.compixel.platform.MouseButton
@@ -26,7 +27,6 @@ import dev.compixel.ui.theme.LocalColorEditor
 import dev.compixel.ui.theme.LocalSchemes
 import dev.compixel.ui.theme.Schemes
 import java.util.EnumSet
-import java.util.concurrent.atomic.AtomicBoolean
 
 /** Native images that a [UiLayer] prepares before each frame, such as item icons the game draws. */
 interface NativeImageSource : AutoCloseable {
@@ -55,8 +55,8 @@ class UiLayerSurface<D>(
  * input policy, and the input methods report whether Compose consumed an event. Every member runs on the platform's
  * [thread], and so does the content: its composition, layout, drawing and callbacks.
  *
- * Each session starts on [open] from a new snapshot of [contentState] and ends on [close]. While another screen covers
- * its host, [suspend] keeps the session for [open] to show again; when its host closes for good, [exit] lets a
+ * Each session starts on [open] with [contentState] sampled anew and ends on [close]. While another screen covers its
+ * host, [suspend] keeps the session for [open] to show again; when its host closes for good, [exit] lets a
  * [ScreenTransition] in the content finish before the layer closes. Its content is wrapped in the host's [design],
  * inside [LocalUiFeedback], [LocalSchemes] and [LocalColorEditor]. [prepare] composes, lays out and renders a frame, so
  * the host can read its layout before drawing beneath Compose, and [render] presents it. Animation time starts with the
@@ -77,7 +77,7 @@ abstract class UiLayer<G, D>(
      */
     private val prepareFrameContent: () -> Boolean,
     /** The content's game state, opened before each session composes and closed with it. */
-    private val contentState: UiStateBinding<*, *>,
+    private val contentState: UiStateBinding,
     /** Closes the host, as its own close action does, when the content asked for it through [requestClose]. */
     private val closeHost: () -> Unit,
     /** Opens the color editor over the host when the content asks through [LocalColorEditor]; null where none can. */
@@ -88,16 +88,24 @@ abstract class UiLayer<G, D>(
         private set
 
     private var surface: UiLayerSurface<D>? = null
-    private val clipboard = ClipboardMailbox()
+    // Compose reads and writes the system clipboard itself, on the thread the platform's own text fields use.
+    private val clipboard =
+        object : ClipboardPort {
+            override fun readText() = systemClipboard
+
+            override fun writeText(text: String) {
+                systemClipboard = text
+            }
+        }
     private val characters = CommittedCharacters()
     // Keys pressed and not released yet: another press of one of them is the key repeating while held.
     private val heldKeys = EnumSet.noneOf(UiKey::class.java)
-    private val closeRequested = AtomicBoolean()
-    private val editorRequested = AtomicBoolean()
-    private val requestColorEditor: (() -> Unit)? = openColorEditor?.let { { editorRequested.set(true) } }
-    private val pendingFeedback = AtomicBoolean()
-    private val feedback = UiFeedback { pendingFeedback.set(true) }
-    // Whether this session already warned that its content queued more actions and tasks than the host can hold.
+    private var closeRequested = false
+    private var editorRequested = false
+    private val requestColorEditor: (() -> Unit)? = openColorEditor?.let { { editorRequested = true } }
+    private var pendingFeedback = false
+    private val feedback = UiFeedback { pendingFeedback = true }
+    // Whether this session already warned that its content queued more tasks than the host can hold.
     private var rejectionsReported = false
     private var seenResourceEpoch = 0L
     private var shownSchemes: Schemes? = null
@@ -168,7 +176,7 @@ abstract class UiLayer<G, D>(
     /** The scheme files of the current resources and the player's choices: a new value when either changes. */
     protected abstract val schemes: Schemes
 
-    /** Reports a problem of the content, for example actions the host refused. */
+    /** Reports a problem of the content, for example tasks the host refused. */
     protected abstract fun warn(message: String)
 
     /** Creates a new session's renderer and native images. */
@@ -209,13 +217,13 @@ abstract class UiLayer<G, D>(
 
     /**
      * Creates the session and renderer for a [width]x[height] GUI area, or resizes the open session. A [suspended]
-     * session shows again as it was, from a new snapshot; one still [exiting] is released and a new one starts.
+     * session shows again as it was, with its game state sampled anew; one still [exiting] is released and a new one
+     * starts.
      */
     fun open(width: Int, height: Int) {
         thread.check()
         if (exiting) close()
         val current = currentMetrics(width, height)
-        refreshClipboard()
         refreshSchemes()
         val existing = session
         if (existing == null || existing.state == SessionState.CLOSED) {
@@ -286,7 +294,7 @@ abstract class UiLayer<G, D>(
         leave()
         exiting = true
         updateWindowFocus()
-        contentState.close() // No more actions or snapshots; the content keeps showing the last one.
+        contentState.close() // No more tasks or samples; the content keeps showing the last values.
         shown.hide()
         return true
     }
@@ -420,10 +428,7 @@ abstract class UiLayer<G, D>(
                 frameProfiler.measureCpu(CpuPhase.FRAME_RELEASE) { it.close() }
             }
         }
-        frameProfiler.measureCpu(CpuPhase.HOST) {
-            flushClipboard()
-            afterFrame(active, current)
-        }
+        frameProfiler.measureCpu(CpuPhase.HOST) { afterFrame(active, current) }
         return current
     }
 
@@ -437,17 +442,16 @@ abstract class UiLayer<G, D>(
         frameProfiler?.let(::profileResources)
     }
 
-    /** Follows the window focus and passes on the clipboard and feedback; hosts call it every game tick. */
+    /** Follows the window focus and passes on the feedback; hosts call it every game tick. */
     fun tick() {
         updateWindowFocus()
-        flushClipboard()
         flushFeedback()
         reportRejectedActions()
     }
 
     /**
-     * Runs the content's pending actions and tasks, publishes its game state and then closes the host or opens the
-     * color editor if the content asked to.
+     * Runs the content's pending tasks, samples its game state and then closes the host or opens the color editor if
+     * the content asked to.
      */
     fun tickContent() {
         contentState.tick()
@@ -456,24 +460,26 @@ abstract class UiLayer<G, D>(
 
     /**
      * Closes the host: before the input event during which it was called returns, otherwise at the next [tickContent].
-     * Any thread may call it; a close button in the content calls it from its click.
+     * A close button in the content calls it from its click; from another thread, post it to the game thread.
      */
-    fun requestClose() = closeRequested.set(true)
+    fun requestClose() {
+        thread.check()
+        closeRequested = true
+    }
 
     /**
      * Runs what the content asked for while Compose handled an input event, before the event returns, as vanilla
-     * widgets act inside their input handlers: the actions and tasks it queued, after which its game state refreshes,
-     * then a close or color editor request. True when Compose [consumed] the event or the content closed the host,
-     * which then takes nothing more from the event.
+     * widgets act inside their input handlers: the tasks it queued, after which its game state refreshes, then a close
+     * or color editor request. True when Compose [consumed] the event or the content closed the host, which then takes
+     * nothing more from the event.
      */
     fun handled(consumed: Boolean): Boolean {
-        contentState.handleActions()
+        contentState.runTasks()
         runRequests()
         return consumed || !contentState.isOpen
     }
 
     fun press(x: Double, y: Double, button: MouseButton?): Boolean {
-        refreshClipboard()
         beforePress(session)
         return pointer(PointerAction.PRESS, x, y, button)
     }
@@ -488,13 +494,12 @@ abstract class UiLayer<G, D>(
     fun key(input: KeyInput): Boolean {
         if (!shown) return false
         if (input.pressed) {
-            if (heldKeys.add(input.key) && input.mayPaste) refreshClipboard()
+            heldKeys.add(input.key)
             dismissTransient()
         } else {
             heldKeys.remove(input.key)
         }
         val consumed = session?.key(input) == true
-        flushClipboard()
         flushFeedback()
         return consumed
     }
@@ -526,8 +531,8 @@ abstract class UiLayer<G, D>(
             frameProfiler?.endFrame()
         }
         beforeClose()
-        closeRequested.set(false) // A request ends with the session that made it.
-        editorRequested.set(false)
+        closeRequested = false // A request ends with the session that made it.
+        editorRequested = false
         suspended = false
         exiting = false
         presence = null
@@ -579,10 +584,11 @@ abstract class UiLayer<G, D>(
 
     // Closing wins over a color editor requested in the same event.
     private fun runRequests() {
-        if (closeRequested.getAndSet(false)) {
-            editorRequested.set(false)
-            closeHost()
-        } else if (editorRequested.getAndSet(false)) openColorEditor?.invoke()
+        val close = closeRequested
+        val editor = editorRequested
+        closeRequested = false
+        editorRequested = false
+        if (close) closeHost() else if (editor) openColorEditor?.invoke()
     }
 
     private fun refreshSchemes() {
@@ -593,16 +599,18 @@ abstract class UiLayer<G, D>(
     }
 
     private fun flushFeedback() {
-        if (pendingFeedback.getAndSet(false)) playFeedback()
+        if (!pendingFeedback) return
+        pendingFeedback = false
+        playFeedback()
     }
 
-    // A send() or post() the queue refused loses its work. Say so once per session, without flooding the log.
+    // A post() the queue refused loses its work. Say so once per session, without flooding the log.
     private fun reportRejectedActions() {
         if (rejectionsReported) return
-        val rejected = contentState.rejectedActions
+        val rejected = contentState.rejectedTasks
         if (rejected == 0L) return
         rejectionsReported = true
-        warn("UI content queued more actions and tasks than its screen can hold; $rejected were rejected")
+        warn("UI content queued more tasks than its screen can hold; $rejected were rejected")
     }
 
     // Input reaches the session only while its host shows it.
@@ -617,20 +625,6 @@ abstract class UiLayer<G, D>(
         windowFocus = now
         if (!now) dismissTransient()
         session?.setFocused(now)
-    }
-
-    private fun refreshClipboard() {
-        flushClipboard()
-        clipboard.refresh(systemClipboard)
-    }
-
-    // Compose pastes with Ctrl+V, Cmd+V and Shift+Insert. Reading the system clipboard can take tens of milliseconds,
-    // so only these keys read it, once per press: while one is held, its repeats paste what the first press read.
-    private val KeyInput.mayPaste
-        get() = (key == UiKey.V && (modifiers.control || modifiers.meta)) || (key == UiKey.INSERT && modifiers.shift)
-
-    private fun flushClipboard() {
-        clipboard.takeWrite()?.let { systemClipboard = it }
     }
 
     private fun pointer(

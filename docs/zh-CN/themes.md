@@ -200,8 +200,8 @@ JSON 格式损坏或 `format` 不对的文件会被跳过；未知的字段或�
 
 ```kotlin
 class StorageScreen :
-    ComposeScreen<StorageState, StorageAction>(Component.literal("仓储"), design = OreDesign("examplemod")) {
-    // 照常重写 snapshot、handle 和 Content
+    ComposeScreen(Component.literal("仓储"), design = OreDesign("examplemod")) {
+    // 照常重写 Content
 }
 ```
 
@@ -261,7 +261,7 @@ object StorageDesign : UiDesign {
 }
 
 class StorageScreen :
-    ComposeScreen<StorageState, StorageAction>(Component.literal("仓储"), design = StorageDesign)
+    ComposeScreen(Component.literal("仓储"), design = StorageDesign)
 ```
 
 - 用 `LocalStorageColors.current[StorageColors.accent]` 读取颜色。

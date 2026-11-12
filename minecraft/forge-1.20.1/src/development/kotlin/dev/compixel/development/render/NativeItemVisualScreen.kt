@@ -28,9 +28,8 @@ internal class NativeItemVisualScreen(
             { graphics -> graphics.fill(0, 0, 16, 16, NATIVE_VISUAL_RED) },
             NativeRefresh.STATIC,
         ),
-) : ComposeScreen<Unit, Nothing>(Component.literal("Native item visual acceptance")) {
-    @Composable
-    override fun Content(state: Unit) = NativeItemVisualScene(model) { modifier -> MinecraftItemIcon(icon, modifier) }
+) : ComposeScreen(Component.literal("Native item visual acceptance")) {
+    @Composable override fun Content() = NativeItemVisualScene(model) { modifier -> MinecraftItemIcon(icon, modifier) }
 
     override fun isUiWindowFocused() = dev.compixel.development.SuiteEnvironment.uiFocused(super.isUiWindowFocused())
 
@@ -46,12 +45,12 @@ internal class NativeItemPartialScreen(
     val model: NativeItemVisualModel = NativeItemVisualModel(),
     private val icons: List<ItemIcon> = partialIcons(),
 ) :
-    ComposeScreen<Unit, Nothing>(
+    ComposeScreen(
         Component.literal("Native partial redraw acceptance"),
         nativeItemOptions = NativeItemOptions(preparationsPerFrame = 4),
     ) {
     @Composable
-    override fun Content(state: Unit) =
+    override fun Content() =
         NativeItemPartialScene(
             model,
             icons.map { icon -> @Composable { modifier: Modifier -> MinecraftItemIcon(icon, modifier) } },

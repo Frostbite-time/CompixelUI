@@ -16,14 +16,14 @@ import androidx.compose.animation.slideOutVertically
 import dev.compixel.host.ScreenTransition
 
 @Composable
-override fun Content(state: Int) {
+override fun Content() {
     ScreenTransition(
         enter = fadeIn() + scaleIn(initialScale = 0.9f),
         exit = fadeOut() + slideOutVertically { it / 8 },
     ) {
         OreScreen("Counter", maxWidth = 160.dp, maxHeight = 78.dp) {
-            OreText("Clicked $state times")
-            OreButton("Click me", onClick = { send(Unit) })
+            OreText("Clicked $clicks times")
+            OreButton("Click me", onClick = { gameThread.post { count++ } })
         }
     }
 }
@@ -56,7 +56,7 @@ ScreenTransition(enter = fadeIn(), exit = fadeOut()) {
 
 - 退场动画绘制在游戏画面之上、随后打开的界面之下，不接收输入。
 - 退场动画绘制在 HUD 层 `CompixelGuiLayers.SCREEN_EXITS` 中，位于其他 HUD 层之上。把自己的层注册在它下方，就能绘制在正在关闭的界面下面，例如需要持续到退场结束的效果。
-- 内容继续显示最后一次快照，`send` 返回 `false`。容器界面中的槽位继续显示最后的物品。
+- 内容继续显示最后读到的游戏状态，`gameThread.post` 返回 `false`。容器界面中的槽位继续显示最后的物品。
 - 所有退场动画结束后，界面释放它的 Compose 会话和图形资源。
 - 在退场期间再次打开同一个界面对象时，退场动画停止，界面从头入场。新的界面（例如再次打开的同一个容器）会正常入场，旧界面的退场动画在它下方播完。
 - 打开着的 Ore 对话框会连同遮罩一起随界面淡出。Ore 的菜单和提示会立即关闭。
@@ -94,6 +94,6 @@ Popup(onDismissRequest = { menuOpen = false }) {
 ```kotlin
 ScreenTransition(enter = fadeIn(tween(800))) {
     val entered = transition.currentState == EnterExitState.Visible
-    OreButton("Start", onClick = { if (entered) send(Unit) })
+    OreButton("Start", onClick = { if (entered) gameThread.post { start() } })
 }
 ```

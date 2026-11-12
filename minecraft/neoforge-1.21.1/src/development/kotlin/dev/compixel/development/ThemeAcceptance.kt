@@ -71,7 +71,7 @@ internal class ThemeAcceptance(
     private var orePrimary = Color.Unspecified
     private val packs = mutableListOf<File>()
     private var originalPacks: List<String>? = null
-    private lateinit var screen: ComposeScreen<Unit, Nothing>
+    private lateinit var screen: ComposeScreen
     private lateinit var ui: UiSession
     private var reload: CompletableFuture<Void>? = null
     private var creations = 0
@@ -84,9 +84,9 @@ internal class ThemeAcceptance(
             // A previous run's choice for this owner would decide the scheme before the packs do.
             ColorSchemes.store.select(owner, null)
             screen =
-                object : ComposeScreen<Unit, Nothing>(Component.literal("Color schemes"), design = design) {
+                object : ComposeScreen(Component.literal("Color schemes"), design = design) {
                     @Composable
-                    override fun Content(state: Unit) {
+                    override fun Content() {
                         var text by remember {
                             creations++
                             mutableStateOf("")

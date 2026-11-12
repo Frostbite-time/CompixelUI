@@ -11,11 +11,11 @@ CompixelUI draws real Minecraft items inside Compose, with the same models, anim
 Take a snapshot of each stack on the game thread with `ItemIcon.snapshot`, then hand the icons to Compose:
 
 ```kotlin
-class ItemCatalogScreen(stacks: List<ItemStack>) : ComposeScreen<Unit, Nothing>(Component.literal("Item catalog")) {
+class ItemCatalogScreen(stacks: List<ItemStack>) : ComposeScreen(Component.literal("Item catalog")) {
     private val icons = stacks.map { ItemIcon.snapshot(it) }
 
     @Composable
-    override fun Content(state: Unit) {
+    override fun Content() {
         OreScreen("Item catalog", maxWidth = 176.dp, maxHeight = 110.dp) {
             LazyVerticalGrid(GridCells.FixedSize(18.dp)) {
                 items(icons) { icon ->
@@ -99,10 +99,10 @@ Set `nativeItemOptions` when creating a `ComposeScreen`, `ComposeMenuScreen`, `C
 
 ```kotlin
 class CatalogScreen(title: Component) :
-    ComposeScreen<Unit, Nothing>(title, nativeItemOptions = NativeItemOptions(cacheCapacity = 512)) { … }
+    ComposeScreen(title, nativeItemOptions = NativeItemOptions(cacheCapacity = 512)) { … }
 
 class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
-    ComposeInventoryScreen<StorageMenu, Unit, Nothing>(
+    ComposeInventoryScreen<StorageMenu>(
         menu,
         title,
         nativeItemOptions = NativeItemOptions(cacheCapacity = 1024),

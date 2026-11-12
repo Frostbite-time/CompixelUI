@@ -15,7 +15,7 @@ import net.minecraft.world.inventory.AbstractContainerMenu
  * Keeps vanilla MenuAccess, close packets and client removal semantics. Use ComposeInventoryScreen for menus with
  * native inventory slots.
  */
-abstract class ComposeMenuScreen<M : AbstractContainerMenu, S, A>(
+abstract class ComposeMenuScreen<M : AbstractContainerMenu>(
     protected val container: M,
     title: Component,
     guiUnitsPerDp: Float = 1f,
@@ -24,7 +24,7 @@ abstract class ComposeMenuScreen<M : AbstractContainerMenu, S, A>(
     nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
     design: UiDesign = OreDesign(),
 ) :
-    ComposeScreen<S, A>(
+    ComposeScreen(
         title,
         guiUnitsPerDp = guiUnitsPerDp,
         minimumUiDensity = minimumUiDensity,

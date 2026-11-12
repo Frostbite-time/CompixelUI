@@ -66,12 +66,12 @@ import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.layout.OreScreen
 import net.minecraft.network.chat.Component
 
-class CounterScreen : ComposeScreen<Unit, Nothing>(Component.literal("Counter")) {
+class CounterScreen : ComposeScreen(Component.literal("Counter")) {
     private var count = 0
     private val clicks by gameState { count }
 
     @Composable
-    override fun Content(state: Unit) {
+    override fun Content() {
         OreScreen("Counter", maxWidth = 160.dp, maxHeight = 78.dp) {
             OreText("Clicked $clicks times")
             OreButton("Click me", onClick = { gameThread.post { count++ } })
@@ -84,7 +84,7 @@ class CounterScreen : ComposeScreen<Unit, Nothing>(Component.literal("Counter"))
 
 Open it with `Minecraft.getInstance().setScreen(CounterScreen())` from client code, such as a key mapping handler. `ComposeScreen` is an ordinary Minecraft screen, and `OreScreen` draws the panel and its title. Keep UI code in client-only classes so a dedicated server never loads it.
 
-The screen and its content run on the game thread, and Compose redraws only what changed. A `gameState` property reads the data every tick and shows the latest value in `Content`, and `gameThread.post` runs a block once Compose has handled the click. Here the count lives in the screen: a click adds one, and `clicks` shows the new count in the next frame. `Unit` and `Nothing` say that the screen doesn't use the deprecated [snapshots and actions](#snapshots-and-actions).
+The screen and its content run on the game thread, and Compose redraws only what changed. A `gameState` property reads the data every tick and shows the latest value in `Content`, and `gameThread.post` runs a block once Compose has handled the click. Here the count lives in the screen: a click adds one, and `clicks` shows the new count in the next frame.
 
 ## 4. Show game data
 
@@ -93,14 +93,14 @@ The screen and its content run on the game thread, and Compose redraws only what
 ```kotlin
 data class HeldItem(val name: String, val count: Int)
 
-class HandScreen : ComposeScreen<Unit, Nothing>(Component.literal("Hand")) {
+class HandScreen : ComposeScreen(Component.literal("Hand")) {
     private val held by gameState {
         val stack = Minecraft.getInstance().player?.mainHandItem ?: ItemStack.EMPTY
         HeldItem(stack.hoverName.string, stack.count)
     }
 
     @Composable
-    override fun Content(state: Unit) {
+    override fun Content() {
         OreScreen("Hand", maxWidth = 180.dp, maxHeight = 84.dp) {
             OreText("${held.name} × ${held.count}")
             OreButton("Drop one", onClick = { gameThread.post { Minecraft.getInstance().player?.drop(false) } })
@@ -115,8 +115,8 @@ Open it with `Minecraft.getInstance().setScreen(HandScreen())`.
 | --- | --- |
 | `val x by gameState(intervalTicks) { … }` | Its block runs on the game thread when the screen opens, before the first frame, then every `intervalTicks` ticks (1 by default) and after work posted from an input event. Declare it while the screen is constructed. |
 | `gameState(initialValue, intervalTicks, keys) { … }` | The same inside a composable, for state that only part of the content needs: `initialValue` until the first sample at the next tick. New `keys` replace it, and leaving the composition ends it. |
-| `gameThread.post { … }` | Queues the block for the game thread, from anywhere, usually UI callbacks. Returns `false` while the screen is closed or 64 blocks and actions are waiting. |
-| `Content(state)` | On the game thread, when a value it reads changed |
+| `gameThread.post { … }` | Queues the block for the game thread, from anywhere, usually UI callbacks. Returns `false` while the screen is closed or 64 blocks are waiting. |
+| `Content()` | On the game thread, when a value it reads changed |
 
 A click, key or typed character that posts work has it run, and every `gameState` read again, before the event returns, just as vanilla buttons act at once; the next frame already shows the result. Work posted at other times, for example from a coroutine, runs at the next tick, which reads everything again too. A block posted by another block waits for the next round.
 
@@ -125,32 +125,6 @@ Reading a `gameState` property only takes the latest value and never runs its bl
 The screen reads its `gameState` properties before its first frame. When it closes, work not yet run is dropped and the content keeps its last values for its exit; when it opens again, it reads them again. Call `requestClose()` to close it from a button; the screen closes before the click returns.
 
 In `Content`, use only `gameState`, `gameThread` and values prepared in the constructor. Don't touch players, item stacks or other game objects inside composables: Compose doesn't see them change. Don't close or change the screen from inside a UI callback either; post that work. `ComposeMenuScreen`, `ComposeInventoryScreen` and `ComposeHudLayer` work the same way for [menus and container screens](inventory.md#show-the-menus-state) and [HUD layers](hud.md).
-
-### Snapshots and actions
-
-The screen's type parameters are for an older way to carry the same data. It is deprecated: `snapshot`, `handle` and `send` are removed in 0.2.0, together with the type parameters, so write new screens with `gameState` and `gameThread`. Until then it still works and can be mixed with `gameState`. `snapshot` reads everything into one immutable value of type `S`, `Content` draws the latest one as `state`, and `handle` runs the actions of type `A` that callbacks `send`:
-
-```kotlin
-class CounterScreen : ComposeScreen<Int, Unit>(Component.literal("Counter")) {
-    private var count = 0
-
-    override fun snapshot() = count
-
-    override fun handle(action: Unit) {
-        count++
-    }
-
-    @Composable
-    override fun Content(state: Int) {
-        OreScreen("Counter", maxWidth = 160.dp, maxHeight = 78.dp) {
-            OreText("Clicked $state times")
-            OreButton("Click me", onClick = { send(Unit) })
-        }
-    }
-}
-```
-
-`snapshot` runs at the same moments as a member `gameState` read every tick, and `send` queues actions with the posted blocks, in order. Because `snapshot()` can run more than once per tick, keep it to reading the game.
 
 ## 5. Ship it
 

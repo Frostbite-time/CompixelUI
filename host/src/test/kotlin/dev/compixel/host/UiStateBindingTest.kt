@@ -10,225 +10,86 @@ import org.junit.jupiter.api.Test
 
 class UiStateBindingTest {
     @Test
-    fun `content sees the opening snapshot and each tick handles actions before the next`() {
-        var energy = 1
-        val handled = mutableListOf<Int>()
-        val state =
-            UiStateBinding<Int, Int>({ energy }) {
-                handled += it
-                energy += it
-            }
-        state.open()
-        var observed = 0
-        UiSession(Viewport(20, 20)) {
-                val value = state.value
-                SideEffect { observed = value }
-            }
-            .use { session ->
-                session.frame(1)?.close()
-                assertEquals(1, observed)
-                assertTrue(state.send(10))
-                state.tick()
-                session.frame(2)?.close()
-                assertEquals(listOf(10), handled)
-                assertEquals(11, observed)
-            }
-        state.close()
-    }
-
-    @Test
-    fun `handling an input event's actions publishes one snapshot before the next tick`() {
-        var energy = 1
-        var snapshots = 0
-        val handled = mutableListOf<Int>()
-        val state =
-            UiStateBinding<Int, Int>({
-                snapshots++
-                energy
-            }) {
-                handled += it
-                energy += it
-            }
-        state.open()
-        var observed = 0
-        UiSession(Viewport(20, 20)) {
-                val value = state.value
-                SideEffect { observed = value }
-            }
-            .use { session ->
-                session.frame(1)?.close()
-                assertEquals(1, observed)
-                state.handleActions()
-                assertEquals(1, snapshots, "A snapshot was taken without an action")
-                assertTrue(state.send(10) && state.send(5))
-                state.handleActions()
-                assertEquals(listOf(10, 5), handled)
-                assertEquals(2, snapshots)
-                session.frame(2)?.close()
-                assertEquals(16, observed)
-            }
-        state.close()
-    }
-
-    @Test
-    fun `handling actions stops once the handler ends the session`() {
-        var snapshots = 0
-        val handled = mutableListOf<Int>()
-        lateinit var state: UiStateBinding<Int, Int>
-        state =
-            UiStateBinding({ ++snapshots }) {
-                handled += it
-                state.close()
-            }
-        state.open()
-        assertTrue(state.send(1))
-        assertTrue(state.send(2))
-        state.handleActions()
-        assertEquals(listOf(1), handled)
-        assertEquals(1, snapshots)
-        assertFalse(state.isOpen)
-        state.handleActions()
-        assertEquals(listOf(1), handled)
-    }
-
-    @Test
-    fun `rejected actions are counted for each session`() {
-        val state = UiStateBinding<Int, Int>({ 0 }) {}
-        state.open()
-        repeat(64) { assertTrue(state.send(it)) }
-        assertFalse(state.send(64))
-        assertEquals(1, state.rejectedActions)
-        state.close()
-        assertFalse(state.send(65))
-        assertEquals(1, state.rejectedActions, "A send after close counted as a rejection")
-        state.open()
-        assertEquals(0, state.rejectedActions)
-        state.close()
-    }
-
-    @Test
-    fun `an open session takes one snapshot per tick`() {
-        var snapshots = 0
-        val state = UiStateBinding<Int, Unit>({ ++snapshots }) {}
-        state.open()
-        state.open()
-        assertEquals(1, snapshots)
-        state.tick()
-        assertEquals(2, snapshots)
-        state.close()
-        state.tick()
-        assertEquals(2, snapshots)
-    }
-
-    @Test
-    fun `a handler that ends the session skips the remaining actions and the snapshot`() {
-        var snapshots = 0
-        val handled = mutableListOf<Int>()
-        lateinit var state: UiStateBinding<Int, Int>
-        state =
-            UiStateBinding({ ++snapshots }) {
-                handled += it
-                state.close()
-            }
-        state.open()
-        assertTrue(state.send(1))
-        assertTrue(state.send(2))
-        state.tick()
-        assertEquals(listOf(1), handled)
-        assertEquals(1, snapshots)
-        assertFalse(state.isOpen)
-        assertFalse(state.send(3))
-    }
-
-    @Test
-    fun `a session reopened by the handler keeps its own snapshot`() {
-        var snapshots = 0
-        lateinit var state: UiStateBinding<Int, Unit>
-        state =
-            UiStateBinding({ ++snapshots }) {
-                state.close()
-                state.open()
-            }
-        state.open()
-        assertTrue(state.send(Unit))
-        state.tick()
-        assertEquals(2, snapshots)
-        assertEquals(2, state.composed())
-        state.close()
-    }
-
-    @Test
-    fun `closing discards pending actions and reopening starts from a new snapshot`() {
-        var energy = 1
-        val handled = mutableListOf<Int>()
-        val state = UiStateBinding<Int, Int>({ energy }) { handled += it }
-        assertFalse(state.send(0), "An action was accepted before the session opened")
-        state.open()
-        assertTrue(state.send(1))
-        state.close()
-        assertFalse(state.send(2), "An action was accepted after the session closed")
-        state.tick()
-        assertEquals(emptyList(), handled)
-        energy = 5
-        state.open()
-        assertEquals(5, state.composed())
-        assertTrue(state.send(3))
-        state.tick()
-        assertEquals(listOf(3), handled)
-        state.close()
-    }
-
-    @Test
-    fun `ticks and close stay on the opening thread`() {
-        val state = UiStateBinding<Int, Int>({ 0 }) {}
-        state.open()
-        assertTrue(state.send(1))
-        onAnotherThread {
-            assertFailsWith<IllegalStateException> { state.tick() }
-            assertFailsWith<IllegalStateException> { state.handleActions() }
-            assertFailsWith<IllegalStateException> { state.close() }
-        }
-        assertTrue(state.isOpen)
-        state.close()
-    }
-
-    @Test
-    fun `tasks share the actions' queue and run in order, and a task queued by a task waits for the next step`() {
+    fun `tasks run in order, and a task queued by a task waits for the next step`() {
         val log = mutableListOf<String>()
-        lateinit var state: UiStateBinding<Int, Int>
-        state = UiStateBinding({ 0 }) { log += "action $it" }
+        val state = UiStateBinding()
         assertFalse(state.gameThread.post { log += "early" }, "A task was accepted before the session opened")
         state.open()
-        assertTrue(state.send(1))
+        assertTrue(state.gameThread.post { log += "first" })
         assertTrue(
             state.gameThread.post {
-                log += "task"
+                log += "second"
                 state.gameThread.post { log += "queued by a task" }
             }
         )
-        assertTrue(state.send(2))
+        assertTrue(state.gameThread.post { log += "third" })
         state.tick()
-        assertEquals(listOf("action 1", "task", "action 2"), log)
+        assertEquals(listOf("first", "second", "third"), log)
         state.tick()
         assertEquals("queued by a task", log.last())
-        repeat(63) { assertTrue(state.send(it)) }
-        assertTrue(state.gameThread.post {})
-        assertFalse(state.gameThread.post {}, "A task was queued beyond the queue's limit")
-        assertEquals(1, state.rejectedActions)
         state.close()
         assertFalse(state.gameThread.post {})
+    }
+
+    @Test
+    fun `rejected tasks are counted for each session`() {
+        val state = UiStateBinding()
+        state.open()
+        repeat(64) { assertTrue(state.gameThread.post {}) }
+        assertFalse(state.gameThread.post {}, "A task was queued beyond the queue's limit")
+        assertEquals(1, state.rejectedTasks)
+        state.close()
+        assertFalse(state.gameThread.post {})
+        assertEquals(1, state.rejectedTasks, "A task posted after close counted as a rejection")
+        state.open()
+        assertEquals(0, state.rejectedTasks)
+        state.close()
+    }
+
+    @Test
+    fun `closing discards pending tasks and a reopened session runs only its own`() {
+        val log = mutableListOf<Int>()
+        val state = UiStateBinding()
+        state.open()
+        assertTrue(state.gameThread.post { log += 1 })
+        state.close()
+        state.tick()
+        assertEquals(emptyList(), log)
+        state.open()
+        assertTrue(state.gameThread.post { log += 3 })
+        state.tick()
+        assertEquals(listOf(3), log)
+        state.close()
+    }
+
+    @Test
+    fun `tasks can come from another thread while ticks and close stay on the opening thread`() {
+        val state = UiStateBinding()
+        var ran = false
+        state.open()
+        onAnotherThread {
+            assertTrue(state.gameThread.post { ran = true })
+            assertFailsWith<IllegalStateException> { state.tick() }
+            assertFailsWith<IllegalStateException> { state.runTasks() }
+            assertFailsWith<IllegalStateException> { state.close() }
+        }
+        assertTrue(state.isOpen)
+        state.tick()
+        assertTrue(ran)
+        state.close()
     }
 
     @Test
     fun `member game state shows the game from the first composition and refreshes at its interval and after tasks`() {
         var energy = 1
         var reads = 0
-        val state = UiStateBinding<Unit, Nothing>({}) {}
+        val state = UiStateBinding()
         val shown by
             state.gameState(intervalTicks = 3) {
                 reads++
                 energy
             }
+        state.open()
         state.open()
         assertEquals(1, reads)
         var observed = 0
@@ -247,10 +108,10 @@ class UiStateBindingTest {
                 assertEquals(2, reads)
                 session.frame(2)?.close()
                 assertEquals(2, observed)
-                state.handleActions()
-                assertEquals(2, reads, "An input event without actions or tasks sampled the state")
+                state.runTasks()
+                assertEquals(2, reads, "An input event without tasks sampled the state")
                 assertTrue(state.gameThread.post { energy = 5 })
-                state.handleActions()
+                state.runTasks()
                 assertEquals(3, reads)
                 session.frame(3)?.close()
                 assertEquals(5, observed, "A task's change did not show at once")
@@ -265,7 +126,7 @@ class UiStateBindingTest {
     fun `composed game state starts from its initial value, follows the latest read block and ends with the composition`() {
         val energy = 7
         var reads = 0
-        val state = UiStateBinding<Unit, Nothing>({}) {}
+        val state = UiStateBinding()
         state.open()
         val shown = mutableStateOf(true)
         val factor = mutableStateOf(1)
@@ -310,7 +171,7 @@ class UiStateBindingTest {
     @Test
     fun `new keys replace a subscription, and the old one is not sampled into the new one`() {
         val energy = mapOf("a" to 1, "b" to 2)
-        val state = UiStateBinding<Unit, Nothing>({}) {}
+        val state = UiStateBinding()
         state.open()
         val source = mutableStateOf("a")
         val sampled = mutableListOf<String>()
@@ -347,7 +208,7 @@ class UiStateBindingTest {
     fun `a closed session keeps its last values and a reopened one samples the game again`() {
         var energy = 1
         var reads = 0
-        val state = UiStateBinding<Unit, Nothing>({}) {}
+        val state = UiStateBinding()
         val shown by state.gameState {
             reads++
             energy
@@ -368,7 +229,7 @@ class UiStateBindingTest {
     fun `a session shown again runs its waiting tasks and then refreshes everything`() {
         var energy = 1
         var reads = 0
-        val state = UiStateBinding<Unit, Nothing>({}) {}
+        val state = UiStateBinding()
         val shown by
             state.gameState(intervalTicks = 100) {
                 reads++
@@ -386,37 +247,62 @@ class UiStateBindingTest {
     fun `a task that ends the session skips the remaining tasks and the sampling`() {
         var reads = 0
         val log = mutableListOf<String>()
-        lateinit var state: UiStateBinding<Unit, Nothing>
-        state = UiStateBinding({}) {}
+        val state = UiStateBinding()
         val shown by state.gameState { ++reads }
         state.open()
         assertTrue(state.gameThread.post { state.close() })
         assertTrue(state.gameThread.post { log += "after close" })
-        state.handleActions()
+        state.runTasks()
         assertEquals(emptyList(), log)
         assertEquals(1, reads)
         assertEquals(1, shown)
+        assertFalse(state.isOpen)
+        assertFalse(state.gameThread.post {})
     }
 
     @Test
-    fun `member game state is declared while its host is constructed and read once a session opened`() {
-        val state = UiStateBinding<Unit, Nothing>({}) {}
+    fun `a session reopened by a task keeps its own sample`() {
+        var reads = 0
+        val state = UiStateBinding()
+        val shown by state.gameState { ++reads }
+        state.open()
+        assertTrue(
+            state.gameThread.post {
+                state.close()
+                state.open()
+            }
+        )
+        state.tick()
+        assertEquals(2, reads, "The step sampled the session its task had started")
+        assertEquals(2, shown)
+        state.close()
+    }
+
+    @Test
+    fun `member game state is declared before the first session and read once a session opened`() {
+        val state = UiStateBinding()
         val early by state.gameState { 1 }
         assertFailsWith<IllegalStateException> { early }
-        onAnotherThread { assertFailsWith<IllegalStateException> { state.gameState { 2 } } }
         state.open()
         assertEquals(1, early)
         assertFailsWith<IllegalStateException> { state.gameState { 3 } }
         state.close()
     }
+}
 
-    private fun <S> UiStateBinding<S, *>.composed(): S {
-        val values = mutableListOf<S>()
-        UiSession(Viewport(20, 20)) {
-                val current = this@composed.value
-                SideEffect { values += current }
-            }
-            .use { it.frame(1)?.close() }
-        return values.single()
+/** Runs [block] on a thread that is not the UI's and rethrows what it threw. */
+internal fun onAnotherThread(block: () -> Unit) {
+    var failure: Throwable? = null
+    Thread {
+        try {
+            block()
+        } catch (error: Throwable) {
+            failure = error
+        }
     }
+        .apply {
+            start()
+            join()
+        }
+    failure?.let { throw it }
 }

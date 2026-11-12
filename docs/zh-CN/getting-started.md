@@ -66,12 +66,12 @@ import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.layout.OreScreen
 import net.minecraft.network.chat.Component
 
-class CounterScreen : ComposeScreen<Unit, Nothing>(Component.literal("计数器")) {
+class CounterScreen : ComposeScreen(Component.literal("计数器")) {
     private var count = 0
     private val clicks by gameState { count }
 
     @Composable
-    override fun Content(state: Unit) {
+    override fun Content() {
         OreScreen("计数器", maxWidth = 160.dp, maxHeight = 78.dp) {
             OreText("已点击 $clicks 次")
             OreButton("点我", onClick = { gameThread.post { count++ } })
@@ -84,7 +84,7 @@ class CounterScreen : ComposeScreen<Unit, Nothing>(Component.literal("计数器"
 
 在客户端代码中用 `Minecraft.getInstance().setScreen(CounterScreen())` 打开它，例如在按键绑定的处理函数里。`ComposeScreen` 就是普通的 Minecraft 界面，`OreScreen` 负责绘制面板和标题。界面代码放在仅客户端加载的类里，专用服务器就不会加载它。
 
-界面和它的内容都运行在游戏线程，Compose 只重绘变化的部分。`gameState` 属性每刻读取数据，并在 `Content` 中显示最新值；`gameThread.post` 提交的代码在 Compose 处理完点击后执行。这里计数保存在界面里：点击时加一，下一帧 `clicks` 就显示新的计数。`Unit` 和 `Nothing` 表示这个界面不使用已弃用的[快照与动作](#快照与动作)。
+界面和它的内容都运行在游戏线程，Compose 只重绘变化的部分。`gameState` 属性每刻读取数据，并在 `Content` 中显示最新值；`gameThread.post` 提交的代码在 Compose 处理完点击后执行。这里计数保存在界面里：点击时加一，下一帧 `clicks` 就显示新的计数。
 
 ## 4. 显示游戏数据
 
@@ -93,14 +93,14 @@ class CounterScreen : ComposeScreen<Unit, Nothing>(Component.literal("计数器"
 ```kotlin
 data class HeldItem(val name: String, val count: Int)
 
-class HandScreen : ComposeScreen<Unit, Nothing>(Component.literal("手持物品")) {
+class HandScreen : ComposeScreen(Component.literal("手持物品")) {
     private val held by gameState {
         val stack = Minecraft.getInstance().player?.mainHandItem ?: ItemStack.EMPTY
         HeldItem(stack.hoverName.string, stack.count)
     }
 
     @Composable
-    override fun Content(state: Unit) {
+    override fun Content() {
         OreScreen("手持物品", maxWidth = 180.dp, maxHeight = 84.dp) {
             OreText("${held.name} × ${held.count}")
             OreButton("丢出一个", onClick = { gameThread.post { Minecraft.getInstance().player?.drop(false) } })
@@ -115,8 +115,8 @@ class HandScreen : ComposeScreen<Unit, Nothing>(Component.literal("手持物品"
 | --- | --- |
 | `val x by gameState(intervalTicks) { … }` | 代码块在游戏线程运行：界面打开时、第一帧之前运行一次，之后每 `intervalTicks` 刻（默认 1）运行一次，输入事件提交了代码之后也会运行。在构造界面时声明。 |
 | `gameState(initialValue, intervalTicks, keys) { … }` | 用在可组合项中，适合只有部分内容需要的状态：在下一刻首次读取之前为 `initialValue`。`keys` 改变时换成新的订阅，离开组合时结束。 |
-| `gameThread.post { … }` | 把代码块交给游戏线程，任意线程都可调用，通常在 UI 回调中。界面已关闭或已有 64 个代码块和动作排队时返回 `false`。 |
-| `Content(state)` | 在游戏线程，它读取的值变化时 |
+| `gameThread.post { … }` | 把代码块交给游戏线程，任意线程都可调用，通常在 UI 回调中。界面已关闭或已有 64 个代码块排队时返回 `false`。 |
+| `Content()` | 在游戏线程，它读取的值变化时 |
 
 点击、按键或输入文字时提交的代码，会在这次事件返回前执行，随后重新读取所有 `gameState`，和原版按钮一样立即生效，下一帧就能看到结果。其他时候提交的代码（例如在协程里）在下一刻执行，那一刻同样会重新读取全部状态。由代码块提交的代码块要等到下一轮。
 
@@ -125,32 +125,6 @@ class HandScreen : ComposeScreen<Unit, Nothing>(Component.literal("手持物品"
 界面在第一帧之前读取它的 `gameState` 属性。界面关闭时，尚未执行的代码会被丢弃，内容保留最后的值用于退场；再次打开时重新读取。在按钮中调用 `requestClose()` 可以关闭界面，界面会在这次点击返回前关闭。
 
 `Content` 中只使用 `gameState`、`gameThread` 和构造时准备好的值。不要在可组合项里访问玩家、物品堆等游戏对象：它们变化时 Compose 不会知道。也不要在 UI 回调里直接关闭或切换界面，把这类操作提交出去。`ComposeMenuScreen`、`ComposeInventoryScreen` 和 `ComposeHudLayer` 以同样的方式用于[菜单与容器界面](inventory.md#显示菜单状态)和 [HUD 层](hud.md)。
-
-### 快照与动作
-
-界面的类型参数属于传递同样数据的旧写法。它已弃用：`snapshot`、`handle` 和 `send` 将在 0.2.0 与类型参数一起移除，新界面请使用 `gameState` 和 `gameThread`。在此之前它仍然可用，也可以和 `gameState` 混用。`snapshot` 把全部数据读成类型为 `S` 的一个不可变值，`Content` 以 `state` 绘制最新的值，`handle` 执行回调通过 `send` 发来的、类型为 `A` 的动作：
-
-```kotlin
-class CounterScreen : ComposeScreen<Int, Unit>(Component.literal("计数器")) {
-    private var count = 0
-
-    override fun snapshot() = count
-
-    override fun handle(action: Unit) {
-        count++
-    }
-
-    @Composable
-    override fun Content(state: Int) {
-        OreScreen("计数器", maxWidth = 160.dp, maxHeight = 78.dp) {
-            OreText("已点击 $state 次")
-            OreButton("点我", onClick = { send(Unit) })
-        }
-    }
-}
-```
-
-`snapshot` 与每刻读取的成员 `gameState` 在相同的时机运行，`send` 发出的动作和提交的代码块按顺序排在同一个队列里。由于 `snapshot()` 每刻可能调用不止一次，它只应读取游戏状态。
 
 ## 5. 发布
 

@@ -56,7 +56,7 @@ internal class ComposeLayer(
     /** Runs after each frame's layout and before its drawing; true when it changed state the content reads. */
     prepareFrameContent: () -> Boolean = { false },
     /** The content's game state, opened before each session composes and closed with it. */
-    contentState: UiStateBinding<*, *>,
+    contentState: UiStateBinding,
     /** Closes the host when its content asks to. */
     closeHost: () -> Unit = {},
     /** Opens the color editor over the host; null where none can open, as in HUD layers. */

@@ -26,7 +26,7 @@ import net.minecraftforge.fml.ModList
  * Content of a CompixelUI screen opens it through `LocalColorEditor`; other code can open this screen directly.
  */
 class ColorEditorScreen(parent: Screen?, private val design: UiDesign) :
-    ComposeScreen<Unit, Nothing>(Component.translatable("compixel.color_editor"), parent) {
+    ComposeScreen(Component.translatable("compixel.color_editor"), parent) {
     private val logger = LogUtils.getLogger()
     private val text = editorText(design.owner)
     private val preview = design.preview()
@@ -36,7 +36,7 @@ class ColorEditorScreen(parent: Screen?, private val design: UiDesign) :
     private val failed = line("compixel.color_editor.export_failed")
 
     @Composable
-    override fun Content(state: Unit) =
+    override fun Content() =
         OreColorEditor(design.owner, ColorSchemes.store, text, ::export, ::requestClose) { design.Decorate(preview) }
 
     override fun removed() {

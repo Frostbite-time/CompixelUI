@@ -200,8 +200,8 @@ Screens use Ore with CompixelUI's schemes by default. Name your mod to give its 
 
 ```kotlin
 class StorageScreen :
-    ComposeScreen<StorageState, StorageAction>(Component.literal("Storage"), design = OreDesign("examplemod")) {
-    // snapshot, handle and Content as usual
+    ComposeScreen(Component.literal("Storage"), design = OreDesign("examplemod")) {
+    // Content as usual
 }
 ```
 
@@ -261,7 +261,7 @@ object StorageDesign : UiDesign {
 }
 
 class StorageScreen :
-    ComposeScreen<StorageState, StorageAction>(Component.literal("Storage"), design = StorageDesign)
+    ComposeScreen(Component.literal("Storage"), design = StorageDesign)
 ```
 
 - Read your colors with `LocalStorageColors.current[StorageColors.accent]`.

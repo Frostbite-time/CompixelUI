@@ -142,7 +142,7 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
         doLast {
             def api = artifacts.apiDocs
             new java.util.zip.ZipFile(api.sources.get().archiveFile.get().asFile).withCloseable { zip ->
-                ['dev/compixel/host/UiBinding.kt', 'dev/compixel/ui/ore/button/OreButton.kt',
+                ['dev/compixel/host/UiStateBinding.kt', 'dev/compixel/ui/ore/button/OreButton.kt',
                  'dev/compixel/sync/state/SyncSchema.java', 'dev/compixel/slots/SlotBehavior.java',
                  'dev/compixel/forge/ComposeScreen.kt', 'META-INF/compixel/LICENSE'].each {
                     if (zip.getEntry(it) == null) throw new GradleException("Missing library source: $it")
@@ -172,7 +172,7 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
             new java.util.zip.ZipFile(api.documentation.get().archiveFile.get().asFile).withCloseable { zip ->
                 verifyLicenseGroups(zip, 'third-party', ['common', 'javadoc'])
                 ['index.html', 'scripts/pages.json', 'META-INF/compixel/LICENSE',
-                 "${api.moduleName}/dev.compixel.host/-ui-binding/index.html",
+                 "${api.moduleName}/dev.compixel.host/-ui-state-binding/index.html",
                  "${api.moduleName}/dev.compixel.sync.state/-sync-schema/index.html",
                  "${api.moduleName}/dev.compixel.forge/-compose-screen/index.html",
                  "${api.moduleName}/dev.compixel.ui.ore.button/-ore-button.html"].each {

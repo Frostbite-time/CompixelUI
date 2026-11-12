@@ -11,11 +11,11 @@
 这个 HUD 层统计玩家物品栏中的钻石。`gameState` 属性在游戏线程读取游戏，`Content` 绘制最新的值：
 
 ```kotlin
-class QuestHud(private val diamond: ItemIcon) : ComposeHudLayer<Unit>() {
+class QuestHud(private val diamond: ItemIcon) : ComposeHudLayer() {
     private val found by gameState { Minecraft.getInstance().player?.inventory?.countItem(Items.DIAMOND) ?: 0 }
 
     @Composable
-    override fun Content(state: Unit) = QuestPanel(diamond, found)
+    override fun Content() = QuestPanel(diamond, found)
 }
 
 fun registerQuestHud(modBus: IEventBus) {
@@ -42,7 +42,7 @@ fun QuestPanel(diamond: ItemIcon, found: Int) {
 }
 ```
 
-在客户端模组构造函数中调用 `registerQuestHud(modBus)`。`Unit` 表示这个 HUD 层不使用已弃用的[快照](getting-started.md#快照与动作)。
+在客户端模组构造函数中调用 `registerQuestHud(modBus)`。
 
 ## 表现
 

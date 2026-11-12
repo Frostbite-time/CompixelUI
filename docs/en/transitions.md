@@ -16,14 +16,14 @@ import androidx.compose.animation.slideOutVertically
 import dev.compixel.host.ScreenTransition
 
 @Composable
-override fun Content(state: Int) {
+override fun Content() {
     ScreenTransition(
         enter = fadeIn() + scaleIn(initialScale = 0.9f),
         exit = fadeOut() + slideOutVertically { it / 8 },
     ) {
         OreScreen("Counter", maxWidth = 160.dp, maxHeight = 78.dp) {
-            OreText("Clicked $state times")
-            OreButton("Click me", onClick = { send(Unit) })
+            OreText("Clicked $clicks times")
+            OreButton("Click me", onClick = { gameThread.post { count++ } })
         }
     }
 }
@@ -56,7 +56,7 @@ Whether the player presses Escape, the content calls `requestClose()` or the ser
 
 - The exit draws above the game view and beneath any screen that opens next. It takes no input.
 - Exits draw in the HUD layer `CompixelGuiLayers.SCREEN_EXITS`, above the other HUD layers. Register a layer of your own below it to draw beneath closing screens, for example an effect that should last until their exit has finished.
-- The content keeps showing its last snapshot, and `send` returns `false`. In a container screen, slots keep showing their last items.
+- The content keeps showing its last game state, and `gameThread.post` returns `false`. In a container screen, slots keep showing their last items.
 - When every exit has finished, the screen releases its Compose session and its graphics.
 - Opening the same screen object during its exit stops the exit, and the screen enters from the start. A new screen, such as the same container opened again, enters while the old exit finishes beneath it.
 - An open Ore dialog fades with the screen, scrim included. Ore's menus and tooltips close at once.
@@ -94,6 +94,6 @@ To ignore clicks until a long entrance has finished, check the scope's `transiti
 ```kotlin
 ScreenTransition(enter = fadeIn(tween(800))) {
     val entered = transition.currentState == EnterExitState.Visible
-    OreButton("Start", onClick = { if (entered) send(Unit) })
+    OreButton("Start", onClick = { if (entered) gameThread.post { start() } })
 }
 ```

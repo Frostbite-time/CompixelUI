@@ -12,11 +12,11 @@
 
 ```kotlin
 class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
-    ComposeInventoryScreen<StorageMenu, Unit, Nothing>(menu, title) {
+    ComposeInventoryScreen<StorageMenu>(menu, title) {
     private val caption = title.string
 
     @Composable
-    override fun Content(state: Unit, slots: ComposeMenuSlots<StorageMenu>) {
+    override fun Content(slots: ComposeMenuSlots<StorageMenu>) {
         OreScreen(caption, maxWidth = 176.dp, maxHeight = 190.dp, panelModifier = slots.areaModifier()) {
             SlotGrid(slots, 0 until 27)
             OreText("物品栏")
@@ -45,7 +45,7 @@ modBus.addListener { event: RegisterMenuScreensEvent ->
 - `slots.Slot(id)` 放置对应序号的菜单槽位。每个槽位只放一次，没放的槽位会被隐藏。
 - `slots.areaModifier()` 标出其他模组眼中的容器区域，例如配方查看器据此把面板摆在旁边。
 - 标题等游戏对象请在组合之前读取，就像这里的 `caption`。
-- 槽位本身已经显示菜单里的物品，所以这个界面自己不读取任何数据。`Unit` 和 `Nothing` 表示它不使用已弃用的[快照与动作](getting-started.md#快照与动作)。
+- 槽位本身已经显示菜单里的物品，所以这个界面自己不读取任何数据。
 
 Forge 1.20.1 请在 `FMLClientSetupEvent.enqueueWork` 中用 `MenuScreens.register` 注册。
 
@@ -57,13 +57,13 @@ Forge 1.20.1 请在 `FMLClientSetupEvent.enqueueWork` 中用 `MenuScreens.regist
 
 ```kotlin
 class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
-    ComposeInventoryScreen<StorageMenu, Unit, Nothing>(menu, title) {
+    ComposeInventoryScreen<StorageMenu>(menu, title) {
     private val caption = title.string
     private val used by gameState { (0 until 27).count { container.getSlot(it).hasItem() } }
     private val locked by gameState { container.locked() }
 
     @Composable
-    override fun Content(state: Unit, slots: ComposeMenuSlots<StorageMenu>) {
+    override fun Content(slots: ComposeMenuSlots<StorageMenu>) {
         OreScreen(
             caption,
             maxWidth = 176.dp,
@@ -88,7 +88,7 @@ class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
 
 - `gameState` 的代码块在游戏线程运行：界面打开时、每刻，以及输入事件提交了代码之后。
 - `requestClose()` 从界面中关闭界面，就像这里面板的关闭按钮。
-- 没有槽位的菜单用 `ComposeMenuScreen`，用法相同，只是 `Content(state)` 没有槽位参数。
+- 没有槽位的菜单用 `ComposeMenuScreen`，用法相同，只是 `Content()` 没有槽位参数。
 
 ## 选择界面类
 

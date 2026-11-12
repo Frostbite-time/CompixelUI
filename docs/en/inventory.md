@@ -12,11 +12,11 @@ This screen is for a menu with 27 storage slots followed by the player's invento
 
 ```kotlin
 class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
-    ComposeInventoryScreen<StorageMenu, Unit, Nothing>(menu, title) {
+    ComposeInventoryScreen<StorageMenu>(menu, title) {
     private val caption = title.string
 
     @Composable
-    override fun Content(state: Unit, slots: ComposeMenuSlots<StorageMenu>) {
+    override fun Content(slots: ComposeMenuSlots<StorageMenu>) {
         OreScreen(caption, maxWidth = 176.dp, maxHeight = 190.dp, panelModifier = slots.areaModifier()) {
             SlotGrid(slots, 0 until 27)
             OreText("Inventory")
@@ -45,7 +45,7 @@ modBus.addListener { event: RegisterMenuScreensEvent ->
 - `slots.Slot(id)` places the menu slot with that index. Place each slot once; slots you leave out are hidden.
 - `slots.areaModifier()` marks the area other mods treat as the container, for example to place recipe viewer panels beside it.
 - Read the title and other game objects before composition, as `caption` does here.
-- The slots already show the menu's items, so this screen reads nothing itself. `Unit` and `Nothing` say that it doesn't use the deprecated [snapshots and actions](getting-started.md#snapshots-and-actions).
+- The slots already show the menu's items, so this screen reads nothing itself.
 
 On Forge 1.20.1, register the screen with `MenuScreens.register` inside `FMLClientSetupEvent.enqueueWork`.
 
@@ -57,13 +57,13 @@ When the screen shows more than slots, read the menu with `gameState`. This vers
 
 ```kotlin
 class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
-    ComposeInventoryScreen<StorageMenu, Unit, Nothing>(menu, title) {
+    ComposeInventoryScreen<StorageMenu>(menu, title) {
     private val caption = title.string
     private val used by gameState { (0 until 27).count { container.getSlot(it).hasItem() } }
     private val locked by gameState { container.locked() }
 
     @Composable
-    override fun Content(state: Unit, slots: ComposeMenuSlots<StorageMenu>) {
+    override fun Content(slots: ComposeMenuSlots<StorageMenu>) {
         OreScreen(
             caption,
             maxWidth = 176.dp,
@@ -88,7 +88,7 @@ Here `locked` and `requestLocked` stand for your menu's own state, for example k
 
 - `gameState` blocks run on the game thread when the screen opens, every tick, and after an input event that posted work.
 - `requestClose()` closes the screen from the UI, as the panel's close button does here.
-- `ComposeMenuScreen` works the same way for menus without slots; its `Content(state)` has no slots.
+- `ComposeMenuScreen` works the same way for menus without slots; its `Content()` has no slots.
 
 ## Choose a screen class
 

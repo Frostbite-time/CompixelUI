@@ -32,20 +32,15 @@ CompixelUI brings Jetpack Compose to Minecraft Java Edition. Write screens, inve
 ## A first screen
 
 ```kotlin
-class CounterScreen : ComposeScreen<Int, Unit>(Component.literal("Counter")) {
+class CounterScreen : ComposeScreen(Component.literal("Counter")) {
     private var count = 0
-
-    override fun snapshot() = count
-
-    override fun handle(action: Unit) {
-        count++
-    }
+    private val clicks by gameState { count }
 
     @Composable
-    override fun Content(state: Int) {
+    override fun Content() {
         OreScreen("Counter") {
-            OreText("Clicked $state times")
-            OreButton("Click me", onClick = { send(Unit) })
+            OreText("Clicked $clicks times")
+            OreButton("Click me", onClick = { gameThread.post { count++ } })
         }
     }
 }

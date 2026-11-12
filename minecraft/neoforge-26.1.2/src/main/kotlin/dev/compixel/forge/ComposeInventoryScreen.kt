@@ -30,20 +30,16 @@ import net.minecraft.world.inventory.Slot
 /**
  * Compose layout/drawing inside the native container lifecycle, with replaceable inventory behavior. A subclass draws
  * its [Content] with the slots, reads the menu and the game with [gameState], whose read blocks run on the game thread,
- * and changes them with tasks it posts to [gameThread]; it extends `ComposeInventoryScreen<M, Unit, Nothing>`. The
- * snapshot model, with [snapshot], [handle] and [send], is deprecated and removed in 0.2.0. Until then it mixes with
- * game state: [snapshot] reads the menu into one immutable value for [Content], and [handle] runs the actions the
- * content sends.
+ * and changes them with tasks it posts to [gameThread].
  *
- * Actions and tasks queued while Compose handles an input event run before the event returns, as vanilla widgets act
- * inside their input handlers, and the game state refreshes before it returns; those queued at other times run at the
- * next tick. The screen takes a snapshot and samples its member game state when it opens, before the first composition;
- * then it takes a snapshot every tick and samples each game state at its interval, and both after actions or tasks ran.
- * A screen that only covers this one while the menu stays open, such as a recipe viewer, leaves its content as it was
- * until it shows again and refreshes. When the content uses ScreenTransition, closing gives the player control back at
- * once while the content plays its exit above the game.
+ * Tasks queued while Compose handles an input event run before the event returns, as vanilla widgets act inside their
+ * input handlers, and the game state refreshes before it returns; those queued at other times run at the next tick. The
+ * screen samples its member game state when it opens, before the first composition, then each game state at its
+ * interval and all of them after tasks ran. A screen that only covers this one while the menu stays open, such as a
+ * recipe viewer, leaves its content as it was until it shows again and refreshes. When the content uses
+ * ScreenTransition, closing gives the player control back at once while the content plays its exit above the game.
  */
-abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
+abstract class ComposeInventoryScreen<M : AbstractContainerMenu>(
     protected val container: M,
     title: Component,
     val inventory: ComposeMenuSlots<M> = ComposeMenuSlots(container),
@@ -52,7 +48,7 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
     design: UiDesign = OreDesign(),
 ) : SlotBehaviorScreen<M>(container, checkNotNull(Minecraft.getInstance().player).inventory, title) {
     /** The content's game state, opened and closed with each Compose session. */
-    @Suppress("DEPRECATION") internal val contentState = UiStateBinding<S, A>(::snapshot, ::handle)
+    internal val contentState = UiStateBinding()
     private val layer =
         ComposeLayer(
             nativeItemOptions = nativeItemOptions,
@@ -64,7 +60,7 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
             closeHost = ::onClose,
             openColorEditor = { Minecraft.getInstance().setScreen(ColorEditorScreen(this, design)) },
         ) {
-            Content(contentState.value, inventory)
+            Content(inventory)
         }
     // Set by onClose: the player's own inventory menu stays the open menu after its screen closes.
     private var closing = false
@@ -94,45 +90,21 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
     private var nativeCoordinates = emptyMap<Pair<Int, Int>, Int>()
 
     /**
-     * Reads the menu on the game thread for the snapshot model. It can run more than once per tick, so only read.
-     * Return an immutable value: an equal snapshot leaves the content as it is. Screens that read the menu with
-     * [gameState] leave it out.
-     */
-    @Deprecated("Read the menu with gameState; snapshot is removed in 0.2.0")
-    @Suppress("UNCHECKED_CAST")
-    protected open fun snapshot(): S = Unit as S
-
-    /**
-     * Runs an action from the content on the game thread, before the next snapshot: before the input event that sent it
-     * returns, otherwise at the next tick. It may close the screen.
-     */
-    @Deprecated("Change the game in gameThread.post; handle is removed in 0.2.0")
-    protected open fun handle(action: A) {}
-
-    /**
      * The content, composed again only when state it reads changes. Read the menu and the game through [gameState] and
      * change them through [gameThread], and otherwise use [slots] and immutable values prepared during construction:
-     * never read game objects such as the menu here. [state] is the latest [snapshot].
+     * never read game objects such as the menu here.
      */
-    @Composable protected abstract fun Content(state: S, slots: ComposeMenuSlots<M>)
-
-    /**
-     * Queues [action] for [handle] from any thread. False while the screen is not shown or 64 actions and tasks are
-     * waiting.
-     */
-    @Deprecated("Queue the work with gameThread.post; send is removed in 0.2.0")
-    protected fun send(action: A): Boolean = contentState.send(action)
+    @Composable protected abstract fun Content(slots: ComposeMenuSlots<M>)
 
     /**
      * Closes the screen on the game thread, as [onClose] does: before the input event during which it was called
-     * returns, otherwise at the next tick. Call it from any thread, for example from a close button in the content.
+     * returns, otherwise at the next tick. Call it on the game thread, for example from a close button in the content.
      */
     protected fun requestClose() = layer.requestClose()
 
     /**
-     * Runs the content's tasks on the game thread, queued with its actions: before the input event that queued them
-     * returns, otherwise at the next tick, and the game state refreshes after them. False while the screen is not shown
-     * or 64 actions and tasks are waiting.
+     * Runs the content's tasks on the game thread: before the input event that queued them returns, otherwise at the
+     * next tick, and the game state refreshes after them. False while the screen is not shown or 64 tasks are waiting.
      *
      * For example: `onClick = { gameThread.post { container.clearGrid() } }`.
      */
@@ -142,10 +114,10 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu, S, A>(
     /**
      * Game state for a member property, such as `private val progress by gameState { container.progress }`. [read] runs
      * on the game thread when the screen opens, before its first composition, then every [intervalTicks] client ticks
-     * and after the content's actions and tasks. The property shows the latest result, recomposes its readers when it
-     * changes and never runs [read] itself. Declare it while the screen is constructed, in the screen or in a state
-     * object it creates; state that only part of the content needs can use the composable gameState with an initial
-     * value. [read] only reads, and returns values or immutable data, never game objects.
+     * and after the content's tasks. The property shows the latest result, recomposes its readers when it changes and
+     * never runs [read] itself. Declare it while the screen is constructed, in the screen or in a state object it
+     * creates; state that only part of the content needs can use the composable gameState with an initial value. [read]
+     * only reads, and returns values or immutable data, never game objects.
      */
     fun <T> gameState(intervalTicks: Int = 1, read: () -> T): ReadOnlyProperty<Any?, T> =
         contentState.gameState(intervalTicks, read)

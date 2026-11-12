@@ -11,11 +11,11 @@ CompixelUI 能在 Compose 中绘制真实的 Minecraft 物品：模型、动画�
 在游戏线程用 `ItemIcon.snapshot` 为每个物品堆拍下快照，再把图标交给 Compose：
 
 ```kotlin
-class ItemCatalogScreen(stacks: List<ItemStack>) : ComposeScreen<Unit, Nothing>(Component.literal("物品目录")) {
+class ItemCatalogScreen(stacks: List<ItemStack>) : ComposeScreen(Component.literal("物品目录")) {
     private val icons = stacks.map { ItemIcon.snapshot(it) }
 
     @Composable
-    override fun Content(state: Unit) {
+    override fun Content() {
         OreScreen("物品目录", maxWidth = 176.dp, maxHeight = 110.dp) {
             LazyVerticalGrid(GridCells.FixedSize(18.dp)) {
                 items(icons) { icon ->
@@ -99,10 +99,10 @@ MinecraftNativeDrawing(panel, Modifier.size(180.dp, 48.dp))
 
 ```kotlin
 class CatalogScreen(title: Component) :
-    ComposeScreen<Unit, Nothing>(title, nativeItemOptions = NativeItemOptions(cacheCapacity = 512)) { … }
+    ComposeScreen(title, nativeItemOptions = NativeItemOptions(cacheCapacity = 512)) { … }
 
 class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
-    ComposeInventoryScreen<StorageMenu, Unit, Nothing>(
+    ComposeInventoryScreen<StorageMenu>(
         menu,
         title,
         nativeItemOptions = NativeItemOptions(cacheCapacity = 1024),

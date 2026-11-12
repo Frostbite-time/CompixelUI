@@ -11,11 +11,11 @@
 This layer counts the diamonds in the player's inventory. A `gameState` property reads the game on the game thread, and `Content` draws the latest value:
 
 ```kotlin
-class QuestHud(private val diamond: ItemIcon) : ComposeHudLayer<Unit>() {
+class QuestHud(private val diamond: ItemIcon) : ComposeHudLayer() {
     private val found by gameState { Minecraft.getInstance().player?.inventory?.countItem(Items.DIAMOND) ?: 0 }
 
     @Composable
-    override fun Content(state: Unit) = QuestPanel(diamond, found)
+    override fun Content() = QuestPanel(diamond, found)
 }
 
 fun registerQuestHud(modBus: IEventBus) {
@@ -42,7 +42,7 @@ fun QuestPanel(diamond: ItemIcon, found: Int) {
 }
 ```
 
-Call `registerQuestHud(modBus)` from your client mod constructor. `Unit` says that the layer doesn't use the deprecated [snapshots](getting-started.md#snapshots-and-actions).
+Call `registerQuestHud(modBus)` from your client mod constructor.
 
 ## What to expect
 

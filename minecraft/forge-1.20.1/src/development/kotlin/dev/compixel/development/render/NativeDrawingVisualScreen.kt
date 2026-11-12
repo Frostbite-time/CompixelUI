@@ -54,13 +54,12 @@ private class NativeDrawingSamples {
         )
 }
 
-internal class NativeDrawingVisualScreen :
-    ComposeScreen<Unit, Nothing>(Component.literal("Native rectangular drawing acceptance")) {
+internal class NativeDrawingVisualScreen : ComposeScreen(Component.literal("Native rectangular drawing acceptance")) {
     private val samples = NativeDrawingSamples()
     val model: NativeDrawingVisualModel = NativeDrawingVisualModel()
 
     @Composable
-    override fun Content(state: Unit) =
+    override fun Content() =
         NativeDrawingVisualScene(
             model,
             { modifier -> MinecraftNativeDrawing(samples.still, modifier) },
