@@ -28,14 +28,16 @@ fun OreText(
         text,
         modifier,
         style =
-            style.merge(
-                TextStyle(
-                    color = color,
-                    fontSize = fontSize,
-                    fontWeight = fontWeight,
-                    textAlign = textAlign ?: TextAlign.Unspecified,
-                )
-            ),
+            OreTheme.typography.body
+                .merge(style)
+                .merge(
+                    TextStyle(
+                        color = color,
+                        fontSize = fontSize,
+                        fontWeight = fontWeight,
+                        textAlign = textAlign ?: TextAlign.Unspecified,
+                    )
+                ),
         maxLines = maxLines,
         overflow = overflow,
     )

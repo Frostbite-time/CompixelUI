@@ -10,7 +10,7 @@
 | Controls, popups and colors · 控件、弹出层与配色 | [Ore UI](en/ore-ui.md) | [Ore UI](zh-CN/ore-ui.md) |
 | Color schemes, the color editor and resource-pack colors · 配色、颜色编辑器与资源包配色 | [Color schemes](en/themes.md) | [配色](zh-CN/themes.md) |
 | Item icons and tooltips · 物品图标与提示 | [Items and tooltips](en/items.md) | [物品与提示](zh-CN/items.md) |
-| Images from Minecraft resource packs · Minecraft 资源包中的图片 | [Resource images](en/resources.md) | [资源图片](zh-CN/resources.md) |
+| Images and fonts from resource packs · 资源包中的图片与字体 | [Images and fonts](en/resources.md) | [图片与字体](zh-CN/resources.md) |
 | Menus with slots · 带槽位的菜单 | [Container screens](en/inventory.md) | [容器界面](zh-CN/inventory.md) |
 | Animate screens in and out · 界面进出场动画 | [Screen transitions](en/transitions.md) | [进出场动画](zh-CN/transitions.md) |
 | Compose over the game view · 游戏画面上的界面 | [HUD layers](en/hud.md) | [HUD 层](zh-CN/hud.md) |

@@ -2,6 +2,7 @@ package dev.compixel.forge
 
 import dev.compixel.forge.constants.CompixelGuiLayers
 import dev.compixel.forge.render.RendererResources
+import dev.compixel.forge.resources.BuiltinResources
 import dev.compixel.forge.resources.MinecraftResources
 import dev.compixel.forge.theme.ColorEditorScreen
 import dev.compixel.forge.theme.ColorSchemes
@@ -31,6 +32,7 @@ internal object ClientBootstrap {
         // The warm-up takes one step in each frame a screen draws; in the world, the exit layer gives it its frames.
         MinecraftForge.EVENT_BUS.addListener(::warmUp)
         modEventBus.addListener(::registerReloadListeners)
+        modEventBus.addListener(BuiltinResources::register)
         modEventBus.addListener(::registerOverlays)
     }
 
@@ -38,7 +40,7 @@ internal object ClientBootstrap {
         event.registerReloadListener(SchemeReloadListener)
         event.registerReloadListener(
             ResourceManagerReloadListener {
-                MinecraftResources.images.reload()
+                MinecraftResources.resources.reload()
                 RendererResources.reloaded()
             }
         )

@@ -16,16 +16,21 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import dev.compixel.forge.ComposeScreen
+import dev.compixel.forge.resources.fontResource
 import dev.compixel.forge.resources.painterResource
 import dev.compixel.forge.theme.ColorEditorScreen
 import dev.compixel.forge.theme.ColorSchemes
 import dev.compixel.host.UiSession
+import dev.compixel.testing.ResourceFontFixture
 import dev.compixel.testing.suite.AcceptanceLog
 import dev.compixel.testing.suite.AcceptanceStep
 import dev.compixel.ui.UiDesign
 import dev.compixel.ui.ore.button.OreButton
+import dev.compixel.ui.ore.display.OreText
 import dev.compixel.ui.ore.editor.OreColorExport
 import dev.compixel.ui.ore.input.OreTextField
 import dev.compixel.ui.ore.layout.OreScreen
@@ -42,6 +47,7 @@ import java.util.concurrent.CompletableFuture
 import javax.imageio.ImageIO
 import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.Component
+import net.minecraft.server.packs.repository.Pack
 
 /**
  * Exercises the installed adapter's resource stacks, player colors, color editor and exported pack on a live screen.
@@ -98,6 +104,11 @@ internal class ThemeAcceptance(
     private var imageSize = Size.Zero
     private var imageColor = BASE_IMAGE
     private var expectedImageSize = Size(8f, 4f)
+    private var loadedFont: FontFamily? = null
+    private var oreFont: FontFamily? = null
+    private var fontWidth = 0
+    private var baseFontWidth = 0
+    private var smallerFont = false
 
     fun schedule() {
         script.act("open the color scheme fixture") {
@@ -114,7 +125,13 @@ internal class ThemeAcceptance(
                         val current = LocalFixtureColors.current
                         val primary = OreTheme.colors[OreColors.primary]
                         val editor = LocalColorEditor.current
+                        val resourceFont = fontResource(ResourceFontFixture.PATH)
+                        val textStyle = OreTheme.typography.body
+                        val measuredFontWidth = rememberTextMeasurer().measure("Resource font", textStyle).size.width
                         SideEffect {
+                            loadedFont = resourceFont
+                            oreFont = textStyle.fontFamily
+                            fontWidth = measuredFontWidth
                             colors = current
                             orePrimary = primary
                             draft = text
@@ -125,6 +142,7 @@ internal class ThemeAcceptance(
                             OreTextField(text, { text = it }, Modifier.fillMaxWidth(), label = "Draft survives reload")
                             OreButton("Primary action", {}, Modifier.fillMaxWidth())
                             ResourceImages()
+                            OreText("Resource font")
                         }
                     }
 
@@ -135,11 +153,24 @@ internal class ThemeAcceptance(
         }
         script.until("scheme fixture rendered") { screen.rendererStatistics.renderedFrames > 0 }
         script.act("install two resource-pack layers") {
+            baseFontWidth = fontWidth
+            check(baseFontWidth > 0 && loadedFont == oreFont) { "The bundled resource font did not reach Ore" }
+            val defaults = minecraft.resourcePackRepository.availablePacks.single { it.id == "compixel:defaults" }
+            check(defaults.isRequired && defaults.isHidden) { "The default assets must be a required hidden pack" }
+            check(defaults.isFixedPosition && defaults.defaultPosition == Pack.Position.BOTTOM) {
+                "The default resource pack must stay at the bottom"
+            }
+            check(nativeFont().contentEquals(ResourceFontFixture.original)) {
+                "Minecraft's resource manager did not expose the unpacked default TTF"
+            }
             edit("unsaved draft")
             originalPacks = minecraft.resourcePackRepository.selectedIds.toList()
             repeat(2) { packs += newPack("compixel-theme-test-${UUID.randomUUID()}-$it") }
             writeImage(0, LOWER_IMAGE, 8, 4)
             writeImage(1, UPPER_IMAGE, 4, 8)
+            writeFont(0, ResourceFontFixture.original)
+            writeFont(1, ResourceFontFixture.smaller)
+            smallerFont = true
             imageColor = UPPER_IMAGE
             expectedImageSize = Size(4f, 8f)
             write(0, "schemes/storage.json", """{"format":1,"colors":{"panel":"#CFD4E2"}}""")
@@ -166,6 +197,9 @@ internal class ThemeAcceptance(
                 """{"format":1,"colors":{"panel":"#E2DACA","typo":"#FFFFFF","accent":"blue"}}""",
             )
             writeImage(1, EDITED_IMAGE, 6, 3)
+            writeFont(0, ResourceFontFixture.smaller)
+            writeFont(1, ResourceFontFixture.original)
+            smallerFont = false
             imageColor = EDITED_IMAGE
             expectedImageSize = Size(6f, 3f)
             reload = minecraft.reloadResourcePacks()
@@ -181,11 +215,19 @@ internal class ThemeAcceptance(
         awaitColors("player colors", Color(0xFF5A6B7C)) {}
         script.act("remove the top resource-pack image") {
             check(imageFile(1).delete())
+            check(fontFile(1).delete())
+            smallerFont = true
             imageColor = LOWER_IMAGE
             expectedImageSize = Size(8f, 4f)
             reload = minecraft.reloadResourcePacks()
         }
         awaitColors("lower image", Color(0xFF5A6B7C)) {}
+        script.act("break the remaining resource-pack font") {
+            writeFont(0, byteArrayOf(1, 2, 3))
+            smallerFont = false
+            reload = minecraft.reloadResourcePacks()
+        }
+        awaitColors("invalid font fallback", Color(0xFF5A6B7C)) {}
         script.act("open the color editor from the screen") {
             checkNotNull(openEditor).invoke()
             // The screen runs its content's requests at its next tick. Running that tick here lets the suite follow
@@ -223,12 +265,16 @@ internal class ThemeAcceptance(
         }
         awaitColors("removed schemes", FixtureColors.defaults[FixtureColors.panel], sameSession = false) {
             check(colors == FixtureColors.defaults)
+            check(nativeFont().contentEquals(ResourceFontFixture.original)) {
+                "Minecraft did not restore the built-in font after removing the packs"
+            }
         }
         script.act("finish color scheme acceptance") {
             session.open(SuiteParentScreen())
             session.requireReleased(screen)
             release()
             log.pass(AcceptanceStep.RESOURCE_IMAGES)
+            log.pass(AcceptanceStep.RESOURCE_FONTS)
             log.pass(AcceptanceStep.THEME_RELOAD)
         }
     }
@@ -247,6 +293,12 @@ internal class ThemeAcceptance(
             }
             verify()
             check(imageSize == expectedImageSize) { "Reload kept the old resource image dimensions: $imageSize" }
+            check(if (smallerFont) fontWidth in 1 until baseFontWidth else fontWidth == baseFontWidth) {
+                "Resource font width $fontWidth did not follow the pack (base $baseFontWidth, smaller $smallerFont)"
+            }
+            // Invalid resources use Ore's bundled fallback, while the general API uses FontFamily.Default.
+            if (loadedFont != FontFamily.Default)
+                check(loadedFont == oreFont) { "Ore did not follow the resource font" }
             session.capture("theme-" + name.replace(' ', '-')) { pixels ->
                 val expectedRgb = panel.toArgb() and 0xFFFFFF
                 var matched = 0
@@ -295,6 +347,22 @@ internal class ThemeAcceptance(
     }
 
     private fun imageFile(priority: Int) = File(packs[priority], "assets/compixel_theme_test/textures/ui/panel.png")
+
+    private fun fontFile(priority: Int) = File(packs[priority], "assets/compixel/font/compixel.ttf")
+
+    private fun nativeFont(): ByteArray =
+        minecraft.resourceManager
+            .listResources("font") { it.toString() == ResourceFontFixture.PATH }
+            .values
+            .single()
+            .open()
+            .use { it.readAllBytes() }
+
+    private fun writeFont(priority: Int, bytes: ByteArray) {
+        val file = fontFile(priority)
+        check(file.parentFile.mkdirs() || file.parentFile.isDirectory)
+        file.writeBytes(bytes)
+    }
 
     private fun writeImage(priority: Int, color: Int, width: Int, height: Int) {
         val file = imageFile(priority)

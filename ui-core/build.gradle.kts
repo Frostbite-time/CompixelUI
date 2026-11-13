@@ -5,6 +5,7 @@ plugins {
 }
 
 dependencies {
+    api(project(":platform"))
     api(compose.runtime)
     // Colors of schemes and their values
     api(compose.ui)

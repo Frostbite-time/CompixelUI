@@ -65,7 +65,10 @@ fun OreTextField(
             enabled = enabled,
             readOnly = readOnly,
             singleLine = singleLine,
-            textStyle = textStyle.copy(color = if (enabled) colors[OreColors.text] else colors[OreColors.mutedText]),
+            textStyle =
+                OreTheme.typography.body
+                    .merge(textStyle)
+                    .copy(color = if (enabled) colors[OreColors.text] else colors[OreColors.mutedText]),
             keyboardOptions = keyboardOptions,
             keyboardActions = keyboardActions,
             interactionSource = interactions,

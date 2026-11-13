@@ -10,7 +10,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import dev.compixel.ui.UiDesign
+import dev.compixel.ui.ore.internal.CompixelFont
 import dev.compixel.ui.ore.overlay.OreTextContextMenu
+import dev.compixel.ui.resources.fontResource
 import dev.compixel.ui.theme.ColorValues
 import dev.compixel.ui.theme.SchemeOwner
 import dev.compixel.ui.theme.colors
@@ -25,7 +27,18 @@ object OreTheme {
         @Composable get() = LocalOreColors.current
 
     val typography: OreTypography
-        @Composable get() = LocalOreTypography.current
+        @Composable
+        get() {
+            val styles = LocalOreTypography.current
+            val font = fontResource(CompixelFont.RESOURCE_PATH, CompixelFont.family)
+            return remember(styles, font) {
+                styles.copy(
+                    body = styles.body.copy(fontFamily = styles.body.fontFamily ?: font),
+                    title = styles.title.copy(fontFamily = styles.title.fontFamily ?: font),
+                    caption = styles.caption.copy(fontFamily = styles.caption.fontFamily ?: font),
+                )
+            }
+        }
 }
 
 /**
@@ -36,7 +49,7 @@ object OreTheme {
 @Composable
 fun OreTheme(
     colors: ColorValues = OreTheme.colors,
-    typography: OreTypography = OreTheme.typography,
+    typography: OreTypography = LocalOreTypography.current,
     content: @Composable () -> Unit,
 ) {
     require(colors.schema === OreColors) { "OreTheme needs Ore colors, not ${colors.schema}" }

@@ -2,21 +2,13 @@ package dev.compixel.ui.ore.theme
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.platform.Font
 import androidx.compose.ui.unit.sp
-import dev.compixel.ui.ore.internal.CompixelFont
 
-// Compixel: Monocraft, with GNU Unifont for the characters Monocraft lacks. tools/build_font.java builds it.
-private object OreFonts {
-    val pixel by lazy { FontFamily(Font("compixel-font", CompixelFont::data)) }
-}
-
+/** Ore's text styles. A null font family inherits the theme's reloadable Compixel resource font. */
 @Immutable
 data class OreTypography(
     val body: TextStyle =
         TextStyle(
-            fontFamily = OreFonts.pixel,
             fontSize = 8.sp,
             lineHeight = 11.sp,
             fontFeatureSettings = "liga=0,calt=0",

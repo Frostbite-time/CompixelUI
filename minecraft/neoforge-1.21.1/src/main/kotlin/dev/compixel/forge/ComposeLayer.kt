@@ -28,7 +28,6 @@ import dev.compixel.host.ScreenMetrics
 import dev.compixel.host.UiLayer
 import dev.compixel.host.UiLayerSurface
 import dev.compixel.host.UiStateBinding
-import dev.compixel.host.resources.LocalResources
 import dev.compixel.platform.KeyInput
 import dev.compixel.platform.Modifiers
 import dev.compixel.render.NativeImageStatistics
@@ -36,6 +35,7 @@ import dev.compixel.render.RenderBackend
 import dev.compixel.render.UiFrameProfiler
 import dev.compixel.ui.UiDesign
 import dev.compixel.ui.ore.theme.OreDesign
+import dev.compixel.ui.resources.LocalResources
 import dev.compixel.ui.theme.Schemes
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphics
@@ -162,7 +162,7 @@ internal class ComposeLayer(
     @Composable
     override fun ProvideContent(content: @Composable () -> Unit) {
         CompositionLocalProvider(
-            LocalResources provides MinecraftResources.images,
+            LocalResources provides MinecraftResources.resources,
             LocalItemImages provides itemMailbox,
             LocalNativeDrawings provides drawingMailbox,
             LocalItemTooltips provides tooltipMailbox,

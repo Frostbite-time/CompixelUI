@@ -11,7 +11,7 @@ val sharedDependencies =
         ":host" to setOf(":compose-bridge", ":ui-core"),
         ":render-gl" to setOf(":render"),
         ":render-vulkan" to setOf(":render"),
-        ":ui-core" to emptySet(),
+        ":ui-core" to setOf(":platform"),
         ":ui-ore" to setOf(":ui-core"),
         ":demo" to setOf(":host", ":ui-ore"),
         ":desktop" to setOf(":demo", ":testing"),

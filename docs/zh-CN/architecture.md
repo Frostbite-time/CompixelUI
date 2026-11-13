@@ -14,6 +14,7 @@ flowchart TB
         gl[render-gl] --> render
         vk[render-vulkan] --> render
         core[ui-core]
+        core --> platform
         host --> core
         ore[ui-ore] --> core
         sync["menu-sync · slot-core"]
@@ -76,7 +77,7 @@ Compose 绘制的 GPU 图像（例如物品图标页）归渲染器所有。Comp
 - 运行时包改名的库都放在 `dev.compixel.runtime.relocate` 下，这样其他模组自带的副本不会与它们共用同一个包：XZ for Java 位于 `dev.compixel.runtime.relocate.xz`。构建时会相应改写模组 JAR 里对它们的引用。
 - 每个运行时包有自己的版本号，`bundle.lock` 记录该版本的确切内容。
 - 玩家文件通过 Jar-in-Jar 内嵌运行时包。内嵌包里的文件不单独压缩，由玩家文件对整个包统一压缩。Maven 用户则把运行时包作为依赖获取。
-- Ore 字体以 xz 压缩存放，`ui-ore` 在游戏加载时解压，之后一直留在内存中。
+- Ore 字体以 XZ 压缩分发。启动时，各适配器将它解压到隐藏、必需且位于 MC 资源包栈底部的内置资源包，通过 MC 的普通资源管理器提供 `assets/compixel/font/compixel.ttf`。资源包可以替换它，重载后已有界面的排版会更新。`ui-core` 为图片、字体和自定义类型共用按类型解码、缓存租约与重载失效机制，适配器提供资源源。
 - 启动时，Java 代码会在运行任何 Kotlin 代码之前检查所需的运行时和 Kotlin 库，并指出缺少的部分。
 
 ## 接入游戏的方式

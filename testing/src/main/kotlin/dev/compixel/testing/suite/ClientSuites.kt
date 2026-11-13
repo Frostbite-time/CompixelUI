@@ -80,6 +80,9 @@ enum class AcceptanceStep(val report: String) {
         "resource images: resource-pack priority, changed pixels and dimensions, lower-pack and built-in fallback, " +
             "Compose alpha/tint and resource reload without losing live state"
     ),
+    RESOURCE_FONTS(
+        "font resources: pack priority, edited file reload, lower-pack and bundled fallback, invalid font recovery and live typography"
+    ),
     THEME_RELOAD(
         "color schemes stack packs, skip invalid colors, keep the player's colors on top, open the color editor, export a pack and preserve live state"
     ),

@@ -59,6 +59,8 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
                     }
                     if (zip.getEntry('dev/compixel/ui/ore/Compixel.ttf') != null)
                         throw new GradleException("${file.name} carries the Compixel font uncompressed")
+                    if (zip.getEntry('assets/compixel/font/compixel.ttf') != null)
+                        throw new GradleException("${file.name} carries the Compixel font uncompressed in assets")
                     def unrelocated = artifacts.runtime.runtimeRelocations.originalReferences(file)
                     if (unrelocated)
                         throw new GradleException("${file.name} refers to relocated libraries by their original names: ${unrelocated.take(10)}")

@@ -19,6 +19,10 @@ import dev.compixel.host.UiSession
 import dev.compixel.platform.ResourceSource
 import dev.compixel.platform.Viewport
 import dev.compixel.render.RecordedFrame
+import dev.compixel.ui.resources.LocalResources
+import dev.compixel.ui.resources.ResourceType
+import dev.compixel.ui.resources.UiResources
+import dev.compixel.ui.resources.painterResource
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -27,6 +31,47 @@ import kotlin.test.*
 import org.junit.jupiter.api.Test
 
 class UiResourcesTest {
+    @Test
+    fun differentResourceTypesCanShareAPathAndReloadTogether() {
+        var bytes = "first".toByteArray()
+        var reads = 0
+        val resources =
+            UiResources(
+                ResourceSource {
+                    reads++
+                    bytes
+                }
+            )
+        val text = ResourceType<String> { _, data -> data.toString(Charsets.UTF_8) }
+        val size = ResourceType<Int> { _, data -> data.size }
+        var observed = ""
+        var length = 0
+        session(resources) {
+                val string = resources.load("example:data", text).getOrThrow()
+                val count = resources.load("example:data", size).getOrThrow()
+                val shared = resources.load("example:data", text).getOrThrow()
+                SideEffect {
+                    assertEquals(string, shared)
+                    observed = string
+                    length = count
+                }
+            }
+            .use { session ->
+                session.frame(1)?.close()
+                assertEquals("first", observed)
+                assertEquals(5, length)
+                assertEquals(2, reads)
+                bytes = "reloaded".toByteArray()
+                resources.reload()
+                session.frame(2)?.close()
+                assertEquals("reloaded", observed)
+                assertEquals(8, length)
+                assertEquals(4, reads)
+                assertEquals(2, resources.cachedResources)
+            }
+        assertEquals(0, resources.cachedResources)
+    }
+
     @Composable
     private fun picture(path: String) {
         Image(painterResource(path), null, Modifier.size(16.dp), contentScale = ContentScale.FillBounds)
@@ -58,9 +103,9 @@ class UiResourcesTest {
                 }
                 repeat(3) { session.frame(2L + it)?.close() }
                 assertEquals(1, reads)
-                assertEquals(1, resources.cachedImages)
+                assertEquals(1, resources.cachedResources)
             }
-        assertEquals(0, resources.cachedImages)
+        assertEquals(0, resources.cachedResources)
     }
 
     @Test
@@ -100,10 +145,10 @@ class UiResourcesTest {
                         pixels(original).getRGB(8, 8),
                         "Reload invalidated a picture that still owned its pixels",
                     )
-                    assertEquals(1, resources.cachedImages, "An old lease removed the reloaded entry")
+                    assertEquals(1, resources.cachedResources, "An old lease removed the reloaded entry")
                 }
             }
-        assertEquals(0, resources.cachedImages)
+        assertEquals(0, resources.cachedResources)
     }
 
     @Test
@@ -122,16 +167,16 @@ class UiResourcesTest {
                 session.frame(1)?.close()
                 count.intValue = 1
                 session.frame(2)?.close()
-                assertEquals(1, resources.cachedImages)
+                assertEquals(1, resources.cachedResources)
                 assertEquals(1, reads)
                 count.intValue = 0
                 session.frame(3)?.close()
-                assertEquals(0, resources.cachedImages)
+                assertEquals(0, resources.cachedResources)
                 count.intValue = 1
                 session.frame(4)?.close()
                 assertEquals(2, reads)
             }
-        assertEquals(0, resources.cachedImages)
+        assertEquals(0, resources.cachedResources)
     }
 
     @Test
@@ -163,7 +208,7 @@ class UiResourcesTest {
                     assertEquals(GREEN, image.getRGB(24, 8))
                 }
             }
-        assertEquals(0, resources.cachedImages)
+        assertEquals(0, resources.cachedResources)
     }
 
     @Test
@@ -176,7 +221,7 @@ class UiResourcesTest {
                 }
                 .close()
         }
-        assertEquals(0, resources.cachedImages)
+        assertEquals(0, resources.cachedResources)
     }
 
     @Test

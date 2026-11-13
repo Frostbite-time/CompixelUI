@@ -1,8 +1,8 @@
-# Resource images
+# Images and fonts
 
 [简体中文](../zh-CN/resources.md) · [All guides](../README.md)
 
-Use Minecraft's resource paths directly in Compose. CompixelUI reads the image from the active resource packs and updates it when resources reload.
+Use Minecraft's resource paths directly in Compose. CompixelUI reads images and fonts from the active resource packs and updates them when resources reload.
 
 ## Show an image
 
@@ -65,8 +65,41 @@ Missing or undecodable images show a magenta-and-black checkerboard and produce 
 
 Compositions using the same path share one decoded image. It leaves the cache when its last user leaves the composition; existing recorded frames retain their pixels. Consumers do not close the painter or its image.
 
+## Replace Ore's font
+
+Ore automatically reads `compixel:font/compixel.ttf`. A resource pack replaces the bundled font by providing:
+
+```text
+assets/compixel/font/compixel.ttf
+```
+
+The bundled font stays XZ-compressed in the mod archive. At startup CompixelUI unpacks it into a required, hidden built-in resource pack at the bottom of Minecraft's pack stack. Minecraft's resource manager exposes the ordinary TTF path and handles pack priority and reloads for it.
+
+Supply a valid TTF or OTF file at that path. F3+T and pack changes update Ore text, text fields, menus and dialogs in place, preserving live UI state. Removing the pack restores the bundled font. An invalid replacement logs a warning and uses the bundled font until the next reload.
+
+This is a separate UI font resource; Minecraft's `font/*.json` providers and bitmap font sheets are not converted. A pack that only changes Minecraft's own font must also supply the file above to change Ore.
+
+`OreTypography` styles with a null `fontFamily` inherit this resource font. Custom sizes and line heights can be kept in a remembered or long-lived `OreTypography`; an explicitly supplied font family stays under the consumer's control. Desktop hosts continue to use the bundled font.
+
+## Use another font
+
+Put your font at `assets/examplemod/font/body.ttf` and use its complete resource path:
+
+```kotlin
+import dev.compixel.forge.resources.fontResource
+
+val font = fontResource("examplemod:font/body.ttf")
+OreText("Hello", style = OreTheme.typography.body.copy(fontFamily = font))
+```
+
+`fontResource` returns an ordinary Compose `FontFamily`, usable in `TextStyle`, text fields, or another design system's typography, including Material3. It accepts the same native identifier overloads as `painterResource`. Missing or invalid files use `FontFamily.Default`, or the `fallback` family supplied by the caller. Hosts without a resource source also use that fallback.
+
+Compositions share decoded font families, and changed font bytes receive a new Compose font identity on reload, so existing text is measured and drawn with the replacement. Consumers do not close the returned family.
+
 ## Shared content and custom hosts
 
-Minecraft-free shared content can import `dev.compixel.host.resources.painterResource` and use full namespaced string paths. Minecraft hosts supply its `LocalResources` automatically.
+Minecraft-free shared content imports `dev.compixel.ui.resources.painterResource` or `dev.compixel.ui.resources.fontResource` and uses full namespaced string paths. Minecraft hosts supply `LocalResources` automatically.
 
-A custom host supplies `LocalResources` with a `UiResources` backed by its own `ResourceSource`. The source returns encoded file bytes, or null for a missing path. Call `UiResources.reload()` on the host's UI thread after its resources change.
+A custom host supplies `LocalResources` with a `UiResources` backed by its own `ResourceSource`. The source returns encoded file bytes, or null for a missing path. Call `UiResources.reload()` on the host's UI thread after its resources change. These UI contracts live in `ui-core`; the host only supplies file access and reload notifications.
+
+Other resource types can implement `ResourceType<T>` and call `UiResources.load(path, type)`. Reuse a stable decoder instance. Each path/type pair shares one decoded result while compositions use it; failed results are also cached and retried on reload. Decoders and their returned values own their storage: cache eviction does not close values still held by consumers or recorded frames.
