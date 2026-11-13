@@ -80,25 +80,26 @@ class UiStateBindingTest {
     }
 
     @Test
-    fun `member game state shows the game from the first composition and refreshes at its interval and after tasks`() {
+    fun gameStateReadsImmediatelyAndRefreshesAtItsIntervalAndAfterTasks() {
         var energy = 1
         var reads = 0
         val state = UiStateBinding()
-        val shown by
-            state.gameState(intervalTicks = 3) {
-                reads++
-                energy
-            }
         state.open()
         state.open()
-        assertEquals(1, reads)
+        assertEquals(0, reads)
         var observed = 0
         UiSession(Viewport(20, 20)) {
-                val value = shown
-                SideEffect { observed = value }
+                val value by
+                    state.gameState(intervalTicks = 3) {
+                        reads++
+                        energy
+                    }
+                val current = value
+                SideEffect { observed = current }
             }
             .use { session ->
                 session.frame(1)?.close()
+                assertEquals(1, reads)
                 assertEquals(1, observed, "The first composition did not show the game")
                 energy = 2
                 state.tick()
@@ -123,7 +124,7 @@ class UiStateBindingTest {
     }
 
     @Test
-    fun `composed game state starts from its initial value, follows the latest read block and ends with the composition`() {
+    fun gameStateFollowsTheLatestReadBlockAndEndsWithTheComposition() {
         val energy = 7
         var reads = 0
         val state = UiStateBinding()
@@ -136,11 +137,10 @@ class UiStateBindingTest {
                     if (shown.value) {
                         val multiplier = factor.value
                         val value by
-                            gameState(initialValue = -1, intervalTicks = 10) {
+                            gameState(intervalTicks = 10) {
                                 reads++
                                 energy * multiplier
                             }
-                        // Read during composition, as content does, so a change recomposes.
                         val current = value
                         SideEffect { observed = current }
                     }
@@ -148,19 +148,18 @@ class UiStateBindingTest {
             }
             .use { session ->
                 session.frame(1)?.close()
-                assertEquals(-1, observed)
-                state.tick()
-                assertEquals(1, reads, "A new subscription waited for its interval")
-                session.frame(2)?.close()
                 assertEquals(7, observed)
+                assertEquals(1, reads, "The first composition read more than once")
+                state.tick()
+                assertEquals(1, reads, "A new subscription was read again before its interval")
                 factor.value = 2
-                session.frame(3)?.close()
+                session.frame(2)?.close()
                 assertTrue(state.gameThread.post {})
                 state.tick()
-                session.frame(4)?.close()
+                session.frame(3)?.close()
                 assertEquals(14, observed, "The sample used an old read block")
                 shown.value = false
-                session.frame(5)?.close()
+                session.frame(4)?.close()
                 assertTrue(state.gameThread.post {})
                 state.tick()
                 assertEquals(2, reads, "A subscription was sampled after it left the composition")
@@ -169,7 +168,7 @@ class UiStateBindingTest {
     }
 
     @Test
-    fun `new keys replace a subscription, and the old one is not sampled into the new one`() {
+    fun newKeysImmediatelyReplaceTheValueAndEndTheOldSubscription() {
         val energy = mapOf("a" to 1, "b" to 2)
         val state = UiStateBinding()
         state.open()
@@ -180,7 +179,7 @@ class UiStateBindingTest {
                 CompositionLocalProvider(LocalGameStates provides state) {
                     val key = source.value
                     val value by
-                        gameState(0, 1, key) {
+                        gameState(10, key) {
                             sampled += key
                             energy.getValue(key)
                         }
@@ -190,102 +189,224 @@ class UiStateBindingTest {
             }
             .use { session ->
                 session.frame(1)?.close()
-                state.tick()
-                session.frame(2)?.close()
                 assertEquals(1, observed)
                 source.value = "b"
+                session.frame(2)?.close()
+                assertEquals(2, observed, "The replacement did not show its own first value")
+                assertEquals(listOf("a", "b"), sampled)
+                assertTrue(state.gameThread.post {})
+                state.runTasks()
                 session.frame(3)?.close()
-                assertEquals(0, observed, "A replaced subscription kept the old value")
-                state.tick()
-                session.frame(4)?.close()
-                assertEquals(2, observed)
-                assertEquals(listOf("a", "b"), sampled, "The old subscription was sampled after it was replaced")
+                assertEquals(listOf("a", "b", "b"), sampled, "The old subscription was sampled after replacement")
             }
         state.close()
     }
 
     @Test
-    fun `a closed session keeps its last values and a reopened one samples the game again`() {
+    fun changingTheIntervalImmediatelyReadsAndReplacesTheSubscription() {
+        val state = UiStateBinding()
+        state.open()
+        val interval = mutableStateOf(10)
+        var energy = 1
+        var observed = 0
+        var reads = 0
+        UiSession(Viewport(20, 20)) {
+                val value by
+                    state.gameState(interval.value) {
+                        reads++
+                        energy
+                    }
+                val current = value
+                SideEffect { observed = current }
+            }
+            .use { session ->
+                session.frame(1)?.close()
+                state.tick()
+                energy = 2
+                interval.value = 2
+                session.frame(2)?.close()
+                assertEquals(2, observed)
+                assertEquals(2, reads)
+                state.tick()
+                assertEquals(2, reads)
+                state.tick()
+                assertEquals(3, reads)
+            }
+        state.close()
+    }
+
+    @Test
+    fun samplingAnEqualValueDoesNotRecomposeItsReaders() {
+        val state = UiStateBinding()
+        state.open()
+        var reads = 0
+        var compositions = 0
+        UiSession(Viewport(20, 20)) {
+                val value by state.gameState {
+                    reads++
+                    "unchanged"
+                }
+                val current = value
+                SideEffect {
+                    assertEquals("unchanged", current)
+                    compositions++
+                }
+            }
+            .use { session ->
+                session.frame(1)?.close()
+                val first = compositions
+                state.tick()
+                session.frame(2)?.close()
+                assertEquals(2, reads)
+                assertEquals(first, compositions)
+            }
+        state.close()
+    }
+
+    @Test
+    fun theInitialReadDoesNotSubscribeTheCompositionToItsSources() {
+        val state = UiStateBinding()
+        state.open()
+        val source = mutableStateOf(1)
+        var observed = 0
+        UiSession(Viewport(20, 20)) {
+                val value by state.gameState(intervalTicks = 10) { source.value }
+                val current = value
+                SideEffect { observed = current }
+            }
+            .use { session ->
+                session.frame(1)?.close()
+                source.value = 2
+                session.frame(2)?.close()
+                assertEquals(1, observed, "The initial read bypassed the sampling interval")
+                repeat(10) { state.tick() }
+                session.frame(3)?.close()
+                assertEquals(2, observed)
+            }
+        state.close()
+    }
+
+    @Test
+    fun closingKeepsTheLastValueAndANewSessionReadsTheGameAgain() {
         var energy = 1
         var reads = 0
         val state = UiStateBinding()
-        val shown by state.gameState {
-            reads++
-            energy
+        var shown: androidx.compose.runtime.State<Int>? = null
+        fun scene() =
+            UiSession(Viewport(20, 20)) {
+                val value = state.gameState {
+                    reads++
+                    energy
+                }
+                val current = value
+                SideEffect { shown = current }
+            }
+        state.open()
+        scene().use { session ->
+            session.frame(1)?.close()
+            state.close()
+            energy = 2
+            state.tick()
+            assertEquals(1, reads, "A closed session sampled the game")
+            assertEquals(1, shown!!.value, "A closed session lost its last value")
         }
         state.open()
-        state.close()
-        energy = 2
-        state.tick()
-        assertEquals(1, reads, "A closed session sampled the game")
-        assertEquals(1, shown, "A closed session lost its last value")
-        state.open()
-        assertEquals(2, reads)
-        assertEquals(2, shown)
+        scene().use { session ->
+            session.frame(1)?.close()
+            assertEquals(2, reads)
+            assertEquals(2, shown!!.value)
+        }
         state.close()
     }
 
     @Test
-    fun `a session shown again runs its waiting tasks and then refreshes everything`() {
+    fun showingTheSessionAgainRunsTasksAndRefreshesItsState() {
         var energy = 1
         var reads = 0
         val state = UiStateBinding()
-        val shown by
-            state.gameState(intervalTicks = 100) {
-                reads++
-                energy
-            }
         state.open()
-        assertTrue(state.gameThread.post { energy = 3 })
-        state.resume()
-        assertEquals(2, reads)
-        assertEquals(3, shown)
+        var observed = 0
+        UiSession(Viewport(20, 20)) {
+                val value by
+                    state.gameState(intervalTicks = 100) {
+                        reads++
+                        energy
+                    }
+                val current = value
+                SideEffect { observed = current }
+            }
+            .use { session ->
+                session.frame(1)?.close()
+                assertTrue(state.gameThread.post { energy = 3 })
+                state.resume()
+                session.frame(2)?.close()
+                assertEquals(2, reads)
+                assertEquals(3, observed)
+                energy = 4
+                state.resume()
+                session.frame(3)?.close()
+                assertEquals(3, reads, "Resuming without a task did not read the game")
+                assertEquals(4, observed)
+            }
         state.close()
     }
 
     @Test
-    fun `a task that ends the session skips the remaining tasks and the sampling`() {
+    fun aTaskThatClosesTheSessionSkipsTheRemainingTasksAndReads() {
         var reads = 0
         val log = mutableListOf<String>()
         val state = UiStateBinding()
-        val shown by state.gameState { ++reads }
         state.open()
-        assertTrue(state.gameThread.post { state.close() })
-        assertTrue(state.gameThread.post { log += "after close" })
-        state.runTasks()
-        assertEquals(emptyList(), log)
-        assertEquals(1, reads)
-        assertEquals(1, shown)
-        assertFalse(state.isOpen)
-        assertFalse(state.gameThread.post {})
+        var shown = 0
+        UiSession(Viewport(20, 20)) {
+                val value by state.gameState { ++reads }
+                val current = value
+                SideEffect { shown = current }
+            }
+            .use { session ->
+                session.frame(1)?.close()
+                assertTrue(state.gameThread.post { state.close() })
+                assertTrue(state.gameThread.post { log += "after close" })
+                state.runTasks()
+                assertEquals(emptyList(), log)
+                assertEquals(1, reads)
+                assertEquals(1, shown)
+                assertFalse(state.isOpen)
+                assertFalse(state.gameThread.post {})
+            }
     }
 
     @Test
-    fun `a session reopened by a task keeps its own sample`() {
+    fun aSessionReopenedByATaskKeepsItsOwnFirstRead() {
         var reads = 0
         val state = UiStateBinding()
-        val shown by state.gameState { ++reads }
-        state.open()
-        assertTrue(
-            state.gameThread.post {
-                state.close()
-                state.open()
+        var shown = 0
+        fun scene() =
+            UiSession(Viewport(20, 20)) {
+                val value by state.gameState { ++reads }
+                val current = value
+                SideEffect { shown = current }
             }
-        )
-        state.tick()
-        assertEquals(2, reads, "The step sampled the session its task had started")
-        assertEquals(2, shown)
-        state.close()
-    }
-
-    @Test
-    fun `member game state is declared before the first session and read once a session opened`() {
-        val state = UiStateBinding()
-        val early by state.gameState { 1 }
-        assertFailsWith<IllegalStateException> { early }
         state.open()
-        assertEquals(1, early)
-        assertFailsWith<IllegalStateException> { state.gameState { 3 } }
+        scene().use { original ->
+            original.frame(1)?.close()
+            var replacement: UiSession? = null
+            try {
+                assertTrue(
+                    state.gameThread.post {
+                        state.close()
+                        state.open()
+                        replacement = scene()
+                    }
+                )
+                state.tick()
+                replacement!!.frame(1)?.close()
+                assertEquals(2, reads, "The step sampled the session its task had started")
+                assertEquals(2, shown)
+            } finally {
+                replacement?.close()
+            }
+        }
         state.close()
     }
 }

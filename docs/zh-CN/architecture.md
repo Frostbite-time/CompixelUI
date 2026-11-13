@@ -31,8 +31,8 @@ flowchart TB
 | --- | --- |
 | `platform` | 与宿主游戏之间的视口、输入、剪贴板等约定 |
 | `render` | 帧、GPU 资源与性能统计 |
-| `compose-bridge` | 在独立线程运行 Compose，录制帧并绘制原生图像 |
-| `host` | 界面会话、`UiBinding`、`ScreenTransition`、玩家的颜色选择，以及所有界面和 HUD 层共用的 Compose 层 `UiLayer` |
+| `compose-bridge` | 在宿主的 UI 线程运行 Compose，录制帧并绘制原生图像 |
+| `host` | 界面会话、`gameState` 订阅、`ScreenTransition`、玩家的颜色选择，以及所有界面和 HUD 层共用的 Compose 层 `UiLayer` |
 | `render-gl`、`render-vulkan` | OpenGL 与 Vulkan 渲染器 |
 | `ui-core` | 设计系统的接入点：控件反馈、宿主内容外层的设计、弹出层在界面进出场时跟随的可见度、配色，以及担任 Ctrl 作用的 `CtrlOrCmd`（macOS 上为 Cmd，其他系统为 Ctrl） |
 | `ui-ore` | Ore UI 组件、颜色、字体与颜色编辑器 |
@@ -62,7 +62,7 @@ flowchart LR
     gpu --> frame["Minecraft 的画面"]
 ```
 
-一切都运行在 Minecraft 的客户端线程：游戏、Compose 的输入处理、组合、布局和绘制，以及渲染器。Compose 看到的仍是为它读取的不可变值，值变化时内容才会重组；它把要做的事提交出去，等 Compose 处理完事件后执行。界面和 HUD 层让两者跟随 Compose 会话：会话打开时先读取一次；输入事件提交的代码在事件返回前执行，随后重新读取；其余代码在每刻执行，之后再读取；会话关闭时随之结束。每一帧先组合和布局，再填入布局所需的槽位、物品图标和物品提示，然后只录制一次，在 Minecraft 自己的图形上下文中绘制：OpenGL 状态在绘制后恢复，Vulkan 使用游戏的设备和队列。
+一切都运行在 Minecraft 的客户端线程：游戏、Compose 的输入处理、组合、布局和绘制，以及渲染器。在可组合项中调用 `gameState`，立即读取不可变值，之后按刻间隔更新，值变化时内容才会重组。提交的代码在 Compose 处理完事件后、事件返回前执行，并刷新订阅；其他时候提交的代码在下一刻执行。订阅离开组合或会话关闭时结束，保留最后的值用于退场。每一帧先组合和布局，再填入布局所需的槽位、物品图标和物品提示，然后只录制一次，在 Minecraft 自己的图形上下文中绘制：OpenGL 状态在绘制后恢复，Vulkan 使用游戏的设备和队列。
 
 Compose 绘制的 GPU 图像（例如物品图标页）归渲染器所有。Compose 录制的画面会保留对这些图像的引用，渲染器要等这些引用全部释放后才释放图像。
 

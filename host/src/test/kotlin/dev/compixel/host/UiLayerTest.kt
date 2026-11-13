@@ -283,7 +283,7 @@ class UiLayerTest {
                 contentState,
                 content = {
                     val current = LocalGameThread.current
-                    val value by gameState(initialValue = 0) { energy }
+                    val value by gameState { energy }
                     val shown = value
                     SideEffect {
                         thread = current
@@ -293,7 +293,7 @@ class UiLayerTest {
             )
         layer.open(200, 100)
         layer.render(Unit, 200, 100)
-        assertEquals(0, observed)
+        assertEquals(1, observed)
         layer.tickContent()
         layer.render(Unit, 200, 100)
         assertEquals(1, observed)
@@ -448,9 +448,18 @@ class UiLayerTest {
     fun `a covered session shows again as it was, with its game state read anew and without entering again`() {
         var reads = 0
         val contentState = state()
-        val read by contentState.gameState(intervalTicks = 1000) { ++reads }
+        var read = 0
         val shown = Shown()
-        val layer = TestLayer(contentState, content = transition(shown))
+        val layer =
+            TestLayer(
+                contentState,
+                content = {
+                    val value by gameState(intervalTicks = 1000) { ++reads }
+                    val current = value
+                    SideEffect { read = current }
+                    transition(shown)()
+                },
+            )
         layer.open(200, 100)
         frames(layer) { shown.phase == EnterExitState.Visible }
         val session = layer.session
@@ -463,11 +472,11 @@ class UiLayerTest {
         assertFalse(layer.suspended)
         assertSame(session, layer.session)
         assertEquals(2, reads)
-        assertEquals(2, read)
         repeat(5) {
             layer.render(Unit, 200, 100)
             Thread.sleep(5)
         }
+        assertEquals(2, read)
         assertTrue(shown.phases.drop(entered).all { it == EnterExitState.Visible })
         assertTrue(shown.compositions.all { it === shown.compositions.first() })
         // A covered session has nothing to show, so closing for good releases it at once.

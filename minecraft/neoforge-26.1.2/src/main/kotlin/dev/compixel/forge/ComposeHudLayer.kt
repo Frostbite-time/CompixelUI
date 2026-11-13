@@ -7,10 +7,10 @@ import dev.compixel.forge.item.NativeItemStatistics
 import dev.compixel.forge.render.configuredRenderBackend
 import dev.compixel.host.UiSession
 import dev.compixel.host.UiStateBinding
+import dev.compixel.host.gameState
 import dev.compixel.render.*
 import dev.compixel.ui.UiDesign
 import dev.compixel.ui.ore.theme.OreDesign
-import kotlin.properties.ReadOnlyProperty
 import net.minecraft.client.DeltaTracker
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
@@ -65,17 +65,6 @@ abstract class ComposeHudLayer(
      * use immutable values prepared during construction: never read game objects such as the player here.
      */
     @Composable protected abstract fun Content()
-
-    /**
-     * Game state for a member property, such as `private val health by gameState {
-     * Minecraft.getInstance().player?.health ?: 0f }`. [read] runs on the game thread when a session opens, before it
-     * composes, and then every [intervalTicks] client ticks. The property shows the latest result, recomposes its
-     * readers when it changes and never runs [read] itself. Declare it while the layer is constructed; state that only
-     * part of the content needs can use the composable gameState with an initial value. [read] only reads, and returns
-     * values or immutable data, never game objects.
-     */
-    fun <T> gameState(intervalTicks: Int = 1, read: () -> T): ReadOnlyProperty<Any?, T> =
-        contentState.gameState(intervalTicks, read)
 
     final override fun render(guiGraphics: GuiGraphicsExtractor, deltaTracker: DeltaTracker) {
         // NeoForge draws registered layers even while the vanilla HUD is hidden.

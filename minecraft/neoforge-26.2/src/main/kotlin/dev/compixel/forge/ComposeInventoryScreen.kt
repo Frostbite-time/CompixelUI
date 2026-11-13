@@ -8,12 +8,12 @@ import dev.compixel.forge.slots.SlotBehaviorScreen
 import dev.compixel.forge.theme.ColorEditorScreen
 import dev.compixel.host.GameThread
 import dev.compixel.host.UiStateBinding
+import dev.compixel.host.gameState
 import dev.compixel.slots.SlotBehavior
 import dev.compixel.slots.SlotIntent
 import dev.compixel.ui.UiDesign
 import dev.compixel.ui.ore.theme.OreDesign
 import kotlin.math.*
-import kotlin.properties.ReadOnlyProperty
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.gui.components.EditBox
@@ -34,10 +34,10 @@ import net.minecraft.world.inventory.Slot
  *
  * Tasks queued while Compose handles an input event run before the event returns, as vanilla widgets act inside their
  * input handlers, and the game state refreshes before it returns; those queued at other times run at the next tick. The
- * screen samples its member game state when it opens, before the first composition, then each game state at its
- * interval and all of them after tasks ran. A screen that only covers this one while the menu stays open, such as a
- * recipe viewer, leaves its content as it was until it shows again and refreshes. When the content uses
- * ScreenTransition, closing gives the player control back at once while the content plays its exit above the game.
+ * content reads each game state immediately when it first composes, then at its interval and after tasks ran. A screen
+ * that only covers this one while the menu stays open, such as a recipe viewer, leaves its content as it was until it
+ * shows again and refreshes. When the content uses ScreenTransition, closing gives the player control back at once
+ * while the content plays its exit above the game.
  */
 abstract class ComposeInventoryScreen<M : AbstractContainerMenu>(
     protected val container: M,
@@ -110,17 +110,6 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu>(
      */
     val gameThread: GameThread
         get() = contentState.gameThread
-
-    /**
-     * Game state for a member property, such as `private val progress by gameState { container.progress }`. [read] runs
-     * on the game thread when the screen opens, before its first composition, then every [intervalTicks] client ticks
-     * and after the content's tasks. The property shows the latest result, recomposes its readers when it changes and
-     * never runs [read] itself. Declare it while the screen is constructed, in the screen or in a state object it
-     * creates; state that only part of the content needs can use the composable gameState with an initial value. [read]
-     * only reads, and returns values or immutable data, never game objects.
-     */
-    fun <T> gameState(intervalTicks: Int = 1, read: () -> T): ReadOnlyProperty<Any?, T> =
-        contentState.gameState(intervalTicks, read)
 
     /**
      * Runs once on the game thread after the screen has closed for good and let go of its menu, for example to save

@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import dev.compixel.forge.ComposeMenuScreen
+import dev.compixel.host.gameState
 import dev.compixel.sync.action.ActionStatus
 import dev.compixel.sync.session.SyncStatus
 import dev.compixel.sync.state.SyncPublisher
@@ -22,7 +24,7 @@ internal data class SyncAcceptanceView(val ready: Boolean, val counter: Int, val
 
 /**
  * Its content is one button over the whole screen, which requests the replacement text on the game thread, and shows
- * the menu through member game state.
+ * the menu through game state.
  */
 internal class SyncAcceptanceScreen(
     menu: SyncAcceptanceMenu,
@@ -43,14 +45,6 @@ internal class SyncAcceptanceScreen(
 
     override fun isUiWindowFocused() = SuiteEnvironment.uiFocused(super.isUiWindowFocused())
 
-    private val view by gameState {
-        SyncAcceptanceView(
-            container.sync.hasSnapshot(),
-            container.counter,
-            if (container.item.item == Items.EMERALD) container.item.count else 0,
-        )
-    }
-
     private fun request(text: String) {
         requests++
         check(container.sync.request(SyncAcceptanceMenu.REPLACE, text).queued()) {
@@ -69,6 +63,13 @@ internal class SyncAcceptanceScreen(
 
     @Composable
     override fun Content() {
+        val view by gameState {
+            SyncAcceptanceView(
+                container.sync.hasSnapshot(),
+                container.counter,
+                if (container.item.item == Items.EMERALD) container.item.count else 0,
+            )
+        }
         val state = view
         SideEffect { composed = state }
         if (animated) ReportedTransition { Button() } else Button()

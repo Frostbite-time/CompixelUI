@@ -8,14 +8,18 @@
 
 ## 注册 HUD 层
 
-这个 HUD 层统计玩家物品栏中的钻石。`gameState` 属性在游戏线程读取游戏，`Content` 绘制最新的值：
+这个 HUD 层统计玩家物品栏中的钻石。在 `Content` 中用 `gameState` 于游戏线程读取游戏，并绘制最新的值：
 
 ```kotlin
-class QuestHud(private val diamond: ItemIcon) : ComposeHudLayer() {
-    private val found by gameState { Minecraft.getInstance().player?.inventory?.countItem(Items.DIAMOND) ?: 0 }
+import androidx.compose.runtime.getValue
+import dev.compixel.host.gameState
 
+class QuestHud(private val diamond: ItemIcon) : ComposeHudLayer() {
     @Composable
-    override fun Content() = QuestPanel(diamond, found)
+    override fun Content() {
+        val found by gameState { Minecraft.getInstance().player?.inventory?.countItem(Items.DIAMOND) ?: 0 }
+        QuestPanel(diamond, found)
+    }
 }
 
 fun registerQuestHud(modBus: IEventBus) {
@@ -50,7 +54,7 @@ fun QuestPanel(diamond: ItemIcon, found: Int) {
 - 玩家按 F1 隐藏 HUD 时，它一起隐藏。
 - 它不接收输入：点击、按键和文字都交给游戏，提示也不会弹出。需要交互的内容请放在界面里。
 - 它在进入世界后的第一帧启动，离开世界时停止。调用 `close()` 可以提前停止；下次启动时 `remember` 的状态会重新开始。
-- `gameState` 的代码块在 HUD 层启动时于游戏线程运行一次，之后每个客户端刻（或每 `intervalTicks` 刻）运行一次，界面打开时也不例外。值变化时内容才会重绘。
+- `gameState` 的代码块在内容首次组合时立即读取真实值，之后每个客户端刻（或每 `intervalTicks` 刻）更新，界面打开时也不例外。离开组合时停止订阅；值变化时内容才会重绘。
 
 ## 其他版本
 

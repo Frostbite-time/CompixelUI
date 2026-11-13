@@ -1,18 +1,21 @@
 package dev.compixel.host
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.RememberObserver
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshots.Snapshot
 import java.util.ArrayDeque
-import kotlin.properties.ReadOnlyProperty
 
 /**
  * Game state for a host's content, renewed with each of the host's UI sessions. The content reads the game through
  * [gameState] subscriptions and changes it with [gameThread] tasks. At most 64 tasks wait, and they run in the order
  * they were queued; each step runs those waiting when it starts, so what they queue in turn waits for the next step.
- * - [open] samples the member subscriptions before the session composes.
- * - Each [tick] runs the waiting tasks, then samples the subscriptions due after their interval, those not sampled yet,
- *   and all of them when a task ran.
+ * - [open] starts a session; each subscription reads its first value when the content remembers it.
+ * - Each [tick] runs the waiting tasks, then samples the subscriptions due after their interval, and all of them when a
+ *   task ran.
  * - [runTasks] runs the waiting tasks, as a host does after each input event; when any ran it samples every
  *   subscription.
  * - [resume] does the same whether or not any ran, for a session shown again after another screen covered its host.
@@ -22,7 +25,7 @@ import kotlin.properties.ReadOnlyProperty
  * A step stops once a task ended the session. Everything but [GameThread.post] runs on the host's game thread, which is
  * also the thread its content composes on: what a step samples shows in the next frame.
  *
- * Hosts drive it for their `gameState`, `gameThread` and `Content` members, so game code rarely uses it directly.
+ * Hosts drive it for their `gameThread` and `Content` members, so game code rarely uses it directly.
  */
 class UiStateBinding {
     // Tasks come from any thread; the lock is the queue itself.
@@ -31,11 +34,8 @@ class UiStateBinding {
     private var rejected = 0L
     // Counts the sessions, so a step notices a task that ended its session, even when the task started another.
     private var sessions = 0
-    private var opened = false
     private var owner: Thread? = null
-    private val members = ArrayList<Subscription<*>>()
-    // Subscriptions the composition remembers.
-    private val composed = ArrayList<Subscription<*>>()
+    private val subscriptions = ArrayList<Subscription<*>>()
     private var ticks = 0L
 
     /** True from [open] until [close]. Game thread. */
@@ -59,15 +59,13 @@ class UiStateBinding {
         }
     }
 
-    /** Starts a session and samples the member subscriptions; does nothing while one is open. */
+    /** Starts a session; does nothing while one is open. */
     fun open() {
         if (isOpen) return
         owner = Thread.currentThread()
-        opened = true
         ticks = 0
         sessions++
-        composed.clear()
-        for (member in members) sample(member)
+        subscriptions.clear()
         synchronized(tasks) {
             accepting = true
             rejected = 0
@@ -120,7 +118,7 @@ class UiStateBinding {
             tasks.clear()
         }
         isOpen = false
-        composed.clear()
+        subscriptions.clear()
     }
 
     /** Tasks refused in the latest session because 64 were already waiting. */
@@ -128,34 +126,24 @@ class UiStateBinding {
         get() = synchronized(tasks) { rejected }
 
     /**
-     * Game state for a host's member property: [read] takes it on the game thread when each session opens, before the
-     * session composes, then every [intervalTicks] client ticks and after every task, and the delegate shows the latest
-     * result. Reading the delegate never runs [read]; in composition, readers recompose when the value changes. Declare
-     * it before the binding's first session, for example while the host is constructed; in composition use the
-     * composable gameState with an initial value.
-     *
-     * [read] only reads the game. Return values and immutable data, never game objects such as entities, menus or item
-     * stacks; read what has to stay consistent in one block.
+     * Observes [read] while this composition uses it: immediately, every [intervalTicks] client ticks and after tasks.
+     * Changing [intervalTicks] or [keys] replaces the subscription with a freshly read value; leaving the composition
+     * stops it. Use the top-level [dev.compixel.host.gameState] in a screen or HUD's content; an explicit binding lets
+     * a host drive a separate group of subscriptions and tasks with its own lifecycle. Both run on this binding's
+     * opening thread. Return immutable values and keep [read] free of side effects.
      */
-    fun <T> gameState(intervalTicks: Int = 1, read: () -> T): ReadOnlyProperty<Any?, T> {
-        require(intervalTicks >= 1) { "intervalTicks must be at least 1" }
-        check(!opened) {
-            "Declare member gameState while the host is constructed; in composition use gameState(initialValue = ...)"
-        }
-        val member = Subscription(read, intervalTicks, Unsampled)
-        members += member
-        return ReadOnlyProperty { _, property ->
-            val shown = member.shown
-            check(shown !== Unsampled) { "${property.name} was read before its host opened" }
-            @Suppress("UNCHECKED_CAST")
-            shown as T
-        }
+    @Composable
+    fun <T> gameState(intervalTicks: Int = 1, vararg keys: Any?, read: () -> T): State<T> {
+        val subscription = remember(this, intervalTicks, *keys) { subscription(intervalTicks, read) }
+        SideEffect { subscription.read = read }
+        return subscription
     }
 
-    /** A subscription for the composable gameState; the next step takes it once the composition remembers it. */
-    internal fun <T> composedSubscription(initialValue: T, intervalTicks: Int, read: () -> T): Subscription<T> {
+    private fun <T> subscription(intervalTicks: Int, read: () -> T): Subscription<T> {
         require(intervalTicks >= 1) { "intervalTicks must be at least 1" }
-        return ComposedSubscription(read, intervalTicks, initialValue)
+        checkOwner()
+        check(isOpen) { "gameState needs an open host session" }
+        return Subscription(read, intervalTicks, Snapshot.withoutReadObservation(read))
     }
 
     private fun checkOwner() =
@@ -175,69 +163,40 @@ class UiStateBinding {
 
     // Samples the subscriptions that are due, or all of them.
     private fun refresh(all: Boolean) {
-        composed.removeAll { !it.active }
-        for (member in members) if (all || member.dueAt(ticks)) sample(member)
         // A read block cannot change which subscriptions the composition remembers.
-        for (subscription in composed) if (all || subscription.dueAt(ticks)) sample(subscription)
+        for (subscription in subscriptions) if (all || subscription.due()) subscription.sample()
     }
 
-    private fun sample(subscription: Subscription<*>) {
-        val value = subscription.read()
-        subscription.sampledAt = ticks
-        if (value == subscription.published) return
-        subscription.published = value
-        subscription.show(value)
-    }
+    /** One remembered game-state read and its latest value. */
+    private inner class Subscription<T>(var read: () -> T, private val interval: Int, initial: T) :
+        State<T>, RememberObserver {
+        private val state = mutableStateOf(initial)
+        private var sampledAt = ticks
 
-    // Sampled from the next step after the composition remembers it until the composition forgets it.
-    private inner class ComposedSubscription<T>(read: () -> T, interval: Int, initial: T) :
-        Subscription<T>(read, interval, initial), RememberObserver {
+        override val value: T
+            get() = state.value
+
+        fun due() = ticks - sampledAt >= interval
+
+        fun sample() {
+            val value = read()
+            sampledAt = ticks
+            state.value = value
+        }
+
         override fun onRemembered() {
             // A session that already ended samples nothing; the next one starts without this subscription.
-            if (isOpen) composed += this
+            if (isOpen) subscriptions += this
         }
 
         override fun onForgotten() {
-            active = false
+            subscriptions.remove(this)
         }
 
-        override fun onAbandoned() {
-            active = false
-        }
+        override fun onAbandoned() = Unit
     }
 
     private companion object {
         const val CAPACITY = 64
     }
 }
-
-/**
- * One gameState value: its read block, sampled on the game thread, and the Compose state that shows the result. As a
- * [State] it reads the shown value.
- */
-internal open class Subscription<T>(read: () -> T, private val interval: Int, initial: Any?) : State<T> {
-    var read: () -> T = read
-    var active = true
-    private val state = mutableStateOf(initial)
-    // The value last published, and the tick of the last sample.
-    var published: Any? = initial
-    var sampledAt = NEVER
-
-    val shown: Any?
-        get() = state.value
-
-    @Suppress("UNCHECKED_CAST")
-    override val value: T
-        get() = state.value as T
-
-    fun dueAt(tick: Long) = sampledAt == NEVER || tick - sampledAt >= interval
-
-    fun show(value: Any?) {
-        state.value = value
-    }
-}
-
-private const val NEVER = Long.MIN_VALUE
-
-// A member subscription's value before its first sample.
-private val Unsampled = Any()

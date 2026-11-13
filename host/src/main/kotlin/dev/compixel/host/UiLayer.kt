@@ -54,8 +54,8 @@ class UiLayerSurface<D>(
  * input policy, and the input methods report whether Compose consumed an event. Every member runs on the platform's
  * [thread], and so does the content: its composition, layout, drawing and callbacks.
  *
- * Each session starts on [open] with [contentState] sampled anew and ends on [close]. While another screen covers its
- * host, [suspend] keeps the session for [open] to show again; when its host closes for good, [exit] lets a
+ * Each session starts on [open] with fresh [contentState] subscriptions and ends on [close]. While another screen
+ * covers its host, [suspend] keeps the session for [open] to show again; when its host closes for good, [exit] lets a
  * [ScreenTransition] in the content finish before the layer closes. Its content is wrapped in the host's [design],
  * inside [LocalUiFeedback], [LocalSchemes] and [LocalColorEditor]. [prepare] composes, lays out and renders a frame, so
  * the host can read its layout before drawing beneath Compose, and [render] presents it. Animation time starts with the
@@ -226,7 +226,7 @@ abstract class UiLayer<G, D>(
         refreshSchemes()
         val existing = session
         if (existing == null || existing.state == SessionState.CLOSED) {
-            // The first composition already reads the game, not a placeholder.
+            // Open the binding before the first composition reads its game state.
             contentState.open()
             rejectionsReported = false
             clock = FrameClock()

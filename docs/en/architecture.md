@@ -31,8 +31,8 @@ flowchart TB
 | --- | --- |
 | `platform` | Viewport, input, clipboard and other contracts with the host game |
 | `render` | Frames, GPU resources and profiling |
-| `compose-bridge` | Runs Compose on its own thread, records frames and draws native images |
-| `host` | UI sessions, `UiBinding`, `ScreenTransition`, the player's color choices, and `UiLayer`, the Compose layer that every screen and HUD layer is built on |
+| `compose-bridge` | Runs Compose on the host's UI thread, records frames and draws native images |
+| `host` | UI sessions, `gameState` subscriptions, `ScreenTransition`, the player's color choices, and `UiLayer`, the Compose layer that every screen and HUD layer is built on |
 | `render-gl`, `render-vulkan` | The OpenGL and Vulkan renderers |
 | `ui-core` | What a design system plugs into: control feedback, the design around a host's content, the visibility its popups follow during screen transitions, color schemes, and `CtrlOrCmd`, the key in Ctrl's role (Command on macOS, Ctrl elsewhere) |
 | `ui-ore` | Ore UI components, colors, font and the color editor |
@@ -62,7 +62,7 @@ flowchart LR
     gpu --> frame["Minecraft's frame"]
 ```
 
-Everything runs on Minecraft's client thread: the game, Compose's input handling, composition, layout and drawing, and the renderer. Compose still sees the game as immutable values that are read for it, so content recomposes only when a value changes, and posts its work, which runs after Compose has handled the event. Screens and HUD layers manage both with their Compose session: it opens from a first reading, runs the work an input event posted before the event returns and reads again, runs the rest at each tick before the next reading, and closes with the session. Each frame is composed and laid out first; the slots, item icons and tooltips its layout asks for are then filled in, and the frame is recorded once and drawn inside Minecraft's own graphics context: OpenGL state is restored afterwards, and Vulkan work uses the game's device and queue.
+Everything runs on Minecraft's client thread: the game, Compose's input handling, composition, layout and drawing, and the renderer. Content uses `gameState` inside a composable to read immutable values immediately, then at its tick interval; it recomposes only when those values change. Posted work runs after Compose has handled the event, before it returns, and refreshes the subscriptions; work posted at other times runs at the next tick. Subscriptions end when they leave the composition or their session closes, keeping their last values for an exit. Each frame is composed and laid out first; the slots, item icons and tooltips its layout asks for are then filled in, and the frame is recorded once and drawn inside Minecraft's own graphics context: OpenGL state is restored afterwards, and Vulkan work uses the game's device and queue.
 
 GPU images that Compose draws, such as item icon pages, belong to the renderer. Pictures recorded by Compose keep references to them, so the renderer frees an image only after those references are gone.
 

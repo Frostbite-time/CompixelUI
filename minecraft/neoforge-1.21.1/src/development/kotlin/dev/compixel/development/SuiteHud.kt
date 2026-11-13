@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.sp
 import dev.compixel.forge.ComposeHudLayer
 import dev.compixel.forge.item.ItemIcon
 import dev.compixel.forge.item.MinecraftItemIcon
+import dev.compixel.host.gameState
 import dev.compixel.testing.suite.SuitePixels
 import dev.compixel.ui.ore.display.OreProgressBar
 import dev.compixel.ui.ore.display.OreText
@@ -63,9 +64,11 @@ internal object SuiteHud {
     val model: SuiteHudModel by lazy { SuiteHudModel() }
     val layer: ComposeHudLayer by lazy {
         object : ComposeHudLayer() {
-            private val value by gameState { gameValue }
-
-            @Composable override fun Content() = SuiteHudContent(model, value)
+            @Composable
+            override fun Content() {
+                val value by gameState { gameValue }
+                SuiteHudContent(model, value)
+            }
         }
     }
     var enabled = false

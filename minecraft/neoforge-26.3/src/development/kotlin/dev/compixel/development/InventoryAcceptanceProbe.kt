@@ -47,8 +47,8 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
     private var screen: AcceptanceScreen? = null
 
     /**
-     * Shows the second hotbar slot's count as member game state and the first slot's as composable game state; after
-     * the slots, its content has a press and a close button.
+     * Shows the first two hotbar slots' counts as game state; after the slots, its content has a press and a close
+     * button.
      */
     private inner class AcceptanceScreen :
         ComposeInventoryScreen<InventoryMenu>(
@@ -64,11 +64,11 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
                 },
             ),
         ) {
-        /** The member game state the content composed last. */
+        /** The second slot's game state the content composed last. */
         var composed = -1
             private set
 
-        /** The composable game state the content composed last, -1 until its first sample. */
+        /** The first slot's game state the content composed last. */
         var composedFirst = -2
             private set
 
@@ -76,14 +76,9 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
         var presses = 0
             private set
 
-        /** Reads of the member game state on the game thread. */
+        /** Reads of the second slot's game state on the game thread. */
         var reads = 0
             private set
-
-        private val held by gameState {
-            reads++
-            player.inventory.getItem(1).count
-        }
 
         /** Calls of [menuClosed]; the menu closes once. */
         var menuCloses = 0
@@ -111,8 +106,12 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
 
         @Composable
         override fun Content(slots: ComposeMenuSlots<InventoryMenu>) {
+            val held by gameState {
+                reads++
+                player.inventory.getItem(1).count
+            }
             val shown = held
-            val first by gameState(initialValue = -1) { player.inventory.getItem(0).count }
+            val first by gameState { player.inventory.getItem(0).count }
             val firstShown = first
             SideEffect {
                 composed = shown
@@ -166,8 +165,8 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
                 // Layout already ran during init; the hooks run in the same pass as the first rendered frame.
                 if (screen!!.inventory.bounds(36) != null && screen!!.rendererStatistics.renderedFrames > 0) {
                     check(slotHooks > 0) { "The native per-slot render hook was not dispatched" }
-                    check(screen!!.composed == 0) {
-                        "The first composition did not show the screen's member game state"
+                    check(screen!!.composed == 0 && screen!!.composedFirst == 8) {
+                        "The first composition did not show both slots' game state"
                     }
                     click(36, SuitePlatform.MOUSE_LEFT)
                     check(player.containerMenu.carried.count == 8) { "Left-click did not pick up the stack" }
@@ -215,8 +214,8 @@ internal class InventoryAcceptanceProbe(private val done: () -> Unit) {
                     stage++
                 }
             7 ->
-                // The next tick's game state shows the placed stack and the emptied first slot, which the composable
-                // game state showed as -1 before its first sample; then the content posts a task.
+                // The next tick's game state shows the placed stack and the emptied first slot; then the content posts
+                // a task.
                 if (screen!!.composed == 8 && screen!!.composedFirst == 0) {
                     val drawn = screen!!.drawnSlot
                     check(drawn != null && drawn.icon != null && drawn.amount == "8" && drawn.hovered) {

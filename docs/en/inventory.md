@@ -56,14 +56,17 @@ On Forge 1.20.1, register the screen with `MenuScreens.register` inside `FMLClie
 When the screen shows more than slots, read the menu with `gameState`. This version of `StorageScreen` shows how many storage slots are used and a lock switch, whose change runs on the game thread:
 
 ```kotlin
+import androidx.compose.runtime.getValue
+import dev.compixel.host.gameState
+
 class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
     ComposeInventoryScreen<StorageMenu>(menu, title) {
     private val caption = title.string
-    private val used by gameState { (0 until 27).count { container.getSlot(it).hasItem() } }
-    private val locked by gameState { container.locked() }
 
     @Composable
     override fun Content(slots: ComposeMenuSlots<StorageMenu>) {
+        val used by gameState { (0 until 27).count { container.getSlot(it).hasItem() } }
+        val locked by gameState { container.locked() }
         OreScreen(
             caption,
             maxWidth = 176.dp,
@@ -86,7 +89,7 @@ class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
 
 Here `locked` and `requestLocked` stand for your menu's own state, for example kept in sync with [menu sync](menu-sync.md).
 
-- `gameState` blocks run on the game thread when the screen opens, every tick, and after an input event that posted work.
+- Call `gameState` inside `Content`: its block reads immediately on the game thread, then every tick and after an input event that posted work.
 - `requestClose()` closes the screen from the UI, as the panel's close button does here.
 - `ComposeMenuScreen` works the same way for menus without slots; its `Content()` has no slots.
 
@@ -99,7 +102,7 @@ Here `locked` and `requestLocked` stand for your menu's own state, for example k
 | `ComposeInventoryScreen` | Menus with slots |
 | `SlotBehaviorScreen` | Container screens you draw natively, with CompixelUI's slot rules |
 
-All three Compose classes have `gameState`, `gameThread`, `Content` and `requestClose()`; the two menu screens also have `menuClosed()`.
+All three Compose classes have `gameThread`, `Content` and `requestClose()`, and their content uses the same `dev.compixel.host.gameState`; the two menu screens also have `menuClosed()`.
 
 ## Change what a click does
 
