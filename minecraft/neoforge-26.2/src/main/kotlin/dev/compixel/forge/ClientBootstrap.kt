@@ -3,6 +3,7 @@ package dev.compixel.forge
 import dev.compixel.forge.constants.CompixelGuiLayers
 import dev.compixel.forge.render.FrameRetirement
 import dev.compixel.forge.render.RendererResources
+import dev.compixel.forge.resources.MinecraftResources
 import dev.compixel.forge.theme.ColorEditorScreen
 import dev.compixel.forge.theme.ColorSchemes
 import dev.compixel.forge.theme.SchemeReloadListener
@@ -45,7 +46,10 @@ internal object ClientBootstrap {
         event.addListener(Identifier.fromNamespaceAndPath("compixel", "schemes"), SchemeReloadListener)
         event.addListener(
             Identifier.fromNamespaceAndPath("compixel", "renderer_resources"),
-            ResourceManagerReloadListener { RendererResources.reloaded() },
+            ResourceManagerReloadListener {
+                MinecraftResources.images.reload()
+                RendererResources.reloaded()
+            },
         )
     }
 

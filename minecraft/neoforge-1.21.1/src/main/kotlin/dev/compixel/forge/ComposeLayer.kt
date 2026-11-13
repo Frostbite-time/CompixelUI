@@ -22,11 +22,13 @@ import dev.compixel.forge.render.RendererResources
 import dev.compixel.forge.render.ScreenRenderDestination
 import dev.compixel.forge.render.configuredRenderBackend
 import dev.compixel.forge.render.createScreenRenderer
+import dev.compixel.forge.resources.MinecraftResources
 import dev.compixel.forge.theme.ColorSchemes
 import dev.compixel.host.ScreenMetrics
 import dev.compixel.host.UiLayer
 import dev.compixel.host.UiLayerSurface
 import dev.compixel.host.UiStateBinding
+import dev.compixel.host.resources.LocalResources
 import dev.compixel.platform.KeyInput
 import dev.compixel.platform.Modifiers
 import dev.compixel.render.NativeImageStatistics
@@ -160,6 +162,7 @@ internal class ComposeLayer(
     @Composable
     override fun ProvideContent(content: @Composable () -> Unit) {
         CompositionLocalProvider(
+            LocalResources provides MinecraftResources.images,
             LocalItemImages provides itemMailbox,
             LocalNativeDrawings provides drawingMailbox,
             LocalItemTooltips provides tooltipMailbox,

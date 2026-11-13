@@ -26,6 +26,7 @@ CompixelUI 把 Jetpack Compose 带进 Minecraft Java 版。用声明式 Kotlin �
 - **真实物品**：任意 `ItemStack` 连同动画、附魔光效和原版提示，直接放进普通可组合项。
 - **容器界面**：用 Compose 排布真实菜单槽位，点击、拖动、Shift 点击以及其他模组的钩子照常工作。
 - **HUD 层**：在游戏画面上绘制 Compose 内容。
+- **资源图片**：将 Minecraft 资源路径直接用作 Compose Painter，支持资源包替换和自动重载。
 - **菜单同步**：把服务端菜单状态同步到客户端，并把类型化请求发回服务端。
 - **OpenGL 与 Vulkan**：跟随游戏的渲染后端，Minecraft 26.2 和 26.3 支持 Vulkan。
 

@@ -1,12 +1,24 @@
 package dev.compixel.development
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.dp
 import dev.compixel.forge.ComposeScreen
+import dev.compixel.forge.resources.painterResource
 import dev.compixel.forge.theme.ColorEditorScreen
 import dev.compixel.forge.theme.ColorSchemes
 import dev.compixel.host.UiSession
@@ -23,9 +35,11 @@ import dev.compixel.ui.theme.ColorSchema
 import dev.compixel.ui.theme.LocalColorEditor
 import dev.compixel.ui.theme.SchemeOwner
 import dev.compixel.ui.theme.colors
+import java.awt.image.BufferedImage
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
+import javax.imageio.ImageIO
 import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.Component
 
@@ -78,6 +92,12 @@ internal class ThemeAcceptance(
     private var draft = ""
     private var edit: (String) -> Unit = {}
     private var openEditor: (() -> Unit)? = null
+    private var imageBounds: Rect? = null
+    private var fadedBounds: Rect? = null
+    private var backdropBounds: Rect? = null
+    private var imageSize = Size.Zero
+    private var imageColor = BASE_IMAGE
+    private var expectedImageSize = Size(8f, 4f)
 
     fun schedule() {
         script.act("open the color scheme fixture") {
@@ -104,6 +124,7 @@ internal class ThemeAcceptance(
                         OreScreen("Color schemes") {
                             OreTextField(text, { text = it }, Modifier.fillMaxWidth(), label = "Draft survives reload")
                             OreButton("Primary action", {}, Modifier.fillMaxWidth())
+                            ResourceImages()
                         }
                     }
 
@@ -117,6 +138,10 @@ internal class ThemeAcceptance(
             edit("unsaved draft")
             originalPacks = minecraft.resourcePackRepository.selectedIds.toList()
             repeat(2) { packs += newPack("compixel-theme-test-${UUID.randomUUID()}-$it") }
+            writeImage(0, LOWER_IMAGE, 8, 4)
+            writeImage(1, UPPER_IMAGE, 4, 8)
+            imageColor = UPPER_IMAGE
+            expectedImageSize = Size(4f, 8f)
             write(0, "schemes/storage.json", """{"format":1,"colors":{"panel":"#CFD4E2"}}""")
             write(1, "schemes/storage.json", """{"format":1,"colors":{"panel":"#E2DACA","accent":"#426B99"}}""")
             write(
@@ -140,6 +165,9 @@ internal class ThemeAcceptance(
                 "schemes/storage.json",
                 """{"format":1,"colors":{"panel":"#E2DACA","typo":"#FFFFFF","accent":"blue"}}""",
             )
+            writeImage(1, EDITED_IMAGE, 6, 3)
+            imageColor = EDITED_IMAGE
+            expectedImageSize = Size(6f, 3f)
             reload = minecraft.reloadResourcePacks()
         }
         awaitColors("index default", Color(0xFF223344)) {
@@ -151,6 +179,13 @@ internal class ThemeAcceptance(
             ColorSchemes.store.edit(owner, "storage", FixtureColors.panel, Color(0xFF5A6B7C))
         }
         awaitColors("player colors", Color(0xFF5A6B7C)) {}
+        script.act("remove the top resource-pack image") {
+            check(imageFile(1).delete())
+            imageColor = LOWER_IMAGE
+            expectedImageSize = Size(8f, 4f)
+            reload = minecraft.reloadResourcePacks()
+        }
+        awaitColors("lower image", Color(0xFF5A6B7C)) {}
         script.act("open the color editor from the screen") {
             checkNotNull(openEditor).invoke()
             // The screen runs its content's requests at its next tick. Running that tick here lets the suite follow
@@ -181,6 +216,8 @@ internal class ThemeAcceptance(
             check(ColorSchemes.current.selected(owner) == "acceptance")
         }
         script.act("remove the scheme packs") {
+            imageColor = BASE_IMAGE
+            expectedImageSize = Size(8f, 4f)
             minecraft.resourcePackRepository.setSelected(checkNotNull(originalPacks))
             reload = minecraft.reloadResourcePacks()
         }
@@ -191,6 +228,7 @@ internal class ThemeAcceptance(
             session.open(SuiteParentScreen())
             session.requireReleased(screen)
             release()
+            log.pass(AcceptanceStep.RESOURCE_IMAGES)
             log.pass(AcceptanceStep.THEME_RELOAD)
         }
     }
@@ -208,6 +246,7 @@ internal class ThemeAcceptance(
                 check(creations == 1 && draft == "unsaved draft") { "A scheme change lost remembered state" }
             }
             verify()
+            check(imageSize == expectedImageSize) { "Reload kept the old resource image dimensions: $imageSize" }
             session.capture("theme-" + name.replace(' ', '-')) { pixels ->
                 val expectedRgb = panel.toArgb() and 0xFFFFFF
                 var matched = 0
@@ -215,9 +254,62 @@ internal class ThemeAcceptance(
                     if (pixels.rgb(x, y) == expectedRgb) matched++
                 }
                 check(matched > 100) { "$name: the panel color did not reach the framebuffer" }
+                fun rgb(bounds: Rect?) = checkNotNull(bounds).center.let { pixels.rgb(it.x.toInt(), it.y.toInt()) }
+                check(rgb(imageBounds) == (imageColor and 0xFFFFFF)) {
+                    "$name: the resource image did not reach the framebuffer"
+                }
+                val faded = rgb(fadedBounds)
+                val backdrop = rgb(backdropBounds)
+                for (shift in listOf(16, 8, 0)) {
+                    val expected = (255 + (backdrop shr shift and 255)) / 2
+                    check(kotlin.math.abs((faded shr shift and 255) - expected) <= 2) {
+                        "$name: Compose alpha/tint was not applied to the resource image"
+                    }
+                }
             }
         }
         script.until("$name capture completed") { session.capturesIdle }
+    }
+
+    @Composable
+    private fun ResourceImages() {
+        val image = painterResource(IMAGE_PATH)
+        SideEffect { imageSize = image.intrinsicSize }
+        Row {
+            Image(
+                image,
+                null,
+                Modifier.size(16.dp).onGloballyPositioned { imageBounds = it.boundsInRoot() },
+                contentScale = ContentScale.FillBounds,
+            )
+            Image(
+                painterResource(IMAGE_PATH),
+                null,
+                Modifier.size(16.dp).onGloballyPositioned { fadedBounds = it.boundsInRoot() },
+                contentScale = ContentScale.FillBounds,
+                alpha = .5f,
+                colorFilter = ColorFilter.tint(Color.White),
+            )
+            Box(Modifier.size(16.dp).onGloballyPositioned { backdropBounds = it.boundsInRoot() })
+        }
+    }
+
+    private fun imageFile(priority: Int) = File(packs[priority], "assets/compixel_theme_test/textures/ui/panel.png")
+
+    private fun writeImage(priority: Int, color: Int, width: Int, height: Int) {
+        val file = imageFile(priority)
+        check(file.parentFile.mkdirs() || file.parentFile.isDirectory)
+        val image = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
+        for (y in 0 until height) for (x in 0 until width) image.setRGB(x, y, color)
+        check(ImageIO.write(image, "png", file))
+    }
+
+    private companion object {
+        const val IMAGE_PATH = "compixel_theme_test:textures/ui/panel.png"
+        val BASE_IMAGE = 0xFF3060C0.toInt()
+        val LOWER_IMAGE = 0xFFC04020.toInt()
+        val UPPER_IMAGE = 0xFF20A060.toInt()
+        val EDITED_IMAGE = 0xFFE0B030.toInt()
     }
 
     private fun newPack(name: String): File {

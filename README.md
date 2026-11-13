@@ -24,6 +24,7 @@ CompixelUI brings Jetpack Compose to Minecraft Java Edition. Write screens, inve
 
 - **Ore UI**: buttons, text and number fields, sliders, tabs, menus, nested tooltips, windows, trees and more, in a crisp Minecraft style.
 - **Real items**: any `ItemStack` with its animation, enchantment glint and native tooltip, inside ordinary composables.
+- **Resource images**: use Minecraft resource paths as Compose painters, with resource-pack overrides and automatic reloads.
 - **Container screens**: arrange real menu slots with Compose. Clicking, dragging, shift-clicking and other mods' hooks keep working.
 - **HUD layers**: Compose content over the game view.
 - **Menu sync**: server menu state on the client, and typed requests back to the server.

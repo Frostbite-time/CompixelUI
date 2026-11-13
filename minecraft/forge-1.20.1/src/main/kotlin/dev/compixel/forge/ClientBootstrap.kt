@@ -2,6 +2,7 @@ package dev.compixel.forge
 
 import dev.compixel.forge.constants.CompixelGuiLayers
 import dev.compixel.forge.render.RendererResources
+import dev.compixel.forge.resources.MinecraftResources
 import dev.compixel.forge.theme.ColorEditorScreen
 import dev.compixel.forge.theme.ColorSchemes
 import dev.compixel.forge.theme.SchemeReloadListener
@@ -35,7 +36,12 @@ internal object ClientBootstrap {
 
     private fun registerReloadListeners(event: RegisterClientReloadListenersEvent) {
         event.registerReloadListener(SchemeReloadListener)
-        event.registerReloadListener(ResourceManagerReloadListener { RendererResources.reloaded() })
+        event.registerReloadListener(
+            ResourceManagerReloadListener {
+                MinecraftResources.images.reload()
+                RendererResources.reloaded()
+            }
+        )
     }
 
     // Screens play their exits above every HUD overlay.

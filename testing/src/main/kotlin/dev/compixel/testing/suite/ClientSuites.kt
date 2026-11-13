@@ -76,6 +76,10 @@ enum class AcceptanceStep(val report: String) {
     COMPONENTS(
         "Ore component pages: selection, menus, numbers, colors, tree, tooltips, windows, fields, slots, surfaces and items"
     ),
+    RESOURCE_IMAGES(
+        "resource images: resource-pack priority, changed pixels and dimensions, lower-pack and built-in fallback, " +
+            "Compose alpha/tint and resource reload without losing live state"
+    ),
     THEME_RELOAD(
         "color schemes stack packs, skip invalid colors, keep the player's colors on top, open the color editor, export a pack and preserve live state"
     ),
