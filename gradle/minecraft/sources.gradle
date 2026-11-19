@@ -10,6 +10,10 @@ ext.configureMinecraftSources = { List<String> backends = [':render-gl'] ->
     kotlin.target.compilations.named('development') {
         associateWith(kotlin.target.compilations.getByName('main'))
     }
+    // Kotlin is never embedded in player archives. Keep ordinary Maven libraries in development runs.
+    [libs.kotlin.stdlib, libs.coroutines.core, libs.serialization.core].each { library ->
+        dependencies.add('runtimeOnly', library)
+    }
     evaluationDependsOn(':testing')
     [project(':testing').sourceSets.main] + backends.collect { backend ->
         evaluationDependsOn(backend)

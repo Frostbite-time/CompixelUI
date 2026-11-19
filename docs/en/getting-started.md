@@ -15,6 +15,7 @@ plugins {
 }
 
 repositories {
+    google()
     maven {
         url = 'https://maven.wintercogs.com/releases'
         content { includeGroup 'dev.compixel' }
@@ -22,8 +23,13 @@ repositories {
 }
 
 dependencies {
-    compileOnly "dev.compixel:compixel-neoforge-1.21.1-with-kotlin:${compixel_version}"
-    localRuntime "dev.compixel:compixel-neoforge-1.21.1-with-kotlin:${compixel_version}"
+    compileOnly "dev.compixel:compixel-neoforge-1.21.1:${compixel_version}"
+    localRuntime "dev.compixel:compixel-neoforge-1.21.1:${compixel_version}"
+
+    // Standard Kotlin libraries for runClient (skip if you load a Kotlin runtime mod in dev).
+    additionalRuntimeClasspath "org.jetbrains.kotlin:kotlin-stdlib:2.4.10"
+    additionalRuntimeClasspath "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2"
+    additionalRuntimeClasspath "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.7.3"
 }
 
 kotlin { jvmToolchain(21) }
@@ -36,9 +42,7 @@ compixel_version=<version>
 kotlin.stdlib.default.dependency=false
 ```
 
-The `-with-kotlin` coordinate brings the Kotlin libraries along. If your mod already depends on Kotlin for Forge, use `compixel-neoforge-1.21.1` on both lines instead and let KFF supply Kotlin.
-
-CompixelUI is installed as its own mod, so don't include it in your JAR through Jar-in-Jar.
+`compileOnly` brings in the Compose runtime, AndroidX compile dependencies (from `google()`) and Kotlin libraries automatically; `additionalRuntimeClasspath` supplies standard Kotlin libraries for `runClient` (if your mod already loads a Kotlin runtime mod in `localRuntime`, you can use that instead). CompixelUI is installed as its own mod, so don't include it in your JAR through Jar-in-Jar.
 
 ## 2. Declare the dependency
 
@@ -128,14 +132,7 @@ Use `gameState` for game data that changes: directly reading a player or item st
 
 ## 5. Ship it
 
-Players install CompixelUI next to your mod. Each Minecraft version has two files; players pick one:
-
-| File | For |
-| --- | --- |
-| `compixel-neoforge-1.21.1-…-with-kotlin.jar` | Everyone; Kotlin included |
-| `compixel-neoforge-1.21.1-….jar` | Players who already have Kotlin for Forge |
-
-Both are on the [Releases](https://github.com/Frostbite-time/CompixelUI/releases) page.
+Players install CompixelUI (from [Releases](https://github.com/Frostbite-time/CompixelUI/releases)) and a compatible Kotlin runtime mod (such as Kotlin for Forge) alongside your mod.
 
 ## Next steps
 

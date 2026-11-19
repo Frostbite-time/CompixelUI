@@ -35,7 +35,6 @@ java.registerFeature('development') { usingSourceSet sourceSets.development }
 legacyForge { version = "$minecraft_version-$forge_version" }
 def artifacts = configureMinecraftArtifacts(
     playerJarJar: JarJar.registerWithConfiguration(project, 'playerJarJar'),
-    playerWithKotlinJarJar: JarJar.registerWithConfiguration(project, 'playerWithKotlinJarJar'),
     loader: 'forge', runtime: runtimeBundle, rendererFixtures: rendererFixtures,
     metadataPath: 'META-INF/mods.toml',
     metadataValues: [forge_version_range: forge_version_range],
@@ -88,15 +87,13 @@ dependencies {
     developmentCompileOnly(testFixtures(project(':render-gl')))
     testImplementation project(':host')
     testImplementation project(':menu-sync')
-    // Development launches load both bundles as FML libraries, as the with-kotlin player JAR does.
+    // Development uses standard Kotlin libraries; player archives require an external provider.
     runtimeOnly(runtimeBundle) {
         capabilities { requireCapability('dev.compixel:compixel-runtime-standard') }
     }
-    runtimeOnly(project(':runtime-kotlin')) {
-        capabilities { requireCapability('dev.compixel:compixel-kotlin') }
-    }
     // The client run loads the modules as compiled, naming XZ for Java by its original package, which the
     // bundles relocate. This loader shows mods a library without FMLModType only on the legacy classpath.
+    [libs.kotlin.stdlib, libs.coroutines.core, libs.serialization.core].each { clientAdditionalRuntimeClasspath it }
     clientAdditionalRuntimeClasspath libs.xz
 }
 

@@ -17,17 +17,18 @@ ext.minecraftRunSettings = { String backend ->
     def settings = [backend: backend, background: background, isolated: flag('compixelIsolatedDesktop'),
         control: flag('compixelBenchmarkControl'), frames: frames, repeats: repeats, label: label,
         directories: [acceptance: "acceptance-$backend-$window", benchmark: "benchmark-$backend-$window-$label"]]
-    def kotlinMode = providers.gradleProperty('compixelKotlinMode').orElse('bundled').get()
-    if (!(kotlinMode in ['bundled', 'external'])) throw new GradleException('compixelKotlinMode must be bundled or external')
     def providerJar = providers.gradleProperty('compixelKotlinProviderJar').orNull
-    if (kotlinMode == 'bundled' && providerJar) throw new GradleException('A Kotlin provider is only used with compixelKotlinMode=external')
     // Both suites load the player archive plus the separate development archive. On NeoForge that is the
     // release archive itself; Forge 1.20.1 releases it after SRG remapping, which tools/run_forge_production.ps1 covers.
     settings.directories.each { suite, directory ->
         tasks.register("stage${suite.capitalize()}", Sync) {
-            from tasks.named(kotlinMode == 'bundled' ? 'playerWithKotlinJar' : 'playerJar')
+            from tasks.named('playerJar')
             from tasks.named('developmentJar')
-            if (providerJar) from file(providerJar)
+            if (providerJar) from rootProject.file(providerJar)
+            doFirst {
+                if (!providerJar || !rootProject.file(providerJar).isFile())
+                    throw new GradleException('Packaged suites require -PcompixelKotlinProviderJar=<Kotlin provider JAR>.')
+            }
             into layout.buildDirectory.dir("$directory/mods")
         }
     }

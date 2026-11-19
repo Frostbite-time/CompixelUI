@@ -40,7 +40,7 @@ flowchart TB
 | `menu-sync` | 菜单同步协议，以及客户端和服务端的会话 |
 | `slot-core` | 槽位规则与 Shift 点击路线 |
 | `minecraft/<加载器>-<版本>` | 某个 Minecraft 版本的界面、HUD 层、输入、物品、菜单与 GPU 接入 |
-| `runtimes/*` | 打包 Compose、Skiko 与 Kotlin |
+| `runtimes/*` | 打包 Compose、Skiko 与独立嵌套的辅助库 |
 | `demo`、`desktop`、`testing` | 组件预览、它的桌面窗口以及共享测试代码 |
 | `build-logic`、`gradle`、`tools` | 构建约定、版本元数据、检查与脚本 |
 
@@ -72,13 +72,13 @@ Compose 绘制的 GPU 图像（例如物品图标页）归渲染器所有。Comp
 ## 打包
 
 - 模组 JAR 包含所有 CompixelUI 模块，不含第三方代码。
-- Compose、Skiko 和 Kotlin 打包为运行时包：`compixel-runtime-standard`、用于 26.2 和 26.3 的 `compixel-runtime-vulkan`，以及 `compixel-kotlin`。Skiko 包含 Windows、Linux 和 macOS 的 x64 与 arm64 原生库。
+- Compose 与 Skiko 打包为运行时包：`compixel-runtime-standard`，以及用于 26.2 和 26.3 的 `compixel-runtime-vulkan`，其中 Skiko 包含 Windows、Linux 和 macOS 的 x64 与 arm64 原生库。共享包的组件合并在运行时包内；包边界独立的库则以原始坐标和 [runtime-library-ranges.properties](../../gradle/runtime-library-ranges.properties) 中定义的兼容范围通过 Jar-in-Jar 嵌套，交由模组加载器与其他模组协商版本。AtomicFU 与 Coroutines Swing 转为自动模块并保留服务声明，以便与各类 Kotlin 运行时模组协同工作。
 - 运行时包以 xz 压缩存放这些原生库：同一 CPU 架构的原生库放在同一个压缩流里，以利用它们之间相同的内容；Skia 嵌在 Linux 和 macOS 原生库里的 ICU 数据只存一份。在任何 Compose 代码运行之前，`platform` 中的 `SkikoNatives` 会把当前平台的原生库解压到 Skiko 位于 `~/.skiko` 的缓存目录，Skiko 从那里加载。构建时会还原每个原生库，并与 Skiko 的校验值比对。
 - 运行时包改名的库都放在 `dev.compixel.runtime.relocate` 下，这样其他模组自带的副本不会与它们共用同一个包：XZ for Java 位于 `dev.compixel.runtime.relocate.xz`。构建时会相应改写模组 JAR 里对它们的引用。
 - 每个运行时包有自己的版本号，`bundle.lock` 记录该版本的确切内容。
 - 玩家文件通过 Jar-in-Jar 内嵌运行时包。内嵌包里的文件不单独压缩，由玩家文件对整个包统一压缩。Maven 用户则把运行时包作为依赖获取。
 - Ore 字体以 XZ 压缩分发。启动时，各适配器将它解压到隐藏、必需且位于 MC 资源包栈底部的内置资源包，通过 MC 的普通资源管理器提供 `assets/compixel/font/compixel.ttf`。资源包可以替换它，重载后已有界面的排版会更新。`ui-core` 为图片、字体和自定义类型共用按类型解码、缓存租约与重载失效机制，适配器提供资源源。
-- 启动时，Java 代码会在运行任何 Kotlin 代码之前检查所需的运行时和 Kotlin 库，并指出缺少的部分。
+- Kotlin 运行库由外部 Kotlin 运行时模组提供。启动时，Java 入口会在执行任何 Kotlin 代码之前检查 Kotlin 与 Compose 运行时环境；若 Kotlin 缺失或版本过低，会通过模组加载器的报错页面提示原因和解决方法。
 
 ## 接入游戏的方式
 

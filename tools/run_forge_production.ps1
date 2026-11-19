@@ -11,14 +11,13 @@ param(
     [Parameter(Mandatory)][string]$JavaHome,
     [ValidateSet('acceptance', 'benchmark')][string]$Suite = 'acceptance',
     [ValidatePattern('^[a-zA-Z0-9_-]+$')][string]$Label = 'production',
-    [ValidateSet('bundled', 'external')][string]$KotlinMode = 'bundled',
     [string]$KotlinProviderJar,
     [ValidateRange(120, 1500)][int]$Frames = 360,
     [ValidateRange(1, 5)][int]$Repeats = 2,
     [switch]$SkipBuild
 )
 $ErrorActionPreference = 'Stop'
-if ($KotlinMode -eq 'bundled' -and $KotlinProviderJar) { throw 'A Kotlin provider requires -KotlinMode external' }
+if (!$KotlinProviderJar -or !(Test-Path -LiteralPath $KotlinProviderJar)) { throw 'Packaged runs require -KotlinProviderJar <Kotlin provider JAR>.' }
 $repo = Split-Path $PSScriptRoot
 $java = Join-Path (Resolve-Path $JavaHome).Path 'bin/java.exe'
 $targets = ConvertFrom-StringData ([IO.File]::ReadAllText((Join-Path $repo 'gradle/minecraft-targets.properties')))
@@ -31,7 +30,7 @@ $modVersion = $adapterSettings['mod_version']
 $forgeCoordinate = "$mcVersion-$forgeVersion"
 $versionName = "$mcVersion-forge-$forgeVersion"
 $launcher = Join-Path $repo '.work/forge-production'
-$game = Join-Path $repo "$adapterDirectory/build/production-$Suite-$Label-$KotlinMode"
+$game = Join-Path $repo "$adapterDirectory/build/production-$Suite-$Label"
 $libraryRoot = Join-Path $launcher 'libraries'
 $assets = Join-Path $env:USERPROFILE '.gradle/caches/neoformruntime/assets'
 New-Item -ItemType Directory -Force $launcher,$game,$libraryRoot | Out-Null
@@ -128,9 +127,8 @@ $mods = Join-Path $game 'mods'
 New-Item -ItemType Directory -Force $mods,(Join-Path $game 'config') | Out-Null
 # This generated test directory is staged from scratch, like Gradle's Sync task.
 foreach ($old in Get-ChildItem -LiteralPath $mods -File -Filter '*.jar') { Remove-Item -LiteralPath $old.FullName }
-$librarySuffix = if ($KotlinMode -eq 'bundled') { '-with-kotlin' } else { '' }
 # Player JARs are in build/release; the development mod is published with the Maven artifacts in build/libs.
-foreach ($archive in @("release/compixel-forge-1.20.1-$modVersion$librarySuffix.jar",
+foreach ($archive in @("release/compixel-forge-1.20.1-$modVersion.jar",
         "libs/compixel-forge-1.20.1-$modVersion-development.jar")) {
     Copy-Item -LiteralPath (Join-Path $repo "$adapterDirectory/build/$archive") -Destination $mods
 }

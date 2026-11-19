@@ -2,11 +2,18 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import dev.compixel.gradle.RuntimeRelocations
 import dev.compixel.gradle.SkikoNativesPack
 import dev.compixel.gradle.StoredJar
+import dev.compixel.gradle.NestedLibraryJar
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import groovy.xml.XmlSlurper
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 import org.gradle.api.artifacts.result.ResolvedArtifactResult
+import org.gradle.api.attributes.Bundling
+import org.gradle.api.attributes.Category
+import org.gradle.api.attributes.LibraryElements
+import org.gradle.api.attributes.Usage
+import org.gradle.api.attributes.java.TargetJvmVersion
+import org.gradle.api.component.SoftwareComponentFactory
 import org.gradle.jvm.JvmLibrary
 import org.gradle.language.base.artifact.SourcesArtifact
 import org.gradle.language.java.artifact.JavadocArtifact
@@ -22,17 +29,19 @@ pluginManager.apply('com.gradleup.shadow')
 def skikoPlatforms = ['windows-x64', 'windows-arm64', 'linux-x64', 'linux-arm64', 'macos-x64', 'macos-arm64']
 def skikoVersion = project.skiko_version.toString()
 def profile = project.runtime_profile.toString()
-// The Kotlin bundle carries what an external provider such as KFF supplies; the Compose runtimes carry the rest.
-def kotlinBundle = profile == 'kotlin'
-def bundleName = kotlinBundle ? 'compixel-kotlin' : "compixel-runtime-$profile"
+// Kotlin always comes from the host; this bundle supplies Compose, Skiko and nested support libraries.
+def bundleName = "compixel-runtime-$profile"
 def versionProperty = "runtime_${profile}_version"
 def suppliedByKotlinProvider = { id ->
     id.group == 'org.jetbrains.kotlin' || (id.group == 'org.jetbrains.kotlinx' &&
         (id.name.startsWith('kotlinx-serialization-') ||
             id.name in ['kotlinx-coroutines-core', 'kotlinx-coroutines-core-jvm', 'kotlinx-coroutines-jdk8']))
 }
+// JetBrains annotations are compile-time only (CLASS/SOURCE retention); nesting them into GAME layer
+// collides in JPMS whenever kotlin-stdlib on additionalRuntimeClasspath brings them into MC-BOOTSTRAP.
+def compileOnlyAnnotation = { id -> id.group == 'org.jetbrains' && id.name == 'annotations' }
 // CompixelUI's own modules ship inside each adapter JAR, so bundles carry third-party code only.
-def bundled = { id -> id.group != project.group.toString() && suppliedByKotlinProvider(id) == kotlinBundle }
+def bundled = { id -> id.group != project.group.toString() && !suppliedByKotlinProvider(id) && !compileOnlyAnnotation(id) }
 def catalog = rootProject.extensions.getByType(org.gradle.api.artifacts.VersionCatalogsExtension).named('libs')
 repositories {
     mavenCentral()
@@ -51,22 +60,21 @@ dependencies {
     implementation project(':render-gl')
     if (profile == 'vulkan') implementation project(':render-vulkan')
     implementation project(':ui-ore')
-    if (!kotlinBundle) skikoPlatforms.each { skikoPlatform ->
+    skikoPlatforms.each { skikoPlatform ->
         runtimeOnly "org.jetbrains.skiko:skiko-awt-runtime-${skikoPlatform}:${skikoVersion}"
     }
 }
 
 // Adapters compare this class with the runtime profile and version they were built for.
-if (!kotlinBundle) {
-    def info = tasks.register('generateRuntimeInfo') {
-        def output = layout.buildDirectory.dir('generated/runtime-info')
-        def values = [profile: profile, version: project.version.toString()]
-        inputs.properties values
-        outputs.dir output
-        doLast {
-            def source = output.get().file('dev/compixel/runtime/RuntimeInfo.java').asFile
-            source.parentFile.mkdirs()
-            source.setText("""package dev.compixel.runtime;
+def info = tasks.register('generateRuntimeInfo') {
+    def output = layout.buildDirectory.dir('generated/runtime-info')
+    def values = [profile: profile, version: project.version.toString()]
+    inputs.properties values
+    outputs.dir output
+    doLast {
+        def source = output.get().file('dev/compixel/runtime/RuntimeInfo.java').asFile
+        source.parentFile.mkdirs()
+        source.setText("""package dev.compixel.runtime;
 
 /** Identifies this CompixelUI runtime bundle. */
 public final class RuntimeInfo {
@@ -76,10 +84,9 @@ public final class RuntimeInfo {
     private RuntimeInfo() {}
 }
 """, 'UTF-8')
-        }
     }
-    sourceSets.main.java.srcDir(info)
 }
+sourceSets.main.java.srcDir(info)
 
 // The bundle stores the Skiko libraries xz-compressed, one stream per CPU architecture, with the ICU data that Skia
 // embeds in each Linux and macOS library kept once; dev.compixel.platform.internal.SkikoNatives unpacks the current
@@ -89,7 +96,6 @@ def skikoRuntimes = configurations.runtimeClasspath.incoming.artifactView {
     componentFilter { it instanceof ModuleComponentIdentifier && it.group == 'org.jetbrains.skiko' && it.module.startsWith('skiko-awt-runtime-') }
 }.artifacts
 def packSkikoNatives = tasks.register('packSkikoNatives') {
-    enabled = !kotlinBundle
     inputs.files(skikoRuntimes.artifactFiles)
     outputs.dir(skikoNatives)
     doLast {
@@ -104,7 +110,7 @@ def packSkikoNatives = tasks.register('packSkikoNatives') {
 }
 
 def noticesDirectory = layout.buildDirectory.dir('third-party')
-def licenseGroups = kotlinBundle ? ['common'] : ['common', 'runtime']
+def licenseGroups = ['common', 'runtime']
 // Libraries under a license other than Apache-2.0, with the declared name and the text the project keeps.
 def reviewedLicenses = ['org.tukaani:xz': [name: '0BSD', text: 'licenses/runtime/xz/LICENSE.txt']]
 def notices = tasks.register('thirdPartyNotices') {
@@ -184,19 +190,87 @@ def notices = tasks.register('thirdPartyNotices') {
     }
 }
 
+// Explicit list of libraries nested via Jar-in-Jar and their supported version ranges.
+// Everything else in bundled(...) stays shaded in dev.compixel.runtime.
+def rangeFile = rootProject.file('gradle/runtime-library-ranges.properties')
+def ranges = new Properties()
+rangeFile.withInputStream { ranges.load(it) }
+def nestedCoordinates = ranges.stringPropertyNames().toSet()
+
+def nestedCache = null
+def nestedArtifacts = {
+    if (nestedCache != null) return nestedCache
+    def resolved = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts
+        .findAll { bundled(it.moduleVersion.id) }
+        .collectEntries { [("${it.moduleVersion.id.group}:${it.moduleVersion.id.name}".toString()): it] }
+    def missing = nestedCoordinates - resolved.keySet()
+    if (missing) throw new GradleException("Jar-in-Jar libraries in $rangeFile missing from runtimeClasspath: ${missing.sort()}")
+    nestedCache = nestedCoordinates.sort().collect { resolved[it] }
+    nestedCache
+}
+
+def packageNames = { File archive ->
+    new java.util.zip.ZipFile(archive).withCloseable { zip ->
+        zip.entries().toList().findAll { !it.directory && it.name.endsWith('.class') && !it.name.endsWith('module-info.class') }
+            .collect { it.name.replaceFirst('^META-INF/versions/\\d+/', '').replaceFirst('/[^/]+$', '') }.toSet()
+    }
+}
+def nestedDirectory = layout.buildDirectory.dir('nested-libraries')
+def nestedLibraries = tasks.register('nestedLibraries') {
+    inputs.files(configurations.runtimeClasspath)
+    inputs.file(rangeFile)
+    outputs.dir(nestedDirectory)
+    doLast {
+        def root = nestedDirectory.get().asFile
+        project.delete(root)
+        def directory = new File(root, 'META-INF/jarjar')
+        directory.mkdirs()
+        def jars = nestedArtifacts().collect { artifact ->
+            def id = artifact.moduleVersion.id
+            def range = ranges.getProperty("${id.group}:${id.name}")?.trim()
+            if (!range) throw new GradleException("Empty Jar-in-Jar range for $id in $rangeFile")
+            // Retain upstream contents. Kotlin-dependent descriptors become automatic modules, so that
+            // an absent/alternative provider reaches CompixelUI's explicit runtime diagnostic.
+            def filename = "${id.group}.${id.name}-${id.version}.jar"
+            NestedLibraryJar.prepare(artifact.file, new File(directory, filename))
+            [identifier: [group: id.group, artifact: id.name],
+             version: [range: range, artifactVersion: id.version], path: "META-INF/jarjar/$filename", isObfuscated: false]
+        }
+        new File(directory, 'metadata.json').setText(JsonOutput.prettyPrint(JsonOutput.toJson([jars: jars])) + '\n', 'UTF-8')
+        logger.lifecycle("${bundleName}: nested Jar-in-Jar libraries: ${jars.collect { it.identifier.artifact }}")
+    }
+}
+def verifyNestedLibraries = { File archive ->
+    new java.util.zip.ZipFile(archive).withCloseable { zip ->
+        def metadata = new JsonSlurper().parseText(zip.getInputStream(zip.getEntry('META-INF/jarjar/metadata.json')).getText('UTF-8'))
+        def expected = nestedArtifacts().collectEntries { [(it.moduleVersion.id.toString()): it.file] }
+        def ownedPackages = packageNames(archive)
+        metadata.jars.each { jar ->
+            def coordinate = "${jar.identifier.group}:${jar.identifier.artifact}:${jar.version.artifactVersion}".toString()
+            if (zip.getEntry(jar.path) == null) throw new GradleException("Missing nested library entry: ${jar.path}")
+            def packages = packageNames(expected[coordinate])
+            def overlap = packages.intersect(ownedPackages)
+            if (overlap) throw new GradleException("Split packages in $coordinate: $overlap")
+            ownedPackages.addAll(packages)
+        }
+    }
+}
+
 def bundle = tasks.named('shadowJar', ShadowJar) {
     archiveBaseName = bundleName
     archiveClassifier = ''
     from(notices) { into 'META-INF/compixel-third-party' }
-    if (!kotlinBundle) {
-        from(packSkikoNatives)
-        exclude 'skiko-*.dll', 'libskiko-*.so', 'libskiko-*.dylib', 'icudtl.dat'
-        // Another mod's copy of a library kept under its own name would share a package with this module, and the
-        // game would not start. Libraries that no API exposes move under dev.compixel.runtime.relocate.
-        doLast { RuntimeRelocations.relocate(archiveFile.get().asFile) }
-    }
+    from(nestedLibraries)
+    from(packSkikoNatives)
+    exclude 'skiko-*.dll', 'libskiko-*.so', 'libskiko-*.dylib', 'icudtl.dat'
+    // Another mod's copy of a library kept under its own name would share a package with this module, and the
+    // game would not start. Libraries that no API exposes move under dev.compixel.runtime.relocate.
+    doLast { RuntimeRelocations.relocate(archiveFile.get().asFile) }
     dependencies {
-        exclude { dependency -> !bundled(dependency.module.id) }
+        exclude { dependency ->
+            !bundled(dependency.module.id) ||
+                "${dependency.module.id.group}:${dependency.module.id.name}".toString() in nestedCoordinates
+        }
     }
     // Compose splits packages across artifacts; NeoForge 1.21.1 needs one module for them.
     // Do not minimize or relocate with Shadow: compiler ABI, service providers and JNI require their names, and a
@@ -206,11 +280,10 @@ def bundle = tasks.named('shadowJar', ShadowJar) {
     filesMatching('META-INF/services/**') { duplicatesStrategy = DuplicatesStrategy.INCLUDE }
     exclude 'module-info.class', 'META-INF/versions/**/module-info.class'
     exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA'
-    // The Kotlin libraries version only module-info.class, and Forge 1.20.1 rejects a multi-release
-    // JAR without META-INF/versions.
-    addMultiReleaseAttribute = !kotlinBundle
+    // Skiko retains its multi-release classes. Nested libraries preserve their original manifests.
+    addMultiReleaseAttribute = true
     manifest {
-        attributes 'FMLModType': 'LIBRARY', 'Automatic-Module-Name': kotlinBundle ? 'dev.compixel.kotlin' : 'dev.compixel.runtime'
+        attributes 'FMLModType': 'LIBRARY', 'Automatic-Module-Name': 'dev.compixel.runtime'
     }
 }
 
@@ -267,9 +340,6 @@ tasks.register('writeBundleLock') {
 
 tasks.register('verifyRuntimeArchive') {
     dependsOn bundle, notices, embedded
-    if (!kotlinBundle) dependsOn ':runtime-kotlin:thirdPartyNotices'
-    def kotlinCoordinatesFile = kotlinBundle ? null :
-        project(':runtime-kotlin').layout.buildDirectory.file('third-party/dependencies.txt')
     doLast {
         def coordinates = bundledCoordinates()
         def locked = lockState(bundleLock)
@@ -279,19 +349,10 @@ tasks.register('verifyRuntimeArchive') {
                 "run :${project.name}:writeBundleLock"
             throw new GradleException("${bundleLock} does not describe ${bundleName} ${project.version}; $hint")
         }
-        def resolvedArtifacts = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts
-        if (!kotlinBundle) {
-            def versions = configurations.runtimeClasspath.incoming.resolutionResult.allComponents
-                .findAll { it.moduleVersion?.group == 'org.jetbrains.skiko' }
-                .collect { it.moduleVersion.version }.toSet()
-            if (versions != [skikoVersion].toSet()) throw new GradleException("Mixed Skiko ABI/native versions: $versions; expected $skikoVersion")
-            // A with-kotlin installation pairs this runtime with the shared Kotlin bundle.
-            def expected = resolvedArtifacts.findAll { suppliedByKotlinProvider(it.moduleVersion.id) }
-                .collect { it.moduleVersion.id.toString() }.toSet()
-            def supplied = kotlinCoordinatesFile.get().asFile.readLines('UTF-8').findAll { it }.toSet()
-            if (expected != supplied)
-                throw new GradleException("compixel-kotlin supplies $supplied, but ${bundleName} expects $expected")
-        }
+        def versions = configurations.runtimeClasspath.incoming.resolutionResult.allComponents
+            .findAll { it.moduleVersion?.group == 'org.jetbrains.skiko' }
+            .collect { it.moduleVersion.version }.toSet()
+        if (versions != [skikoVersion].toSet()) throw new GradleException("Mixed Skiko ABI/native versions: $versions; expected $skikoVersion")
         def file = bundle.get().archiveFile.get().asFile
         new java.util.zip.ZipFile(file).withCloseable { zip ->
             def entries = zip.entries().toList().findAll { !it.directory }*.name
@@ -302,43 +363,29 @@ tasks.register('verifyRuntimeArchive') {
                 'META-INF/compixel-third-party/THIRD-PARTY-NOTICES.md',
                 'META-INF/compixel-third-party/licenses/common/Apache-2.0.txt',
             ]
-            def forbidden
-            if (kotlinBundle) {
-                required.addAll(['kotlin/jvm/internal/Intrinsics.class', 'kotlinx/coroutines/Job.class',
-                    'kotlinx/serialization/KSerializer.class'])
-                forbidden = entries.findAll {
-                    it.startsWith('androidx/') || it.startsWith('org/') || it.startsWith('dev/compixel/') ||
-                        it.startsWith('kotlinx/atomicfu/') || it.startsWith('kotlinx/coroutines/swing/') ||
-                        it.startsWith('META-INF/compixel-third-party/licenses/runtime/') ||
-                        it.endsWith('.dll') || it.endsWith('.so') || it.endsWith('.dylib')
-                }
-            } else {
-                required.addAll(['dev/compixel/runtime/RuntimeInfo.class', 'androidx/compose/runtime/SnapshotStateKt.class',
-                    'META-INF/services/kotlinx.coroutines.internal.MainDispatcherFactory',
-                    'META-INF/compixel-third-party/licenses/runtime/skiko/NOTICE.txt',
-                    'META-INF/compixel-third-party/licenses/runtime/skia/LICENSE.txt',
-                    'dev/compixel/runtime/relocate/xz/XZInputStream.class'])
-                def unrelocated = RuntimeRelocations.originalReferences(file)
-                if (unrelocated) throw new GradleException("${bundleName} refers to relocated libraries by their original names: ${unrelocated.take(10)}")
-                forbidden = entries.findAll {
-                    it.startsWith('kotlin/') || it.startsWith('kotlinx/serialization/') ||
-                        (it.startsWith('kotlinx/coroutines/') && !it.startsWith('kotlinx/coroutines/swing/')) ||
-                        (it.startsWith('dev/compixel/') && it != 'dev/compixel/runtime/RuntimeInfo.class' &&
-                            !it.startsWith('dev/compixel/runtime/relocate/')) ||
-                        it.contains('org/tukaani/') ||
-                        // The runtime must use Minecraft's LWJGL, not bundle another copy.
-                        it.startsWith('org/lwjgl/') || it.startsWith('androidx/compose/material3/') ||
-                        it.toLowerCase(Locale.ROOT).contains('mixin')
-                }
-                // Skiko names its unpacked copy after these checksums.
-                if (entries.count { it.endsWith('.sha256') && it.contains('skiko') } < skikoPlatforms.size())
-                    throw new GradleException("Missing Skiko native library checksum for ${skikoPlatforms}")
-                def unpacked = entries.findAll { it ==~ /(lib)?skiko-[^\/]+\.(dll|so|dylib)/ || it == 'icudtl.dat' }
-                if (unpacked) throw new GradleException("Uncompressed Skiko libraries in ${bundleName}: $unpacked")
-                def restored = SkikoNativesPack.verify(zip)
-                if (restored.toSet() != skikoPlatforms.toSet())
-                    throw new GradleException("Packed Skiko libraries for $restored, expected ${skikoPlatforms}")
+            required.addAll(['dev/compixel/runtime/RuntimeInfo.class', 'androidx/compose/runtime/SnapshotStateKt.class',
+                'META-INF/compixel-third-party/licenses/runtime/skiko/NOTICE.txt',
+                'META-INF/compixel-third-party/licenses/runtime/skia/LICENSE.txt',
+                'dev/compixel/runtime/relocate/xz/XZInputStream.class'])
+            def unrelocated = RuntimeRelocations.originalReferences(file)
+            if (unrelocated) throw new GradleException("${bundleName} refers to relocated libraries by their original names: ${unrelocated.take(10)}")
+            def forbidden = entries.findAll {
+                it.startsWith('kotlin/') || it.startsWith('kotlinx/serialization/') || it.startsWith('kotlinx/coroutines/') ||
+                    (it.startsWith('dev/compixel/') && it != 'dev/compixel/runtime/RuntimeInfo.class' &&
+                        !it.startsWith('dev/compixel/runtime/relocate/')) ||
+                    it.contains('org/tukaani/') ||
+                    // The runtime must use Minecraft's LWJGL, not bundle another copy.
+                    it.startsWith('org/lwjgl/') || it.startsWith('androidx/compose/material3/') ||
+                    it.toLowerCase(Locale.ROOT).contains('mixin')
             }
+            // Skiko names its unpacked copy after these checksums.
+            if (entries.count { it.endsWith('.sha256') && it.contains('skiko') } < skikoPlatforms.size())
+                throw new GradleException("Missing Skiko native library checksum for ${skikoPlatforms}")
+            def unpacked = entries.findAll { it ==~ /(lib)?skiko-[^\/]+\.(dll|so|dylib)/ || it == 'icudtl.dat' }
+            if (unpacked) throw new GradleException("Uncompressed Skiko libraries in ${bundleName}: $unpacked")
+            def restored = SkikoNativesPack.verify(zip)
+            if (restored.toSet() != skikoPlatforms.toSet())
+                throw new GradleException("Packed Skiko libraries for $restored, expected ${skikoPlatforms}")
             required.each { if (!(it in entries)) throw new GradleException("Missing ${bundleName} entry: $it") }
             def multiRelease = new java.util.jar.JarFile(file).withCloseable { it.manifest.mainAttributes.getValue('Multi-Release') }
             if (multiRelease == 'true' && !entries.any { it.startsWith('META-INF/versions/') })
@@ -352,6 +399,7 @@ tasks.register('verifyRuntimeArchive') {
             if (entries.any { it.startsWith('META-INF/compixel-third-party/licenses/javadoc/') })
                 throw new GradleException('Documentation licenses leaked into the bundle')
         }
+        verifyNestedLibraries(file)
         StoredJar.verify(file, embeddedFile.get().asFile)
     }
 }
@@ -416,47 +464,65 @@ Licenses and notices are under META-INF/compixel-third-party.
 }
 tasks.named('assemble') { dependsOn bundle }
 
+abstract class RuntimeComponentProvider {
+    @javax.inject.Inject abstract SoftwareComponentFactory getFactory()
+}
+
+// Compile consumers cannot read classes inside META-INF/jarjar; expose the nested libraries and
+// Kotlin non-transitively on the API variant, while runtime consumers rely on Jar-in-Jar and an
+// external Kotlin runtime mod.
+def publishedApiDeps = configurations.dependencyScope('publishedRuntimeApiDependencies') {
+    defaultDependencies { deps ->
+        def artifacts = nestedArtifacts() + configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts.findAll {
+            suppliedByKotlinProvider(it.moduleVersion.id) || compileOnlyAnnotation(it.moduleVersion.id)
+        }
+        artifacts.each { artifact ->
+            def id = artifact.moduleVersion.id
+            def dep = project.dependencies.create("${id.group}:${id.name}:${id.version}")
+            dep.exclude(group: '*', module: '*')
+            deps.add(dep)
+        }
+    }
+}
+def runtimeApi = configurations.consumable('publishedRuntimeApi') {
+    extendsFrom(publishedApiDeps.get())
+    attributes {
+        attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_API))
+        attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+        attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
+        attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
+        attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 17)
+    }
+    outgoing.artifact(bundle)
+}
+def runtimeRuntime = configurations.consumable('publishedRuntimeRuntime') {
+    attributes {
+        attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+        attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+        attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
+        attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
+        attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 17)
+    }
+    outgoing.artifact(bundle)
+}
+def runtimeComponent = objects.newInstance(RuntimeComponentProvider).factory.adhoc('compixelRuntime')
+runtimeComponent.addVariantsFromConfiguration(runtimeApi.get()) { mapToMavenScope('compile') }
+runtimeComponent.addVariantsFromConfiguration(runtimeRuntime.get()) { mapToMavenScope('runtime') }
+
 publishing {
     publications {
         runtime(MavenPublication) {
             artifactId = bundleName
-            artifact bundle
+            from runtimeComponent
             attachments.each { artifact it }
             pom {
-                if (kotlinBundle) {
-                    name = 'CompixelUI Kotlin libraries'
-                    description = 'Kotlin stdlib, kotlinx.coroutines and kotlinx.serialization as one FML library for the with-kotlin installation of CompixelUI.'
-                } else {
-                    name = "CompixelUI ${profile} runtime"
-                    description = "Compose ${catalog.findVersion('compose').get().requiredVersion} and Skiko ${skikoVersion} " +
-                        'for Windows, Linux and macOS (x64 and arm64) as one FML library for CompixelUI.'
-                }
+                name = "CompixelUI ${profile} runtime"
+                description = 'Compose and Skiko with independently negotiated nested Jar-in-Jar libraries. Kotlin is supplied externally.'
                 licenses {
-                    license {
-                        name = 'Apache License, Version 2.0'
-                        url = 'https://www.apache.org/licenses/LICENSE-2.0.txt'
-                        distribution = 'repo'
-                    }
-                    if (!kotlinBundle) {
-                        license {
-                            name = 'BSD 3-Clause License'
-                            url = 'https://opensource.org/license/bsd-3-clause'
-                            distribution = 'repo'
-                            comments = 'Skia in the Skiko native libraries. META-INF/compixel-third-party lists every native component license.'
-                        }
-                        license {
-                            name = 'MIT License'
-                            url = 'https://opensource.org/license/mit'
-                            distribution = 'repo'
-                            comments = 'The CompixelUI runtime identification class.'
-                        }
-                        license {
-                            name = '0BSD'
-                            url = 'https://opensource.org/license/0bsd'
-                            distribution = 'repo'
-                            comments = 'XZ for Java, which unpacks the Skiko native libraries.'
-                        }
-                    }
+                    license { name = 'Apache License, Version 2.0'; url = 'https://www.apache.org/licenses/LICENSE-2.0.txt'; distribution = 'repo' }
+                    license { name = 'BSD 3-Clause License'; url = 'https://opensource.org/license/bsd-3-clause'; distribution = 'repo' }
+                    license { name = 'MIT License'; url = 'https://opensource.org/license/mit'; distribution = 'repo' }
+                    license { name = '0BSD'; url = 'https://opensource.org/license/0bsd'; distribution = 'repo' }
                 }
             }
         }

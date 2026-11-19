@@ -21,7 +21,7 @@ How to build CompixelUI from source, try it in game and check a change. Run comm
 
 | File | Contents |
 | --- | --- |
-| `release/compixel-…-with-kotlin.jar`, `release/compixel-….jar` | The two player files |
+| `release/compixel-….jar` | The player file |
 | `libs/compixel-….jar` | The Maven library, which needs its runtime from Maven |
 | `libs/…-development.jar` | The F8 component preview mod |
 | `libs/…-sources.jar`, `libs/…-javadoc.jar` | Sources and API reference |
@@ -55,9 +55,11 @@ Press **F8** in game to open the component preview, which shows every Ore UI con
 - Two client suites run in a real game with a fresh test world. `runAcceptance` checks rendering, input, items, containers, menu sync, the HUD, resizing, resource reloads and cleanup; `runBenchmark` measures frame times.
 
 ```powershell
-.\gradlew.bat '-PcompixelTargets=1.21.1' :minecraft:neoforge-1.21.1:runAcceptance
-.\gradlew.bat '-PcompixelTargets=26.3' :minecraft:neoforge-26.3:runBenchmark '-PcompixelBackend=vulkan'
+.\gradlew.bat '-PcompixelTargets=1.21.1' :minecraft:neoforge-1.21.1:runAcceptance '-PcompixelKotlinProviderJar=<kotlin-runtime.jar>'
+.\gradlew.bat '-PcompixelTargets=26.3' :minecraft:neoforge-26.3:runBenchmark '-PcompixelBackend=vulkan' '-PcompixelKotlinProviderJar=<kotlin-runtime.jar>'
 ```
+
+`runClient` resolves standard Kotlin libraries from Maven automatically; packaged suites (`runAcceptance` and `runBenchmark`) take `-PcompixelKotlinProviderJar=<jar>` to supply a Kotlin runtime mod such as Kotlin for Forge.
 
 A suite passes when its report, `compixel-acceptance.txt` or `compixel-benchmark.txt` in the run's game directory, starts with `PASS`. On Windows, `tools\run_background_acceptance.ps1` and `tools\run_background_benchmark.ps1` run every version on a separate hidden desktop, so the game never covers your screen or takes focus. `python tools/summarize_benchmarks.py` compares benchmark reports.
 
@@ -69,5 +71,5 @@ The Forge 1.20.1 player file is remapped to SRG names, so `tools\run_forge_produ
 - After changing dependencies or modules, run `verifyCoreBoundary`.
 - Each Minecraft version has its own copy of the game-facing code. Apply a fix to every affected version and test each one.
 - The client suite drivers are identical in every version; `verifySuiteParity` keeps them in step.
-- If you change what a runtime bundle contains, such as the Compose, Skiko or Kotlin version, raise its `runtime_*_version` in `gradle.properties` and run `:runtime-<name>:writeBundleLock`.
+- If you change what a runtime bundle contains, such as Compose or Skiko, raise its `runtime_*_version` in `gradle.properties`, run `:runtime-<name>:writeBundleLock`, and verify nested Jar-in-Jar negotiation with `./gradlew -p build-logic check -PcompixelTestRuntime=<absolute-path-to-runtime-JAR>`.
 - After editing the documentation, run `node tools/check_docs.mjs`.

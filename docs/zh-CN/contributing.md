@@ -21,7 +21,7 @@
 
 | 文件 | 内容 |
 | --- | --- |
-| `release/compixel-…-with-kotlin.jar`、`release/compixel-….jar` | 两个玩家文件 |
+| `release/compixel-….jar` | 玩家安装文件 |
 | `libs/compixel-….jar` | Maven 库，运行时需从 Maven 获取 |
 | `libs/…-development.jar` | F8 组件预览模组 |
 | `libs/…-sources.jar`、`libs/…-javadoc.jar` | 源码与 API 参考 |
@@ -55,9 +55,11 @@
 - 两套客户端测试在真实游戏的全新测试世界中运行。`runAcceptance` 检查渲染、输入、物品、容器、菜单同步、HUD、窗口缩放、资源重载和资源释放；`runBenchmark` 测量帧耗时。
 
 ```powershell
-.\gradlew.bat '-PcompixelTargets=1.21.1' :minecraft:neoforge-1.21.1:runAcceptance
-.\gradlew.bat '-PcompixelTargets=26.3' :minecraft:neoforge-26.3:runBenchmark '-PcompixelBackend=vulkan'
+.\gradlew.bat '-PcompixelTargets=1.21.1' :minecraft:neoforge-1.21.1:runAcceptance '-PcompixelKotlinProviderJar=<kotlin-runtime.jar>'
+.\gradlew.bat '-PcompixelTargets=26.3' :minecraft:neoforge-26.3:runBenchmark '-PcompixelBackend=vulkan' '-PcompixelKotlinProviderJar=<kotlin-runtime.jar>'
 ```
+
+`runClient` 会直接通过 Maven 加载标准 Kotlin 库；打包测试（`runAcceptance` 与 `runBenchmark`）需要传入 `-PcompixelKotlinProviderJar=<JAR路径>` 提供 Kotlin 运行时模组（例如 Kotlin for Forge）。
 
 测试报告（游戏目录中的 `compixel-acceptance.txt` 或 `compixel-benchmark.txt`）以 `PASS` 开头即为通过。在 Windows 上，`tools\run_background_acceptance.ps1` 和 `tools\run_background_benchmark.ps1` 会在独立的隐藏桌面上依次运行所有版本，游戏不会遮挡屏幕或抢占焦点。`python tools/summarize_benchmarks.py` 用于对比性能报告。
 
@@ -69,5 +71,5 @@ Forge 1.20.1 的玩家文件被重映射为 SRG 名称，因此由 `tools\run_fo
 - 修改依赖或模块后，运行 `verifyCoreBoundary`。
 - 每个 Minecraft 版本都有自己的一份游戏相关代码。修复要应用到所有受影响的版本，并分别测试。
 - 客户端测试驱动在所有版本中完全相同，由 `verifySuiteParity` 保持一致。
-- 改动运行时包的内容（例如 Compose、Skiko 或 Kotlin 版本）时，提高 `gradle.properties` 中对应的 `runtime_*_version`，并运行 `:runtime-<名称>:writeBundleLock`。
+- 改动运行时包的内容（例如 Compose 或 Skiko）时，提高 `gradle.properties` 中对应的 `runtime_*_version`，运行 `:runtime-<名称>:writeBundleLock`，并用 `./gradlew -p build-logic check -PcompixelTestRuntime=<运行时JAR绝对路径>` 验证嵌套 Jar-in-Jar 的版本协商。
 - 修改文档后，运行 `node tools/check_docs.mjs`。

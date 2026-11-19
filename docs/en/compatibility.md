@@ -21,35 +21,34 @@ CompixelUI is built with Kotlin 2.4.10 and Compose 1.12.0.
 | Coordinate | Contents |
 | --- | --- |
 | `dev.compixel:compixel-<loader>-<minecraft>` | The library; Gradle adds the Compose runtime it needs |
-| `dev.compixel:compixel-<loader>-<minecraft>-with-kotlin` | The same, plus the Kotlin libraries |
 
-The loader is `forge` for 1.20.1 and `neoforge` for the others. Each version also publishes `sources`, `javadoc` and `development` (the F8 preview) classifiers.
+The loader is `forge` for 1.20.1 and `neoforge` for the others. Each version also publishes `sources`, `javadoc` and `development` (the F8 preview) classifiers. Add `google()` to `repositories` so Gradle can resolve the AndroidX compile dependencies declared by the runtime bundle.
 
 ### Forge 1.20.1
 
-The 1.20.1 artifact uses SRG names, so add it through a remapping configuration, as with other Forge mods. In ModDevGradle Legacy, the `mod…` configurations don't bring dependencies along, so also add the `-with-kotlin` coordinate through plain configurations for the Compose runtime and the Kotlin libraries; the CompixelUI library that comes in this way is remapped too.
+The 1.20.1 artifact uses SRG names, so add it through a remapping configuration, as with other Forge mods. In ModDevGradle Legacy, the `mod…` configurations don't bring transitive dependencies along, so also add the same coordinate through plain configurations for the Compose runtime and compile-time Kotlin libraries; the CompixelUI library that comes in this way is remapped too.
 
 ```groovy
 dependencies {
     modCompileOnly "dev.compixel:compixel-forge-1.20.1:${compixel_version}"
     modLocalRuntime "dev.compixel:compixel-forge-1.20.1:${compixel_version}"
-    compileOnly "dev.compixel:compixel-forge-1.20.1-with-kotlin:${compixel_version}"
-    localRuntime "dev.compixel:compixel-forge-1.20.1-with-kotlin:${compixel_version}"
+    compileOnly "dev.compixel:compixel-forge-1.20.1:${compixel_version}"
+    localRuntime "dev.compixel:compixel-forge-1.20.1:${compixel_version}"
+
+    additionalRuntimeClasspath "org.jetbrains.kotlin:kotlin-stdlib:2.4.10"
+    additionalRuntimeClasspath "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2"
+    additionalRuntimeClasspath "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.7.3"
 }
 ```
 
-`localRuntime` and `modLocalRuntime` are the configurations that the ModDevGradle Legacy MDK sets up. If your mod depends on Kotlin for Forge, use `compixel-forge-1.20.1` on the last two lines as well and let KFF supply Kotlin.
+`localRuntime`, `modLocalRuntime` and `additionalRuntimeClasspath` are the configurations that the ModDevGradle Legacy MDK sets up.
 
 ## Kotlin
 
-Every release has two player files per Minecraft version:
+CompixelUI requires Kotlin 2.2.21 or newer, along with compatible Coroutines and Serialization libraries.
 
-| File | Kotlin |
-| --- | --- |
-| `…-with-kotlin.jar` | Included. Don't combine with Kotlin for Forge. |
-| `….jar` | Needs a Kotlin provider, such as Kotlin for Forge |
-
-A Kotlin provider needs Kotlin 2.2.21 or newer with matching Coroutines and Serialization libraries. Kotlin for Forge provides them: 4.12.0 on 1.20.1, 5.12.0 on 1.21.1, and 6.3.0 on 26.1.2 and 26.2. On 26.3, use the `-with-kotlin` file.
+- **Players:** install any compatible Kotlin runtime mod for your Minecraft version (for example, Kotlin for Forge). If a compatible runtime is missing or outdated, startup displays an error screen explaining what is needed.
+- **Mod developers:** `compileOnly` resolves the Kotlin and AndroidX libraries needed to compile from Maven automatically; for `runClient`, add the standard Kotlin libraries (`kotlin-stdlib`, `kotlinx-coroutines-core-jvm`, `kotlinx-serialization-core-jvm`) via `additionalRuntimeClasspath` on 1.20.1/1.21.1 (or `localRuntime` on 26.x), or load a Kotlin runtime mod instead.
 
 ## Graphics
 

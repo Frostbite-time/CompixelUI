@@ -21,35 +21,34 @@ CompixelUI 使用 Kotlin 2.4.10 和 Compose 1.12.0 构建。
 | 坐标 | 内容 |
 | --- | --- |
 | `dev.compixel:compixel-<加载器>-<Minecraft>` | 库本身；所需的 Compose 运行时由 Gradle 自动添加 |
-| `dev.compixel:compixel-<加载器>-<Minecraft>-with-kotlin` | 同上，另加 Kotlin 库 |
 
-1.20.1 的加载器为 `forge`，其余为 `neoforge`。每个版本还发布 `sources`、`javadoc` 和 `development`（F8 预览）分类器。
+1.20.1 的加载器为 `forge`，其余为 `neoforge`。每个版本还发布 `sources`、`javadoc` 和 `development`（F8 预览）分类器。请在 `repositories` 中添加 `google()`，以便 Gradle 解析运行时声明的 AndroidX 编译依赖。
 
 ### Forge 1.20.1
 
-1.20.1 的产物使用 SRG 名称，请像其他 Forge 模组一样通过重映射配置添加。ModDevGradle Legacy 的 `mod…` 配置不会带上依赖，所以还要通过普通配置添加 `-with-kotlin` 坐标，以带上 Compose 运行时和 Kotlin 库；经普通配置引入的 CompixelUI 库同样会被重映射。
+1.20.1 的产物使用 SRG 名称，请像其他 Forge 模组一样通过重映射配置添加。ModDevGradle Legacy 的 `mod…` 配置不会带上传递依赖，所以还要通过普通配置添加同一坐标，以引入 Compose 运行时和编译所需的 Kotlin 库；经普通配置引入的 CompixelUI 库同样会被重映射。
 
 ```groovy
 dependencies {
     modCompileOnly "dev.compixel:compixel-forge-1.20.1:${compixel_version}"
     modLocalRuntime "dev.compixel:compixel-forge-1.20.1:${compixel_version}"
-    compileOnly "dev.compixel:compixel-forge-1.20.1-with-kotlin:${compixel_version}"
-    localRuntime "dev.compixel:compixel-forge-1.20.1-with-kotlin:${compixel_version}"
+    compileOnly "dev.compixel:compixel-forge-1.20.1:${compixel_version}"
+    localRuntime "dev.compixel:compixel-forge-1.20.1:${compixel_version}"
+
+    additionalRuntimeClasspath "org.jetbrains.kotlin:kotlin-stdlib:2.4.10"
+    additionalRuntimeClasspath "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2"
+    additionalRuntimeClasspath "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.7.3"
 }
 ```
 
-`localRuntime` 和 `modLocalRuntime` 是 ModDevGradle Legacy MDK 中设置的配置。如果你的模组依赖 Kotlin for Forge，后两行也改用 `compixel-forge-1.20.1`，由 KFF 提供 Kotlin。
+`localRuntime`、`modLocalRuntime` 和 `additionalRuntimeClasspath` 均是 ModDevGradle Legacy MDK 中设置的配置。
 
 ## Kotlin
 
-每个版本为玩家提供两个文件：
+CompixelUI 需要 Kotlin 2.2.21 或更高版本，以及兼容的 Coroutines 和 Serialization 运行库。
 
-| 文件 | Kotlin |
-| --- | --- |
-| `…-with-kotlin.jar` | 已包含，不要与 Kotlin for Forge 同时安装 |
-| `….jar` | 需要 Kotlin 提供方，例如 Kotlin for Forge |
-
-Kotlin 提供方需要 Kotlin 2.2.21 或更高版本，以及相匹配的 Coroutines 和 Serialization 库。Kotlin for Forge 可以提供：1.20.1 为 4.12.0，1.21.1 为 5.12.0，26.1.2 和 26.2 为 6.3.0。26.3 请使用 `-with-kotlin` 文件。
+- **玩家**：安装适配对应 Minecraft 版本的 Kotlin 运行时模组（例如 Kotlin for Forge 或其他兼容提供方）。若缺少或版本过低，游戏启动时会弹出报错页面说明原因与解决方法。
+- **模组开发者**：`compileOnly` 会通过 Maven 自动解析编译所需的 Kotlin 与 AndroidX 依赖；`runClient` 时可自行引入标准 Kotlin 库（`kotlin-stdlib`、`kotlinx-coroutines-core-jvm`、`kotlinx-serialization-core-jvm`：1.20.1/1.21.1 放在 `additionalRuntimeClasspath`，26.x 可直接放在 `localRuntime`），或直接加载 Kotlin 运行时模组。
 
 ## 图形
 

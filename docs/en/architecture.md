@@ -40,7 +40,7 @@ flowchart TB
 | `menu-sync` | The menu synchronization protocol, with the client's and the server's sessions |
 | `slot-core` | Slot rules and shift-click routes |
 | `minecraft/<loader>-<version>` | Screens, HUD layers, input, items, menus and GPU access for one Minecraft version |
-| `runtimes/*` | Packaging of Compose, Skiko and Kotlin |
+| `runtimes/*` | Packaging of Compose, Skiko and nested support libraries |
 | `demo`, `desktop`, `testing` | The component preview, a desktop window for it, and shared test code |
 | `build-logic`, `gradle`, `tools` | Build conventions, version metadata, checks and scripts |
 
@@ -72,13 +72,13 @@ GPU images that Compose draws, such as item icon pages, belong to the renderer. 
 ## Packaging
 
 - The mod JAR contains every CompixelUI module and no third-party code.
-- Compose, Skiko and Kotlin are packaged as runtime bundles: `compixel-runtime-standard`, `compixel-runtime-vulkan` for 26.2 and 26.3, and `compixel-kotlin`. Skiko includes natives for Windows, Linux and macOS on x64 and arm64.
+- Compose and Skiko are packaged as runtime bundles: `compixel-runtime-standard`, and `compixel-runtime-vulkan` for 26.2 and 26.3. Skiko includes natives for Windows, Linux and macOS on x64 and arm64. Split-package components are merged inside the bundle, while libraries with clean package boundaries are nested via Jar-in-Jar with their original coordinates and compatibility ranges from [runtime-library-ranges.properties](../../gradle/runtime-library-ranges.properties) so the mod loader can negotiate versions with other mods. AtomicFU and Coroutines Swing are converted to automatic modules while keeping their service declarations, so they link with any Kotlin runtime provider.
 - The runtime bundles store these natives xz-compressed, the libraries of each CPU architecture in one stream so that they share what they have in common, and keep the ICU data that Skia embeds in its Linux and macOS libraries only once. Before any Compose code runs, `SkikoNatives` in `platform` unpacks the current platform's library into Skiko's cache in `~/.skiko`, where Skiko loads it. The build restores every library and compares it with Skiko's checksum.
 - Libraries that the runtime bundles rename live under `dev.compixel.runtime.relocate`, so that another mod's copy cannot share their package: XZ for Java is `dev.compixel.runtime.relocate.xz`. The build rewrites the mod JAR's references to match.
 - Each bundle has its own version, and `bundle.lock` records exactly what that version contains.
-- Player files embed the bundles through Jar-in-Jar, with the bundles' entries stored rather than compressed, so that the player file compresses each bundle as a whole. Maven users get them as dependencies.
+- Player files embed the runtime bundle through Jar-in-Jar, with the bundle's entries stored rather than compressed, so that the player file compresses the bundle as a whole. Maven users get it as a dependency.
 - The Ore font ships XZ-compressed. At startup each adapter unpacks it into a hidden, required built-in resource pack at the bottom of Minecraft's pack stack, exposing `assets/compixel/font/compixel.ttf` through Minecraft's ordinary resource manager. Packs can replace it and reloads update live typography. `ui-core` shares typed resource decoding, cache leases and reload invalidation for images, fonts and custom types; adapters supply the resource source.
-- At startup, Java code checks that the expected runtime and Kotlin libraries are present before any Kotlin runs, and names whatever is missing.
+- Kotlin libraries are provided by an external Kotlin runtime mod. At startup, Java entrypoints verify the Kotlin runtime and Compose runtime bundle before any Kotlin code runs; if Kotlin is missing or outdated, mod loading stops with a loader error screen explaining the cause and how to fix it.
 
 ## Hooks into the game
 

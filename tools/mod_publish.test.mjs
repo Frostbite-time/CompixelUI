@@ -12,18 +12,16 @@ import {
     verifyArtifacts,
 } from './mod_publish.mjs';
 
-test('the target registry produces distinct variants with target-specific provider requirements', () => {
+test('each target publishes one player archive and keeps KFF optional', () => {
     const metadata = releaseMetadata();
-    assert.equal(metadata.uploads.length, metadata.targets.length * 2);
+    assert.equal(metadata.uploads.length, metadata.targets.length);
     assert.equal(new Set(metadata.uploads.map(upload => upload.file)).size, metadata.uploads.length);
     for (const target of metadata.targets) {
-        const [standard, bundled] = metadata.uploads.filter(upload => upload.adapter === target.adapter);
-        assert.equal(standard.dependencies, target.provider ? `${target.provider}(required)` : '');
-        assert.equal(bundled.dependencies, '');
-        assert.match(bundled.file, /-with-kotlin\.jar$/);
-        assert.equal(standard.file, `compixel-${target.adapter}-${target.version}.jar`);
+        const [upload] = metadata.uploads.filter(upload => upload.adapter === target.adapter);
+        assert.equal(upload.dependencies, target.provider ? `${target.provider}(optional)` : '');
+        assert.equal(upload.file, `compixel-${target.adapter}-${target.version}.jar`);
+        assert.match(upload.installation, /another compatible provider/);
     }
-    assert.equal(metadata.uploads.find(upload => upload.target === '26.3' && upload.variant === 'standard').dependencies, '');
 });
 
 // A target registry whose adapters are on the given versions, such as { 'forge-1.20.1': '2.0.1' }.
@@ -50,7 +48,7 @@ test('adapters on one version form a release with its own tag, files and type', 
         ['2.0.0-beta.1', 'v2.0.0-beta.1', 'beta', ['neoforge-26.3']],
     ]);
     assert.deepEqual(releaseOf(metadata, '2.0.0-beta.1').uploads.map(upload => upload.file),
-        ['compixel-neoforge-26.3-2.0.0-beta.1.jar', 'compixel-neoforge-26.3-2.0.0-beta.1-with-kotlin.jar']);
+        ['compixel-neoforge-26.3-2.0.0-beta.1.jar']);
     assert.throws(() => releaseOf(metadata, '2.0.0'), /No adapter is on version 2\.0\.0/);
     assert.throws(() => releaseOf(metadata, undefined), /No adapter is on version \(none\)/);
     assert.throws(() => releaseMetadata(registry(t, { 'forge-1.20.1': '2.0' })), /Invalid mod_version for 1\.20\.1: 2\.0/);
@@ -213,7 +211,7 @@ test('release planning skips complete runs and builds only adapters needed by mi
     assert.deepEqual(planModRelease(release, uploaded, existing), { uploads: [], builds: [], github: false });
     uploaded.delete(files[1]);
     assert.deepEqual(planModRelease(release, uploaded, existing), {
-        uploads: [release.uploads[1]], builds: [release.targets[0]], github: false,
+        uploads: [release.uploads[1]], builds: [release.targets[1]], github: false,
     });
     const missingGitHub = planModRelease(release, new Set(files), new Map());
     assert.equal(missingGitHub.github, true);
@@ -427,7 +425,7 @@ test('staging supports a partial CurseForge build and a complete GitHub release 
     stageArtifacts(metadata, metadata.targets.slice(0, 1), directory);
     gatherArtifacts(metadata, metadata.targets.slice(0, 1), directory);
     const combined = path.join(directory, 'dist/github');
-    assert.equal(fs.readdirSync(combined).filter(file => file.endsWith('.jar')).length, 2);
+    assert.equal(fs.readdirSync(combined).filter(file => file.endsWith('.jar')).length, 1);
     verifyArtifacts(metadata, metadata.targets[0].adapter, path.join(directory, 'dist', metadata.targets[0].adapter));
     assert.throws(() => verifyArtifacts(metadata, 'all', combined));
 
@@ -451,11 +449,11 @@ test('per-file publishing retains version, loader, provider and changelog metada
         const inputs = curseforgeInputs(release, upload, changelog, context);
         assert.equal(inputs.version, release.version);
         assert.equal(inputs['version-type'], release.type);
-        assert.equal(inputs.name, `CompixelUI ${release.version} / ${upload.adapter} / ${upload.variant}`);
+        assert.equal(inputs.name, `CompixelUI ${release.version} / ${upload.adapter}`);
         assert.equal(inputs['game-versions'], upload.target);
         assert.equal(inputs.loaders, upload.loader);
         assert.equal(inputs.java, upload.java);
-        assert.equal(inputs.dependencies, upload.variant === 'standard' && upload.provider ? `${upload.provider}(required)` : '');
+        assert.equal(inputs.dependencies, upload.provider ? `${upload.provider}(optional)` : '');
         assert.ok(inputs.changelog.startsWith(changelog));
         assert.ok(inputs.changelog.includes(upload.installation));
         assert.equal(inputs['retry-attempts'], '1');
@@ -493,7 +491,7 @@ test('GitHub publishing includes only planned assets and GitHub credentials with
     assert.equal(inputs['github-tag'], release.tag);
     assert.equal(inputs['github-commitish'], 'a'.repeat(40));
     assert.equal(inputs['game-versions'], release.targets.map(target => target.target).join('\n'));
-    assert.ok(inputs.changelog.includes('Install **one** variant only'));
+    assert.ok(inputs.changelog.includes('compatible Kotlin runtime mod'));
     assert.equal(inputs['retry-attempts'], '1');
 });
 

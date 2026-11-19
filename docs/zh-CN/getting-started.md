@@ -15,6 +15,7 @@ plugins {
 }
 
 repositories {
+    google()
     maven {
         url = 'https://maven.wintercogs.com/releases'
         content { includeGroup 'dev.compixel' }
@@ -22,8 +23,13 @@ repositories {
 }
 
 dependencies {
-    compileOnly "dev.compixel:compixel-neoforge-1.21.1-with-kotlin:${compixel_version}"
-    localRuntime "dev.compixel:compixel-neoforge-1.21.1-with-kotlin:${compixel_version}"
+    compileOnly "dev.compixel:compixel-neoforge-1.21.1:${compixel_version}"
+    localRuntime "dev.compixel:compixel-neoforge-1.21.1:${compixel_version}"
+
+    // 为 runClient 提供标准 Kotlin 库（若开发环境已加载 Kotlin 运行时模组可省去）。
+    additionalRuntimeClasspath "org.jetbrains.kotlin:kotlin-stdlib:2.4.10"
+    additionalRuntimeClasspath "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2"
+    additionalRuntimeClasspath "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.7.3"
 }
 
 kotlin { jvmToolchain(21) }
@@ -36,9 +42,7 @@ compixel_version=<version>
 kotlin.stdlib.default.dependency=false
 ```
 
-`-with-kotlin` 坐标会一并带上 Kotlin 库。如果你的模组本来就依赖 Kotlin for Forge，两行都改用 `compixel-neoforge-1.21.1`，由 KFF 提供 Kotlin。
-
-CompixelUI 作为独立模组安装，不要用 Jar-in-Jar 打进你的 JAR。
+`compileOnly` 会自动引入 Compose 运行时、AndroidX 编译依赖（来自 `google()`）以及 Kotlin 库；`additionalRuntimeClasspath` 在 `runClient` 中提供标准 Kotlin 库（如果你的开发环境已经在 `localRuntime` 中加载了 Kotlin 运行时模组，可直接使用它）。CompixelUI 作为独立模组安装，不要用 Jar-in-Jar 打进你的 JAR。
 
 ## 2. 声明依赖
 
@@ -128,14 +132,7 @@ class HandScreen : ComposeScreen(Component.literal("手持物品")) {
 
 ## 5. 发布
 
-玩家把 CompixelUI 和你的模组装在一起。每个 Minecraft 版本有两个文件，玩家选其一：
-
-| 文件 | 适用于 |
-| --- | --- |
-| `compixel-neoforge-1.21.1-…-with-kotlin.jar` | 所有玩家，已包含 Kotlin |
-| `compixel-neoforge-1.21.1-….jar` | 已安装 Kotlin for Forge 的玩家 |
-
-两个文件都可以在 [Releases](https://github.com/Frostbite-time/CompixelUI/releases) 页面下载。
+玩家安装你的模组时，还需要一并安装对应 Minecraft 版本的 CompixelUI（可在 [Releases](https://github.com/Frostbite-time/CompixelUI/releases) 下载）以及兼容的 Kotlin 运行时模组（例如 Kotlin for Forge）。
 
 ## 下一步
 

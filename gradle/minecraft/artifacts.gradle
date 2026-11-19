@@ -3,13 +3,11 @@ apply plugin: 'maven-publish'
 apply from: rootProject.file('gradle/minecraft/api-docs.gradle')
 
 /*
- * Maven consumers get a mod JAR with every CompixelUI module and resolve the third-party runtime
- * bundles through its POM; `-with-kotlin` is a POM that adds the Kotlin bundle. Players install a
- * release JAR from build/release that embeds those bundles instead.
+ * Maven consumers resolve the runtime through its POM; players install a JAR embedding that runtime.
+ * Kotlin is always supplied externally.
  */
 ext.configureMinecraftArtifacts = { Map spec ->
     def runtime = spec.runtime
-    def kotlinRuntime = project(':runtime-kotlin')
     def profile = runtime.runtime_profile
     def apiDocs = configureMinecraftApiDocs(runtime)
     // The runtime project's own dependencies name the shared modules the mod JAR must carry.
@@ -62,15 +60,12 @@ ext.configureMinecraftArtifacts = { Map spec ->
     }
 
     def runtimeCapability = "dev.compixel:compixel-runtime-${profile}"
-    def kotlinCapability = 'dev.compixel:compixel-kotlin'
     def embed = { jarJar, owner, String capability ->
         dependencies.add(jarJar.name, dependencies.project(path: owner.path)) {
             capabilities { requireCapability(capability) }
         }
     }
     embed(spec.playerJarJar, runtime, runtimeCapability)
-    embed(spec.playerWithKotlinJarJar, runtime, runtimeCapability)
-    embed(spec.playerWithKotlinJarJar, kotlinRuntime, kotlinCapability)
     def releaseDirectory = layout.buildDirectory.dir('release')
     def player = { String name, String classifier, jarJar ->
         def archive = tasks.register(name, Jar) {
@@ -92,7 +87,6 @@ ext.configureMinecraftArtifacts = { Map spec ->
         [named: archive, release: remapped]
     }
     def standard = player('playerJar', '', spec.playerJarJar)
-    def withKotlin = player('playerWithKotlinJar', 'with-kotlin', spec.playerWithKotlinJarJar)
     def developmentRelease = spec.remapArchive ? spec.remapArchive(development, sourceSets.development) : development
 
     def artifactName = "compixel-${spec.loader}-${minecraft_version}"
@@ -134,30 +128,18 @@ ext.configureMinecraftArtifacts = { Map spec ->
                     dependOn(delegate, [['dev.compixel', "compixel-runtime-${profile}".toString(), runtime.version.toString()]])
                 }
             }
-            libraryWithKotlin(MavenPublication) {
-                artifactId = "${artifactName}-with-kotlin"
-                pom {
-                    packaging = 'pom'
-                    name = "CompixelUI for ${spec.loader} ${minecraft_version} with Kotlin"
-                    description = "Selects ${artifactName} together with compixel-kotlin, the Kotlin libraries of the " +
-                        'with-kotlin installation. Use it instead of an external Kotlin provider, not with one.'
-                    mitLicense(delegate)
-                    dependOn(delegate, [['dev.compixel', artifactName, project.version.toString()],
-                        ['dev.compixel', 'compixel-kotlin', kotlinRuntime.version.toString()]])
-                }
-            }
         }
     }
     // A consumer of the local repository also needs the bundles these POMs name. The release workflow
     // publishes a bundle to the Wintercogs Maven only once, when its version is new.
     tasks.matching { it.name == 'publishAllPublicationsToConsumerRepository' }.configureEach {
-        dependsOn "${runtime.path}:publishAllPublicationsToConsumerRepository", ':runtime-kotlin:publishAllPublicationsToConsumerRepository'
+        dependsOn "${runtime.path}:publishAllPublicationsToConsumerRepository"
     }
     tasks.named('assemble') {
-        dependsOn spec.release, standard.release, withKotlin.release, development, developmentRelease,
+        dependsOn spec.release, standard.release, development, developmentRelease,
             apiDocs.sources, apiDocs.documentation
     }
-    [release: spec.release, player: standard, playerWithKotlin: withKotlin, development: developmentRelease,
-        metadata: metadata, runtime: runtime, kotlinRuntime: kotlinRuntime, libraryModules: libraryModules,
+    [release: spec.release, player: standard, development: developmentRelease,
+        metadata: metadata, runtime: runtime, libraryModules: libraryModules,
         loader: spec.loader, metadataPath: spec.metadataPath, apiDocs: apiDocs]
 }

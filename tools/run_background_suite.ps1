@@ -9,18 +9,18 @@ after another, never in parallel; a failed version is reported and the remaining
 Every version prepares its own fresh flat creative test world before the suite starts.
 
 .EXAMPLE
-tools/run_background_suite.ps1 -Suite acceptance
+tools/run_background_suite.ps1 -Suite acceptance -Minecraft 1.21.1 -KotlinProviderJar path\to\kff-5.12.0.jar
 
 .EXAMPLE
-tools/run_background_suite.ps1 -Suite benchmark -Minecraft 26.2,26.3 -Backend vulkan -Label candidate
+tools/run_background_suite.ps1 -Suite benchmark -Minecraft 26.2,26.3 -Backend vulkan -KotlinProviderJar 26.2=path\to\kff-6.5.0.jar,26.3=path\to\kff-6.5.0.jar -Label candidate
 #>
 param(
     [Parameter(Mandatory)][ValidateSet('acceptance', 'benchmark')][string]$Suite,
     # 'all', or targets from gradle/minecraft-targets.properties, as a list or comma-separated.
     [ValidatePattern('^[0-9A-Za-z._,-]+$')][string[]]$Minecraft = @('all'),
     [ValidateSet('opengl', 'vulkan', 'cpu')][string]$Backend = 'opengl',
-    [ValidateSet('bundled', 'external')][string]$KotlinMode = 'bundled',
-    [string]$KotlinProviderJar,
+    # Single JAR path (for single-target runs) or '<mc>=<jar>' entries (list or comma-separated) for multi-target runs.
+    [string[]]$KotlinProviderJar,
     # Vulkan validation layers directory; enables validation and checks the log for unexpected errors.
     [string]$ValidationLayerPath,
     # Benchmark only.
@@ -35,7 +35,7 @@ if ($Suite -ne 'benchmark') {
         if ($PSBoundParameters.ContainsKey($name)) { throw "-$name only applies to -Suite benchmark" }
     }
 }
-if ($KotlinMode -eq 'bundled' -and $KotlinProviderJar) { throw 'A Kotlin provider requires -KotlinMode external' }
+if (!$KotlinProviderJar) { throw 'Packaged runs require -KotlinProviderJar <jar> (single target) or <mc>=<jar> entries.' }
 if ($ValidationLayerPath -and $Backend -ne 'vulkan') { throw 'Validation layers require -Backend vulkan' }
 
 $repo = Split-Path $PSScriptRoot
@@ -57,6 +57,33 @@ foreach ($version in $requested) {
     $versions += $version
 }
 if (!$versions) { throw 'No Minecraft version to run' }
+
+$providerEntries = @($KotlinProviderJar | ForEach-Object { $_.Split(',') } | Where-Object { $_ })
+$providerByVersion = @{}
+if ($providerEntries.Count -eq 1 -and $providerEntries[0] -notmatch '^[^=]+=') {
+    if ($versions.Count -gt 1) {
+        throw "Multiple targets ($($versions -join ', ')) require per-target mappings in -KotlinProviderJar (e.g. 1.20.1=<jar>,1.21.1=<jar>)."
+    }
+    if (!(Test-Path -LiteralPath $providerEntries[0])) { throw "Kotlin provider JAR not found: $($providerEntries[0])" }
+    $providerByVersion[$versions[0]] = (Resolve-Path -LiteralPath $providerEntries[0]).Path
+} else {
+    foreach ($entry in $providerEntries) {
+        $pair = $entry -split '=', 2
+        if ($pair.Count -ne 2 -or !$pair[0] -or !$pair[1]) {
+            throw "Invalid -KotlinProviderJar entry '$entry'; expected '<mc>=<jar>'."
+        }
+        $targetVersion = $pair[0].Trim()
+        if ($targetVersion -notin $known) { throw "Unknown Minecraft target in -KotlinProviderJar: $targetVersion" }
+        if ($providerByVersion.ContainsKey($targetVersion)) { throw "Duplicate -KotlinProviderJar entry for $targetVersion" }
+        if (!(Test-Path -LiteralPath $pair[1])) { throw "Kotlin provider JAR not found for ${targetVersion}: $($pair[1])" }
+        $providerByVersion[$targetVersion] = (Resolve-Path -LiteralPath $pair[1]).Path
+    }
+    foreach ($version in $versions) {
+        if (!$providerByVersion.ContainsKey($version)) {
+            throw "Missing Kotlin provider JAR for Minecraft $version in -KotlinProviderJar."
+        }
+    }
+}
 
 $task = 'run' + $Suite.Substring(0, 1).ToUpper() + $Suite.Substring(1)
 $directory = if ($Suite -eq 'benchmark') { "benchmark-$Backend-background-$Label" } else { "acceptance-$Backend-background" }
@@ -80,8 +107,8 @@ try {
         $adapterDirectory = $targets["$version.project"]
         $adapter = ':' + $adapterDirectory.Replace('/', ':')
         $arguments = @("${adapter}:$task", '--console=plain', "-PcompixelTargets=$version", "-PcompixelBackend=$Backend",
-            '-PcompixelBackground=true', '-PcompixelIsolatedDesktop=true', "-PcompixelKotlinMode=$KotlinMode")
-        if ($KotlinProviderJar) { $arguments += '-PcompixelKotlinProviderJar=' + (Resolve-Path -LiteralPath $KotlinProviderJar).Path }
+            '-PcompixelBackground=true', '-PcompixelIsolatedDesktop=true',
+            "-PcompixelKotlinProviderJar=$($providerByVersion[$version])")
         if ($ValidationLayerPath) { $arguments += '-PcompixelVulkanValidation=true' }
         if ($Suite -eq 'benchmark') {
             $arguments += "-PcompixelLabel=$Label", "-PcompixelBenchmarkFrames=$Frames", "-PcompixelBenchmarkRepeats=$Repeats"

@@ -26,13 +26,15 @@ $taskSettings = Get-Content -LiteralPath $Configuration -Raw | ConvertFrom-Json
 Set-Location -LiteralPath $taskSettings.project
 # A reused daemon could launch the game back on the interactive desktop.
 $taskArguments = @('--no-daemon') + @($taskSettings.arguments)
+# Windows PowerShell 5.1 treats redirected native stderr as a terminating error when ErrorActionPreference is Stop.
+$ErrorActionPreference = 'Continue'
 & (Join-Path $taskSettings.project 'gradlew.bat') @taskArguments *> $taskSettings.log
 exit $LASTEXITCODE
 '@ | Set-Content -LiteralPath $taskRunner -Encoding UTF8
 
 . (Join-Path $PSScriptRoot 'windows_isolated_desktop.ps1')
 $taskPowerShell = (Get-Process -Id $PID).Path
-$taskCommand = '"' + $taskPowerShell + '" -NoLogo -NoProfile -NonInteractive -File "' + $taskRunner + '" -Configuration "' + $taskConfiguration + '"'
+$taskCommand = '"' + $taskPowerShell + '" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $taskRunner + '" -Configuration "' + $taskConfiguration + '"'
 $taskDesktop = 'compixel-isolated-' + $taskId
 Write-Output "Starting isolated Gradle run on $taskDesktop. Log: $taskLog"
 $taskCode = [ComposeIsolatedDesktop]::Run($taskPowerShell, $taskCommand, $taskProject, $taskDesktop, $TimeoutMinutes)

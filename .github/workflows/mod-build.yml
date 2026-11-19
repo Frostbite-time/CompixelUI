@@ -79,7 +79,7 @@ jobs:
           MC_TARGET: ${{ matrix.target }}
           ADAPTER: ${{ matrix.adapter }}
         run: bash gradlew "-PcompixelTargets=$MC_TARGET" ":minecraft:$ADAPTER:build" --console=plain
-      - name: Stage both player variants and checksums
+      - name: Stage player archive and checksums
         env:
           ADAPTER: ${{ matrix.adapter }}
         run: node tools/mod_publish.mjs stage "$ADAPTER"

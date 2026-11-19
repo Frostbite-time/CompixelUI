@@ -64,10 +64,7 @@ class CounterScreen : ComposeScreen(Component.literal("Counter")) {
 
 ## For players
 
-CompixelUI is a library. Install it when a mod you play asks for it: download one of the two files for your Minecraft version from [Releases](https://github.com/Frostbite-time/CompixelUI/releases).
-
-- `…-with-kotlin.jar` works on its own.
-- The plain `.jar` is smaller and needs [Kotlin for Forge](https://modrinth.com/mod/kotlin-for-forge).
+CompixelUI is a library mod. Install it when a mod you play asks for it: download the file for your Minecraft version from [Releases](https://github.com/Frostbite-time/CompixelUI/releases), alongside a compatible Kotlin runtime mod such as [Kotlin for Forge](https://modrinth.com/mod/kotlin-for-forge).
 
 ## Documentation
 

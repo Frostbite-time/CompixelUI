@@ -32,14 +32,12 @@ export function releaseMetadata(directory = root) {
         return { target, project, adapter: project.slice('minecraft/'.length), loader: match[1], java: config.java_version, provider, version };
     });
     if (!targets.length || new Set(targets.map(target => target.adapter)).size !== targets.length) throw new Error('Empty or duplicate targets');
-    const uploads = targets.flatMap(target => ['standard', 'with-kotlin'].map(variant => ({
-        ...target, variant,
-        file: `compixel-${target.adapter}-${target.version}${variant === 'standard' ? '' : '-with-kotlin'}.jar`,
-        dependencies: variant === 'standard' && target.provider ? `${target.provider}(required)` : '',
-        installation: variant === 'with-kotlin'
-            ? 'Includes Kotlin. Install only this variant; do not combine it with KFF or another Kotlin runtime.'
-            : `Requires a compatible external Kotlin provider${target.provider ? ' (Kotlin for Forge)' : '; no compatible CurseForge provider is currently verified for this target'}. Install only this variant.`,
-    })));
+    const uploads = targets.map(target => ({
+        ...target,
+        file: `compixel-${target.adapter}-${target.version}.jar`,
+        dependencies: target.provider ? `${target.provider}(optional)` : '',
+        installation: 'Requires a compatible Kotlin runtime mod for your Minecraft version (such as Kotlin for Forge or another compatible provider).',
+    }));
     const releases = [...new Set(targets.map(target => target.version))].map(version => ({
         version, tag: `v${version}`, type: version.includes('-alpha') ? 'alpha' : version.includes('-') ? 'beta' : 'release',
         targets: targets.filter(target => target.version === version), uploads: uploads.filter(upload => upload.version === version),
@@ -110,7 +108,7 @@ export function verifyTag(release) {
 
 export function checksumLines(metadata, adapter, directory) {
     const uploads = metadata.uploads.filter(upload => upload.adapter === adapter);
-    if (uploads.length !== 2) throw new Error(`Unknown adapter: ${adapter}`);
+    if (uploads.length !== 1) throw new Error(`Unknown adapter: ${adapter}`);
     return uploads.map(({ file }) => {
         const bytes = fs.readFileSync(path.join(directory, file));
         if (!bytes.length) throw new Error(`Empty artifact: ${file}`);
@@ -369,7 +367,7 @@ export function curseforgeInputs(release, upload, changelog, { project, token, r
     return {
         'curseforge-id': project, 'curseforge-token': token,
         files: `dist/${upload.adapter}/${upload.file}`,
-        name: `CompixelUI ${release.version} / ${upload.adapter} / ${upload.variant}`,
+        name: `CompixelUI ${release.version} / ${upload.adapter}`,
         version: release.version, 'version-type': release.type,
         changelog: `${changelog}\n\n**Installation:** ${upload.installation}\n` +
             `[Runtime compatibility](https://github.com/${repository}/blob/${sha}/docs/en/compatibility.md)`,
@@ -384,9 +382,7 @@ export function githubInputs(release, files, changelog, { githubToken, repositor
     return {
         'github-token': githubToken, 'github-tag': release.tag, 'github-commitish': sha,
         files: files.join('\n'), name: `CompixelUI ${release.version}`, version: release.version, 'version-type': release.type,
-        changelog: `${changelog}\n\nChoose the file matching your Minecraft version and loader. Install **one** variant only:\n` +
-            '- Standard: requires a compatible external Kotlin provider.\n' +
-            '- `with-kotlin`: includes Kotlin; do not combine it with KFF or another Kotlin runtime.\n\n' +
+        changelog: `${changelog}\n\nDownload the file matching your Minecraft version and mod loader, and install a compatible Kotlin runtime mod (such as Kotlin for Forge or another compatible provider).\n\n` +
             `[Runtime compatibility](https://github.com/${repository}/blob/${sha}/docs/en/compatibility.md)\n` +
             'SHA-256 checksums are provided in `SHA256SUMS`.',
         loaders: [...new Set(release.targets.map(target => target.loader))].join('\n'),

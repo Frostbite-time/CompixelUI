@@ -1,12 +1,40 @@
 plugins { id 'groovy-gradle-plugin' }
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.neoforged.net/releases' }
+    maven { url = 'https://maven.minecraftforge.net' }
+}
 dependencies {
     // The root build supplies the plugin at runtime; conventions need its task API.
     compileOnly "com.gradleup.shadow:shadow-gradle-plugin:${libs.versions.shadow.get()}"
     // Runtime bundles store the Skiko native libraries xz-compressed.
     implementation libs.xz
+    testImplementation "org.junit.jupiter:junit-jupiter:${libs.versions.junit.asProvider().get()}"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher:${libs.versions.junit.platform.get()}"
+    testImplementation 'net.neoforged:JarJarSelector:0.5.1'
+    testImplementation 'net.minecraftforge:JarJarSelector:0.3.19'
 }
 java {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
 }
 tasks.withType(JavaCompile).configureEach { options.release = 17 }
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+    if (providers.gradleProperty('compixelTestRuntime').present)
+        systemProperty 'compixel.runtimeArchive', providers.gradleProperty('compixelTestRuntime').get()
+}
+
+// The supported Minecraft adapters use three NeoForge selector versions; test each binary API.
+['0.4.1', '0.5.0'].each { version ->
+    def suffix = version.replace('.', '')
+    def selector = configurations.create("neoSelector$suffix")
+    dependencies.add(selector.name, "net.neoforged:JarJarSelector:$version")
+    def verification = tasks.register("testNeo$suffix", Test) {
+        testClassesDirs = sourceSets.test.output.classesDirs
+        classpath = sourceSets.test.output + configurations.testRuntimeClasspath.filter {
+            !(it.name in ['JarJarSelector-0.5.1.jar', 'JarJarMetadata-0.5.1.jar'])
+        } + selector
+    }
+    tasks.named('check') { dependsOn verification }
+}

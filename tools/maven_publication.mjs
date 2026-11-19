@@ -27,13 +27,13 @@ function publication(artifact, version, suffixes) {
 }
 
 export function runtimePublication(bundle, version) {
-    if (!['standard', 'vulkan', 'kotlin'].includes(bundle)) throw new Error(`Unknown bundle: ${bundle}`);
+    if (!['standard', 'vulkan'].includes(bundle)) throw new Error(`Unknown bundle: ${bundle}`);
     if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(version ?? '')) throw new Error(`Invalid runtime version: ${version}`);
-    const artifact = bundle === 'kotlin' ? 'compixel-kotlin' : `compixel-runtime-${bundle}`;
-    return publication(artifact, version, ['.jar', '.pom', '-sources.jar', '-javadoc.jar']);
+    const artifact = `compixel-runtime-${bundle}`;
+    return publication(artifact, version, ['.jar', '.pom', '.module', '-sources.jar', '-javadoc.jar']);
 }
 
-/** The two publications of an adapter, each with the Gradle task that uploads it: the library, and the POM that adds Kotlin. */
+/** The single library publication of an adapter and its attachments. */
 export function adapterPublications(adapter, version) {
     if (!/^(forge|neoforge)-[0-9.]+$/.test(adapter ?? '')) throw new Error(`Invalid adapter: ${adapter}`);
     if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(version ?? '')) throw new Error(`Invalid mod version: ${version}`);
@@ -41,7 +41,6 @@ export function adapterPublications(adapter, version) {
     const task = name => `:minecraft:${adapter}:publish${name}PublicationToWintercogsRepository`;
     return [
         { ...publication(artifact, version, ['.jar', '.pom', '-sources.jar', '-javadoc.jar', '-development.jar']), task: task('Library') },
-        { ...publication(`${artifact}-with-kotlin`, version, ['.pom']), task: task('LibraryWithKotlin') },
     ];
 }
 
@@ -97,7 +96,7 @@ export async function inspectPublication(repository, publication) {
 export async function planPublications(repository, directory = root) {
     const config = properties(path.join(directory, 'gradle.properties'));
     const plan = { bundles: [], adapters: [], skipped: [], incomplete: [] };
-    for (const bundle of ['standard', 'vulkan', 'kotlin']) {
+    for (const bundle of ['standard', 'vulkan']) {
         const runtime = runtimePublication(bundle, config[`runtime_${bundle}_version`]);
         if (await inspectPublication(repository, runtime) === 'missing') plan.bundles.push(bundle);
         else plan.skipped.push(runtime);

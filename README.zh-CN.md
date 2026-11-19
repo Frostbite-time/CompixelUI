@@ -64,10 +64,7 @@ class CounterScreen : ComposeScreen(Component.literal("计数器")) {
 
 ## 玩家须知
 
-CompixelUI 是前置库，当你玩的模组需要它时再安装。在 [Releases](https://github.com/Frostbite-time/CompixelUI/releases) 下载对应 Minecraft 版本的两个文件之一：
-
-- `…-with-kotlin.jar` 可以单独使用。
-- 不带后缀的 `.jar` 更小，但需要 [Kotlin for Forge](https://modrinth.com/mod/kotlin-for-forge)。
+CompixelUI 是前置库，当你玩的模组需要它时再安装。在 [Releases](https://github.com/Frostbite-time/CompixelUI/releases) 下载对应 Minecraft 版本的文件，并一并安装兼容的 Kotlin 运行时模组（例如 [Kotlin for Forge](https://modrinth.com/mod/kotlin-for-forge)）。
 
 ## 文档
 

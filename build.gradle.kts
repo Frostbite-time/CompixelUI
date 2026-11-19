@@ -61,13 +61,11 @@ subprojects {
     }
 }
 
-// Runtime bundles carry third-party code only and keep their own versions. The Kotlin bundle resolves
-// the standard graph; verifyRuntimeArchive checks that both profiles expect the same Kotlin libraries.
+// Runtime bundles carry Compose, Skiko and nested libraries; Kotlin comes from the host.
 val runtimeProfiles =
     mapOf(
         "standard" to mapOf("project" to ":runtime-standard", "skiko" to libs.versions.skiko.standard.get()),
         "vulkan" to mapOf("project" to ":runtime-vulkan", "skiko" to libs.versions.skiko.vulkan.get()),
-        "kotlin" to mapOf("project" to ":runtime-kotlin", "skiko" to libs.versions.skiko.standard.get()),
     )
 val targetSettings =
     java.util.Properties().apply {

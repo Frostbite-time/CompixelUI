@@ -16,21 +16,20 @@ ext.verifyMinecraftArtifacts = { Map artifacts, Set<String> expectedTransforms, 
     }
     def releaseCheck = tasks.register('verifyReleaseIsolation') {
         group = 'verification'
-        // The Maven JAR first: both player JARs must equal it apart from their embedded bundles.
-        def archives = [artifacts.release, artifacts.player.release, artifacts.playerWithKotlin.release]
-        dependsOn archives, "${artifacts.runtime.path}:verifyRuntimeArchive", "${artifacts.kotlinRuntime.path}:verifyRuntimeArchive"
+        // The Maven JAR first: the player JAR must equal it apart from their embedded bundles.
+        def archives = [artifacts.release, artifacts.player.release]
+        dependsOn archives, "${artifacts.runtime.path}:verifyRuntimeArchive"
         archives.each { archive -> inputs.file archive.flatMap { it.archiveFile } }
         doLast {
             def profile = artifacts.runtime.runtime_profile
             def runtimeBundle = [artifact: "compixel-runtime-$profile".toString(), version: artifacts.runtime.version.toString()]
-            def kotlinBundle = [artifact: 'compixel-kotlin', version: artifacts.kotlinRuntime.version.toString()]
             def mavenEntries = null
             archives.eachWithIndex { archive, index ->
                 def file = archive.get().archiveFile.get().asFile
                 new java.util.zip.ZipFile(file).withCloseable { zip ->
                     def entries = zip.entries().toList().findAll { !it.directory }*.name
                     def own = entries.findAll { !it.startsWith('META-INF/jarjar/') && it != 'META-INF/MANIFEST.MF' }.toSet()
-                    def expectedBundles = [[], [runtimeBundle], [runtimeBundle, kotlinBundle]][index]
+                    def expectedBundles = [[], [runtimeBundle]][index]
                     if (expectedBundles.empty) {
                         if (entries.any { it.startsWith('META-INF/jarjar/') })
                             throw new GradleException("The Maven JAR ${file.name} embeds runtime bundles")

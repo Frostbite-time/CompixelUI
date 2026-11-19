@@ -23,12 +23,7 @@ In mods built with CompixelUI:
 
 ## Installation
 
-Download the file for your Minecraft version and put it in your `mods` folder, next to the mod that needs it. Each version comes as two files; install only one of them:
-
-| File | Choose it if |
-| --- | --- |
-| Ends in `-with-kotlin.jar` | You don't use Kotlin for Forge. This is the right file for most players. |
-| The other `.jar` | You already have [Kotlin for Forge](https://www.curseforge.com/minecraft/mc-mods/kotlin-for-forge) installed. |
+Download the file for your Minecraft version and put it in your `mods` folder, along with a compatible Kotlin runtime mod such as [Kotlin for Forge](https://www.curseforge.com/minecraft/mc-mods/kotlin-for-forge).
 
 ## Change the colors
 
@@ -49,7 +44,7 @@ Enable the pack, or press F3+T to reload if it's already on. The [color scheme g
 
 ## Troubleshooting
 
-**"CompixelUI requires compatible Kotlin…" at startup.** You have the plain file without a suitable Kotlin for Forge. Install Kotlin for Forge for your Minecraft version, or replace the file with the `-with-kotlin` one.
+**CompixelUI asks for a Kotlin runtime at startup.** Install or update a compatible Kotlin runtime mod (such as Kotlin for Forge) for your Minecraft version.
 
 **A mod asks for a different CompixelUI version.** Download the version it names.
 

@@ -36,7 +36,8 @@ public static class ComposeIsolatedDesktop {
                 var elapsed = System.Diagnostics.Stopwatch.StartNew();
                 while (WaitForSingleObject(process.process, 1000) == 258) {
                     if (elapsed.Elapsed.TotalMinutes > timeoutMinutes) {
-                        System.Diagnostics.Process.GetProcessById(process.processId).Kill(true);
+                        var killer = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("taskkill.exe", "/PID " + process.processId + " /T /F") { UseShellExecute = false, CreateNoWindow = true });
+                        if (killer != null) killer.WaitForExit(10000);
                         throw new TimeoutException("Isolated run exceeded " + timeoutMinutes + " minutes");
                     }
                 }
