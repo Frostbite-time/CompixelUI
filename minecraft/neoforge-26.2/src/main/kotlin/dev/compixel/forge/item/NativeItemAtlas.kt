@@ -86,7 +86,7 @@ internal class NativeItemAtlas(
     /** Draws at most preparationsPerFrame icons per host frame, on pages of up to 64. */
     override fun prepare(now: Long, current: ScreenMetrics): Boolean {
         RenderSystem.assertOnRenderThread()
-        return atlas.prepare(now, NativeDrawingClock.tick(), Minecraft.getInstance().window.guiScale.toDouble())
+        return atlas.prepare(now, NativeDrawingClock.tick(), current.viewport.density.toDouble())
     }
 
     override fun reset() {

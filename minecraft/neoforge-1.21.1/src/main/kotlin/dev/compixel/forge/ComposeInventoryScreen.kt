@@ -44,12 +44,15 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu>(
     nativeItemOptions: NativeItemOptions = NativeItemOptions(cacheCapacity = 256),
     nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
     design: UiDesign = OreDesign(),
+    minimumUiDensity: Float = 1f,
 ) : SlotBehaviorScreen<M>(container, checkNotNull(Minecraft.getInstance().player).inventory, title) {
     /** The content's game state, opened and closed with each Compose session. */
     internal val contentState = UiStateBinding()
     private val layer =
         ComposeLayer(
+            guiUnitsPerDp = ::guiUnitsPerDp,
             nativeItemOptions = nativeItemOptions,
+            minimumUiDensity = minimumUiDensity,
             nativeDrawingOptions = nativeDrawingOptions,
             design = design,
             windowFocused = { isUiWindowFocused() },
@@ -119,6 +122,15 @@ abstract class ComposeInventoryScreen<M : AbstractContainerMenu>(
     protected open fun inventoryTick() {}
 
     protected open fun isUiWindowFocused() = Minecraft.getInstance().isWindowActive
+
+    /**
+     * GUI units per Compose dp for the current window framebuffer size and Minecraft [guiScale].
+     *
+     * Defaults to `1f` (matching vanilla Minecraft's GUI scale). Must return a finite positive value. Override to adapt
+     * scale dynamically, for example stepping down one integer scale while keeping density at least `1`: `if
+     * (guiScale > 1) (guiScale - 1f) / guiScale else 1f`.
+     */
+    protected open fun guiUnitsPerDp(framebufferWidth: Int, framebufferHeight: Int, guiScale: Int): Float = 1f
 
     final override fun containerTick() {
         layer.tick()

@@ -15,6 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
@@ -129,11 +130,11 @@ class UiLayerTest {
         private val failItemsClose: Boolean = false,
         closeHost: () -> Unit = {},
         openColorEditor: (() -> Unit)? = null,
+        private val dynamicGuiUnitsPerDp: ((Int, Int, Float) -> Float)? = null,
         content: @Composable () -> Unit = {},
     ) :
         UiLayer<Unit, String>(
             RenderBackend.CPU_RASTER,
-            guiUnitsPerDp = 1f,
             minimumUiDensity = 0f,
             design = design,
             windowFocused = { true },
@@ -153,9 +154,23 @@ class UiLayerTest {
 
         override val thread = UiThread.current()
 
-        override val framebufferWidth = 200
-        override val framebufferHeight = 100
-        override val guiScale = 1f
+        var currentFramebufferWidth = 200
+        var currentFramebufferHeight = 100
+        var currentGuiScale = 1f
+
+        override val framebufferWidth
+            get() = currentFramebufferWidth
+
+        override val framebufferHeight
+            get() = currentFramebufferHeight
+
+        override val guiScale
+            get() = currentGuiScale
+
+        override fun guiUnitsPerDp(framebufferWidth: Int, framebufferHeight: Int, guiScale: Float): Float =
+            dynamicGuiUnitsPerDp?.invoke(framebufferWidth, framebufferHeight, guiScale)
+                ?: super.guiUnitsPerDp(framebufferWidth, framebufferHeight, guiScale)
+
         var clipboardText = ""
         var clipboardReads = 0
 
@@ -612,5 +627,45 @@ class UiLayerTest {
         frames(layer) { layer.exitFinished }
         assertTrue(System.nanoTime() - started >= 75_000_000L, "The screen closed before its longest exit finished")
         layer.close()
+    }
+
+    @Test
+    fun `dynamic guiUnitsPerDp updates Compose density when the viewport or scale changes`() {
+        var observedDensity = 0f
+        val layer =
+            TestLayer(
+                state(),
+                dynamicGuiUnitsPerDp = { _, height, scale ->
+                    if (scale >= 2f && height / scale < 280f) (scale - 1f) / scale else 1f
+                },
+                content = {
+                    val density = LocalDensity.current.density
+                    SideEffect { observedDensity = density }
+                },
+            )
+        layer.currentFramebufferWidth = 2560
+        layer.currentFramebufferHeight = 1440
+        layer.currentGuiScale = 5f
+        layer.open(512, 288)
+        layer.render(Unit, 512, 288)
+        assertEquals(5f, observedDensity)
+
+        // Shorter viewport steps down one integer density while keeping GUI coordinates unchanged.
+        layer.currentFramebufferHeight = 1350
+        layer.render(Unit, 512, 270)
+        assertEquals(4f, observedDensity)
+        assertEquals(4f, layer.currentMetrics(512, 270).viewport.density)
+        assertEquals(5f, layer.currentMetrics(512, 270).guiScale)
+
+        // Larger viewport returns to vanilla density.
+        layer.currentFramebufferHeight = 1440
+        layer.currentGuiScale = 4f
+        layer.render(Unit, 640, 360)
+        assertEquals(4f, observedDensity)
+        assertEquals(1f, layer.currentMetrics(640, 360).guiUnitsPerDp)
+        layer.close()
+
+        val invalid = TestLayer(state(), dynamicGuiUnitsPerDp = { _, _, _ -> 0f })
+        assertFailsWith<IllegalArgumentException> { invalid.currentMetrics(200, 100) }
     }
 }

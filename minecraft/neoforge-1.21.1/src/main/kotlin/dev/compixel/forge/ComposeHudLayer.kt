@@ -27,7 +27,6 @@ import net.minecraft.client.gui.LayeredDraw
  * A subclass draws its [Content] and reads the game with [gameState], whose read blocks run on the game thread.
  */
 abstract class ComposeHudLayer(
-    private val guiUnitsPerDp: Float = 1f,
     val renderBackend: RenderBackend = configuredRenderBackend(),
     private val nativeItemOptions: NativeItemOptions = NativeItemOptions(),
     private val nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
@@ -56,7 +55,6 @@ abstract class ComposeHudLayer(
     internal val contentState = UiStateBinding()
 
     init {
-        require(guiUnitsPerDp.isFinite() && guiUnitsPerDp > 0f)
         require(minimumUiDensity.isFinite() && minimumUiDensity >= 0f)
     }
 
@@ -65,6 +63,15 @@ abstract class ComposeHudLayer(
      * use immutable values prepared during construction: never read game objects such as the player here.
      */
     @Composable protected abstract fun Content()
+
+    /**
+     * GUI units per Compose dp for the current window framebuffer size and Minecraft [guiScale].
+     *
+     * Defaults to `1f` (matching vanilla Minecraft's GUI scale). Must return a finite positive value. Override to adapt
+     * scale dynamically, for example stepping down one integer scale while keeping density at least `1`: `if
+     * (guiScale > 1) (guiScale - 1f) / guiScale else 1f`.
+     */
+    protected open fun guiUnitsPerDp(framebufferWidth: Int, framebufferHeight: Int, guiScale: Int): Float = 1f
 
     final override fun render(guiGraphics: GuiGraphics, deltaTracker: DeltaTracker) {
         // NeoForge draws registered layers even while the vanilla HUD is hidden.
@@ -78,7 +85,7 @@ abstract class ComposeHudLayer(
             layer
                 ?: ComposeLayer(
                         renderBackend,
-                        guiUnitsPerDp,
+                        ::guiUnitsPerDp,
                         nativeItemOptions,
                         minimumUiDensity,
                         design = design,

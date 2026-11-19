@@ -37,6 +37,7 @@ import dev.compixel.ui.UiDesign
 import dev.compixel.ui.ore.theme.OreDesign
 import dev.compixel.ui.resources.LocalResources
 import dev.compixel.ui.theme.Schemes
+import kotlin.math.roundToInt
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.client.gui.screens.Screen
@@ -49,7 +50,9 @@ import net.minecraft.sounds.SoundEvents
  */
 internal class ComposeLayer(
     renderBackend: RenderBackend = configuredRenderBackend(),
-    guiUnitsPerDp: Float = 1f,
+    private val guiUnitsPerDp: (framebufferWidth: Int, framebufferHeight: Int, guiScale: Int) -> Float = { _, _, _ ->
+        1f
+    },
     private val nativeItemOptions: NativeItemOptions = NativeItemOptions(),
     minimumUiDensity: Float = 1f,
     design: UiDesign = OreDesign(),
@@ -67,7 +70,6 @@ internal class ComposeLayer(
 ) :
     UiLayer<GuiGraphics, ScreenRenderDestination>(
         renderBackend,
-        guiUnitsPerDp,
         minimumUiDensity,
         design,
         windowFocused,
@@ -108,6 +110,9 @@ internal class ComposeLayer(
 
     override val guiScale: Float
         get() = Minecraft.getInstance().window.guiScale.toFloat()
+
+    override fun guiUnitsPerDp(framebufferWidth: Int, framebufferHeight: Int, guiScale: Float): Float =
+        guiUnitsPerDp(framebufferWidth, framebufferHeight, guiScale.roundToInt().coerceAtLeast(1))
 
     override var systemClipboard: String
         get() = Minecraft.getInstance().keyboardHandler.clipboard

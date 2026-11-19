@@ -41,7 +41,6 @@ import net.minecraft.network.chat.Component
 abstract class ComposeScreen(
     title: Component,
     private val parent: Screen? = null,
-    guiUnitsPerDp: Float = 1f,
     val renderBackend: RenderBackend = configuredRenderBackend(),
     nativeItemOptions: NativeItemOptions = NativeItemOptions(),
     nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
@@ -53,7 +52,7 @@ abstract class ComposeScreen(
     private val layer =
         ComposeLayer(
             renderBackend,
-            guiUnitsPerDp,
+            ::guiUnitsPerDp,
             nativeItemOptions,
             minimumUiDensity,
             design = design,
@@ -222,4 +221,13 @@ abstract class ComposeScreen(
 
     /** The ordinary host follows OS focus; an automated fixture can supply its own logical focus. */
     protected open fun isUiWindowFocused(): Boolean = Minecraft.getInstance().isWindowActive
+
+    /**
+     * GUI units per Compose dp for the current window framebuffer size and Minecraft [guiScale].
+     *
+     * Defaults to `1f` (matching vanilla Minecraft's GUI scale). Must return a finite positive value. Override to adapt
+     * scale dynamically, for example stepping down one integer scale while keeping density at least `1`: `if
+     * (guiScale > 1) (guiScale - 1f) / guiScale else 1f`.
+     */
+    protected open fun guiUnitsPerDp(framebufferWidth: Int, framebufferHeight: Int, guiScale: Int): Float = 1f
 }

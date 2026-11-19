@@ -19,7 +19,6 @@ import net.minecraft.world.inventory.AbstractContainerMenu
 abstract class ComposeMenuScreen<M : AbstractContainerMenu>(
     protected val container: M,
     title: Component,
-    guiUnitsPerDp: Float = 1f,
     minimumUiDensity: Float = 1f,
     nativeItemOptions: NativeItemOptions = NativeItemOptions(),
     nativeDrawingOptions: NativeDrawingOptions = NativeDrawingOptions(),
@@ -27,7 +26,6 @@ abstract class ComposeMenuScreen<M : AbstractContainerMenu>(
 ) :
     ComposeScreen(
         title,
-        guiUnitsPerDp = guiUnitsPerDp,
         minimumUiDensity = minimumUiDensity,
         nativeItemOptions = nativeItemOptions,
         nativeDrawingOptions = nativeDrawingOptions,

@@ -66,7 +66,6 @@ class UiLayerSurface<D>(
  */
 abstract class UiLayer<G, D>(
     val renderBackend: RenderBackend,
-    private val guiUnitsPerDp: Float,
     private val minimumUiDensity: Float,
     private val design: UiDesign,
     private val windowFocused: () -> Boolean,
@@ -144,7 +143,6 @@ abstract class UiLayer<G, D>(
         else null
 
     init {
-        require(guiUnitsPerDp.isFinite() && guiUnitsPerDp > 0f)
         require(minimumUiDensity.isFinite() && minimumUiDensity >= 0f)
     }
 
@@ -159,6 +157,9 @@ abstract class UiLayer<G, D>(
 
     /** Framebuffer pixels per GUI unit. */
     protected abstract val guiScale: Float
+
+    /** GUI units per Compose dp for the current framebuffer size and [guiScale]; defaults to `1f`. */
+    protected open fun guiUnitsPerDp(framebufferWidth: Int, framebufferHeight: Int, guiScale: Float): Float = 1f
 
     /** The system clipboard's text. */
     protected abstract var systemClipboard: String
@@ -569,16 +570,20 @@ abstract class UiLayer<G, D>(
         }
     }
 
-    fun currentMetrics(width: Int, height: Int): ScreenMetrics =
-        ScreenMetrics(
-            framebufferWidth.coerceAtLeast(1),
-            framebufferHeight.coerceAtLeast(1),
+    fun currentMetrics(width: Int, height: Int): ScreenMetrics {
+        val fbWidth = framebufferWidth.coerceAtLeast(1)
+        val fbHeight = framebufferHeight.coerceAtLeast(1)
+        val scale = guiScale
+        return ScreenMetrics(
+            fbWidth,
+            fbHeight,
             width.coerceAtLeast(1),
             height.coerceAtLeast(1),
-            guiScale,
-            guiUnitsPerDp,
+            scale,
+            guiUnitsPerDp(fbWidth, fbHeight, scale),
             minimumUiDensity,
         )
+    }
 
     // Closing wins over a color editor requested in the same event.
     private fun runRequests() {
