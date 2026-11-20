@@ -102,7 +102,7 @@ class StorageScreen(menu: StorageMenu, inventory: Inventory, title: Component) :
 | `ComposeInventoryScreen` | 带槽位的菜单 |
 | `SlotBehaviorScreen` | 原生绘制、但使用 CompixelUI 槽位规则的容器界面 |
 
-三个 Compose 类都有 `gameThread`、`Content` 和 `requestClose()`，内容使用同一个 `dev.compixel.host.gameState`；两个菜单界面还有 `menuClosed()`。
+三个 Compose 类都有 `gameThread`、`Content` 和 `requestClose()`，内容使用同一个 `dev.compixel.host.gameState`；两个菜单界面还有 `menuClosed()`。如果界面需要独立于 Minecraft 全局界面缩放的比例，可以重写 `guiUnitsPerDp(framebufferWidth, framebufferHeight, guiScale)`（`ComposeHudLayer` 也支持）。
 
 ## 修改点击行为
 

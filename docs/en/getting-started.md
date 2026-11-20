@@ -138,6 +138,7 @@ Players install CompixelUI (from [Releases](https://github.com/Frostbite-time/Co
 
 - [Ore UI](ore-ui.md): every control, with examples
 - [Items and tooltips](items.md): real item icons in your UI
+- [Images and fonts](resources.md): textures and fonts from resource packs
 - [Container screens](inventory.md): menus with slots
 - [Screen transitions](transitions.md): animate screens in and out
 - [HUD layers](hud.md): Compose over the game view

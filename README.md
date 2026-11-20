@@ -24,7 +24,7 @@ CompixelUI brings Jetpack Compose to Minecraft Java Edition. Write screens, inve
 
 - **Ore UI**: buttons, text and number fields, sliders, tabs, menus, nested tooltips, windows, trees and more, in a crisp Minecraft style.
 - **Real items**: any `ItemStack` with its animation, enchantment glint and native tooltip, inside ordinary composables.
-- **Resource images**: use Minecraft resource paths as Compose painters, with resource-pack overrides and automatic reloads.
+- **Resource images and fonts**: use Minecraft resource paths as Compose painters and font families, with resource-pack overrides and automatic reloads.
 - **Container screens**: arrange real menu slots with Compose. Clicking, dragging, shift-clicking and other mods' hooks keep working.
 - **HUD layers**: Compose content over the game view.
 - **Menu sync**: server menu state on the client, and typed requests back to the server.
@@ -69,7 +69,7 @@ CompixelUI is a library mod. Install it when a mod you play asks for it: downloa
 ## Documentation
 
 - [Getting started](docs/en/getting-started.md): add the dependency and open a screen
-- [Ore UI](docs/en/ore-ui.md) · [Color schemes](docs/en/themes.md) · [Items and tooltips](docs/en/items.md) · [Container screens](docs/en/inventory.md) · [Screen transitions](docs/en/transitions.md) · [HUD layers](docs/en/hud.md) · [Menu synchronization](docs/en/menu-sync.md)
+- [Ore UI](docs/en/ore-ui.md) · [Color schemes](docs/en/themes.md) · [Items and tooltips](docs/en/items.md) · [Images and fonts](docs/en/resources.md) · [Container screens](docs/en/inventory.md) · [Screen transitions](docs/en/transitions.md) · [HUD layers](docs/en/hud.md) · [Menu synchronization](docs/en/menu-sync.md)
 - [Compatibility](docs/en/compatibility.md) · [Contributing](docs/en/contributing.md) · [Architecture](docs/en/architecture.md)
 
 ## License

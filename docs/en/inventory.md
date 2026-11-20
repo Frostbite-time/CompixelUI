@@ -102,7 +102,7 @@ Here `locked` and `requestLocked` stand for your menu's own state, for example k
 | `ComposeInventoryScreen` | Menus with slots |
 | `SlotBehaviorScreen` | Container screens you draw natively, with CompixelUI's slot rules |
 
-All three Compose classes have `gameThread`, `Content` and `requestClose()`, and their content uses the same `dev.compixel.host.gameState`; the two menu screens also have `menuClosed()`.
+All three Compose classes have `gameThread`, `Content` and `requestClose()`, and their content uses the same `dev.compixel.host.gameState`; the two menu screens also have `menuClosed()`. Override `guiUnitsPerDp(framebufferWidth, framebufferHeight, guiScale)` (also available on `ComposeHudLayer`) when a screen needs a custom scale independent of Minecraft's global GUI scale.
 
 ## Change what a click does
 

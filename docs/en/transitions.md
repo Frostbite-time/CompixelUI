@@ -81,7 +81,7 @@ The value is 1 while the screen shows, so a popup that opens then appears at onc
 
 ## Covered screens
 
-A recipe viewer or another screen can cover a container screen while its menu stays open. The covered screen keeps its content: `remember` state, scroll positions and typed text stay, and it doesn't enter again when it shows again. It takes a new snapshot when it returns.
+A recipe viewer or another screen can cover a container screen while its menu stays open. The covered screen keeps its content: `remember` state, scroll positions and typed text stay, and it doesn't enter again when it shows again. It refreshes its game state when it returns.
 
 If the menu closes while the screen is covered, or the covering screen closes without returning to it, the screen releases its session without an exit, and `menuClosed()` runs.
 

@@ -138,6 +138,7 @@ class HandScreen : ComposeScreen(Component.literal("手持物品")) {
 
 - [Ore UI](ore-ui.md)：所有控件及示例
 - [物品与提示](items.md)：在界面中显示真实物品
+- [图片与字体](resources.md)：来自资源包的图片与字体
 - [容器界面](inventory.md)：带槽位的菜单
 - [进出场动画](transitions.md)：为界面添加入场与退场动画
 - [HUD 层](hud.md)：游戏画面上的 Compose 内容

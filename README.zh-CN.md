@@ -26,7 +26,7 @@ CompixelUI 把 Jetpack Compose 带进 Minecraft Java 版。用声明式 Kotlin �
 - **真实物品**：任意 `ItemStack` 连同动画、附魔光效和原版提示，直接放进普通可组合项。
 - **容器界面**：用 Compose 排布真实菜单槽位，点击、拖动、Shift 点击以及其他模组的钩子照常工作。
 - **HUD 层**：在游戏画面上绘制 Compose 内容。
-- **资源图片**：将 Minecraft 资源路径直接用作 Compose Painter，支持资源包替换和自动重载。
+- **资源图片与字体**：将 Minecraft 资源路径直接用作 Compose Painter 与字体族，支持资源包替换和自动重载。
 - **菜单同步**：把服务端菜单状态同步到客户端，并把类型化请求发回服务端。
 - **OpenGL 与 Vulkan**：跟随游戏的渲染后端，Minecraft 26.2 和 26.3 支持 Vulkan。
 
@@ -69,7 +69,7 @@ CompixelUI 是前置库，当你玩的模组需要它时再安装。在 [Release
 ## 文档
 
 - [快速开始](docs/zh-CN/getting-started.md)：添加依赖并打开界面
-- [Ore UI](docs/zh-CN/ore-ui.md) · [配色](docs/zh-CN/themes.md) · [物品与提示](docs/zh-CN/items.md) · [容器界面](docs/zh-CN/inventory.md) · [进出场动画](docs/zh-CN/transitions.md) · [HUD 层](docs/zh-CN/hud.md) · [菜单同步](docs/zh-CN/menu-sync.md)
+- [Ore UI](docs/zh-CN/ore-ui.md) · [配色](docs/zh-CN/themes.md) · [物品与提示](docs/zh-CN/items.md) · [图片与字体](docs/zh-CN/resources.md) · [容器界面](docs/zh-CN/inventory.md) · [进出场动画](docs/zh-CN/transitions.md) · [HUD 层](docs/zh-CN/hud.md) · [菜单同步](docs/zh-CN/menu-sync.md)
 - [兼容性](docs/zh-CN/compatibility.md) · [参与开发](docs/zh-CN/contributing.md) · [架构](docs/zh-CN/architecture.md)
 
 ## 许可
